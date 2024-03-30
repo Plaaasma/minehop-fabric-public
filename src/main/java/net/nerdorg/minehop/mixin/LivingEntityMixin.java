@@ -22,14 +22,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-//Reference Functions from Source:
-//FullWalkMove( )
-//PlayerMove()
-
-//TODO: Custom Jump sounds
-//TODO: Water Controls
-//TODO: Avoid rewrites of gravity & ladder code.
-
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin extends Entity {
     @Shadow private float movementSpeed;
@@ -44,9 +36,6 @@ public abstract class LivingEntityMixin extends Entity {
     @Shadow public abstract StatusEffectInstance getStatusEffect(StatusEffect effect);
     @Shadow public abstract boolean isFallFlying();
     @Shadow public abstract boolean isClimbing();
-//    @Shadow public abstract boolean canMoveVoluntarily();
-//    @Shadow public abstract Vec3d method_26318(Vec3d vec3d, float f);
-//    @Shadow public abstract void method_29242(LivingEntity livingEntity, boolean bl);
 
     @Shadow public abstract float getYaw(float tickDelta);
 
@@ -139,7 +128,7 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d accelVec = this.getVelocity();
 
             double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
-            double accelVel = this.isOnGround() ? config.sv_accelerate : config.sv_airaccelerate;
+            double accelVel = (this.isOnGround() ? config.sv_accelerate : config.sv_airaccelerate);
             float maxVel = (float) (this.isOnGround() ? this.movementSpeed * config.speed_mul : config.sv_maxairspeed);
 
             if (projVel + accelVel > maxVel) {
@@ -147,15 +136,9 @@ public abstract class LivingEntityMixin extends Entity {
             }
             Vec3d accelDir = moveDir.multiply(Math.max(accelVel, 0.0F));
 
-            this.setVelocity(accelVec.add(accelDir));
+            Vec3d newVelocity = accelVec.add(accelDir);
 
-            //This method isn't friendly.
-            //this.method_26318(moveDir,(float) accelVel);
-
-            //Too much effort to implement a speedcap.
-            //if (accelVec.lengthSquared() > (config.sv_maxvelocity * config.sv_maxvelocity)) {
-            //    this.setVelocity(this.getVelocity().normalize().multiply(config.sv_maxvelocity));
-            //}
+            this.setVelocity(newVelocity);
         }
 
         this.setVelocity(this.applyClimbingSpeed(this.getVelocity()));
@@ -211,6 +194,7 @@ public abstract class LivingEntityMixin extends Entity {
             this.setVelocity(vecFin.x, yVel, vecFin.z);
             this.velocityDirty = true;
         }
+        this.setOnGround(false);
 
         ci.cancel();
     }

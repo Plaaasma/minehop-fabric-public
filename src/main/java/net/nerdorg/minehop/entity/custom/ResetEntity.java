@@ -31,6 +31,7 @@ import java.util.List;
 public class ResetEntity extends Zone {
     private BlockPos corner1;
     private BlockPos corner2;
+    private int check_index;
     private String paired_map = "";
 
     public ResetEntity(EntityType<? extends MobEntity> entityType, World world) {
@@ -50,6 +51,7 @@ public class ResetEntity extends Zone {
             nbt.putInt("Corner2Y", corner2.getY());
             nbt.putInt("Corner2Z", corner2.getZ());
         }
+        nbt.putInt("check_index", check_index);
         nbt.putString("map", paired_map);
     }
 
@@ -66,7 +68,12 @@ public class ResetEntity extends Zone {
         int z2 = nbt.getInt("Corner2Z");
         corner2 = new BlockPos(x2, y2, z2);
 
+        check_index = nbt.getInt("check_index");
         paired_map = nbt.getString("map");
+    }
+
+    public void setCheckIndex(int check_index) {
+        this.check_index = check_index;
     }
 
     public void setPairedMap(String paired_map) {
@@ -79,6 +86,10 @@ public class ResetEntity extends Zone {
 
     public void setCorner2(BlockPos corner2) {
         this.corner2 = corner2;
+    }
+
+    public int getCheckIndex() {
+        return check_index;
     }
 
     public String getPairedMap() {

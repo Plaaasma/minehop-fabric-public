@@ -3,6 +3,7 @@ package net.nerdorg.minehop.commands;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
@@ -57,6 +58,12 @@ public class ZoneManagementCommands {
                             handleAddReset(context);
                             return Command.SINGLE_SUCCESS;
                         })
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("check_index", IntegerArgumentType.integer())
+                            .executes(context -> {
+                                handleAddReset(context);
+                                return Command.SINGLE_SUCCESS;
+                            })
+                        )
                     )
                 )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("start")
@@ -109,6 +116,7 @@ public class ZoneManagementCommands {
     private static void handleAddReset(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         String name = StringArgumentType.getString(context, "map_name");
+        Integer check_index = IntegerArgumentType.getInteger(context, "check_index");
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
             ServerWorld serverWorld = context.getSource().getWorld();
