@@ -1,0 +1,54 @@
+package net.nerdorg.minehop;
+
+import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
+import net.minecraft.client.render.RenderLayer;
+import net.nerdorg.minehop.block.ModBlocks;
+import net.nerdorg.minehop.client.SqueedometerHud;
+import net.nerdorg.minehop.config.ConfigWrapper;
+import net.nerdorg.minehop.entity.ModEntities;
+import net.nerdorg.minehop.entity.client.*;
+import net.nerdorg.minehop.networking.ClientPacketHandler;
+
+public class MinehopClient implements ClientModInitializer {
+	public static SqueedometerHud squeedometerHud;
+
+	public static int jump_count = 0;
+	public static boolean jumping = false;
+	public static double last_jump_speed = 0;
+	public static double old_jump_speed = 0;
+	public static long last_jump_time = 0;
+
+	@Override
+	public void onInitializeClient() {
+		ClientPacketHandler.registerReceivers();
+		ConfigWrapper.loadConfig();
+		squeedometerHud = new SqueedometerHud();
+
+		EntityRendererRegistry.register(ModEntities.RESET_ENTITY, ResetRenderer::new);
+		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.RESET_ENTITY, ResetModel::getTexturedModelData);
+		EntityRendererRegistry.register(ModEntities.START_ENTITY, StartRenderer::new);
+		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.START_ENTITY, ResetModel::getTexturedModelData);
+		EntityRendererRegistry.register(ModEntities.END_ENTITY, EndRenderer::new);
+		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.END_ENTITY, ResetModel::getTexturedModelData);
+
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			if (!client.isInSingleplayer()) {
+				Minehop.override_config = true;
+			}
+			if (client.player != null) {
+				if (client.options.jumpKey.isPressed()) {
+					jumping = true;
+				}
+				else {
+					jumping = false;
+				}
+			}
+		});
+
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.BOOSTER_BLOCK, RenderLayer.getTranslucent());
+	}
+}

@@ -1,0 +1,52 @@
+{
+	"schemaVersion": 1,
+	"id": "minehop",
+	"version": "${version}",
+	"name": "Minehop",
+	"description": "An all in one bhopping mod for minecraft!",
+	"authors": [
+		"Plaaasma",
+		"lolrow"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/minehop/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"net.nerdorg.minehop.Minehop"
+		],
+		"client": [
+			"net.nerdorg.minehop.MinehopClient"
+		],
+		"modmenu": [
+			"net.nerdorg.minehop.config.ModMenuIntegration"
+		],
+		"fabric-datagen": [
+			"net.nerdorg.minehop.MinehopDataGenerator"
+		]
+	},
+	"mixins": [
+		"minehop.mixins.json",
+		{
+			"config": "minehop.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.15.6",
+		"minecraft": "~1.20.4",
+		"java": ">=17",
+		"fabric-api": "*",
+		"cloth-config2": ">=13.0.121"
+	},
+	"recommends": {
+		"modmenu": ">=9.0.0"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}

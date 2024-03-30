@@ -1,0 +1,13 @@
+{
+  "block.minehop.boost_pad": "Boost Pad",
+
+  "item.minehop.bounds_stick": "Bounds Stick",
+
+  "text.autoconfig.minehop.title": "Minehop Config",
+  "text.autoconfig.minehop.option.sv_friction": "Ground Friction (sv_friction)",
+  "text.autoconfig.minehop.option.sv_accelerate": "Ground Acceleration (sv_accelerate)",
+  "text.autoconfig.minehop.option.sv_airaccelerate": "Air Acceleration (sv_airaccelerate)",
+  "text.autoconfig.minehop.option.sv_maxairspeed": "Max Gain (sv_maxairspeed)",
+  "text.autoconfig.minehop.option.speed_mul": "Speed Multiplier",
+  "text.autoconfig.minehop.option.sv_gravity": "Gravity"
+}
