@@ -57,6 +57,7 @@ public class SpawnCommands {
                     (float) pairedMap.yrot,
                     (float) pairedMap.xrot
             );
+            Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
             Logger.logSuccess(serverPlayerEntity, "Teleporting to spawn.");
         }
         else {

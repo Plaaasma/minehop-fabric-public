@@ -132,27 +132,27 @@ public class ResetEntity extends Zone {
                     Box colliderBox = new Box(new Vec3d(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ()), new Vec3d(this.corner2.getX(), this.corner2.getY(), this.corner2.getZ()));
                     List<ServerPlayerEntity> players = serverWorld.getPlayers();
                     for (ServerPlayerEntity player : players) {
-                        if (colliderBox.contains(player.getPos())) {
-                            Vec3d targetLocation = new Vec3d(pairedMap.x, pairedMap.y, pairedMap.z);
-                            Vec2f targetRot = new Vec2f((float) pairedMap.xrot, (float) pairedMap.yrot);
-                            if (pairedMap.checkpointPositions != null) {
-                                if (this.check_index > 0 && pairedMap.checkpointPositions.size() > this.check_index - 1) {
-                                    targetLocation = pairedMap.checkpointPositions.get(this.check_index - 1).get(0);
-                                    Vec3d rotVec3d = pairedMap.checkpointPositions.get(this.check_index - 1).get(1);
-                                    targetRot = new Vec2f((float) rotVec3d.getX(), (float) rotVec3d.getY());
-                                }
-                                else {
+                        if (!player.isCreative() && !player.isSpectator()) {
+                            if (colliderBox.contains(player.getPos())) {
+                                Vec3d targetLocation = new Vec3d(pairedMap.x, pairedMap.y, pairedMap.z);
+                                Vec2f targetRot = new Vec2f((float) pairedMap.xrot, (float) pairedMap.yrot);
+                                if (pairedMap.checkpointPositions != null) {
+                                    if (this.check_index > 0 && pairedMap.checkpointPositions.size() > this.check_index - 1) {
+                                        targetLocation = pairedMap.checkpointPositions.get(this.check_index - 1).get(0);
+                                        Vec3d rotVec3d = pairedMap.checkpointPositions.get(this.check_index - 1).get(1);
+                                        targetRot = new Vec2f((float) rotVec3d.getX(), (float) rotVec3d.getY());
+                                    } else {
+                                        if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
+                                            Minehop.timerManager.remove(player.getNameForScoreboard());
+                                        }
+                                    }
+                                } else {
                                     if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
                                         Minehop.timerManager.remove(player.getNameForScoreboard());
                                     }
                                 }
+                                player.teleport(serverWorld, targetLocation.getX(), targetLocation.getY(), targetLocation.getZ(), targetRot.y, targetRot.x);
                             }
-                            else {
-                                if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
-                                    Minehop.timerManager.remove(player.getNameForScoreboard());
-                                }
-                            }
-                            player.teleport(serverWorld, targetLocation.getX(), targetLocation.getY(), targetLocation.getZ(), targetRot.y, targetRot.x);
                         }
                     }
                 }
