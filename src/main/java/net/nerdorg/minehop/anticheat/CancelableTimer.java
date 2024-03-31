@@ -24,6 +24,7 @@ public class CancelableTimer {
             public void run() {
                 // Code to be executed periodically
                 player.networkHandler.disconnect(Text.of("Failed Anti-Cheat Check"));
+                timer.cancel();
             }
         };
 

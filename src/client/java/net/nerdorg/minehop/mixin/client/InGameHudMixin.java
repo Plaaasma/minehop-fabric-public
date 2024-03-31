@@ -1,5 +1,6 @@
 package net.nerdorg.minehop.mixin.client;
 
+import net.minecraft.client.render.entity.PlayerEntityRenderer;
 import net.nerdorg.minehop.MinehopClient;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

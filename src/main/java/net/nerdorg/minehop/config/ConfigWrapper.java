@@ -15,7 +15,7 @@ public class ConfigWrapper {
     public static List<String> adminList = List.of(
             "lolrow",
             "Plaaasma",
-            "Moriz"
+            "_Moriz_"
     );
 
     public static void register() {
@@ -26,7 +26,6 @@ public class ConfigWrapper {
             if (server.getTicks() % 100 == 0) {
                 for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
                     if (!(adminList.contains(Objects.requireNonNull(playerEntity.getDisplayName()).getString()))) {
-                        System.out.println(playerEntity.getDisplayName().getString());
                         PacketHandler.sendAntiCheatCheck(playerEntity);
                     }
                 }
