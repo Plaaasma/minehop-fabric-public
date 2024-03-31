@@ -137,7 +137,7 @@ public class EndEntity extends Zone {
                     this.teleport(avgX, avgY, avgZ);
                 }
                 for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
-                    PacketHandler.updateZone(worldPlayer, this.getId(), this.corner1, this.corner2, this.paired_map);
+                    PacketHandler.updateZone(worldPlayer, this.getId(), this.corner1, this.corner2, this.paired_map, 0);
                 }
             }
             if (this.corner1 != null && this.corner2 != null) {

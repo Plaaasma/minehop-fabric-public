@@ -41,6 +41,7 @@ public class ClientPacketHandler {
             BlockPos pos1 = buf.readBlockPos();
             BlockPos pos2 = buf.readBlockPos();
             String name = buf.readString();
+            int check_index = buf.readInt();
 
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             client.execute(() -> {
@@ -50,6 +51,7 @@ public class ClientPacketHandler {
                     resetEntity.setCorner1(pos1);
                     resetEntity.setCorner2(pos2);
                     resetEntity.setPairedMap(name);
+                    resetEntity.setCheckIndex(check_index);
                 }
                 else if (entity instanceof StartEntity startEntity) {
                     startEntity.setCorner1(pos1);

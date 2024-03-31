@@ -23,13 +23,14 @@ public class PacketHandler {
 
         ServerPlayNetworking.send(player, ModMessages.CONFIG_SYNC_ID, buf);
     }
-    public static void updateZone(ServerPlayerEntity player, int entityId, BlockPos pos1, BlockPos pos2, String name) {
+    public static void updateZone(ServerPlayerEntity player, int entityId, BlockPos pos1, BlockPos pos2, String name, int check_index) {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
 
         buf.writeInt(entityId);
         buf.writeBlockPos(pos1);
         buf.writeBlockPos(pos2);
         buf.writeString(name);
+        buf.writeInt(check_index);
 
         ServerPlayNetworking.send(player, ModMessages.ZONE_SYNC_ID, buf);
     }

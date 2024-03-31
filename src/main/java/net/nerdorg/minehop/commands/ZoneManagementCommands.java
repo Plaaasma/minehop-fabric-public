@@ -43,46 +43,46 @@ public class ZoneManagementCommands {
 
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("zone")
-            .requires(source -> source.hasPermissionLevel(4))
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("kill")
-                .executes(context -> {
-                    handleKill(context);
-                    return Command.SINGLE_SUCCESS;
-                })
-            )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reset")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                        .executes(context -> {
-                            handleAddReset(context);
-                            return Command.SINGLE_SUCCESS;
-                        })
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("check_index", IntegerArgumentType.integer())
-                            .executes(context -> {
-                                handleAddReset(context);
-                                return Command.SINGLE_SUCCESS;
-                            })
+                LiteralArgumentBuilder.<ServerCommandSource>literal("zone")
+                        .requires(source -> source.hasPermissionLevel(4))
+                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("kill")
+                                .executes(context -> {
+                                    handleKill(context);
+                                    return Command.SINGLE_SUCCESS;
+                                })
                         )
-                    )
-                )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("start")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                        .executes(context -> {
-                            handleAddStart(context);
-                            return Command.SINGLE_SUCCESS;
-                        })
-                    )
-                )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("end")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                        .executes(context -> {
-                            handleAddEnd(context);
-                            return Command.SINGLE_SUCCESS;
-                        })
-                    )
-                )
-            )
+                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
+                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reset")
+                                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                                .then(RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("check_index", IntegerArgumentType.integer())
+                                                        .executes(context -> {
+                                                            handleAddResetCustom(context);
+                                                            return Command.SINGLE_SUCCESS;
+                                                        })
+                                                )
+                                                .executes(context -> {
+                                                    handleAddReset(context);
+                                                    return Command.SINGLE_SUCCESS;
+                                                })
+                                        )
+                                )
+                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("start")
+                                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                                .executes(context -> {
+                                                    handleAddStart(context);
+                                                    return Command.SINGLE_SUCCESS;
+                                                })
+                                        )
+                                )
+                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("end")
+                                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                                .executes(context -> {
+                                                    handleAddEnd(context);
+                                                    return Command.SINGLE_SUCCESS;
+                                                })
+                                        )
+                                )
+                        )
         ));
     }
 
@@ -113,10 +113,40 @@ public class ZoneManagementCommands {
         }
     }
 
+    private static void handleAddResetCustom(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+        String name = StringArgumentType.getString(context, "map_name");
+        int check_index = IntegerArgumentType.getInteger(context, "check_index");
+        DataManager.MapData pairedMap = DataManager.getMap(name);
+        if (pairedMap != null) {
+            ServerWorld serverWorld = context.getSource().getWorld();
+            ItemStack heldItemStack = serverPlayerEntity.getMainHandStack();
+            if (heldItemStack.getItem() instanceof BoundsStickItem boundsStickItem) {
+                if (boundsStickItem.pos1 != null && boundsStickItem.pos2 != null) {
+                    ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(serverWorld, boundsStickItem.pos1, SpawnReason.NATURAL);
+                    resetEntity.setCorner1(boundsStickItem.pos1);
+                    resetEntity.setCorner2(boundsStickItem.pos2);
+                    resetEntity.setPairedMap(name);
+                    resetEntity.setCheckIndex(check_index);
+                    for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
+                        PacketHandler.updateZone(worldPlayer, resetEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name, check_index);
+                    }
+                    Logger.logSuccess(serverPlayerEntity, "Creating reset zone from " + boundsStickItem.pos1.toShortString() + " to " + boundsStickItem.pos2.toShortString());
+                } else {
+                    Logger.logFailure(serverPlayerEntity, "You haven't set both corner positions.");
+                }
+            } else {
+                Logger.logFailure(serverPlayerEntity, "Not holding bounds stick, fabric is fucking gay so you have to be holding one.");
+            }
+        }
+        else {
+            Logger.logFailure(serverPlayerEntity, "There is no map called " + name + ".");
+        }
+    }
+
     private static void handleAddReset(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         String name = StringArgumentType.getString(context, "map_name");
-        Integer check_index = IntegerArgumentType.getInteger(context, "check_index");
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
             ServerWorld serverWorld = context.getSource().getWorld();
@@ -128,7 +158,7 @@ public class ZoneManagementCommands {
                     resetEntity.setCorner2(boundsStickItem.pos2);
                     resetEntity.setPairedMap(name);
                     for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
-                        PacketHandler.updateZone(worldPlayer, resetEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name);
+                        PacketHandler.updateZone(worldPlayer, resetEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name, 0);
                     }
                     Logger.logSuccess(serverPlayerEntity, "Creating reset zone from " + boundsStickItem.pos1.toShortString() + " to " + boundsStickItem.pos2.toShortString());
                 } else {
@@ -157,7 +187,7 @@ public class ZoneManagementCommands {
                     startEntity.setCorner2(boundsStickItem.pos2);
                     startEntity.setPairedMap(name);
                     for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
-                        PacketHandler.updateZone(worldPlayer, startEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name);
+                        PacketHandler.updateZone(worldPlayer, startEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name, 0);
                     }
                     Logger.logSuccess(serverPlayerEntity, "Creating start zone from " + boundsStickItem.pos1.toShortString() + " to " + boundsStickItem.pos2.toShortString());
                 } else {
@@ -186,7 +216,7 @@ public class ZoneManagementCommands {
                     endEntity.setCorner2(boundsStickItem.pos2);
                     endEntity.setPairedMap(name);
                     for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
-                        PacketHandler.updateZone(worldPlayer, endEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name);
+                        PacketHandler.updateZone(worldPlayer, endEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name, 0);
                     }
                     Logger.logSuccess(serverPlayerEntity, "Creating end zone from " + boundsStickItem.pos1.toShortString() + " to " + boundsStickItem.pos2.toShortString());
                 } else {
