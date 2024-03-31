@@ -4,11 +4,10 @@ import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
+import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.config.MinehopConfig;
-import net.nerdorg.minehop.entity.custom.ResetEntity;
-
-import javax.swing.text.html.parser.Entity;
 
 public class PacketHandler {
     public static void sendConfigToClient(ServerPlayerEntity player, MinehopConfig config) {
@@ -37,9 +36,23 @@ public class PacketHandler {
 
     public static void sendAntiCheatCheck(ServerPlayerEntity player) {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
         ServerPlayNetworking.send(player, ModMessages.ANTI_CHEAT_CHECK, buf);
+
+        AutoDisconnect.startPlayerTimer(player);
     }
 
+    public static void registerReceivers() {
+        ServerPlayNetworking.registerGlobalReceiver(ModMessages.ANTI_CHEAT_CHECK, (server, player, handler, buf, responseSender) -> {
+            boolean cheatSoftwareOpen = buf.readBoolean();
+            String cheatSoftwareName = buf.readString();
 
+            AutoDisconnect.stopPlayerTimer(player);
+
+            if (cheatSoftwareOpen) {
+                player.networkHandler.disconnect(Text.of("Please close " + cheatSoftwareName + "\n This software is not permitted"));
+            }
+        });
+    }
 
 }

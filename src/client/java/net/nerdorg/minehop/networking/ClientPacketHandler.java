@@ -1,9 +1,15 @@
 package net.nerdorg.minehop.networking;
 
+import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
+import net.minecraft.network.PacketByteBuf;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.nerdorg.minehop.Minehop;
+import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.anticheat.ProcessChecker;
 import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
@@ -71,10 +77,20 @@ public class ClientPacketHandler {
             client.execute(() -> {
                 // Assign the read values to your variables or fields here
                 new Thread(() -> {
-                        Boolean antiCheatCheck = ProcessChecker.isProcessRunning("rawaccel.exe");
-                System.out.println(antiCheatCheck + "=> rawaccel check");
+                        boolean antiCheatCheck = ProcessChecker.isProcessRunning("rawaccel.exe");
+                        System.out.println(antiCheatCheck + "=> rawaccel check");
+                        sendAntiCheatCheck(antiCheatCheck, "rawaccel");
                 }).start();
             });
         });
+    }
+
+    public static void sendAntiCheatCheck(boolean softwareDetected, String softwareName) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeBoolean(softwareDetected);
+        buf.writeString(softwareName);
+
+        ClientPlayNetworking.send(ModMessages.ANTI_CHEAT_CHECK, buf);
     }
 }

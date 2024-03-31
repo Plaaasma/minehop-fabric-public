@@ -18,6 +18,7 @@ import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.networking.JoinManager;
+import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.timer.TimerManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,10 +52,11 @@ public class Minehop implements ModInitializer {
 		AutoConfig.register(MinehopConfig.class, JanksonConfigSerializer::new);
 		ConfigWrapper.loadConfig();
 
+		PacketHandler.registerReceivers();
+
 		ConfigWrapper.register();
 		DataManager.register();
 		JoinManager.register();
-
 		TimerManager.register();
 
 		SpawnCommands.register();
