@@ -24,10 +24,7 @@ import net.nerdorg.minehop.entity.custom.Zone;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.StringFormatting;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class MapUtilCommands {
@@ -120,11 +117,11 @@ public class MapUtilCommands {
 
         if (mapToAddTo != null) {
             if (mapToAddTo.checkpointPositions == null) {
-                mapToAddTo.checkpointPositions = new HashMap<>();
+                mapToAddTo.checkpointPositions = new ArrayList<>();
             }
             Logger.logSuccess(serverPlayerEntity, "Added checkpoint " + (mapToAddTo.checkpointPositions.size() + 1) + " to " + name);
             Minehop.mapList.remove(mapToAddTo);
-            mapToAddTo.checkpointPositions.put(serverPlayerEntity.getPos(), serverPlayerEntity.getRotationClient());
+            mapToAddTo.checkpointPositions.add(new ArrayList<>(Arrays.asList(serverPlayerEntity.getPos(), new Vec3d(serverPlayerEntity.getRotationClient().x, serverPlayerEntity.getRotationClient().y, 0))));
             Minehop.mapList.add(mapToAddTo);
             DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
         }

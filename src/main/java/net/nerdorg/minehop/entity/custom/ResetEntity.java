@@ -139,8 +139,9 @@ public class ResetEntity extends Zone {
                             Vec3d targetLocation = new Vec3d(pairedMap.x, pairedMap.y, pairedMap.z);
                             Vec2f targetRot = new Vec2f((float) pairedMap.xrot, (float) pairedMap.yrot);
                             if (this.check_index > 0 && pairedMap.checkpointPositions.size() > this.check_index - 1) {
-                                targetLocation = pairedMap.checkpointPositions.keySet().stream().toList().get(this.check_index - 1);
-                                targetRot = pairedMap.checkpointPositions.get(targetLocation);
+                                targetLocation = pairedMap.checkpointPositions.get(this.check_index - 1).get(0);
+                                Vec3d rotVec3d = pairedMap.checkpointPositions.get(this.check_index - 1).get(1);
+                                targetRot = new Vec2f((float) rotVec3d.getX(), (float) rotVec3d.getY());
                             }
                             player.teleport(serverWorld, targetLocation.getX(), targetLocation.getY(), targetLocation.getZ(), targetRot.y, targetRot.x);
                         }

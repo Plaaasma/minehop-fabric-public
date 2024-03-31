@@ -34,7 +34,7 @@ public class DataManager {
         public double z;
         public double xrot;
         public double yrot;
-        public HashMap<Vec3d, Vec2f> checkpointPositions;
+        public List<List<Vec3d>> checkpointPositions;
 
         public MapData() {
         }
