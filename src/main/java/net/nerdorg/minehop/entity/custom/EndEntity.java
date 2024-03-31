@@ -99,7 +99,7 @@ public class EndEntity extends Zone {
         DataManager.RecordData mapRecord = DataManager.getRecord(this.paired_map);
         if (mapRecord != null) {
             if (rawTime < mapRecord.time) {
-                Logger.logGlobal(this.getServer(), player.getNameForScoreboard() + " just beat " + mapRecord.name + "'s time (" + String.format("%.2f", mapRecord.time) + ") on " + mapRecord.map_name + " and now hold the world record with a time of " + formattedNumber + "!");
+                Logger.logGlobal(this.getServer(), player.getNameForScoreboard() + " just beat " + mapRecord.name + "'s time (" + String.format("%.5f", mapRecord.time) + ") on " + mapRecord.map_name + " and now hold the world record with a time of " + formattedNumber + "!");
                 Minehop.recordList.remove(mapRecord);
                 Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), this.paired_map, rawTime));
                 DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
