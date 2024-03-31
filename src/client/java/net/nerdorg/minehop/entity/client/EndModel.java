@@ -7,9 +7,6 @@ import net.minecraft.client.util.math.MatrixStack;
 import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.StartEntity;
 
-// Made with Blockbench 4.9.4
-// Exported for Minecraft version 1.17+ for Yarn
-// Paste this class into your mod and generate all required imports
 public class EndModel extends EntityModel<EndEntity> {
 	private final ModelPart bb_main;
 	public EndModel(ModelPart root) {

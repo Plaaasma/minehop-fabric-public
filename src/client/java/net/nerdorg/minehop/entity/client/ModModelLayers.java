@@ -11,4 +11,6 @@ public class ModModelLayers {
             new EntityModelLayer(new Identifier(Minehop.MOD_ID, "start_entity"), "main");
     public static final EntityModelLayer END_ENTITY =
             new EntityModelLayer(new Identifier(Minehop.MOD_ID, "end_entity"), "main");
+    public static final EntityModelLayer CUSTOM_MODEL =
+            new EntityModelLayer(new Identifier(Minehop.MOD_ID, "custom_model"), "main");
 }

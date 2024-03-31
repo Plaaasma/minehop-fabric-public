@@ -38,6 +38,7 @@ public class MinehopClient implements ClientModInitializer {
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.START_ENTITY, ResetModel::getTexturedModelData);
 		EntityRendererRegistry.register(ModEntities.END_ENTITY, EndRenderer::new);
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.END_ENTITY, ResetModel::getTexturedModelData);
+		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.CUSTOM_MODEL, CheaterPlayerModel::getTexturedModelData);
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			if (!client.isInSingleplayer()) {
