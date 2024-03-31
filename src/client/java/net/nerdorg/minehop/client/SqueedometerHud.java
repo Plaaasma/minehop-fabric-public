@@ -105,14 +105,14 @@ public class SqueedometerHud {
             int eff_top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 4));
 
             double speed_difference = MinehopClient.last_jump_speed - MinehopClient.old_jump_speed;
-            double max_possible_gain = config.sv_maxairspeed / (MinehopClient.last_jump_speed * 1.5);
+            double max_possible_gain = (config.sv_maxairspeed / (MinehopClient.last_jump_speed * 1.5));
             double effPercent = (speed_difference / max_possible_gain) * 100;
             if (effPercent >= Double.POSITIVE_INFINITY || effPercent <= Double.NEGATIVE_INFINITY) {
                 effPercent = 0;
             }
-            else if (effPercent > 100) {
-                effPercent = 100;
-            }
+//            else if (effPercent > 100) {
+//                effPercent = 100;
+//            }
             else if (effPercent < 0) {
                 effPercent = 0;
             }

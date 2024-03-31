@@ -133,15 +133,24 @@ public class ResetEntity extends Zone {
                     List<ServerPlayerEntity> players = serverWorld.getPlayers();
                     for (ServerPlayerEntity player : players) {
                         if (colliderBox.contains(player.getPos())) {
-                            if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
-                                Minehop.timerManager.remove(player.getNameForScoreboard());
-                            }
                             Vec3d targetLocation = new Vec3d(pairedMap.x, pairedMap.y, pairedMap.z);
                             Vec2f targetRot = new Vec2f((float) pairedMap.xrot, (float) pairedMap.yrot);
-                            if (this.check_index > 0 && pairedMap.checkpointPositions.size() > this.check_index - 1) {
-                                targetLocation = pairedMap.checkpointPositions.get(this.check_index - 1).get(0);
-                                Vec3d rotVec3d = pairedMap.checkpointPositions.get(this.check_index - 1).get(1);
-                                targetRot = new Vec2f((float) rotVec3d.getX(), (float) rotVec3d.getY());
+                            if (pairedMap.checkpointPositions != null) {
+                                if (this.check_index > 0 && pairedMap.checkpointPositions.size() > this.check_index - 1) {
+                                    targetLocation = pairedMap.checkpointPositions.get(this.check_index - 1).get(0);
+                                    Vec3d rotVec3d = pairedMap.checkpointPositions.get(this.check_index - 1).get(1);
+                                    targetRot = new Vec2f((float) rotVec3d.getX(), (float) rotVec3d.getY());
+                                }
+                                else {
+                                    if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
+                                        Minehop.timerManager.remove(player.getNameForScoreboard());
+                                    }
+                                }
+                            }
+                            else {
+                                if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
+                                    Minehop.timerManager.remove(player.getNameForScoreboard());
+                                }
                             }
                             player.teleport(serverWorld, targetLocation.getX(), targetLocation.getY(), targetLocation.getZ(), targetRot.y, targetRot.x);
                         }
