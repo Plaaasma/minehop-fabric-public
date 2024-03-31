@@ -11,7 +11,6 @@ import net.nerdorg.minehop.client.SqueedometerHud;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.client.*;
-import net.nerdorg.minehop.event.KeyInputHandler;
 import net.nerdorg.minehop.networking.ClientPacketHandler;
 
 public class MinehopClient implements ClientModInitializer {
@@ -28,8 +27,6 @@ public class MinehopClient implements ClientModInitializer {
 		ClientPacketHandler.registerReceivers();
 		ConfigWrapper.loadConfig();
 		squeedometerHud = new SqueedometerHud();
-
-		KeyInputHandler.register();
 
 		EntityRendererRegistry.register(ModEntities.RESET_ENTITY, ResetRenderer::new);
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.RESET_ENTITY, ResetModel::getTexturedModelData);

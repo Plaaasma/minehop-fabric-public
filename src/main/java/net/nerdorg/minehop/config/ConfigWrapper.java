@@ -13,6 +13,11 @@ public class ConfigWrapper {
             for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
                 PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
             }
+            if (server.getTicks() % 100 == 0) {
+                for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+                    PacketHandler.sendAntiCheatCheck(playerEntity);
+                }
+            }
         });
     }
 

@@ -18,7 +18,6 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec2f;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.nerdorg.minehop.Minehop;
@@ -123,7 +122,7 @@ public class ResetEntity extends Zone {
                     this.teleport(avgX, avgY, avgZ);
                 }
                 for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
-                    PacketHandler.updateZone(worldPlayer, this.getId(), this.corner1, this.corner2, this.paired_map, this.check_index);
+                    PacketHandler.updateZone(worldPlayer, this.getId(), this.corner1, this.corner2, this.paired_map);
                 }
             }
             if (this.corner1 != null && this.corner2 != null) {
@@ -136,13 +135,7 @@ public class ResetEntity extends Zone {
                             if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
                                 Minehop.timerManager.remove(player.getNameForScoreboard());
                             }
-                            Vec3d targetLocation = new Vec3d(pairedMap.x, pairedMap.y, pairedMap.z);
-                            Vec2f targetRot = new Vec2f((float) pairedMap.xrot, (float) pairedMap.yrot);
-                            if (this.check_index > 0 && pairedMap.checkpointPositions.size() > this.check_index - 1) {
-                                targetLocation = pairedMap.checkpointPositions.keySet().stream().toList().get(this.check_index - 1);
-                                targetRot = pairedMap.checkpointPositions.get(targetLocation);
-                            }
-                            player.teleport(serverWorld, targetLocation.getX(), targetLocation.getY(), targetLocation.getZ(), targetRot.y, targetRot.x);
+                            player.teleport(serverWorld, pairedMap.x, pairedMap.y, pairedMap.z, (float) pairedMap.yrot, (float) pairedMap.xrot);
                         }
                     }
                 }

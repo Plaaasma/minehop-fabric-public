@@ -8,19 +8,14 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.WorldSavePath;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec2f;
-import net.minecraft.util.math.Vec3d;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.networking.PacketHandler;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 
 public class DataManager {
@@ -34,7 +29,7 @@ public class DataManager {
         public double z;
         public double xrot;
         public double yrot;
-        public HashMap<Vec3d, Vec2f> checkpointPositions;
+        public List<BlockPos> checkpointPositions;
 
         public MapData() {
         }
@@ -46,6 +41,16 @@ public class DataManager {
             this.z = z;
             this.xrot = xrot;
             this.yrot = yrot;
+        }
+
+        public MapData(String name, double x, double y, double z, double xrot, double yrot, List<BlockPos> checkpointPositions) {
+            this.name = name;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.xrot = xrot;
+            this.yrot = yrot;
+            this.checkpointPositions = checkpointPositions;
         }
     }
 

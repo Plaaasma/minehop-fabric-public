@@ -4,11 +4,17 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.BlockPos;
 import net.nerdorg.minehop.Minehop;
+import net.nerdorg.minehop.anticheat.ProcessChecker;
 import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.entity.custom.StartEntity;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 public class ClientPacketHandler {
+    private static final ExecutorService executor = Executors.newSingleThreadExecutor();
     public static void registerReceivers() {
         ClientPlayNetworking.registerGlobalReceiver(ModMessages.CONFIG_SYNC_ID, (client, handler, buf, responseSender) -> {
             double o_sv_friction = buf.readDouble();
@@ -35,7 +41,6 @@ public class ClientPacketHandler {
             BlockPos pos1 = buf.readBlockPos();
             BlockPos pos2 = buf.readBlockPos();
             String name = buf.readString();
-            int check_index = buf.readInt();
 
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             client.execute(() -> {
@@ -45,7 +50,6 @@ public class ClientPacketHandler {
                     resetEntity.setCorner1(pos1);
                     resetEntity.setCorner2(pos2);
                     resetEntity.setPairedMap(name);
-                    resetEntity.setCheckIndex(check_index);
                 }
                 else if (entity instanceof StartEntity startEntity) {
                     startEntity.setCorner1(pos1);
@@ -57,6 +61,16 @@ public class ClientPacketHandler {
                     endEntity.setCorner2(pos2);
                     endEntity.setPairedMap(name);
                 }
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.ANTI_CHEAT_CHECK, (client, handler, buf, responseSender) -> {
+
+            // Ensure you are on the main thread when modifying the game or accessing client-side only classes
+            client.execute(() -> {
+                // Assign the read values to your variables or fields here
+                Boolean antiCheatCheck = ProcessChecker.isProcessRunning("rawaccel.exe");
+                System.out.println(antiCheatCheck + "=> rawaccel check");
             });
         });
     }

@@ -8,19 +8,11 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.entity.Entity;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec2f;
-import net.minecraft.util.math.Vec3d;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
-import net.nerdorg.minehop.entity.custom.EndEntity;
-import net.nerdorg.minehop.entity.custom.ResetEntity;
-import net.nerdorg.minehop.entity.custom.StartEntity;
-import net.nerdorg.minehop.entity.custom.Zone;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.StringFormatting;
 
@@ -42,27 +34,11 @@ public class MapUtilCommands {
                     return Command.SINGLE_SUCCESS;
                 })
             )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("restart")
-                .executes(context -> {
-                    handleRestart(context);
-                    return Command.SINGLE_SUCCESS;
-                })
-            )
             .then(LiteralArgumentBuilder.<ServerCommandSource>literal("list")
                 .executes(context -> {
                     handleList(context);
                     return Command.SINGLE_SUCCESS;
                 })
-            )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("checkpoint")
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                        .executes(context -> {
-                            handleAddCheckpoint(context);
-                            return Command.SINGLE_SUCCESS;
-                        })
-                    )
-                )
             )
             .then(LiteralArgumentBuilder.<ServerCommandSource>literal("top")
                 .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
@@ -100,88 +76,6 @@ public class MapUtilCommands {
                 )
             )
         ));
-    }
-
-    private static void handleAddCheckpoint(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
-
-        String name = StringArgumentType.getString(context, "map_name");
-
-        DataManager.MapData mapToAddTo = null;
-
-        for (Object object : Minehop.mapList) {
-            if (object instanceof DataManager.MapData mapData) {
-                if (mapData.name.equals(name)) {
-                    mapToAddTo = mapData;
-                    break;
-                }
-            }
-        }
-
-        if (mapToAddTo != null) {
-            if (mapToAddTo.checkpointPositions == null) {
-                mapToAddTo.checkpointPositions = new HashMap<>();
-            }
-            Logger.logSuccess(serverPlayerEntity, "Added checkpoint " + (mapToAddTo.checkpointPositions.size() + 1) + " to " + name);
-            Minehop.mapList.remove(mapToAddTo);
-            mapToAddTo.checkpointPositions.put(serverPlayerEntity.getPos(), serverPlayerEntity.getRotationClient());
-            Minehop.mapList.add(mapToAddTo);
-            DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
-        }
-        else {
-            Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
-        }
-    }
-
-    private static void handleRestart(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
-        ServerWorld serverWorld = serverPlayerEntity.getServerWorld();
-        List<Zone> zoneEntities = new ArrayList<>();
-        for (Entity entity : serverWorld.iterateEntities()) {
-            if (entity instanceof Zone zone) {
-                zoneEntities.add(zone);
-            }
-        }
-        double closestDistance = Double.POSITIVE_INFINITY;
-        Zone closestEntity = null;
-        for (Zone zoneEntity : zoneEntities) {
-            double distance = zoneEntity.distanceTo(serverPlayerEntity);
-            if (distance < closestDistance) {
-                closestEntity = zoneEntity;
-                closestDistance = distance;
-            }
-        }
-        if (closestEntity == null) {
-            Logger.logFailure(serverPlayerEntity, "Error finding nearest map.");
-        }
-        else {
-            DataManager.MapData currentMapData = null;
-            String mapName = "";
-
-            if (closestEntity instanceof ResetEntity resetEntity) {
-                mapName = resetEntity.getPairedMap();
-            }
-            else if (closestEntity instanceof StartEntity startEntity) {
-                mapName = startEntity.getPairedMap();
-            }
-            else if (closestEntity instanceof EndEntity endEntity) {
-                mapName = endEntity.getPairedMap();
-            }
-            for (Object object : Minehop.mapList) {
-                if (object instanceof DataManager.MapData mapData) {
-                    if (mapData.name.equals(mapName)) {
-                        currentMapData = mapData;
-                        break;
-                    }
-                }
-            }
-            if (currentMapData != null) {
-                serverPlayerEntity.teleport((ServerWorld) serverPlayerEntity.getWorld(), currentMapData.x, currentMapData.y, currentMapData.z, (float) currentMapData.yrot, (float) currentMapData.xrot);
-            }
-            else {
-                Logger.logFailure(serverPlayerEntity, "Error finding nearest map.");
-            }
-        }
     }
 
     private static void handleTeleport(CommandContext<ServerCommandSource> context) {
