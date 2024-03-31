@@ -143,13 +143,34 @@ public abstract class LivingEntityMixin extends Entity {
         if (!this.isOnGround()) {
             sI = sI * yawDifference;
         }
+
         if (sI != 0.0F || fI != 0.0F) {
             Vec3d moveDir = movementInputToVelocity(new Vec3d(sI, 0.0F, fI), 1.0F, this.getYaw());
             Vec3d accelVec = this.getVelocity();
 
             double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
-            double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate / (this.horizontalSpeed * 10000)));
-            float maxVel = (float) (this.isOnGround() ? this.movementSpeed * config.speed_mul : config.sv_maxairspeed);
+            // double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate / (this.horizontalSpeed * 10000)));
+            double accelVel = (this.isOnGround() ? config.sv_accelerate : ((config.sv_airaccelerate) / (this.horizontalSpeed * 100000)));
+            //float maxVel = (float) (this.isOnGround() ? this.movementSpeed * config.speed_mul : config.sv_maxairspeed); This is fucking dogshit
+
+            // Attempt 1: Pretty good!
+
+            /**
+             * @Author lolrow
+             * @Reason Fixed movement made it better and fucking awesome.
+             */
+
+            float maxVel;
+            if (this.isOnGround()) {
+                maxVel = (float) (this.movementSpeed * config.speed_mul);
+            } else {
+                // Increase maximum air speed based on the yawDifference
+                // maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 180.0f))); <- Alternative.
+                maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 40.0f))); // 90.0f is the normal value, might revert back to it
+                // yawDifference / 50.0f is good
+
+                maxVel = (float) Math.min(maxVel, config.sv_maxairspeed * 2.0f); // Limit to prevent astronomical speed gain.
+            }
 
             if (projVel + accelVel > maxVel) {
                 accelVel = maxVel - projVel;
