@@ -26,8 +26,8 @@ public class TimerManager {
                     if (personalRecordData != null) {
                         personalRecord = personalRecordData.time;
                     }
-                    String formattedNumber = String.format("%.5f", (float) (System.nanoTime() - timerMap.get(mapName)) / 1000000000);
-                    Logger.logActionBar(serverPlayerEntity, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
+                    String formattedNumber = String.format("%.2f", (float) (System.nanoTime() - timerMap.get(mapName)) / 1000000000);
+                    Logger.logActionBar(serverPlayerEntity, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.2f", personalRecord) : "No PB"));
                 }
             }
         });

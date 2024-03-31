@@ -95,7 +95,7 @@ public class EndEntity extends Zone {
         HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
         List<String> keyList = timerMap.keySet().stream().toList();
         double rawTime = (double) (System.nanoTime() - timerMap.get(keyList.get(0))) / 1000000000;
-        String formattedNumber = String.format("%.5f", rawTime);
+        String formattedNumber = String.format("%.2f", rawTime);
         DataManager.RecordData mapRecord = DataManager.getRecord(this.paired_map);
         if (mapRecord != null) {
             if (rawTime < mapRecord.time) {
