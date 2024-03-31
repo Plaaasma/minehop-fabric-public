@@ -8,11 +8,16 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.entity.Entity;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.entity.custom.EndEntity;
+import net.nerdorg.minehop.entity.custom.ResetEntity;
+import net.nerdorg.minehop.entity.custom.StartEntity;
+import net.nerdorg.minehop.entity.custom.Zone;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.StringFormatting;
 
@@ -31,6 +36,12 @@ public class MapUtilCommands {
             .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
                 .executes(context -> {
                     handleTeleport(context);
+                    return Command.SINGLE_SUCCESS;
+                })
+            )
+            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("restart")
+                .executes(context -> {
+                    handleRestart(context);
                     return Command.SINGLE_SUCCESS;
                 })
             )
@@ -76,6 +87,57 @@ public class MapUtilCommands {
                 )
             )
         ));
+    }
+
+    private static void handleRestart(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+        ServerWorld serverWorld = serverPlayerEntity.getServerWorld();
+        List<Zone> zoneEntities = new ArrayList<>();
+        for (Entity entity : serverWorld.iterateEntities()) {
+            if (entity instanceof Zone zone) {
+                zoneEntities.add(zone);
+            }
+        }
+        double closestDistance = Double.POSITIVE_INFINITY;
+        Zone closestEntity = null;
+        for (Zone zoneEntity : zoneEntities) {
+            double distance = zoneEntity.distanceTo(serverPlayerEntity);
+            if (distance < closestDistance) {
+                closestEntity = zoneEntity;
+                closestDistance = distance;
+            }
+        }
+        if (closestEntity == null) {
+            Logger.logFailure(serverPlayerEntity, "Error finding nearest map.");
+        }
+        else {
+            DataManager.MapData currentMapData = null;
+            String mapName = "";
+
+            if (closestEntity instanceof ResetEntity resetEntity) {
+                mapName = resetEntity.getPairedMap();
+            }
+            else if (closestEntity instanceof StartEntity startEntity) {
+                mapName = startEntity.getPairedMap();
+            }
+            else if (closestEntity instanceof EndEntity endEntity) {
+                mapName = endEntity.getPairedMap();
+            }
+            for (Object object : Minehop.mapList) {
+                if (object instanceof DataManager.MapData mapData) {
+                    if (mapData.name.equals(mapName)) {
+                        currentMapData = mapData;
+                        break;
+                    }
+                }
+            }
+            if (currentMapData != null) {
+                serverPlayerEntity.teleport((ServerWorld) serverPlayerEntity.getWorld(), currentMapData.x, currentMapData.y, currentMapData.z, (float) currentMapData.yrot, (float) currentMapData.xrot);
+            }
+            else {
+                Logger.logFailure(serverPlayerEntity, "Error finding nearest map.");
+            }
+        }
     }
 
     private static void handleTeleport(CommandContext<ServerCommandSource> context) {

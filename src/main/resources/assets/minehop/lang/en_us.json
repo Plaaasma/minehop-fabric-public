@@ -3,6 +3,9 @@
 
   "item.minehop.bounds_stick": "Bounds Stick",
 
+  "key.category.minehop": "Minehop",
+  "key.minehop.restart": "Restart Level",
+
   "text.autoconfig.minehop.title": "Minehop Config",
   "text.autoconfig.minehop.option.sv_friction": "Ground Friction (sv_friction)",
   "text.autoconfig.minehop.option.sv_accelerate": "Ground Acceleration (sv_accelerate)",
