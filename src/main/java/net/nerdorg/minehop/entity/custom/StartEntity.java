@@ -111,8 +111,10 @@ public class StartEntity extends Zone {
                     Box colliderBox = new Box(new Vec3d(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ()), new Vec3d(this.corner2.getX(), this.corner2.getY(), this.corner2.getZ()));
                     List<ServerPlayerEntity> players = serverWorld.getPlayers();
                     for (ServerPlayerEntity player : players) {
-                        if (colliderBox.contains(player.getPos())) {
-                            Minehop.timerManager.put(player.getNameForScoreboard(), 0);
+                        if (!player.isCreative() && !player.isSpectator()) {
+                            if (colliderBox.contains(player.getPos())) {
+                                Minehop.timerManager.put(player.getNameForScoreboard(), 0);
+                            }
                         }
                     }
                 }

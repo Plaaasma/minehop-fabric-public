@@ -173,6 +173,7 @@ public class MapUtilCommands {
                 }
             }
             if (currentMapData != null) {
+                Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
                 serverPlayerEntity.teleport((ServerWorld) serverPlayerEntity.getWorld(), currentMapData.x, currentMapData.y, currentMapData.z, (float) currentMapData.yrot, (float) currentMapData.xrot);
             }
             else {

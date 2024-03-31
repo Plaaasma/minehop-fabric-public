@@ -146,12 +146,14 @@ public class EndEntity extends Zone {
                     Box colliderBox = new Box(new Vec3d(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ()), new Vec3d(this.corner2.getX(), this.corner2.getY(), this.corner2.getZ()));
                     List<ServerPlayerEntity> players = serverWorld.getPlayers();
                     for (ServerPlayerEntity player : players) {
-                        if (colliderBox.contains(player.getPos())) {
-                            if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
-                                if (!this.paired_map.equals("spawn")) {
-                                    handleMapCompletion(player);
+                        if (!player.isCreative() && !player.isSpectator()) {
+                            if (colliderBox.contains(player.getPos())) {
+                                if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
+                                    if (!this.paired_map.equals("spawn")) {
+                                        handleMapCompletion(player);
+                                    }
+                                    Minehop.timerManager.remove(player.getNameForScoreboard());
                                 }
-                                Minehop.timerManager.remove(player.getNameForScoreboard());
                             }
                         }
                     }
