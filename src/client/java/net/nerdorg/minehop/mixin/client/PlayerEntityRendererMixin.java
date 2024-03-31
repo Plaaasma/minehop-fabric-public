@@ -71,7 +71,7 @@ public class PlayerEntityRendererMixin extends LivingEntityRenderer<AbstractClie
      */
     @Override
     public boolean shouldRender(AbstractClientPlayerEntity entity, Frustum frustum, double x, double y, double z) {
-        if (!entity.getNameForScoreboard().equals(MinecraftClient.getInstance().player.getNameForScoreboard())) {  //Hide self
+        if (!entity.getNameForScoreboard().equals(MinecraftClient.getInstance().player.getNameForScoreboard())) {  //Hide others
             if (MinehopClient.hideOthers) {
                 return false;
             }

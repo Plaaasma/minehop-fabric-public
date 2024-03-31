@@ -43,12 +43,9 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Shadow public abstract void updateLimbs(boolean flutter);
 
-    @Shadow private BlockPos lastBlockPos;
     @Shadow public float prevHeadYaw;
 
     @Shadow public abstract float getHeadYaw();
-
-    @Shadow public abstract EntityGroup getGroup();
 
     private boolean wasOnGround;
 
