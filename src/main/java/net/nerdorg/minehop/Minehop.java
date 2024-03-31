@@ -7,10 +7,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.block.entity.ModBlockEntities;
-import net.nerdorg.minehop.commands.BoostCommands;
-import net.nerdorg.minehop.commands.MapUtilCommands;
-import net.nerdorg.minehop.commands.SpawnCommands;
-import net.nerdorg.minehop.commands.ZoneManagementCommands;
+import net.nerdorg.minehop.commands.*;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.data.DataManager;
@@ -65,6 +62,7 @@ public class Minehop implements ModInitializer {
 		MapUtilCommands.register();
 		ZoneManagementCommands.register();
 		BoostCommands.register();
+		VisiblityCommands.register();
 
 		ModItems.registerModItems();
 		ModBlocks.registerModBlocks();

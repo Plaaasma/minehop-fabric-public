@@ -24,6 +24,9 @@ public class MinehopClient implements ClientModInitializer {
 	public static double old_jump_speed = 0;
 	public static long last_jump_time = 0;
 
+	public static boolean hideSelf = false;
+	public static boolean hideOthers = false;
+
 	@Override
 	public void onInitializeClient() {
 		ClientPacketHandler.registerReceivers();

@@ -34,6 +34,18 @@ public class PacketHandler {
         ServerPlayNetworking.send(player, ModMessages.ZONE_SYNC_ID, buf);
     }
 
+    public static void sendSelfVToggle(ServerPlayerEntity player) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        ServerPlayNetworking.send(player, ModMessages.SELF_V_TOGGLE, buf);
+    }
+
+    public static void sendOtherVToggle(ServerPlayerEntity player) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        ServerPlayNetworking.send(player, ModMessages.OTHER_V_TOGGLE, buf);
+    }
+
     public static void sendAntiCheatCheck(ServerPlayerEntity player) {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
 

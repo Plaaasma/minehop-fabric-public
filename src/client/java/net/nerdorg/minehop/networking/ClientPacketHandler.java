@@ -9,6 +9,7 @@ import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.nerdorg.minehop.Minehop;
+import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.anticheat.ProcessChecker;
 import net.nerdorg.minehop.entity.custom.EndEntity;
@@ -68,6 +69,20 @@ public class ClientPacketHandler {
                     endEntity.setCorner2(pos2);
                     endEntity.setPairedMap(name);
                 }
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.SELF_V_TOGGLE, (client, handler, buf, responseSender) -> {
+            // Ensure you are on the main thread when modifying the game or accessing client-side only classes
+            client.execute(() -> {
+                MinehopClient.hideSelf = !MinehopClient.hideSelf;
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.OTHER_V_TOGGLE, (client, handler, buf, responseSender) -> {
+            // Ensure you are on the main thread when modifying the game or accessing client-side only classes
+            client.execute(() -> {
+                MinehopClient.hideOthers = !MinehopClient.hideOthers;
             });
         });
 
