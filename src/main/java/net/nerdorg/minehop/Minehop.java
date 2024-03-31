@@ -14,10 +14,11 @@ import net.nerdorg.minehop.commands.ZoneManagementCommands;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.entity.MobManager;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.item.ModItems;
-import net.nerdorg.minehop.networking.JoinManager;
+import net.nerdorg.minehop.networking.JoinLeaveManager;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.timer.TimerManager;
 import org.slf4j.Logger;
@@ -45,7 +46,7 @@ public class Minehop implements ModInitializer {
 	public static List<DataManager.MapData> mapList = new ArrayList<>();
 	public static List<DataManager.RecordData> personalRecordList = new ArrayList<>();
 	public static List<DataManager.RecordData> recordList = new ArrayList<>();
-	public static HashMap<String, Integer> timerManager = new HashMap<>();
+	public static HashMap<String, HashMap<String, Long>> timerManager = new HashMap<>();
 
 	@Override
 	public void onInitialize() {
@@ -56,8 +57,9 @@ public class Minehop implements ModInitializer {
 
 		ConfigWrapper.register();
 		DataManager.register();
-		JoinManager.register();
+		JoinLeaveManager.register();
 		TimerManager.register();
+		MobManager.register();
 
 		SpawnCommands.register();
 		MapUtilCommands.register();

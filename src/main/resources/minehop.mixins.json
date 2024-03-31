@@ -3,7 +3,8 @@
 	"package": "net.nerdorg.minehop.mixin",
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [
-		"LivingEntityMixin"
+		"LivingEntityMixin",
+		"PlayerJoinMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -29,11 +29,66 @@ public class BoundsStickItem extends Item {
             ServerPlayerEntity serverPlayerEntity = (ServerPlayerEntity) context.getPlayer();
             if (this.first_coord) {
                 this.pos1 = context.getBlockPos();
+
+                if (this.pos2 != null) {
+                    BlockPos newPos1 = this.pos1;
+                    BlockPos newPos2 = this.pos2;
+
+                    if (newPos2.getX() < newPos1.getX()) {
+                        newPos2 = newPos2.add(1, 0, 0);
+                    } else {
+                        newPos1 = newPos1.add(1, 0, 0);
+                    }
+
+                    if (newPos2.getY() < newPos1.getY()) {
+                        newPos2 = newPos2.add(0, 1, 0);
+                    } else {
+                        newPos1 = newPos1.add(0, 1, 0);
+                    }
+
+                    if (newPos2.getZ() < newPos1.getZ()) {
+                        newPos2 = newPos2.add(0, 0, 1);
+                    } else {
+                        newPos1 = newPos1.add(0, 0, 1);
+                    }
+
+                    this.pos1 = newPos1;
+                    this.pos2 = newPos2;
+                }
+
                 Logger.logSuccess(serverPlayerEntity, "Position 1 set to " + this.pos1.toShortString());
                 this.first_coord = false;
             }
             else {
                 this.pos2 = context.getBlockPos();
+
+                BlockPos newPos1 = this.pos1;
+                BlockPos newPos2 = this.pos2;
+
+                if (newPos2.getX() < newPos1.getX()) {
+                    newPos2 = newPos2.add(1, 0, 0);
+                }
+                else {
+                    newPos1 = newPos1.add(1, 0, 0);
+                }
+
+                if (newPos2.getY() < newPos1.getY()) {
+                    newPos2 = newPos2.add(0, 1, 0);
+                }
+                else {
+                    newPos1 = newPos1.add(0, 1, 0);
+                }
+
+                if (newPos2.getZ() < newPos1.getZ()) {
+                    newPos2 = newPos2.add(0, 0, 1);
+                }
+                else {
+                    newPos1 = newPos1.add(0, 0, 1);
+                }
+
+                this.pos1 = newPos1;
+                this.pos2 = newPos2;
+
                 Logger.logSuccess(serverPlayerEntity, "Position 2 set to " + this.pos2.toShortString());
                 first_coord = true;
             }

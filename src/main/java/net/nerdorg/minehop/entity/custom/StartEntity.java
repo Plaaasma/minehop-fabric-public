@@ -17,6 +17,7 @@ import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.PacketHandler;
 
+import java.util.HashMap;
 import java.util.List;
 
 public class StartEntity extends Zone {
@@ -113,7 +114,9 @@ public class StartEntity extends Zone {
                     for (ServerPlayerEntity player : players) {
                         if (!player.isCreative() && !player.isSpectator()) {
                             if (colliderBox.contains(player.getPos())) {
-                                Minehop.timerManager.put(player.getNameForScoreboard(), 0);
+                                HashMap<String, Long> informationMap = new HashMap<>();
+                                informationMap.put(this.paired_map, System.nanoTime());
+                                Minehop.timerManager.put(player.getNameForScoreboard(), informationMap);
                             }
                         }
                     }

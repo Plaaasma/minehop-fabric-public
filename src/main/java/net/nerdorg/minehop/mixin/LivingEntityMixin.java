@@ -7,6 +7,7 @@ import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
@@ -46,6 +47,8 @@ public abstract class LivingEntityMixin extends Entity {
     @Shadow public float prevHeadYaw;
 
     @Shadow public abstract float getHeadYaw();
+
+    @Shadow public abstract EntityGroup getGroup();
 
     private boolean wasOnGround;
 

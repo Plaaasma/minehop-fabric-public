@@ -18,6 +18,7 @@ import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.Logger;
 
+import java.util.HashMap;
 import java.util.List;
 
 public class EndEntity extends Zone {
@@ -91,8 +92,10 @@ public class EndEntity extends Zone {
     }
 
     private void handleMapCompletion(ServerPlayerEntity player) {
-        double rawTime = (double) Minehop.timerManager.get(player.getNameForScoreboard()) / 20D;
-        String formattedNumber = String.format("%.2f", rawTime);
+        HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
+        List<String> keyList = timerMap.keySet().stream().toList();
+        double rawTime = (double) (System.nanoTime() - timerMap.get(keyList.get(0))) / 1000000000;
+        String formattedNumber = String.format("%.5f", rawTime);
         DataManager.RecordData mapRecord = DataManager.getRecord(this.paired_map);
         if (mapRecord != null) {
             if (rawTime < mapRecord.time) {
