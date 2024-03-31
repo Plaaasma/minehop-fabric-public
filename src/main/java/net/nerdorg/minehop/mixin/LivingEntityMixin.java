@@ -139,7 +139,7 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d accelVec = this.getVelocity();
 
             double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
-            double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate / this.horizontalSpeed));
+            double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate / (this.horizontalSpeed * 10000)));
             float maxVel = (float) (this.isOnGround() ? this.movementSpeed * config.speed_mul : config.sv_maxairspeed);
 
             if (projVel + accelVel > maxVel) {
