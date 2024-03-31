@@ -14,7 +14,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class ClientPacketHandler {
-    private static final ExecutorService executor = Executors.newSingleThreadExecutor();
     public static void registerReceivers() {
         ClientPlayNetworking.registerGlobalReceiver(ModMessages.CONFIG_SYNC_ID, (client, handler, buf, responseSender) -> {
             double o_sv_friction = buf.readDouble();
@@ -71,8 +70,10 @@ public class ClientPacketHandler {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             client.execute(() -> {
                 // Assign the read values to your variables or fields here
-                Boolean antiCheatCheck = ProcessChecker.isProcessRunning("rawaccel.exe");
+                new Thread(() -> {
+                        Boolean antiCheatCheck = ProcessChecker.isProcessRunning("rawaccel.exe");
                 System.out.println(antiCheatCheck + "=> rawaccel check");
+                }).start();
             });
         });
     }

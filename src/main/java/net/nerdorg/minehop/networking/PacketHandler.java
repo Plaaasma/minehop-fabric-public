@@ -40,4 +40,6 @@ public class PacketHandler {
         ServerPlayNetworking.send(player, ModMessages.ANTI_CHEAT_CHECK, buf);
     }
 
+
+
 }
