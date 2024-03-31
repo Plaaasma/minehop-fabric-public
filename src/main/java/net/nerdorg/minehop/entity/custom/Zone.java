@@ -60,7 +60,7 @@ public class Zone extends MobEntity {
 
     @Override
     public boolean damage(DamageSource source, float amount) {
-        if (source.isOf(DamageTypes.GENERIC_KILL)) {
+        if (source.isOf(DamageTypes.GENERIC)) {
             return super.damage(source, amount);
         }
         else {

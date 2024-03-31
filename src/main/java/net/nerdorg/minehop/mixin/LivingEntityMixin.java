@@ -131,9 +131,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (yawDifference < 0) {
             yawDifference = yawDifference * -1;
         }
-        if (!this.isOnGround()) {
-            sI = sI * yawDifference;
-        }
+        sI = sI * yawDifference;
         if (sI != 0.0F || fI != 0.0F) {
             Vec3d moveDir = movementInputToVelocity(new Vec3d(sI, 0.0F, fI), 1.0F, this.getYaw());
             Vec3d accelVec = this.getVelocity();
