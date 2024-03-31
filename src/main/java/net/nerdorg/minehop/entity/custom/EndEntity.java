@@ -95,11 +95,11 @@ public class EndEntity extends Zone {
         HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
         List<String> keyList = timerMap.keySet().stream().toList();
         double rawTime = (double) (System.nanoTime() - timerMap.get(keyList.get(0))) / 1000000000;
-        String formattedNumber = String.format("%.5f", rawTime);
+        String formattedNumber = String.format("%.2f", rawTime);
         DataManager.RecordData mapRecord = DataManager.getRecord(this.paired_map);
         if (mapRecord != null) {
             if (rawTime < mapRecord.time) {
-                Logger.logGlobal(this.getServer(), player.getNameForScoreboard() + " just beat " + mapRecord.name + "'s time (" + String.format("%.5f", mapRecord.time) + ") on " + mapRecord.map_name + " and now hold the world record with a time of " + formattedNumber + "!");
+                Logger.logGlobal(this.getServer(), player.getNameForScoreboard() + " just beat " + mapRecord.name + "'s time (" + String.format("%.2f", mapRecord.time) + ") on " + mapRecord.map_name + " and now hold the world record with a time of " + formattedNumber + "!");
                 Minehop.recordList.remove(mapRecord);
                 Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), this.paired_map, rawTime));
                 DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
