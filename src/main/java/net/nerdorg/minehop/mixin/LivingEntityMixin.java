@@ -147,7 +147,6 @@ public abstract class LivingEntityMixin extends Entity {
         if (yawDifference < 0) {
             yawDifference = yawDifference * -1;
         }
-
         if (!this.isOnGround()) {
             sI = sI * yawDifference;
         }
@@ -158,8 +157,7 @@ public abstract class LivingEntityMixin extends Entity {
 
             double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
             // double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate / (this.horizontalSpeed * 10000)));
-            double accelVel = (this.isOnGround() ? config.sv_accelerate : ((config.sv_airaccelerate) / (this.horizontalSpeed * 100000)));
-
+            double accelVel = (this.isOnGround() ? config.sv_accelerate : ((config.sv_airaccelerate) / (this.horizontalSpeed * 100000))); // 100000
             //float maxVel = (float) (this.isOnGround() ? this.movementSpeed * config.speed_mul : config.sv_maxairspeed); //This is fucking dogshit
 
             // Attempt 1: Pretty good!
@@ -168,16 +166,16 @@ public abstract class LivingEntityMixin extends Entity {
              * @Author lolrow
              * @Reason Fixed movement made it better and fucking awesome.
              */
-
             float maxVel;
             if (this.isOnGround()) {
                 maxVel = (float) (this.movementSpeed * config.speed_mul);
             } else {
                 // Increase maximum air speed based on the yawDifference
                 // maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 180.0f))); <- Alternative.
-                maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 25.0f))); // 90.0f is the normal value, might revert back to it
+                maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 7.5f))); // 90.0f is the normal value, might revert back to it
                 // yawDifference / 50.0f is good
                 // yawDifference / 25.0f may be better, but it's hard to say
+                // yawDifference / 10.0f is good
 
                 maxVel = (float) Math.min(maxVel, config.sv_maxairspeed * 1000000000000000.0f); // Limit to prevent astronomical speed gain.
                 // 2.0f <- decent maybe
