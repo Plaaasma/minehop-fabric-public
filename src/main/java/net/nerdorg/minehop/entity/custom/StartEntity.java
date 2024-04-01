@@ -111,8 +111,9 @@ public class StartEntity extends Zone {
                 if (pairedMap != null) {
                     Box colliderBox = new Box(new Vec3d(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ()), new Vec3d(this.corner2.getX(), this.corner2.getY(), this.corner2.getZ()));
                     List<ServerPlayerEntity> players = serverWorld.getPlayers();
+                    System.out.println(Minehop.groundedList);
                     for (ServerPlayerEntity player : players) {
-                        if (!player.isCreative() && !player.isSpectator() && (player.isOnGround())) {
+                        if (!player.isCreative() && !player.isSpectator() && (Minehop.groundedList.contains(player.getNameForScoreboard()))) {
                             if (colliderBox.contains(player.getPos())) {
                                 HashMap<String, Long> informationMap = new HashMap<>();
                                 informationMap.put(this.paired_map, System.nanoTime());

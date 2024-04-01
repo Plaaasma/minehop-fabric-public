@@ -42,6 +42,7 @@ public class Minehop implements ModInitializer {
 	public static List<DataManager.MapData> mapList = new ArrayList<>();
 	public static List<DataManager.RecordData> personalRecordList = new ArrayList<>();
 	public static List<DataManager.RecordData> recordList = new ArrayList<>();
+	public static List<String> groundedList = new ArrayList<>();
 	public static HashMap<String, HashMap<String, Long>> timerManager = new HashMap<>();
 
 	@Override
