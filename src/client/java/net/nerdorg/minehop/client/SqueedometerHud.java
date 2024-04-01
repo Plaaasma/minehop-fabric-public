@@ -18,7 +18,7 @@ import net.nerdorg.minehop.config.MinehopConfig;
 
 @Environment(EnvType.CLIENT)
 public class SqueedometerHud {
-    
+
     // Vars
     private MinecraftClient client;
     private TextRenderer textRenderer;
@@ -28,6 +28,8 @@ public class SqueedometerHud {
     private double lastFrameSpeed = 0.0;
     private double lastFrameVertSpeed = 0.0;
     private float tickCounter = 0.0f;
+
+    private double possibleGain = 0;
 
 
     public void drawMain(DrawContext context, float tickDelta) {
@@ -83,6 +85,14 @@ public class SqueedometerHud {
         }
     }
 
+    private static Vec3d movementInputToVelocity(Vec3d movementInput, float speed, float yaw) {
+        double d = movementInput.lengthSquared();
+        Vec3d vec3d = (d > 1.0D ? movementInput.normalize() : movementInput).multiply(speed);
+        float f = MathHelper.sin(yaw * 0.017453292F);
+        float g = MathHelper.cos(yaw * 0.017453292F);
+        return new Vec3d(vec3d.x * (double)g - vec3d.z * (double)f, vec3d.y, vec3d.z * (double)g + vec3d.x * (double)f);
+    }
+
     public void drawSSJ(DrawContext context, float tickDelta) {
         MinehopConfig config;
         if (Minehop.override_config) {
@@ -101,19 +111,14 @@ public class SqueedometerHud {
         if (MinehopClient.jump_count > 0) {
             this.client = MinecraftClient.getInstance();
             this.textRenderer = client.textRenderer;
-
             int eff_top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 4));
 
-
-            double speed_difference = MinehopClient.last_jump_speed - MinehopClient.old_jump_speed;
-            double max_possible_gain = (config.sv_maxairspeed / (MinehopClient.last_jump_speed * 1.5));
-            double effPercent = (speed_difference / max_possible_gain) * 100;
+            double air_time = (double) (MinehopClient.last_jump_time - MinehopClient.old_jump_time);
+            double speed_difference = (MinehopClient.last_jump_speed) - (MinehopClient.old_jump_speed);
+            double effPercent = ((speed_difference / possibleGain) * 100);
             if (effPercent >= Double.POSITIVE_INFINITY || effPercent <= Double.NEGATIVE_INFINITY) {
                 effPercent = 0;
             }
-//            else if (effPercent > 100) {
-//                effPercent = 100;
-//            }
             else if (effPercent < 0) {
                 effPercent = 0;
             }
@@ -144,7 +149,30 @@ public class SqueedometerHud {
                     MinehopClient.old_jump_speed = MinehopClient.last_jump_speed;
                     MinehopClient.last_jump_speed = speed;
                     MinehopClient.jump_count += 1;
+                    MinehopClient.old_jump_time = MinehopClient.last_jump_time;
                     MinehopClient.last_jump_time = client.world.getTime();
+                }
+                else {
+                    float yawDifference = MathHelper.wrapDegrees(client.player.getHeadYaw() - client.player.prevHeadYaw);
+                    if (yawDifference < 0) {
+                        yawDifference = yawDifference * -1;
+                    }
+
+                    Vec3d moveDir = movementInputToVelocity(new Vec3d(100, 0.0F, 0), 1.0F, client.player.getYaw());
+                    Vec3d accelVec = client.player.getVelocity();
+
+                    double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
+                    // double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate / (this.horizontalSpeed * 10000)));
+                    double accelVel = ((config.sv_airaccelerate) / (client.player.horizontalSpeed * 100000));
+
+                    float maxVel = (float) (config.sv_maxairspeed * (1.0f + (100 / 7.5f)));
+
+                    maxVel = (float) Math.min(maxVel, config.sv_maxairspeed * 1000000000000000.0f);
+
+                    if (projVel + accelVel > maxVel) {
+                        accelVel = maxVel - projVel;
+                    }
+                    possibleGain = accelVel;
                 }
             }
         }
@@ -152,6 +180,8 @@ public class SqueedometerHud {
             MinehopClient.old_jump_speed = 0;
             MinehopClient.last_jump_speed = 0;
             MinehopClient.jump_count = 0;
+            MinehopClient.old_jump_time = 0;
+            MinehopClient.last_jump_time = 0;
         }
     }
 }

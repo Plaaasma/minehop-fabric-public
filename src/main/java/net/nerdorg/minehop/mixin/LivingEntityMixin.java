@@ -100,7 +100,6 @@ public abstract class LivingEntityMixin extends Entity {
         //Have no jump cooldown, why not?
         this.jumpingCooldown = 0;
 
-
         //Get Slipperiness and Movement speed.
         BlockPos blockPos = this.getVelocityAffectingPos();
         float slipperiness = this.getWorld().getBlockState(blockPos).getBlock().getSlipperiness();

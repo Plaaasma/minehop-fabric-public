@@ -27,6 +27,8 @@ public class MinehopClient implements ClientModInitializer {
 	public static double last_jump_speed = 0;
 	public static double old_jump_speed = 0;
 	public static long last_jump_time = 0;
+	public static long old_jump_time = 0;
+	public static double last_speed = 0;
 	public static boolean wasOnGround = false;
 
 	public static boolean hideSelf = false;
