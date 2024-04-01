@@ -108,4 +108,23 @@ public class ClientPacketHandler {
 
         ClientPlayNetworking.send(ModMessages.ANTI_CHEAT_CHECK, buf);
     }
+
+    public static void sendEndMapEvent(float time) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeFloat(time);
+
+        ClientPlayNetworking.send(ModMessages.MAP_FINISH, buf);
+    }
+
+    public static void sendCurrentTime(float time) {
+        if (time > MinehopClient.lastSendTime + 0.01) {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+            buf.writeFloat(time);
+
+            ClientPlayNetworking.send(ModMessages.SEND_TIME, buf);
+            MinehopClient.lastSendTime = time;
+        }
+    }
 }

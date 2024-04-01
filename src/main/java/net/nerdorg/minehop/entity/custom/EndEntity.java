@@ -91,42 +91,6 @@ public class EndEntity extends Zone {
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 1000000);
     }
 
-    private void handleMapCompletion(ServerPlayerEntity player) {
-        HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
-        List<String> keyList = timerMap.keySet().stream().toList();
-        double rawTime = (double) (System.nanoTime() - timerMap.get(keyList.get(0))) / 1000000000;
-        String formattedNumber = String.format("%.2f", rawTime);
-        DataManager.RecordData mapRecord = DataManager.getRecord(this.paired_map);
-        if (mapRecord != null) {
-            if (rawTime < mapRecord.time) {
-                Logger.logGlobal(this.getServer(), player.getNameForScoreboard() + " just beat " + mapRecord.name + "'s time (" + String.format("%.2f", mapRecord.time) + ") on " + mapRecord.map_name + " and now hold the world record with a time of " + formattedNumber + "!");
-                Minehop.recordList.remove(mapRecord);
-                Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), this.paired_map, rawTime));
-                DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
-            }
-        }
-        else {
-            Logger.logGlobal(this.getServer(), player.getNameForScoreboard() + " just claimed the world record on " + this.paired_map + " with a time of " + formattedNumber + "!");
-            Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), this.paired_map, rawTime));
-            DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
-        }
-        DataManager.RecordData mapPersonalRecord = DataManager.getPersonalRecord(player.getNameForScoreboard(), this.paired_map);
-        if (mapPersonalRecord != null) {
-            if (rawTime < mapPersonalRecord.time) {
-                Logger.logSuccess(player, "You just beat your time (" + mapPersonalRecord.time + ") on " + mapPersonalRecord.map_name + ", your new record is " + formattedNumber + "!");
-                Minehop.personalRecordList.remove(mapPersonalRecord);
-                Minehop.personalRecordList.add(new DataManager.RecordData(player.getNameForScoreboard(), this.paired_map, rawTime));
-                DataManager.savePersonalRecordData(player.getServerWorld(), Minehop.personalRecordList);
-            }
-        }
-        else {
-            Logger.logSuccess(player, "You just claimed a personal record of " + formattedNumber + "!");
-            Minehop.personalRecordList.add(new DataManager.RecordData(player.getNameForScoreboard(), this.paired_map, rawTime));
-            DataManager.savePersonalRecordData(player.getServerWorld(), Minehop.personalRecordList);
-        }
-        Logger.logSuccess(player, "Completed " + this.paired_map + " in " + formattedNumber + " seconds.");
-    }
-
     @Override
     public void tick() {
         World world = this.getWorld();
@@ -141,28 +105,6 @@ public class EndEntity extends Zone {
                 }
                 for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
                     PacketHandler.updateZone(worldPlayer, this.getId(), this.corner1, this.corner2, this.paired_map, 0);
-                }
-            }
-            if (this.corner1 != null && this.corner2 != null) {
-                DataManager.MapData pairedMap = DataManager.getMap(this.paired_map);
-                if (pairedMap != null) {
-                    Box colliderBox = new Box(new Vec3d(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ()), new Vec3d(this.corner2.getX(), this.corner2.getY(), this.corner2.getZ()));
-                    List<ServerPlayerEntity> players = serverWorld.getPlayers();
-                    for (ServerPlayerEntity player : players) {
-                        if (!player.isCreative() && !player.isSpectator()) {
-                            if (colliderBox.contains(player.getPos())) {
-                                if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
-                                    if (!this.paired_map.equals("spawn")) {
-                                        handleMapCompletion(player);
-                                    }
-                                    Minehop.timerManager.remove(player.getNameForScoreboard());
-                                }
-                            }
-                        }
-                    }
-                }
-                else {
-                    this.kill();
                 }
             }
         }

@@ -11,11 +11,23 @@ public class Logger {
     private static Text prefix = Text.literal("NerdOrg ").withColor(Formatting.GREEN.getColorValue()).append(Text.literal("(").withColor(Formatting.GRAY.getColorValue())).append(Text.literal("Minehop").withColor(Formatting.LIGHT_PURPLE.getColorValue()).formatted(Formatting.ITALIC)).append(Text.literal(") ").withColor(Formatting.GRAY.getColorValue())).append(Text.literal("-> ").withColor(Formatting.DARK_GRAY.getColorValue()));
 
     public static void logGlobal(MinecraftServer server, String message) {
-        server.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.AQUA.getColorValue())));
+        List<ServerPlayerEntity> playerEntities = server.getPlayerManager().getPlayerList();
+
+        for (ServerPlayerEntity playerEntity : playerEntities) {
+            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.AQUA.getColorValue())));
+        }
     }
 
     public static void logGlobal(MinecraftServer server, Text message) {
-        server.sendMessage(prefix.copy().append(message.copy().withColor(Formatting.AQUA.getColorValue())));
+        List<ServerPlayerEntity> playerEntities = server.getPlayerManager().getPlayerList();
+
+        for (ServerPlayerEntity playerEntity : playerEntities) {
+            playerEntity.sendMessage(prefix.copy().append(message.copy().withColor(Formatting.AQUA.getColorValue())));
+        }
+    }
+
+    public static void logServer(MinecraftServer server, String message) {
+        server.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.AQUA.getColorValue())));
     }
 
     public static void logActionBar(ServerPlayerEntity serverPlayerEntity, String message) {

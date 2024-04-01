@@ -1,5 +1,6 @@
 package net.nerdorg.minehop.entity.client;
 
+import net.minecraft.client.render.Frustum;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.render.entity.MobEntityRenderer;
@@ -22,6 +23,11 @@ public class ResetRenderer extends MobEntityRenderer<ResetEntity, ResetModel> {
     @Override
     public Identifier getTexture(ResetEntity entity) {
         return TEXTURE;
+    }
+
+    @Override
+    public boolean shouldRender(ResetEntity mobEntity, Frustum frustum, double d, double e, double f) {
+        return true;
     }
 
     @Override

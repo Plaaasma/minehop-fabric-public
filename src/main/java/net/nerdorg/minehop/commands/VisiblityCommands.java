@@ -49,6 +49,6 @@ public class VisiblityCommands {
     private static void handleHideSelf(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         PacketHandler.sendSelfVToggle(serverPlayerEntity);
-        Logger.logSuccess(serverPlayerEntity, "Toggling visibility for local model.");
+        Logger.logSuccess(serverPlayerEntity, "Toggling visibility for hand and status bars.");
     }
 }

@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.entity.EntityType;
+import net.minecraft.util.TimeSupplier;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.client.SqueedometerHud;
 import net.nerdorg.minehop.config.ConfigWrapper;
@@ -26,6 +27,9 @@ public class MinehopClient implements ClientModInitializer {
 
 	public static boolean hideSelf = false;
 	public static boolean hideOthers = false;
+
+	public static long startTime = 0;
+	public static float lastSendTime = 0;
 
 	@Override
 	public void onInitializeClient() {

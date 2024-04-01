@@ -17,7 +17,6 @@ import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.networking.JoinLeaveManager;
 import net.nerdorg.minehop.networking.PacketHandler;
-import net.nerdorg.minehop.timer.TimerManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +54,6 @@ public class Minehop implements ModInitializer {
 		ConfigWrapper.register();
 		DataManager.register();
 		JoinLeaveManager.register();
-		TimerManager.register();
 		MobManager.register();
 
 		SpawnCommands.register();
