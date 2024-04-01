@@ -63,6 +63,7 @@ public class PacketHandler {
     }
 
     private static void handleMapCompletion(ServerPlayerEntity player, MinecraftServer server, float time) {
+        float ping_limit = 300; // ping limit in ms
         if (!player.isCreative() && !player.isSpectator()) {
             if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
                 String map_name = ZoneUtil.getCurrentMapName(player, player.getServerWorld());
@@ -70,7 +71,7 @@ public class PacketHandler {
                 HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
                 List<String> keyList = timerMap.keySet().stream().toList();
                 double rawTime = (double) (System.nanoTime() - timerMap.get(keyList.get(0))) / 1000000000;
-                if (time < rawTime + 0.05 && time > rawTime - 0.05) {
+                if (time < rawTime + (ping_limit / 1000f) && time > rawTime - (ping_limit / 1000f)) {
                     String formattedNumber = String.format("%.5f", time);
                     DataManager.RecordData mapRecord = DataManager.getRecord(map_name);
                     if (mapRecord != null) {
