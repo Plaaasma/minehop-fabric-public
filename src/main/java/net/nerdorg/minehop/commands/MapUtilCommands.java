@@ -173,7 +173,7 @@ public class MapUtilCommands {
                 }
             }
             if (currentMapData != null) {
-                if (currentMapData.worldKey.equals("")) {
+                if (currentMapData.worldKey == null || currentMapData.worldKey.equals("")) {
                     Minehop.mapList.remove(currentMapData);
                     currentMapData.worldKey = context.getSource().getServer().getOverworld().getRegistryKey().toString();
                     Minehop.mapList.add(currentMapData);
@@ -214,8 +214,7 @@ public class MapUtilCommands {
         }
 
         if (tpData != null) {
-            System.out.println(tpData.worldKey);
-            if (tpData.worldKey.equals("")) {
+            if (tpData.worldKey == null || tpData.worldKey.equals("")) {
                 Minehop.mapList.remove(tpData);
                 tpData.worldKey = context.getSource().getServer().getOverworld().getRegistryKey().toString();
                 Minehop.mapList.add(tpData);
