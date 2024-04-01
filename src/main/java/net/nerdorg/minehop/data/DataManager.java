@@ -3,6 +3,8 @@ package net.nerdorg.minehop.data;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
+import net.minecraft.registry.Registry;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -10,6 +12,8 @@ import net.minecraft.util.WorldSavePath;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec2f;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
+import net.minecraft.world.dimension.DimensionType;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.networking.PacketHandler;
 
@@ -34,18 +38,20 @@ public class DataManager {
         public double z;
         public double xrot;
         public double yrot;
+        public String worldKey;
         public List<List<Vec3d>> checkpointPositions;
 
         public MapData() {
         }
 
-        public MapData(String name, double x, double y, double z, double xrot, double yrot) {
+        public MapData(String name, double x, double y, double z, double xrot, double yrot, String worldKey) {
             this.name = name;
             this.x = x;
             this.y = y;
             this.z = z;
             this.xrot = xrot;
             this.yrot = yrot;
+            this.worldKey = worldKey;
         }
     }
 

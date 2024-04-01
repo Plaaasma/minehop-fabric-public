@@ -173,8 +173,23 @@ public class MapUtilCommands {
                 }
             }
             if (currentMapData != null) {
+                if (currentMapData.worldKey == null) {
+                    Minehop.mapList.remove(currentMapData);
+                    currentMapData.worldKey = context.getSource().getServer().getOverworld().getDimension().toString();
+                    Minehop.mapList.add(currentMapData);
+                    DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+                }
                 Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
-                serverPlayerEntity.teleport((ServerWorld) serverPlayerEntity.getWorld(), currentMapData.x, currentMapData.y, currentMapData.z, (float) currentMapData.yrot, (float) currentMapData.xrot);
+                ServerWorld foundWorld = null;
+                for (ServerWorld svrWorld : context.getSource().getServer().getWorlds()) {
+                    if (svrWorld.getRegistryKey().toString().equals(currentMapData.worldKey)) {
+                        foundWorld = svrWorld;
+                        break;
+                    }
+                }
+                if (foundWorld != null) {
+                    serverPlayerEntity.teleport(foundWorld, currentMapData.x, currentMapData.y, currentMapData.z, (float) currentMapData.yrot, (float) currentMapData.xrot);
+                }
             }
             else {
                 Logger.logFailure(serverPlayerEntity, "Error finding nearest map.");
@@ -199,8 +214,23 @@ public class MapUtilCommands {
         }
 
         if (tpData != null) {
+            if (tpData.worldKey == null) {
+                Minehop.mapList.remove(tpData);
+                tpData.worldKey = context.getSource().getServer().getOverworld().getDimension().toString();
+                Minehop.mapList.add(tpData);
+                DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+            }
             Logger.logSuccess(serverPlayerEntity, "Teleporting to " + name);
-            serverPlayerEntity.teleport((ServerWorld) serverPlayerEntity.getWorld(), tpData.x, tpData.y, tpData.z, (float) tpData.yrot, (float) tpData.xrot);
+            ServerWorld foundWorld = null;
+            for (ServerWorld serverWorld : context.getSource().getServer().getWorlds()) {
+                if (serverWorld.getRegistryKey().toString().equals(tpData.worldKey)) {
+                    foundWorld = serverWorld;
+                    break;
+                }
+            }
+            if (foundWorld != null) {
+                serverPlayerEntity.teleport(foundWorld, tpData.x, tpData.y, tpData.z, (float) tpData.yrot, (float) tpData.xrot);
+            }
         }
         else {
             Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
@@ -217,7 +247,7 @@ public class MapUtilCommands {
         double spawn_xrot = serverPlayerEntity.getPitch();
         double spawn_yrot = serverPlayerEntity.getYaw();
 
-        DataManager.MapData mapData = new DataManager.MapData(name, spawn_x, spawn_y, spawn_z, spawn_xrot, spawn_yrot);
+        DataManager.MapData mapData = new DataManager.MapData(name, spawn_x, spawn_y, spawn_z, spawn_xrot, spawn_yrot, serverPlayerEntity.getWorld().getRegistryKey().toString());
         Minehop.mapList.add(mapData);
         DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
 
