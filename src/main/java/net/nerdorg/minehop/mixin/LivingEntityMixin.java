@@ -171,10 +171,12 @@ public abstract class LivingEntityMixin extends Entity {
             } else {
                 // Increase maximum air speed based on the yawDifference
                 // maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 180.0f))); <- Alternative.
-                maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 7.5f))); // 90.0f is the normal value, might revert back to it
+                maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 11.25f))); // 90.0f is the normal value, might revert back to it
                 // yawDifference / 50.0f is good
                 // yawDifference / 25.0f may be better, but it's hard to say
                 // yawDifference / 10.0f is good
+                // yawDifference / 7.8f is better
+                // yawDifference / 11.5f
 
                 maxVel = (float) Math.min(maxVel, config.sv_maxairspeed * 1000000000000000.0f); // Limit to prevent astronomical speed gain.
                 // 2.0f <- decent maybe
