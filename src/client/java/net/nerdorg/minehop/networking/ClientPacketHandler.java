@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
@@ -16,6 +17,8 @@ import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.entity.custom.StartEntity;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -91,7 +94,19 @@ public class ClientPacketHandler {
             double efficiency = buf.readDouble();
 
             client.execute(() -> {
-                MinehopClient.last_efficiency = efficiency;
+                if (efficiency != 0) {
+                    MinehopClient.last_efficiency = efficiency;
+                }
+                else {
+                    if (Minehop.efficiencyListMap.containsKey(client.player.getNameForScoreboard())) {
+                        List<Double> efficiencyList = Minehop.efficiencyListMap.get(client.player.getNameForScoreboard());
+                        if (efficiencyList != null && efficiencyList.size() > 0) {
+                            double averageEfficiency = efficiencyList.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
+                            MinehopClient.last_efficiency = averageEfficiency;
+                            Minehop.efficiencyListMap.put(client.player.getNameForScoreboard(), new ArrayList<>());
+                        }
+                    }
+                }
             });
         });
 
