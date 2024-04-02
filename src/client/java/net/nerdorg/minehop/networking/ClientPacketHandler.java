@@ -98,7 +98,7 @@ public class ClientPacketHandler {
                     MinehopClient.last_efficiency = efficiency;
                 }
                 else {
-                    if (Minehop.efficiencyListMap.containsKey(client.player.getNameForScoreboard())) {
+                    if (Minehop.efficiencyListMap.containsKey(client.player.getNameForScoreboard()) && client.player.isOnGround()) {
                         List<Double> efficiencyList = Minehop.efficiencyListMap.get(client.player.getNameForScoreboard());
                         if (efficiencyList != null && efficiencyList.size() > 0) {
                             double averageEfficiency = efficiencyList.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);

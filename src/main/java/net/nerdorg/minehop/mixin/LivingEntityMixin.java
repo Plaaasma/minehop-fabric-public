@@ -223,7 +223,7 @@ public abstract class LivingEntityMixin extends Entity {
                 double maxgainv = Math.sqrt(nogainv2 + (trueMaxVel * trueMaxVel));
 //                double qt = 0.785398f;
 //                double gauge = MathHelper.clamp(1D + (MathHelper.abs((float) MathHelper.atan2(sI * lastSpeed.z - fI * lastSpeed.x, sI * lastSpeed.x + fI * lastSpeed.z)) - qt) / MathHelper.atan2(trueMaxVel, nogainv), 0D, 2D);
-                double strafeEfficiency = MathHelper.clamp((((v - nogainv) / (maxgainv - nogainv)) * 33), 0D, 100D);
+                double strafeEfficiency = MathHelper.clamp((((v - nogainv) / (maxgainv - nogainv)) * 25), 0D, 100D);
                 Minehop.efficiencyMap.put(this.getNameForScoreboard(), strafeEfficiency);
                 List<Double> efficiencyList = Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard()) ? Minehop.efficiencyListMap.get(this.getNameForScoreboard()) : new ArrayList<>();
                 efficiencyList.add(strafeEfficiency);

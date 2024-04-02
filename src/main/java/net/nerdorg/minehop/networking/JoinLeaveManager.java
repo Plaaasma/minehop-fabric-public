@@ -19,30 +19,32 @@ public class JoinLeaveManager {
         }));
 
         ServerPlayConnectionEvents.JOIN.register(((networkHandler, sender, server) -> {
-            DataManager.MapData mapData = DataManager.getMap("spawn");
-            if (mapData != null) {
-                if (mapData.worldKey == null || mapData.worldKey.equals("")) {
-                    Minehop.mapList.remove(mapData);
-                    mapData.worldKey = server.getOverworld().getRegistryKey().toString();
-                    Minehop.mapList.add(mapData);
-                    DataManager.saveMapData(networkHandler.player.getServerWorld(), Minehop.mapList);
-                }
-                ServerWorld foundWorld = null;
-                for (ServerWorld serverWorld : server.getWorlds()) {
-                    if (serverWorld.getRegistryKey().toString().equals(mapData.worldKey)) {
-                        foundWorld = serverWorld;
-                        break;
+            if (!networkHandler.player.hasPermissionLevel(4)) {
+                DataManager.MapData mapData = DataManager.getMap("spawn");
+                if (mapData != null) {
+                    if (mapData.worldKey == null || mapData.worldKey.equals("")) {
+                        Minehop.mapList.remove(mapData);
+                        mapData.worldKey = server.getOverworld().getRegistryKey().toString();
+                        Minehop.mapList.add(mapData);
+                        DataManager.saveMapData(networkHandler.player.getServerWorld(), Minehop.mapList);
                     }
-                }
-                if (foundWorld != null) {
-                    networkHandler.player.teleport(
-                            server.getOverworld(),
-                            mapData.x,
-                            mapData.y,
-                            mapData.z,
-                            (float) mapData.yrot,
-                            (float) mapData.xrot
-                    );
+                    ServerWorld foundWorld = null;
+                    for (ServerWorld serverWorld : server.getWorlds()) {
+                        if (serverWorld.getRegistryKey().toString().equals(mapData.worldKey)) {
+                            foundWorld = serverWorld;
+                            break;
+                        }
+                    }
+                    if (foundWorld != null) {
+                        networkHandler.player.teleport(
+                                server.getOverworld(),
+                                mapData.x,
+                                mapData.y,
+                                mapData.z,
+                                (float) mapData.yrot,
+                                (float) mapData.xrot
+                        );
+                    }
                 }
             }
         }));
