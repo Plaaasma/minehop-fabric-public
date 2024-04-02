@@ -29,16 +29,12 @@ public class MinehopClient implements ClientModInitializer {
 	public static long last_jump_time = 0;
 	public static long old_jump_time = 0;
 	public static double last_efficiency;
-	public static double last_speed = 0;
-	public static boolean wasOnGround = false;
 
 	public static boolean hideSelf = false;
 	public static boolean hideOthers = false;
 
 	public static long startTime = 0;
 	public static float lastSendTime = 0;
-
-	public static List<String> groundedList = new ArrayList<>();
 
 	@Override
 	public void onInitializeClient() {

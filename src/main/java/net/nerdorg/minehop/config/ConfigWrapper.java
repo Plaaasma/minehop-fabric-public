@@ -22,6 +22,7 @@ public class ConfigWrapper {
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register((server) -> {
             for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+                PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
                 if (playerEntity.isOnGround()) {
                     if (Minehop.efficiencyUpdateMap.containsKey(playerEntity.getNameForScoreboard())) {
                         PacketHandler.sendEfficiency(playerEntity, Minehop.efficiencyUpdateMap.get(playerEntity.getNameForScoreboard()));
@@ -32,7 +33,6 @@ public class ConfigWrapper {
             }
             if (server.getTicks() % 100 == 0) {
                 for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
-                    PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
                     if (!(adminList.contains(Objects.requireNonNull(playerEntity.getDisplayName()).getString()))) {
                         PacketHandler.sendAntiCheatCheck(playerEntity);
                     }

@@ -20,6 +20,7 @@ import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.networking.PacketHandler;
+import net.nerdorg.minehop.util.MovementUtil;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -107,7 +108,6 @@ public abstract class LivingEntityMixin extends Entity {
         double sI = movementInput.x / 0.98F;
         double actualsI = movementInput.x / 0.98F;
         double fI = movementInput.z / 0.98F;
-        double actualfI = movementInput.z / 0.98F;
         double uI = movementInput.y;
 
         //Have no jump cooldown, why not?
@@ -177,7 +177,7 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         if (sI != 0.0F || fI != 0.0F) {
-            Vec3d moveDir = movementInputToVelocity(new Vec3d(sI, 0.0F, fI), 1.0F, this.getYaw());
+            Vec3d moveDir = MovementUtil.movementInputToVelocity(new Vec3d(sI, 0.0F, fI), 1.0F, this.getYaw());
             Vec3d accelVec = this.getVelocity();
 
             double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
@@ -217,9 +217,8 @@ public abstract class LivingEntityMixin extends Entity {
 
             if (!this.isOnGround()) {
                 double trueMaxVel = maxVel - projVel;
-                Vec3d velocity = this.getVelocity();
-                double v = Math.sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z));
-                double nogainv2 = (lastSpeed.x * lastSpeed.x) + (lastSpeed.z * lastSpeed.z);
+                double v = Math.sqrt((newVelocity.x * newVelocity.x) + (newVelocity.z * newVelocity.z));
+                double nogainv2 = (accelVec.x * accelVec.x) + (accelVec.z * accelVec.z);
                 double nogainv = Math.sqrt(nogainv2);
                 double maxgainv = Math.sqrt(nogainv2 + (trueMaxVel * trueMaxVel));
 //                double qt = 0.785398f;
@@ -229,7 +228,6 @@ public abstract class LivingEntityMixin extends Entity {
                 List<Double> efficiencyList = Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard()) ? Minehop.efficiencyListMap.get(this.getNameForScoreboard()) : new ArrayList<>();
                 efficiencyList.add(strafeEfficiency);
                 Minehop.efficiencyListMap.put(this.getNameForScoreboard(), efficiencyList);
-                lastSpeed = velocity;
             }
 
             this.setVelocity(newVelocity);
@@ -290,14 +288,6 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         ci.cancel();
-    }
-
-    private static Vec3d movementInputToVelocity(Vec3d movementInput, float speed, float yaw) {
-        double d = movementInput.lengthSquared();
-        Vec3d vec3d = (d > 1.0D ? movementInput.normalize() : movementInput).multiply(speed);
-        float f = MathHelper.sin(yaw * 0.017453292F);
-        float g = MathHelper.cos(yaw * 0.017453292F);
-        return new Vec3d(vec3d.x * (double)g - vec3d.z * (double)f, vec3d.y, vec3d.z * (double)g + vec3d.x * (double)f);
     }
 
     private static boolean isFlying(PlayerEntity player) {

@@ -4,7 +4,9 @@ import me.shedaniel.autoconfig.AutoConfig;
 import me.shedaniel.autoconfig.serializer.JanksonConfigSerializer;
 import net.fabricmc.api.ModInitializer;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
+import net.minecraft.server.MinecraftServer;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.block.entity.ModBlockEntities;
 import net.nerdorg.minehop.commands.*;
@@ -15,6 +17,7 @@ import net.nerdorg.minehop.entity.MobManager;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.item.ModItems;
+import net.nerdorg.minehop.motd.MotdManager;
 import net.nerdorg.minehop.networking.JoinLeaveManager;
 import net.nerdorg.minehop.networking.PacketHandler;
 import org.slf4j.Logger;
@@ -69,6 +72,8 @@ public class Minehop implements ModInitializer {
 		ModItems.registerModItems();
 		ModBlocks.registerModBlocks();
 		ModBlockEntities.registerBlockEntities();
+
+		MotdManager.register();
 
 		FabricDefaultAttributeRegistry.register(ModEntities.RESET_ENTITY, ResetEntity.createResetEntityAttributes());
 		FabricDefaultAttributeRegistry.register(ModEntities.START_ENTITY, ResetEntity.createResetEntityAttributes());
