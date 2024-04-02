@@ -86,6 +86,15 @@ public class ClientPacketHandler {
             });
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.SEND_EFFICIENCY, (client, handler, buf, responseSender) -> {
+            // Ensure you are on the main thread when modifying the game or accessing client-side only classes
+            double efficiency = buf.readDouble();
+
+            client.execute(() -> {
+                MinehopClient.last_efficiency = efficiency;
+            });
+        });
+
         ClientPlayNetworking.registerGlobalReceiver(ModMessages.ANTI_CHEAT_CHECK, (client, handler, buf, responseSender) -> {
 
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes

@@ -2,6 +2,7 @@ package net.nerdorg.minehop.networking;
 
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -52,6 +53,13 @@ public class PacketHandler {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
 
         ServerPlayNetworking.send(player, ModMessages.OTHER_V_TOGGLE, buf);
+    }
+
+    public static void sendEfficiency(ServerPlayerEntity player, double efficiency) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+        buf.writeDouble(efficiency);
+
+        ServerPlayNetworking.send(player, ModMessages.SEND_EFFICIENCY, buf);
     }
 
     public static void sendAntiCheatCheck(ServerPlayerEntity player) {

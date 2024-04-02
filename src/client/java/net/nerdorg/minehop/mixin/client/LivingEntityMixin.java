@@ -2,6 +2,7 @@
 
 package net.nerdorg.minehop.mixin.client;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.*;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
@@ -14,6 +15,7 @@ import net.minecraft.world.World;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.block.ModBlocks;
+import net.nerdorg.minehop.client.SqueedometerHud;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
 import org.spongepowered.asm.mixin.Mixin;
@@ -33,6 +35,9 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Shadow public abstract float getHeadYaw();
 
+    @Shadow public abstract boolean isMobOrPlayer();
+
+    @Shadow public float prevHeadYaw;
     private boolean wasOnGround;
 
     public LivingEntityMixin(EntityType<?> type, World world) {
@@ -46,13 +51,12 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     public void travel(Vec3d movementInput, CallbackInfo ci) {
-        boolean fullGrounded = this.wasOnGround && this.isOnGround(); //Allows for no friction 1-frame upon landing.
+        boolean fullGrounded = this.wasOnGround && this.isOnGround();
         if (fullGrounded) {
             if (!MinehopClient.groundedList.contains(this.getNameForScoreboard())) {
                 MinehopClient.groundedList.add(this.getNameForScoreboard());
             }
-        }
-        else {
+        } else {
             if (MinehopClient.groundedList.contains(this.getNameForScoreboard())) {
                 MinehopClient.groundedList.remove(this.getNameForScoreboard());
             }

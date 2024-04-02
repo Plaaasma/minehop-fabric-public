@@ -3,6 +3,7 @@ package net.nerdorg.minehop.config;
 import me.shedaniel.autoconfig.AutoConfig;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.networking.PacketHandler;
 
 import java.util.ArrayList;
@@ -21,10 +22,13 @@ public class ConfigWrapper {
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register((server) -> {
             for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
-                PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
+                if (Minehop.efficiencyUpdateMap.containsKey(playerEntity.getNameForScoreboard()) && playerEntity.isOnGround()) {
+                    PacketHandler.sendEfficiency(playerEntity, Minehop.efficiencyUpdateMap.get(playerEntity.getNameForScoreboard()));
+                }
             }
             if (server.getTicks() % 100 == 0) {
                 for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+                    PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
                     if (!(adminList.contains(Objects.requireNonNull(playerEntity.getDisplayName()).getString()))) {
                         PacketHandler.sendAntiCheatCheck(playerEntity);
                     }

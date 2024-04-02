@@ -2,11 +2,13 @@
 
 package net.nerdorg.minehop.mixin;
 
+import com.mojang.authlib.minecraft.client.MinecraftClient;
 import net.minecraft.entity.*;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -17,12 +19,16 @@ import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.config.ConfigWrapper;
+import net.nerdorg.minehop.networking.PacketHandler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin extends Entity {
@@ -47,7 +53,12 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Shadow public abstract float getHeadYaw();
 
+    @Shadow protected abstract boolean shouldSwimInFluids();
+
+    @Shadow protected abstract void spawnItemParticles(ItemStack stack, int count);
+
     private boolean wasOnGround;
+    private Vec3d lastSpeed = this.getVelocity();
 
     public LivingEntityMixin(EntityType<?> type, World world) {
         super(type, world);
@@ -94,7 +105,9 @@ public abstract class LivingEntityMixin extends Entity {
         this.sidewaysSpeed /= 0.98F;
         this.forwardSpeed /= 0.98F;
         double sI = movementInput.x / 0.98F;
+        double actualsI = movementInput.x / 0.98F;
         double fI = movementInput.z / 0.98F;
+        double actualfI = movementInput.z / 0.98F;
         double uI = movementInput.y;
 
         //Have no jump cooldown, why not?
@@ -149,6 +162,19 @@ public abstract class LivingEntityMixin extends Entity {
         if (!this.isOnGround()) {
             sI = sI * yawDifference;
         }
+        else {
+            if (Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard())) {
+                List<Double> efficiencyList = Minehop.efficiencyListMap.get(this.getNameForScoreboard());
+                if (efficiencyList != null && efficiencyList.size() > 0) {
+                    double averageEfficiency = efficiencyList.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
+                    Entity localEntity = this.getWorld().getEntityById(this.getId());
+                    if (localEntity instanceof PlayerEntity playerEntity) {
+                        Minehop.efficiencyUpdateMap.put(playerEntity.getNameForScoreboard(), averageEfficiency);
+                    }
+                    Minehop.efficiencyListMap.put(this.getNameForScoreboard(), new ArrayList<>());
+                }
+            }
+        }
 
         if (sI != 0.0F || fI != 0.0F) {
             Vec3d moveDir = movementInputToVelocity(new Vec3d(sI, 0.0F, fI), 1.0F, this.getYaw());
@@ -166,7 +192,7 @@ public abstract class LivingEntityMixin extends Entity {
              * @Reason Fixed movement made it better and fucking awesome.
              */
             float maxVel;
-            if (this.isOnGround()) {
+            if (this.isOnGround() && !this.jumping) {
                 maxVel = (float) (this.movementSpeed * config.speed_mul);
             } else {
                 // Increase maximum air speed based on the yawDifference
@@ -188,6 +214,23 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d accelDir = moveDir.multiply(Math.max(accelVel, 0.0F));
 
             Vec3d newVelocity = accelVec.add(accelDir);
+
+            if (!this.isOnGround()) {
+                double trueMaxVel = maxVel - projVel;
+                Vec3d velocity = this.getVelocity();
+                double v = Math.sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z));
+                double nogainv2 = (lastSpeed.x * lastSpeed.x) + (lastSpeed.z * lastSpeed.z);
+                double nogainv = Math.sqrt(nogainv2);
+                double maxgainv = Math.sqrt(nogainv2 + (trueMaxVel * trueMaxVel));
+//                double qt = 0.785398f;
+//                double gauge = MathHelper.clamp(1D + (MathHelper.abs((float) MathHelper.atan2(sI * lastSpeed.z - fI * lastSpeed.x, sI * lastSpeed.x + fI * lastSpeed.z)) - qt) / MathHelper.atan2(trueMaxVel, nogainv), 0D, 2D);
+                double strafeEfficiency = MathHelper.clamp((((v - nogainv) / (maxgainv - nogainv)) * 25), 0D, 100D);
+                Minehop.efficiencyMap.put(this.getNameForScoreboard(), strafeEfficiency);
+                List<Double> efficiencyList = Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard()) ? Minehop.efficiencyListMap.get(this.getNameForScoreboard()) : new ArrayList<>();
+                efficiencyList.add(strafeEfficiency);
+                Minehop.efficiencyListMap.put(this.getNameForScoreboard(), efficiencyList);
+                lastSpeed = velocity;
+            }
 
             this.setVelocity(newVelocity);
         }
@@ -245,7 +288,6 @@ public abstract class LivingEntityMixin extends Entity {
             this.setVelocity(vecFin.x, yVel, vecFin.z);
             this.velocityDirty = true;
         }
-        this.setOnGround(false);
 
         ci.cancel();
     }
