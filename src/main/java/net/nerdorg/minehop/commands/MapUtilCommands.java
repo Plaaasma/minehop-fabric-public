@@ -78,6 +78,15 @@ public class MapUtilCommands {
                     })
                 )
             )
+            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("invalidate")
+                .requires(source -> source.hasPermissionLevel(4))
+                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                    .executes(context -> {
+                        handleInvalidate(context);
+                        return Command.SINGLE_SUCCESS;
+                    })
+                )
+            )
             .then(LiteralArgumentBuilder.<ServerCommandSource>literal("remove")
                 .requires(source -> source.hasPermissionLevel(4))
                 .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("remove_name", StringArgumentType.string())
@@ -254,6 +263,38 @@ public class MapUtilCommands {
         Logger.logSuccess(serverPlayerEntity, "Created map \\/\n" + StringFormatting.limitDecimals(gson.toJson(mapData)));
 
 
+    }
+
+    private static void handleInvalidate(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+
+        String name = StringArgumentType.getString(context, "map_name");
+
+        DataManager.MapData invalidateData = null;
+
+        for (Object object : Minehop.mapList) {
+            if (object instanceof DataManager.MapData mapData) {
+                if (mapData.name.equals(name)) {
+                    invalidateData = mapData;
+                    Minehop.mapList.remove(mapData);
+                    DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+                    break;
+                }
+            }
+        }
+
+        Minehop.personalRecordList = new ArrayList<>();
+        DataManager.savePersonalRecordData(context.getSource().getWorld(), new ArrayList<>());
+
+        Minehop.recordList = new ArrayList<>();
+        DataManager.saveRecordData(context.getSource().getWorld(), new ArrayList<>());
+
+        if (invalidateData != null) {
+            Logger.logSuccess(serverPlayerEntity, "Invalidated times for map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));
+        }
+        else {
+            Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
+        }
     }
 
     private static void handleRemove(CommandContext<ServerCommandSource> context) {

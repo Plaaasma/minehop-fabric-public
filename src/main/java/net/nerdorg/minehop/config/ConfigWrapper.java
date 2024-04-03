@@ -44,4 +44,9 @@ public class ConfigWrapper {
     public static void loadConfig() {
         config = AutoConfig.getConfigHolder(MinehopConfig.class).getConfig();
     }
+
+    public static void saveConfig(MinehopConfig minehopConfig) {
+        AutoConfig.getConfigHolder(MinehopConfig.class).setConfig(minehopConfig);
+        AutoConfig.getConfigHolder(MinehopConfig.class).save();
+    }
 }

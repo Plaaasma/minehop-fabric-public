@@ -63,11 +63,7 @@ public class Minehop implements ModInitializer {
 		JoinLeaveManager.register();
 		MobManager.register();
 
-		SpawnCommands.register();
-		MapUtilCommands.register();
-		ZoneManagementCommands.register();
-		BoostCommands.register();
-		VisiblityCommands.register();
+		CommandRegister.register();
 
 		ModItems.registerModItems();
 		ModBlocks.registerModBlocks();
