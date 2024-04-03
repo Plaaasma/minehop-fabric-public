@@ -76,13 +76,13 @@ public class SqueedometerHud {
             return Formatting.YELLOW.getColorValue();
         }
         else if (percent < 90) {
-            return Formatting.GRAY.getColorValue();
-        }
-        else if (percent < 95) {
             return Formatting.GREEN.getColorValue();
         }
-        else {
+        else if (percent < 95) {
             return Formatting.AQUA.getColorValue();
+        }
+        else {
+            return Formatting.WHITE.getColorValue();
         }
     }
 
