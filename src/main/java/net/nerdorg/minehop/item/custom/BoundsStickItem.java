@@ -90,7 +90,7 @@ public class BoundsStickItem extends Item {
                 this.pos2 = newPos2;
 
                 Logger.logSuccess(serverPlayerEntity, "Position 2 set to " + this.pos2.toShortString());
-                first_coord = true;
+                this.first_coord = true;
             }
         }
         return super.useOnBlock(context);

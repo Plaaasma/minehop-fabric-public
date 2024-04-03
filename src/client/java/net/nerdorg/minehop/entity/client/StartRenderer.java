@@ -13,6 +13,7 @@ import net.minecraft.util.math.Vec3d;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.entity.custom.StartEntity;
+import net.nerdorg.minehop.networking.ClientPacketHandler;
 import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Vector3f;
 
@@ -35,7 +36,13 @@ public class StartRenderer extends MobEntityRenderer<StartEntity, StartModel> {
 
     @Override
     public void render(StartEntity startEntity, float f, float g, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
+        float time = (((float) System.nanoTime() - (float) MinehopClient.startTime) / 1000000000f);
         MinecraftClient client = MinecraftClient.getInstance();
+
+        if (MinehopClient.startTime != 0) {
+            ClientPacketHandler.sendCurrentTime(time);
+        }
+
         BlockPos corner1 = startEntity.getCorner1();
         BlockPos corner2 = startEntity.getCorner2();
         if (corner1 != null && corner2 != null) {

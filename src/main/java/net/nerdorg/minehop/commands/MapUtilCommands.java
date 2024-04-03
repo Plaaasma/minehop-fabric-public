@@ -202,8 +202,10 @@ public class MapUtilCommands {
                     if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
                         List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
                         for (String spectator : spectators) {
-                            ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
-                            PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+                            if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
+                                ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                                PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+                            }
                         }
                     }
                 }
@@ -250,8 +252,10 @@ public class MapUtilCommands {
                 if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
                     List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
                     for (String spectator : spectators) {
-                        ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
-                        PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+                        if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
+                            ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                            PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+                        }
                     }
                 }
             }

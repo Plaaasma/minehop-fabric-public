@@ -44,7 +44,7 @@ public class EndRenderer extends MobEntityRenderer<EndEntity, EndModel> {
         MinecraftClient client = MinecraftClient.getInstance();
 
         if (MinehopClient.startTime != 0) {
-            ClientPacketHandler.sendCurrentTime(time, false);
+            ClientPacketHandler.sendCurrentTime(time);
         }
 
         BlockPos corner1 = endEntity.getCorner1();
@@ -64,7 +64,6 @@ public class EndRenderer extends MobEntityRenderer<EndEntity, EndModel> {
                 Vec3d nextPosition = currentPosition.add(velocity.multiply(partialTicks));
                 if (colliderBox.contains(nextPosition)) {
                     if (MinehopClient.startTime != 0) {
-                        ClientPacketHandler.sendCurrentTime(time, true);
                         ClientPacketHandler.sendEndMapEvent(time);
                         MinehopClient.startTime = 0;
                         MinehopClient.lastSendTime = 0;

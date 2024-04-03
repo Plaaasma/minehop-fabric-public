@@ -1,5 +1,6 @@
 package net.nerdorg.minehop.entity.client;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Frustum;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.EntityRendererFactory;
@@ -9,7 +10,9 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.nerdorg.minehop.Minehop;
+import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
+import net.nerdorg.minehop.networking.ClientPacketHandler;
 import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Vector3f;
 
@@ -32,6 +35,12 @@ public class ResetRenderer extends MobEntityRenderer<ResetEntity, ResetModel> {
 
     @Override
     public void render(ResetEntity resetEntity, float f, float g, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
+        float time = (((float) System.nanoTime() - (float) MinehopClient.startTime) / 1000000000f);
+
+        if (MinehopClient.startTime != 0) {
+            ClientPacketHandler.sendCurrentTime(time);
+        }
+
         BlockPos corner1 = resetEntity.getCorner1();
         BlockPos corner2 = resetEntity.getCorner2();
         if (corner1 != null && corner2 != null) {

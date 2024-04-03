@@ -175,10 +175,13 @@ public class PacketHandler {
                 if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
                     List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
                     for (String spectatorName : spectators) {
-                        ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
-                        Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.2f", personalRecord) : "No PB"));
+                        if (!spectatorName.equals(player.getNameForScoreboard())) {
+                            ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
+                            Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.2f", personalRecord) : "No PB"));
+                        }
                     }
                 }
+                Logger.logActionBar(player, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.2f", personalRecord) : "No PB"));
             }
         });
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.MAP_FINISH, (server, player, handler, buf, responseSender) -> {
