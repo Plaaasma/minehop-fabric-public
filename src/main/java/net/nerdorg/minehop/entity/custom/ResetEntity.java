@@ -114,7 +114,7 @@ public class ResetEntity extends Zone {
     public void tick() {
         World world = this.getWorld();
         if (world instanceof ServerWorld serverWorld) {
-            if (serverWorld.getTime() % 100 == 0) {
+            if (serverWorld.getTime() % 2 == 0) {
                 if (this.corner1 != null && this.corner2 != null) {
                     int avgX = (this.corner1.getX() + this.corner2.getX()) / 2;
                     int avgY = (this.corner1.getY() + this.corner2.getY()) / 2;

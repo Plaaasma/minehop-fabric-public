@@ -295,8 +295,6 @@ public class MapUtilCommands {
             if (object instanceof DataManager.MapData mapData) {
                 if (mapData.name.equals(name)) {
                     invalidateData = mapData;
-                    Minehop.mapList.remove(mapData);
-                    DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
                     break;
                 }
             }
