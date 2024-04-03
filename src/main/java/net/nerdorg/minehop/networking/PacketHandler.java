@@ -139,6 +139,16 @@ public class PacketHandler {
         }
     }
 
+    public static void sendSpecEfficiency(ServerPlayerEntity player, double last_jump_speed, int jump_count, double last_efficiency) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeDouble(last_jump_speed);
+        buf.writeInt(jump_count);
+        buf.writeDouble(last_efficiency);
+
+        ServerPlayNetworking.send(player, ModMessages.CLIENT_SPEC_EFFICIENCY, buf);
+    }
+
     public static void registerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.ANTI_CHEAT_CHECK, (server, player, handler, buf, responseSender) -> {
             boolean cheatSoftwareOpen = buf.readBoolean();
@@ -174,6 +184,21 @@ public class PacketHandler {
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.MAP_FINISH, (server, player, handler, buf, responseSender) -> {
             float time = buf.readFloat();
             handleMapCompletion(player, server, time);
+        });
+        ServerPlayNetworking.registerGlobalReceiver(ModMessages.SERVER_SPEC_EFFICIENCY, (server, player, handler, buf, responseSender) -> {
+            double last_jump_speed = buf.readDouble();
+            int jump_count = buf.readInt();
+            double last_efficiency = buf.readDouble();
+
+            if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
+                List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
+                for (String spectator : spectators) {
+                    ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectator);
+                    if (!spectatorPlayer.getNameForScoreboard().equals(player.getNameForScoreboard())) {
+                        sendSpecEfficiency(spectatorPlayer, last_jump_speed, jump_count, last_efficiency);
+                    }
+                }
+            }
         });
     }
 

@@ -130,27 +130,28 @@ public class SqueedometerHud {
             context.drawTextWithShadow(this.textRenderer, ssjText, left, top, color);
             context.drawTextWithShadow(this.textRenderer, effText, eff_left, eff_top, effColor);
         }
-        if (MinehopClient.jumping) {
-            if (client.world.getTime() >= MinehopClient.last_jump_time + 1 || client.world.getTime() < MinehopClient.last_jump_time || MinehopClient.last_jump_time == 0) {
-                if (client.player.isOnGround()) {
-                    double travelledX = playerPosVec.x - client.player.prevX;
-                    double travelledZ = playerPosVec.z - client.player.prevZ;
-                    double speed = (double) MathHelper.sqrt((float) (travelledX * travelledX + travelledZ * travelledZ));
+        if (client.player == null || !client.player.isSpectator()) {
+            if (MinehopClient.jumping) {
+                if (client.world.getTime() >= MinehopClient.last_jump_time + 1 || client.world.getTime() < MinehopClient.last_jump_time || MinehopClient.last_jump_time == 0) {
+                    if (client.player.isOnGround()) {
+                        double travelledX = playerPosVec.x - client.player.prevX;
+                        double travelledZ = playerPosVec.z - client.player.prevZ;
+                        double speed = (double) MathHelper.sqrt((float) (travelledX * travelledX + travelledZ * travelledZ));
 
-                    MinehopClient.old_jump_speed = MinehopClient.last_jump_speed;
-                    MinehopClient.last_jump_speed = speed;
-                    MinehopClient.jump_count += 1;
-                    MinehopClient.old_jump_time = MinehopClient.last_jump_time;
-                    MinehopClient.last_jump_time = client.world.getTime();
+                        MinehopClient.old_jump_speed = MinehopClient.last_jump_speed;
+                        MinehopClient.last_jump_speed = speed;
+                        MinehopClient.jump_count += 1;
+                        MinehopClient.old_jump_time = MinehopClient.last_jump_time;
+                        MinehopClient.last_jump_time = client.world.getTime();
+                    }
                 }
+            } else {
+                MinehopClient.old_jump_speed = 0;
+                MinehopClient.last_jump_speed = 0;
+                MinehopClient.jump_count = 0;
+                MinehopClient.old_jump_time = 0;
+                MinehopClient.last_jump_time = 0;
             }
-        }
-        else {
-            MinehopClient.old_jump_speed = 0;
-            MinehopClient.last_jump_speed = 0;
-            MinehopClient.jump_count = 0;
-            MinehopClient.old_jump_time = 0;
-            MinehopClient.last_jump_time = 0;
         }
     }
 

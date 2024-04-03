@@ -13,5 +13,7 @@ public class ModMessages {
     public static final Identifier SEND_EFFICIENCY = new Identifier(Minehop.MOD_ID, "send_efficiency");
     public static final Identifier DO_SPECTATE = new Identifier(Minehop.MOD_ID, "do_spectate");
     public static final Identifier SEND_SPECTATORS = new Identifier(Minehop.MOD_ID, "send_spectators");
+    public static final Identifier CLIENT_SPEC_EFFICIENCY = new Identifier(Minehop.MOD_ID, "client_spec_efficiency");
+    public static final Identifier SERVER_SPEC_EFFICIENCY = new Identifier(Minehop.MOD_ID, "server_spec_efficiency");
     public static final Identifier ANTI_CHEAT_CHECK = new Identifier(Minehop.MOD_ID, "anti_cheat_check");
 }

@@ -130,6 +130,20 @@ public class ClientPacketHandler {
                         }
                     }
                 }
+                sendSpecEfficiency();
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.CLIENT_SPEC_EFFICIENCY, (client, handler, buf, responseSender) -> {
+            // Ensure you are on the main thread when modifying the game or accessing client-side only classes
+            double last_jump_speed = buf.readDouble();
+            int jump_count = buf.readInt();
+            double last_efficiency = buf.readDouble();
+
+            client.execute(() -> {
+                MinehopClient.last_jump_speed = last_jump_speed;
+                MinehopClient.jump_count = jump_count;
+                MinehopClient.last_efficiency = last_efficiency;
             });
         });
 
@@ -145,6 +159,16 @@ public class ClientPacketHandler {
                 }).start();
             });
         });
+    }
+
+    public static void sendSpecEfficiency() {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeDouble(MinehopClient.last_jump_speed);
+        buf.writeInt(MinehopClient.jump_count);
+        buf.writeDouble(MinehopClient.last_efficiency);
+
+        ClientPlayNetworking.send(ModMessages.SERVER_SPEC_EFFICIENCY, buf);
     }
 
     public static void sendAntiCheatCheck(boolean softwareDetected, String softwareName) {

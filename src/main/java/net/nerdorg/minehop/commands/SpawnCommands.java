@@ -23,6 +23,8 @@ import net.nerdorg.minehop.item.custom.BoundsStickItem;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.Logger;
 
+import java.util.List;
+
 public class SpawnCommands {
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
@@ -59,6 +61,13 @@ public class SpawnCommands {
             );
             Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
             Logger.logSuccess(serverPlayerEntity, "Teleporting to spawn.");
+            if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+                List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                for (String spectator : spectators) {
+                    ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                    PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+                }
+            }
         }
         else {
             Logger.logFailure(serverPlayerEntity, "Spawn hasn't been set.");

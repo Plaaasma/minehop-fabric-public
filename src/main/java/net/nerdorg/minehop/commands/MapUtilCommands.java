@@ -21,6 +21,7 @@ import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.entity.custom.StartEntity;
 import net.nerdorg.minehop.entity.custom.Zone;
+import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.StringFormatting;
 
@@ -198,6 +199,13 @@ public class MapUtilCommands {
                 }
                 if (foundWorld != null) {
                     serverPlayerEntity.teleport(foundWorld, currentMapData.x, currentMapData.y, currentMapData.z, (float) currentMapData.yrot, (float) currentMapData.xrot);
+                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                        for (String spectator : spectators) {
+                            ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                            PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+                        }
+                    }
                 }
             }
             else {
@@ -239,6 +247,13 @@ public class MapUtilCommands {
             }
             if (foundWorld != null) {
                 serverPlayerEntity.teleport(foundWorld, tpData.x, tpData.y, tpData.z, (float) tpData.yrot, (float) tpData.xrot);
+                if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+                    List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                    for (String spectator : spectators) {
+                        ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                        PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+                    }
+                }
             }
         }
         else {
