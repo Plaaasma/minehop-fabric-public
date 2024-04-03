@@ -41,6 +41,7 @@ public class Minehop implements ModInitializer {
 	public static double o_sv_maxairspeed = 0;
 	public static double o_speed_mul = 0;
 	public static double o_sv_gravity = 0;
+	public static double o_sv_yaw = 0;
 
 	public static List<DataManager.MapData> mapList = new ArrayList<>();
 	public static List<DataManager.RecordData> personalRecordList = new ArrayList<>();
