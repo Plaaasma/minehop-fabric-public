@@ -21,6 +21,7 @@ import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.util.Logger;
+import net.nerdorg.minehop.util.StringFormatting;
 
 public class ConfigCommands {
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -32,6 +33,12 @@ public class ConfigCommands {
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reload")
                     .executes(context -> {
                         handleReload(context);
+                        return Command.SINGLE_SUCCESS;
+                    })
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("list")
+                    .executes(context -> {
+                        handleList(context);
                         return Command.SINGLE_SUCCESS;
                     })
                 )
@@ -152,6 +159,12 @@ public class ConfigCommands {
         ConfigWrapper.saveConfig(config);
 
         Logger.logSuccess(serverPlayerEntity, "Set sv_gravity to " + config.sv_gravity);
+    }
+
+    private static void handleList(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+
+        Logger.logSuccess(serverPlayerEntity, "Config Settings \\/\n" + StringFormatting.limitDecimals(gson.toJson(ConfigWrapper.config)));
     }
 
     private static void handleReload(CommandContext<ServerCommandSource> context) {

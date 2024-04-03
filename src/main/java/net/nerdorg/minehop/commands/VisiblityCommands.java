@@ -20,8 +20,6 @@ import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.Logger;
 
 public class VisiblityCommands {
-    private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
-
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<ServerCommandSource>literal("hide")
