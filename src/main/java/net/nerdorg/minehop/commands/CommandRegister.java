@@ -10,5 +10,7 @@ public class CommandRegister {
         BoostCommands.register();
         VisiblityCommands.register();
         SpectateCommands.register();
+        SocialsCommands.register();
+        VanillaCommands.register();
     }
 }

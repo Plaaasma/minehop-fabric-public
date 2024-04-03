@@ -51,21 +51,23 @@ public class SpawnCommands {
         String name = "spawn";
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
-            serverPlayerEntity.teleport(
-                    context.getSource().getServer().getOverworld(),
-                    pairedMap.x,
-                    pairedMap.y,
-                    pairedMap.z,
-                    (float) pairedMap.yrot,
-                    (float) pairedMap.xrot
-            );
-            Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
-            Logger.logSuccess(serverPlayerEntity, "Teleporting to spawn.");
-            if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
-                for (String spectator : spectators) {
-                    ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
-                    PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+            if (!serverPlayerEntity.isSpectator()) {
+                serverPlayerEntity.teleport(
+                        context.getSource().getServer().getOverworld(),
+                        pairedMap.x,
+                        pairedMap.y,
+                        pairedMap.z,
+                        (float) pairedMap.yrot,
+                        (float) pairedMap.xrot
+                );
+                Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+                Logger.logSuccess(serverPlayerEntity, "Teleporting to spawn.");
+                if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+                    List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                    for (String spectator : spectators) {
+                        ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                        PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+                    }
                 }
             }
         }
