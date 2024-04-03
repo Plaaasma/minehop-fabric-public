@@ -10,7 +10,7 @@ public class AutoDisconnect {
 
     public static void startPlayerTimer(ServerPlayerEntity player) {
         CancelableTimer timer = new CancelableTimer(player);
-        timer.start(10000, 1);
+        timer.start(5000, 1);
         PlayerDisconnectTimers.put(player, timer);
     }
     public static void stopPlayerTimer(ServerPlayerEntity player) {

@@ -43,6 +43,10 @@ public abstract class InGameHudMixin {
     private void renderSqueedometerHud(DrawContext context, float tickDelta, CallbackInfo info) {
         MinehopClient.squeedometerHud.drawMain(context, tickDelta);
         MinehopClient.squeedometerHud.drawSSJ(context, tickDelta);
+        if (MinehopClient.spectatorList.size() > 0) {
+            MinehopClient.squeedometerHud.drawSpectators(context, tickDelta);
+        }
+
     }
 
     @Inject(at = @At("HEAD"), method = "renderHealthBar", cancellable = true)

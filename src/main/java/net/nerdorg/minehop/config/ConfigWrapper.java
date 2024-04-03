@@ -24,8 +24,8 @@ public class ConfigWrapper {
                     }
                 }
             }
-            HashMap<String, List<String>> newSpectatorList = new HashMap<>();
             if (server.getTicks() % 100 == 0) {
+                HashMap<String, List<String>> newSpectatorList = new HashMap<>();
                 for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
                     if (newSpectatorList.containsKey(playerEntity.getCameraEntity().getNameForScoreboard())) {
                         List<String> newList = newSpectatorList.get(playerEntity.getCameraEntity().getNameForScoreboard());
@@ -40,8 +40,11 @@ public class ConfigWrapper {
                         PacketHandler.sendAntiCheatCheck(playerEntity);
                     }
                 }
+                SpectateCommands.spectatorList = newSpectatorList;
+                for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+                    PacketHandler.sendSpectators(playerEntity);
+                }
             }
-            SpectateCommands.spectatorList = newSpectatorList;
         });
     }
 

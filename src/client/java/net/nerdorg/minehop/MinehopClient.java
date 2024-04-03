@@ -36,6 +36,8 @@ public class MinehopClient implements ClientModInitializer {
 	public static long startTime = 0;
 	public static float lastSendTime = 0;
 
+	public static List<String> spectatorList = new ArrayList<>();
+
 	@Override
 	public void onInitializeClient() {
 		ClientPacketHandler.registerReceivers();

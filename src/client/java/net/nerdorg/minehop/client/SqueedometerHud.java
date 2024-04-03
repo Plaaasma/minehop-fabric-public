@@ -153,4 +153,17 @@ public class SqueedometerHud {
             MinehopClient.last_jump_time = 0;
         }
     }
+
+    public void drawSpectators(DrawContext context, float tickDelta) {
+        this.client = MinecraftClient.getInstance();
+        this.textRenderer = client.textRenderer;
+
+        int top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 2));
+        int left = 6;
+        context.drawTextWithShadow(this.textRenderer, "Spectators \\/", left, top, Formatting.DARK_GRAY.getColorValue());
+        for (int index = 0; index < MinehopClient.spectatorList.size(); index++) {
+            top += this.textRenderer.fontHeight * 2;
+            context.drawTextWithShadow(this.textRenderer, MinehopClient.spectatorList.get(index), left, top, Formatting.RED.getColorValue());
+        }
+    }
 }

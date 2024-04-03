@@ -76,8 +76,21 @@ public class PacketHandler {
         buf.writeString(name);
 
         ServerPlayNetworking.send(player, ModMessages.DO_SPECTATE, buf);
+    }
 
-        AutoDisconnect.startPlayerTimer(player);
+    public static void sendSpectators(ServerPlayerEntity player) {
+        if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
+            List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+            buf.writeInt(spectators.size() - 1);
+            for (String spectator : spectators) {
+                if (!spectator.equals(player.getNameForScoreboard())) {
+                    buf.writeString(spectator);
+                }
+            }
+
+            ServerPlayNetworking.send(player, ModMessages.SEND_SPECTATORS, buf);
+        }
     }
 
     private static void handleMapCompletion(ServerPlayerEntity player, MinecraftServer server, float time) {
@@ -148,12 +161,12 @@ public class PacketHandler {
                 if (personalRecordData != null) {
                     personalRecord = personalRecordData.time;
                 }
-                String formattedNumber = String.format("%.5f", time);
+                String formattedNumber = String.format("%.2f", time);
                 if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
                     List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
                     for (String spectatorName : spectators) {
                         ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
-                        Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
+                        Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.2f", personalRecord) : "No PB"));
                     }
                 }
             }

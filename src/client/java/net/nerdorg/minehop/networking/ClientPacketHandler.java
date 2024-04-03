@@ -97,6 +97,21 @@ public class ClientPacketHandler {
             });
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.SEND_SPECTATORS, (client, handler, buf, responseSender) -> {
+            // Ensure you are on the main thread when modifying the game or accessing client-side only classes
+            client.execute(() -> {
+                List<String> newSpectatorList = new ArrayList<>();
+                int stringCount = buf.readInt();
+
+                for (int i = 0; i < stringCount; i++) {
+                    String spectatorName = buf.readString(); // This reads a string from the buffer
+                    newSpectatorList.add(spectatorName);
+                }
+
+                MinehopClient.spectatorList = newSpectatorList;
+            });
+        });
+
         ClientPlayNetworking.registerGlobalReceiver(ModMessages.SEND_EFFICIENCY, (client, handler, buf, responseSender) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             double efficiency = buf.readDouble();
@@ -149,8 +164,18 @@ public class ClientPacketHandler {
         ClientPlayNetworking.send(ModMessages.MAP_FINISH, buf);
     }
 
-    public static void sendCurrentTime(float time) {
-        if (time > MinehopClient.lastSendTime + 0.01) {
+    public static void sendCurrentTime(float time, boolean now) {
+        if (!now) {
+            if (time > MinehopClient.lastSendTime + 0.05) {
+                PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+                buf.writeFloat(time);
+
+                ClientPlayNetworking.send(ModMessages.SEND_TIME, buf);
+                MinehopClient.lastSendTime = time;
+            }
+        }
+        else {
             PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
 
             buf.writeFloat(time);
