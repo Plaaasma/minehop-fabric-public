@@ -25,74 +25,39 @@ public class BoundsStickItem extends Item {
 
     @Override
     public ActionResult useOnBlock(ItemUsageContext context) {
-        if (context.getWorld() instanceof ServerWorld serverWorld) {
+        if (context.getWorld() instanceof ServerWorld) {
             ServerPlayerEntity serverPlayerEntity = (ServerPlayerEntity) context.getPlayer();
-            if (this.first_coord) {
-                this.pos1 = context.getBlockPos();
-
-                if (this.pos2 != null) {
-                    BlockPos newPos1 = this.pos1;
-                    BlockPos newPos2 = this.pos2;
-
-                    if (newPos2.getX() < newPos1.getX()) {
-                        newPos2 = newPos2.add(1, 0, 0);
-                    } else {
-                        newPos1 = newPos1.add(1, 0, 0);
-                    }
-
-                    if (newPos2.getY() < newPos1.getY()) {
-                        newPos2 = newPos2.add(0, 1, 0);
-                    } else {
-                        newPos1 = newPos1.add(0, 1, 0);
-                    }
-
-                    if (newPos2.getZ() < newPos1.getZ()) {
-                        newPos2 = newPos2.add(0, 0, 1);
-                    } else {
-                        newPos1 = newPos1.add(0, 0, 1);
-                    }
-
-                    this.pos1 = newPos1;
-                    this.pos2 = newPos2;
-                }
-
-                Logger.logSuccess(serverPlayerEntity, "Position 1 set to " + this.pos1.toShortString());
-                this.first_coord = false;
+            if (serverPlayerEntity == null) {
+                return ActionResult.FAIL;
             }
-            else {
-                this.pos2 = context.getBlockPos();
 
-                BlockPos newPos1 = this.pos1;
-                BlockPos newPos2 = this.pos2;
+            BlockPos currentPos = context.getBlockPos();
+            if (pos1 == null || pos2 != null) {
+                pos2 = null;
+                pos1 = currentPos;
 
-                if (newPos2.getX() < newPos1.getX()) {
-                    newPos2 = newPos2.add(1, 0, 0);
-                }
-                else {
-                    newPos1 = newPos1.add(1, 0, 0);
-                }
+                Logger.logSuccess(serverPlayerEntity, "Position 1 set to " + pos1.toShortString());
+            } else {
+                pos2 = currentPos;
 
-                if (newPos2.getY() < newPos1.getY()) {
-                    newPos2 = newPos2.add(0, 1, 0);
-                }
-                else {
-                    newPos1 = newPos1.add(0, 1, 0);
-                }
+                // Ensure pos1 is the min position and pos2 is the max position
+                adjustPositions();
 
-                if (newPos2.getZ() < newPos1.getZ()) {
-                    newPos2 = newPos2.add(0, 0, 1);
-                }
-                else {
-                    newPos1 = newPos1.add(0, 0, 1);
-                }
-
-                this.pos1 = newPos1;
-                this.pos2 = newPos2;
-
-                Logger.logSuccess(serverPlayerEntity, "Position 2 set to " + this.pos2.toShortString());
-                this.first_coord = true;
+                Logger.logSuccess(serverPlayerEntity, "Position 2 set to " + pos2.toShortString());
             }
         }
-        return super.useOnBlock(context);
+        return ActionResult.SUCCESS;
+    }
+
+    private void adjustPositions() {
+        int minX = Math.min(pos1.getX(), pos2.getX());
+        int minY = Math.min(pos1.getY(), pos2.getY());
+        int minZ = Math.min(pos1.getZ(), pos2.getZ());
+        int maxX = Math.max(pos1.getX(), pos2.getX());
+        int maxY = Math.max(pos1.getY(), pos2.getY());
+        int maxZ = Math.max(pos1.getZ(), pos2.getZ());
+
+        pos1 = new BlockPos(minX, minY, minZ).add(0, 1, 0);
+        pos2 = new BlockPos(maxX, maxY, maxZ).add(0, 1, 0);
     }
 }
