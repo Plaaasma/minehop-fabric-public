@@ -10,6 +10,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.anticheat.AutoDisconnect;
+import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.util.Logger;
@@ -66,6 +67,15 @@ public class PacketHandler {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
 
         ServerPlayNetworking.send(player, ModMessages.ANTI_CHEAT_CHECK, buf);
+
+        AutoDisconnect.startPlayerTimer(player);
+    }
+
+    public static void sendSpectate(ServerPlayerEntity player, String name) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+        buf.writeString(name);
+
+        ServerPlayNetworking.send(player, ModMessages.DO_SPECTATE, buf);
 
         AutoDisconnect.startPlayerTimer(player);
     }
@@ -139,7 +149,13 @@ public class PacketHandler {
                     personalRecord = personalRecordData.time;
                 }
                 String formattedNumber = String.format("%.5f", time);
-                Logger.logActionBar(player, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
+                if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
+                    List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
+                    for (String spectatorName : spectators) {
+                        ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
+                        Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
+                    }
+                }
             }
         });
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.MAP_FINISH, (server, player, handler, buf, responseSender) -> {

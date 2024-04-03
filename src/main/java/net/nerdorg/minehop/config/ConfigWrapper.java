@@ -4,20 +4,13 @@ import me.shedaniel.autoconfig.AutoConfig;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.nerdorg.minehop.Minehop;
+import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.networking.PacketHandler;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class ConfigWrapper {
     public static MinehopConfig config;
-
-    public static List<String> adminList = List.of(
-            "lolrow",
-            "Plaaasma",
-            "_Moriz_"
-    );
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register((server) -> {
@@ -31,13 +24,24 @@ public class ConfigWrapper {
                     }
                 }
             }
+            HashMap<String, List<String>> newSpectatorList = new HashMap<>();
             if (server.getTicks() % 100 == 0) {
                 for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
-                    if (!(adminList.contains(Objects.requireNonNull(playerEntity.getDisplayName()).getString()))) {
+                    if (newSpectatorList.containsKey(playerEntity.getCameraEntity().getNameForScoreboard())) {
+                        List<String> newList = newSpectatorList.get(playerEntity.getCameraEntity().getNameForScoreboard());
+                        newList.add(playerEntity.getNameForScoreboard());
+                        newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), newList);
+                    }
+                    else {
+                        newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), new ArrayList<>(Arrays.asList(playerEntity.getNameForScoreboard())));
+                    }
+
+                    if (!(Minehop.adminList.contains(Objects.requireNonNull(playerEntity.getNameForScoreboard())))) {
                         PacketHandler.sendAntiCheatCheck(playerEntity);
                     }
                 }
             }
+            SpectateCommands.spectatorList = newSpectatorList;
         });
     }
 

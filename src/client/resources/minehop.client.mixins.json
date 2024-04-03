@@ -5,7 +5,8 @@
   "client": [
     "InGameHudMixin",
     "GameRendererMixin",
-    "PlayerEntityRendererMixin"
+    "PlayerEntityRendererMixin",
+    "SpectatorHudMixin"
   ],
   "injectors": {
     "defaultRequire": 1

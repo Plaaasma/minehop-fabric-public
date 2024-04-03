@@ -2,6 +2,7 @@ package net.nerdorg.minehop.anticheat;
 
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+import net.nerdorg.minehop.Minehop;
 
 import java.util.Timer;
 import java.util.TimerTask;
@@ -23,7 +24,9 @@ public class CancelableTimer {
             @Override
             public void run() {
                 // Code to be executed periodically
-                player.networkHandler.disconnect(Text.of("Failed Anti-Cheat Check"));
+                if (!Minehop.adminList.contains(player.getNameForScoreboard())) {
+                    player.networkHandler.disconnect(Text.of("Failed Anti-Cheat Check"));
+                }
                 timer.cancel();
             }
         };

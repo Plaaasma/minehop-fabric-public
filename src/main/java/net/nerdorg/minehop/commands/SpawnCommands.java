@@ -44,7 +44,7 @@ public class SpawnCommands {
         ));
     }
 
-    private static void handleSpawn(CommandContext<ServerCommandSource> context) {
+    public static void handleSpawn(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         String name = "spawn";
         DataManager.MapData pairedMap = DataManager.getMap(name);

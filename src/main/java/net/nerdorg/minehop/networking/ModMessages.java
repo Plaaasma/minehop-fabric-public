@@ -11,5 +11,6 @@ public class ModMessages {
     public static final Identifier MAP_FINISH = new Identifier(Minehop.MOD_ID, "map_finish");
     public static final Identifier SEND_TIME = new Identifier(Minehop.MOD_ID, "send_time");
     public static final Identifier SEND_EFFICIENCY = new Identifier(Minehop.MOD_ID, "send_efficiency");
+    public static final Identifier DO_SPECTATE = new Identifier(Minehop.MOD_ID, "do_spectate");
     public static final Identifier ANTI_CHEAT_CHECK = new Identifier(Minehop.MOD_ID, "anti_cheat_check");
 }

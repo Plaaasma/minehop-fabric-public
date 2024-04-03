@@ -89,6 +89,14 @@ public class ClientPacketHandler {
             });
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.DO_SPECTATE, (client, handler, buf, responseSender) -> {
+            // Ensure you are on the main thread when modifying the game or accessing client-side only classes
+            String name = buf.readString();
+            client.execute(() -> {
+                client.getNetworkHandler().sendCommand("spectate " + name);
+            });
+        });
+
         ClientPlayNetworking.registerGlobalReceiver(ModMessages.SEND_EFFICIENCY, (client, handler, buf, responseSender) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             double efficiency = buf.readDouble();
@@ -98,7 +106,7 @@ public class ClientPacketHandler {
                     MinehopClient.last_efficiency = efficiency;
                 }
                 else {
-                    if (Minehop.efficiencyListMap.containsKey(client.player.getNameForScoreboard()) && client.player.isOnGround()) {
+                    if (Minehop.efficiencyListMap.containsKey(client.player.getNameForScoreboard())) {
                         List<Double> efficiencyList = Minehop.efficiencyListMap.get(client.player.getNameForScoreboard());
                         if (efficiencyList != null && efficiencyList.size() > 0) {
                             double averageEfficiency = efficiencyList.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);

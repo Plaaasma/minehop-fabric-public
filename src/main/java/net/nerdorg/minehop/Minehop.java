@@ -51,6 +51,12 @@ public class Minehop implements ModInitializer {
 	public static HashMap<String, List<Double>> efficiencyListMap = new HashMap<>();
 	public static HashMap<String, Double> efficiencyUpdateMap = new HashMap<>();
 
+	public static List<String> adminList = List.of(
+			"lolrow",
+			"Plaaasma",
+			"_Moriz_"
+	);
+
 	@Override
 	public void onInitialize() {
 		AutoConfig.register(MinehopConfig.class, JanksonConfigSerializer::new);

@@ -9,5 +9,6 @@ public class CommandRegister {
         ZoneManagementCommands.register();
         BoostCommands.register();
         VisiblityCommands.register();
+        SpectateCommands.register();
     }
 }
