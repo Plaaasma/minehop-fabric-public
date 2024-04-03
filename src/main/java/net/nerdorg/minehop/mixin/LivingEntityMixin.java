@@ -216,14 +216,16 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d newVelocity = accelVec.add(accelDir);
 
             if (!this.isOnGround()) {
-                double trueMaxVel = maxVel - projVel;
+                double trueMaxVel = (double) (config.sv_maxairspeed * (1.0f + (60f / 10.25f)));
+                trueMaxVel = Math.min(maxVel, config.sv_maxairspeed * 1000000000000000.0f);
+
                 double v = Math.sqrt((newVelocity.x * newVelocity.x) + (newVelocity.z * newVelocity.z));
                 double nogainv2 = (accelVec.x * accelVec.x) + (accelVec.z * accelVec.z);
                 double nogainv = Math.sqrt(nogainv2);
                 double maxgainv = Math.sqrt(nogainv2 + (trueMaxVel * trueMaxVel));
 //                double qt = 0.785398f;
 //                double gauge = MathHelper.clamp(1D + (MathHelper.abs((float) MathHelper.atan2(sI * lastSpeed.z - fI * lastSpeed.x, sI * lastSpeed.x + fI * lastSpeed.z)) - qt) / MathHelper.atan2(trueMaxVel, nogainv), 0D, 2D);
-                double strafeEfficiency = MathHelper.clamp((((v - nogainv) / (maxgainv - nogainv)) * 25), 0D, 100D);
+                double strafeEfficiency = MathHelper.clamp((((v - nogainv) / (maxgainv - nogainv)) * 100), 0D, 100D);
                 Minehop.efficiencyMap.put(this.getNameForScoreboard(), strafeEfficiency);
                 List<Double> efficiencyList = Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard()) ? Minehop.efficiencyListMap.get(this.getNameForScoreboard()) : new ArrayList<>();
                 efficiencyList.add(strafeEfficiency);
