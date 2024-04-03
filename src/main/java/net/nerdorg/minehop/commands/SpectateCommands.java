@@ -75,7 +75,7 @@ public class SpectateCommands {
             Logger.logFailure(serverPlayerEntity, "You cannot spectate another spectator.");
         }
         else {
-            Logger.logSuccess(serverPlayerEntity, "Now spectating " + targetPlayerEntity.getNameForScoreboard());
+            Logger.logSuccess(serverPlayerEntity, "Now spectating " + targetPlayerEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
             serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
             PacketHandler.sendSpectate(serverPlayerEntity, targetPlayerEntity.getNameForScoreboard());
         }

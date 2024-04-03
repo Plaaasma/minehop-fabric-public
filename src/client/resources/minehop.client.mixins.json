@@ -6,7 +6,8 @@
     "InGameHudMixin",
     "GameRendererMixin",
     "PlayerEntityRendererMixin",
-    "SpectatorHudMixin"
+    "SpectatorHudMixin",
+    "KeyBindingMixin"
   ],
   "injectors": {
     "defaultRequire": 1
