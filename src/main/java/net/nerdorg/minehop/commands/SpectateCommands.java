@@ -119,6 +119,7 @@ public class SpectateCommands {
         if (entity instanceof ReplayEntity replayEntity) {
             Logger.logSuccess(serverPlayerEntity, "Now spectating " + replayEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
             serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
+            serverPlayerEntity.teleport(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ());
             serverPlayerEntity.setCameraEntity(replayEntity);
         }
         else if (entity instanceof PlayerEntity playerEntity) {
@@ -131,6 +132,7 @@ public class SpectateCommands {
             else {
                 Logger.logSuccess(serverPlayerEntity, "Now spectating " + playerEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
                 serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
+                serverPlayerEntity.teleport(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ());
                 serverPlayerEntity.setCameraEntity(playerEntity);
             }
         }

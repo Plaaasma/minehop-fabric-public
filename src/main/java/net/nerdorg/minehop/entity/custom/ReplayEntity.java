@@ -161,6 +161,15 @@ public class ReplayEntity extends MobEntity {
                     this.replayIndex += 1;
                 }
                 else {
+                    if (SpectateCommands.spectatorList.containsKey(this.getNameForScoreboard())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(this.getNameForScoreboard());
+                        for (String spectator : spectators) {
+                            ServerPlayerEntity spectatorPlayer = this.getServer().getPlayerManager().getPlayer(spectator);
+                            spectatorPlayer.teleport(this.getX(), this.getY(), this.getZ());
+                            spectatorPlayer.setCameraEntity(this);
+                        }
+                    }
+
                     this.replayIndex = 0;
                 }
             }

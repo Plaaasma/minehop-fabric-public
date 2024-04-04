@@ -90,17 +90,18 @@ public class ReplayManager {
         Gson gson = new Gson();
         deleteReplays(replay.map_name);
         Minehop.replayList.add(replay);
-        System.out.println(Minehop.replayList);
 
-        String jsonData = gson.toJson(Minehop.replayList);
+        if (Minehop.replayList != null) {
+            String jsonData = gson.toJson(Minehop.replayList);
 
-        MinecraftServer server = world.getServer();
-        Path worldDir = server.getSavePath(WorldSavePath.ROOT);
+            MinecraftServer server = world.getServer();
+            Path worldDir = server.getSavePath(WorldSavePath.ROOT);
 
-        try {
-            Files.write(worldDir.resolve("minehop_replays.json"), jsonData.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
+            try {
+                Files.write(worldDir.resolve("minehop_replays.json"), jsonData.getBytes());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 

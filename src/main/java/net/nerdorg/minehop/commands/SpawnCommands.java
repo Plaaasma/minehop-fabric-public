@@ -66,6 +66,7 @@ public class SpawnCommands {
                     List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
                     for (String spectator : spectators) {
                         ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                        spectatorPlayer.teleport(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ());
                         spectatorPlayer.setCameraEntity(serverPlayerEntity);
                     }
                 }

@@ -171,27 +171,29 @@ public class PacketHandler {
             }
         });
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.SEND_TIME, (server, player, handler, buf, responseSender) -> {
-            float time = buf.readFloat();
-            if (player != null && Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
-                HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
-                List<String> keyList = timerMap.keySet().stream().toList();
-                String mapName = keyList.get(0);
-                DataManager.RecordData personalRecordData = DataManager.getPersonalRecord(player.getNameForScoreboard(), mapName);
-                double personalRecord = 0;
-                if (personalRecordData != null) {
-                    personalRecord = personalRecordData.time;
-                }
-                String formattedNumber = String.format("%.2f", time);
-                if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
-                    for (String spectatorName : spectators) {
-                        if (!spectatorName.equals(player.getNameForScoreboard())) {
-                            ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
-                            Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
+            if (!player.isSpectator()) {
+                float time = buf.readFloat();
+                if (player != null && Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
+                    HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
+                    List<String> keyList = timerMap.keySet().stream().toList();
+                    String mapName = keyList.get(0);
+                    DataManager.RecordData personalRecordData = DataManager.getPersonalRecord(player.getNameForScoreboard(), mapName);
+                    double personalRecord = 0;
+                    if (personalRecordData != null) {
+                        personalRecord = personalRecordData.time;
+                    }
+                    String formattedNumber = String.format("%.2f", time);
+                    if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
+                        for (String spectatorName : spectators) {
+                            if (!spectatorName.equals(player.getNameForScoreboard())) {
+                                ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
+                                Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
+                            }
                         }
                     }
+                    Logger.logActionBar(player, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
                 }
-                Logger.logActionBar(player, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
             }
         });
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.MAP_FINISH, (server, player, handler, buf, responseSender) -> {

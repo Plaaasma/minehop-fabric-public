@@ -206,6 +206,7 @@ public class MapUtilCommands {
                             for (String spectator : spectators) {
                                 if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
                                     ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                                    spectatorPlayer.teleport(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ());
                                     spectatorPlayer.setCameraEntity(serverPlayerEntity);
                                 }
                             }
@@ -258,6 +259,7 @@ public class MapUtilCommands {
                         for (String spectator : spectators) {
                             if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
                                 ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                                spectatorPlayer.teleport(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ());
                                 spectatorPlayer.setCameraEntity(serverPlayerEntity);
                             }
                         }
