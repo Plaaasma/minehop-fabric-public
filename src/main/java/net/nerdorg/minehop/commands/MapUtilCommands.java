@@ -206,7 +206,7 @@ public class MapUtilCommands {
                             for (String spectator : spectators) {
                                 if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
                                     ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
-                                    PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+                                    spectatorPlayer.setCameraEntity(serverPlayerEntity);
                                 }
                             }
                         }
@@ -258,7 +258,7 @@ public class MapUtilCommands {
                         for (String spectator : spectators) {
                             if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
                                 ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
-                                PacketHandler.sendSpectate(spectatorPlayer, serverPlayerEntity.getNameForScoreboard());
+                                spectatorPlayer.setCameraEntity(serverPlayerEntity);
                             }
                         }
                     }
@@ -305,11 +305,11 @@ public class MapUtilCommands {
             }
         }
 
-        Minehop.personalRecordList = new ArrayList<>();
-        DataManager.savePersonalRecordData(context.getSource().getWorld(), new ArrayList<>());
+        DataManager.removePersonalRecords(name);
+        DataManager.savePersonalRecordData(context.getSource().getWorld(), Minehop.personalRecordList);
 
-        Minehop.recordList = new ArrayList<>();
-        DataManager.saveRecordData(context.getSource().getWorld(), new ArrayList<>());
+        DataManager.removeRecords(name);
+        DataManager.saveRecordData(context.getSource().getWorld(), Minehop.recordList);
 
         if (invalidateData != null) {
             Logger.logSuccess(serverPlayerEntity, "Invalidated times for map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));

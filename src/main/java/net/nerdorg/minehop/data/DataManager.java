@@ -71,6 +71,32 @@ public class DataManager {
         }
     }
 
+    public static RecordData removePersonalRecords(String mapName) {
+        if (Minehop.personalRecordList != null) {
+            for (RecordData recordData : Minehop.personalRecordList) {
+                if (recordData.map_name.equals(mapName)) {
+                    Minehop.personalRecordList.remove(recordData);
+                    return recordData;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static RecordData removeRecords(String mapName) {
+        if (Minehop.recordList != null) {
+            for (RecordData recordData : Minehop.recordList) {
+                if (recordData.map_name.equals(mapName)) {
+                    Minehop.recordList.remove(recordData);
+                    return recordData;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public static RecordData getPersonalRecord(String playerName, String mapName) {
         if (Minehop.personalRecordList != null) {
             for (RecordData recordData : Minehop.personalRecordList) {

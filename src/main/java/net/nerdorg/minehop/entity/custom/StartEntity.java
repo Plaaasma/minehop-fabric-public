@@ -16,6 +16,7 @@ import net.minecraft.world.World;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.PacketHandler;
+import net.nerdorg.minehop.replays.ReplayEvents;
 
 import java.util.HashMap;
 import java.util.List;
@@ -85,11 +86,6 @@ public class StartEntity extends Zone {
         return corner2;
     }
 
-    public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
-        return MobEntity.createMobAttributes()
-                .add(EntityAttributes.GENERIC_MAX_HEALTH, 1000000);
-    }
-
     @Override
     public void tick() {
         World world = this.getWorld();
@@ -116,6 +112,9 @@ public class StartEntity extends Zone {
                             if (colliderBox.contains(player.getPos())) {
                                 HashMap<String, Long> informationMap = new HashMap<>();
                                 informationMap.put(this.paired_map, System.nanoTime());
+                                if (ReplayEvents.replayEntryMap.containsKey(player.getNameForScoreboard())) {
+                                    ReplayEvents.replayEntryMap.remove(player.getNameForScoreboard());
+                                }
                                 Minehop.timerManager.put(player.getNameForScoreboard(), informationMap);
                             }
                         }

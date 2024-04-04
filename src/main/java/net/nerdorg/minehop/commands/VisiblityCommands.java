@@ -29,6 +29,12 @@ public class VisiblityCommands {
                         return Command.SINGLE_SUCCESS;
                     })
                 )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("replay")
+                        .executes(context -> {
+                            handleHideReplays(context);
+                            return Command.SINGLE_SUCCESS;
+                        })
+                )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("others")
                     .executes(context -> {
                         handleHideOthers(context);
@@ -36,6 +42,12 @@ public class VisiblityCommands {
                     })
                 )
             ));
+    }
+
+    private static void handleHideReplays(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+        PacketHandler.sendReplayVToggle(serverPlayerEntity);
+        Logger.logSuccess(serverPlayerEntity, "Toggling visibility for replay models.");
     }
 
     private static void handleHideOthers(CommandContext<ServerCommandSource> context) {

@@ -4,8 +4,7 @@
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [
 		"LivingEntityMixin",
-		"PlayerJoinMixin",
-		"SpectateCommandMixin"
+		"PlayerJoinMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

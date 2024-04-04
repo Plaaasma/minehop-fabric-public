@@ -31,6 +31,7 @@ public class MinehopClient implements ClientModInitializer {
 	public static double last_efficiency;
 
 	public static boolean hideSelf = true;
+	public static boolean hideReplay = false;
 	public static boolean hideOthers = false;
 
 	public static long startTime = 0;
@@ -52,6 +53,8 @@ public class MinehopClient implements ClientModInitializer {
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.START_ENTITY, ResetModel::getTexturedModelData);
 		EntityRendererRegistry.register(ModEntities.END_ENTITY, EndRenderer::new);
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.END_ENTITY, ResetModel::getTexturedModelData);
+		EntityRendererRegistry.register(ModEntities.REPLAY_ENTITY, ReplayRenderer::new);
+		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.REPLAY_ENTITY, ReplayModel::getTexturedModelData);
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.CUSTOM_MODEL, CheaterPlayerModel::getTexturedModelData);
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {

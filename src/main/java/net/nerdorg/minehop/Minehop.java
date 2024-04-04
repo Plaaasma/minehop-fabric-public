@@ -20,6 +20,8 @@ import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.motd.MotdManager;
 import net.nerdorg.minehop.networking.JoinLeaveManager;
 import net.nerdorg.minehop.networking.PacketHandler;
+import net.nerdorg.minehop.replays.ReplayEvents;
+import net.nerdorg.minehop.replays.ReplayManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,10 +47,13 @@ public class Minehop implements ModInitializer {
 	public static List<DataManager.MapData> mapList = new ArrayList<>();
 	public static List<DataManager.RecordData> personalRecordList = new ArrayList<>();
 	public static List<DataManager.RecordData> recordList = new ArrayList<>();
+	public static List<ReplayManager.Replay> replayList = new ArrayList<>();
+
 	public static List<String> groundedList = new ArrayList<>();
 	public static HashMap<String, HashMap<String, Long>> timerManager = new HashMap<>();
 	public static HashMap<String, Double> efficiencyMap = new HashMap<>();
 	public static HashMap<String, List<Double>> efficiencyListMap = new HashMap<>();
+	public static HashMap<String, ReplayManager.SSJEntry> lastEfficiencyMap = new HashMap<>();
 	public static HashMap<String, Double> efficiencyUpdateMap = new HashMap<>();
 
 	public static List<String> adminList = List.of(
@@ -71,6 +76,9 @@ public class Minehop implements ModInitializer {
 
 		CommandRegister.register();
 
+		ReplayManager.register();
+		ReplayEvents.register();
+
 		ModItems.registerModItems();
 		ModBlocks.registerModBlocks();
 		ModBlockEntities.registerBlockEntities();
@@ -80,5 +88,6 @@ public class Minehop implements ModInitializer {
 		FabricDefaultAttributeRegistry.register(ModEntities.RESET_ENTITY, ResetEntity.createResetEntityAttributes());
 		FabricDefaultAttributeRegistry.register(ModEntities.START_ENTITY, ResetEntity.createResetEntityAttributes());
 		FabricDefaultAttributeRegistry.register(ModEntities.END_ENTITY, ResetEntity.createResetEntityAttributes());
+		FabricDefaultAttributeRegistry.register(ModEntities.REPLAY_ENTITY, ResetEntity.createResetEntityAttributes());
 	}
 }

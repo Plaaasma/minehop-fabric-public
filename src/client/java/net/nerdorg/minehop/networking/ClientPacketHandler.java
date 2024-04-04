@@ -89,11 +89,10 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(ModMessages.DO_SPECTATE, (client, handler, buf, responseSender) -> {
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.REPLAY_V_TOGGLE, (client, handler, buf, responseSender) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
-            String name = buf.readString();
             client.execute(() -> {
-                client.getNetworkHandler().sendCommand("spectate " + name);
+                MinehopClient.hideReplay = !MinehopClient.hideReplay;
             });
         });
 

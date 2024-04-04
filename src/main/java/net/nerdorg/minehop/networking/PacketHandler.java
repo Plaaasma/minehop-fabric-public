@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.networking;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.player.PlayerEntity;
@@ -13,6 +15,8 @@ import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.replays.ReplayEvents;
+import net.nerdorg.minehop.replays.ReplayManager;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.ZoneUtil;
 
@@ -20,6 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 
 public class PacketHandler {
+    private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
     public static void sendConfigToClient(ServerPlayerEntity player, MinehopConfig config) {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
 
@@ -56,6 +62,12 @@ public class PacketHandler {
         ServerPlayNetworking.send(player, ModMessages.OTHER_V_TOGGLE, buf);
     }
 
+    public static void sendReplayVToggle(ServerPlayerEntity player) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        ServerPlayNetworking.send(player, ModMessages.REPLAY_V_TOGGLE, buf);
+    }
+
     public static void sendEfficiency(ServerPlayerEntity player, double efficiency) {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
         buf.writeDouble(efficiency);
@@ -69,13 +81,6 @@ public class PacketHandler {
         ServerPlayNetworking.send(player, ModMessages.ANTI_CHEAT_CHECK, buf);
 
         AutoDisconnect.startPlayerTimer(player);
-    }
-
-    public static void sendSpectate(ServerPlayerEntity player, String name) {
-        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
-        buf.writeString(name);
-
-        ServerPlayNetworking.send(player, ModMessages.DO_SPECTATE, buf);
     }
 
     public static void sendSpectators(ServerPlayerEntity player) {
@@ -111,11 +116,15 @@ public class PacketHandler {
                             Minehop.recordList.remove(mapRecord);
                             Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                             DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
+                            ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getNameForScoreboard(), time, ReplayEvents.replayEntryMap.get(player.getNameForScoreboard()));
+                            ReplayManager.saveRecordReplay(player.getServerWorld(), replay);
                         }
                     } else {
                         Logger.logGlobal(server, player.getNameForScoreboard() + " just claimed the world record on " + map_name + " with a time of " + formattedNumber + "!");
                         Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                         DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
+                        ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getNameForScoreboard(), time, ReplayEvents.replayEntryMap.get(player.getNameForScoreboard()));
+                        ReplayManager.saveRecordReplay(player.getServerWorld(), replay);
                     }
                     DataManager.RecordData mapPersonalRecord = DataManager.getPersonalRecord(player.getNameForScoreboard(), map_name);
                     if (mapPersonalRecord != null) {
@@ -177,11 +186,11 @@ public class PacketHandler {
                     for (String spectatorName : spectators) {
                         if (!spectatorName.equals(player.getNameForScoreboard())) {
                             ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
-                            Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.2f", personalRecord) : "No PB"));
+                            Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
                         }
                     }
                 }
-                Logger.logActionBar(player, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.2f", personalRecord) : "No PB"));
+                Logger.logActionBar(player, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
             }
         });
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.MAP_FINISH, (server, player, handler, buf, responseSender) -> {
@@ -193,12 +202,16 @@ public class PacketHandler {
             int jump_count = buf.readInt();
             double last_efficiency = buf.readDouble();
 
+            Minehop.lastEfficiencyMap.put(player.getNameForScoreboard(), new ReplayManager.SSJEntry(jump_count, last_jump_speed, last_efficiency));
+
             if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
                 List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
                 for (String spectator : spectators) {
                     ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectator);
-                    if (!spectatorPlayer.getNameForScoreboard().equals(player.getNameForScoreboard())) {
-                        sendSpecEfficiency(spectatorPlayer, last_jump_speed, jump_count, last_efficiency);
+                    if (spectatorPlayer != null) {
+                        if (!spectatorPlayer.getNameForScoreboard().equals(player.getNameForScoreboard())) {
+                            sendSpecEfficiency(spectatorPlayer, last_jump_speed, jump_count, last_efficiency);
+                        }
                     }
                 }
             }
