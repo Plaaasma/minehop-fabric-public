@@ -112,6 +112,22 @@ public class SpectateCommands {
 
     private static void handleSpectateReplay(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+
+        if (serverPlayerEntity.getCameraEntity() != null) {
+            if (spectatorList.containsKey(serverPlayerEntity.getCameraEntity().getNameForScoreboard())) {
+                List<String> spectators = spectatorList.get(serverPlayerEntity.getCameraEntity().getNameForScoreboard());
+                if (spectators.contains(serverPlayerEntity.getNameForScoreboard())) {
+                    spectators.remove(serverPlayerEntity.getNameForScoreboard());
+                }
+            }
+        }
+
+        if (Minehop.timerManager.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+            Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+        }
+
+        serverPlayerEntity.setCameraEntity(serverPlayerEntity);
+
         String nameString = new String(context.getArgument("entity", String.class).getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
 
         if (Minehop.timerManager.containsKey(serverPlayerEntity.getNameForScoreboard())) {
