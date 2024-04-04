@@ -98,7 +98,6 @@ public class SpectateCommands {
             Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
         }
 
-        serverPlayerEntity.changeGameMode(GameMode.ADVENTURE);
         serverPlayerEntity.setCameraEntity(serverPlayerEntity);
 
         if (!serverPlayerEntity.isSpectator()) {
@@ -108,6 +107,8 @@ public class SpectateCommands {
             Logger.logSuccess(serverPlayerEntity, "No longer spectating.");
             SpawnCommands.handleSpawn(context);
         }
+
+        serverPlayerEntity.changeGameMode(GameMode.ADVENTURE);
     }
 
     private static void handleSpectateReplay(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
