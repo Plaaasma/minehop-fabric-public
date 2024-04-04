@@ -15,6 +15,7 @@ import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.discord.DiscordIntegration;
 import net.nerdorg.minehop.replays.ReplayEvents;
 import net.nerdorg.minehop.replays.ReplayManager;
 import net.nerdorg.minehop.util.Logger;
@@ -113,7 +114,9 @@ public class PacketHandler {
                     DataManager.RecordData mapRecord = DataManager.getRecord(map_name);
                     if (mapRecord != null) {
                         if (time < mapRecord.time) {
-                            Logger.logGlobal(server, player.getNameForScoreboard() + " just beat " + mapRecord.name + "'s time (" + String.format("%.5f", mapRecord.time) + ") on " + mapRecord.map_name + " and now hold the world record with a time of " + formattedNumber + "!");
+                            String recordMessage = player.getNameForScoreboard() + " just beat " + mapRecord.name + "'s time (" + String.format("%.5f", mapRecord.time) + ") on " + mapRecord.map_name + " and now hold the world record with a time of " + formattedNumber + "!";
+                            DiscordIntegration.sendRecordToDiscord(recordMessage);
+                            Logger.logGlobal(server, recordMessage);
                             Minehop.recordList.remove(mapRecord);
                             Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                             DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
@@ -121,7 +124,9 @@ public class PacketHandler {
                             ReplayManager.saveRecordReplay(player.getServerWorld(), replay);
                         }
                     } else {
-                        Logger.logGlobal(server, player.getNameForScoreboard() + " just claimed the world record on " + map_name + " with a time of " + formattedNumber + "!");
+                        String recordMessage = player.getNameForScoreboard() + " just claimed the world record on " + map_name + " with a time of " + formattedNumber + "!";
+                        DiscordIntegration.sendRecordToDiscord(recordMessage);
+                        Logger.logGlobal(server, recordMessage);
                         Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                         DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
                         ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getNameForScoreboard(), time, ReplayEvents.replayEntryMap.get(player.getNameForScoreboard()));

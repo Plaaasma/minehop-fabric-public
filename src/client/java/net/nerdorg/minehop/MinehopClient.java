@@ -13,6 +13,7 @@ import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.client.SqueedometerHud;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.discord.DiscordIntegration;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.client.*;
 import net.nerdorg.minehop.event.KeyInputHandler;
