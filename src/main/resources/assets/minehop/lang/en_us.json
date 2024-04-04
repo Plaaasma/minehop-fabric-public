@@ -9,5 +9,8 @@
   "text.autoconfig.minehop.option.sv_airaccelerate": "Air Acceleration (sv_airaccelerate)",
   "text.autoconfig.minehop.option.sv_maxairspeed": "Max Gain (sv_maxairspeed)",
   "text.autoconfig.minehop.option.speed_mul": "Speed Multiplier",
-  "text.autoconfig.minehop.option.sv_gravity": "Gravity"
+  "text.autoconfig.minehop.option.sv_gravity": "Gravity",
+  "text.autoconfig.minehop.option.sv_yaw": "Strafe Yaw",
+  "text.autoconfig.minehop.option.bot_token": "Discord Bot Token (optional)",
+  "text.autoconfig.minehop.option.record_channel": "Discord Record Channel ID (optional, but required with a bot token)"
 }
