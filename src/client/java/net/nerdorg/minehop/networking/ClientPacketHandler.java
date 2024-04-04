@@ -4,6 +4,7 @@ import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.render.entity.PlayerEntityRenderer;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.PacketByteBuf;
@@ -14,6 +15,7 @@ import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.anticheat.ProcessChecker;
+import net.nerdorg.minehop.entity.client.CustomPlayerEntityRenderer;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
@@ -186,6 +188,8 @@ public class ClientPacketHandler {
                         boolean antiCheatCheck = ProcessChecker.isProcessRunning("rawaccel.exe");
                         System.out.println(antiCheatCheck + "=> rawaccel check");
                         sendAntiCheatCheck(antiCheatCheck, "rawaccel");
+                    /*CustomPlayerEntityRenderer playerRenderer = (CustomPlayerEntityRenderer) client.getEntityRenderDispatcher().getRenderer(client.player);
+                    playerRenderer.setPlayerModel(CustomPlayerEntityRenderer.PlayerModel.Cube);*/
                 }).start();
             });
         });
@@ -219,7 +223,7 @@ public class ClientPacketHandler {
     }
 
     public static void sendCurrentTime(float time) {
-        if (time > MinehopClient.lastSendTime + 0.05) {
+        if (time > MinehopClient.lastSendTime + 0.01) {
             PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
 
             buf.writeFloat(time);

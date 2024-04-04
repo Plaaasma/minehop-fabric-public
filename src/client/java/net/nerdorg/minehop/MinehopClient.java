@@ -6,8 +6,6 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.client.render.RenderLayer;
-import net.minecraft.entity.EntityType;
-import net.minecraft.util.TimeSupplier;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.client.SqueedometerHud;
 import net.nerdorg.minehop.config.ConfigWrapper;
@@ -57,7 +55,6 @@ public class MinehopClient implements ClientModInitializer {
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.END_ENTITY, ResetModel::getTexturedModelData);
 		EntityRendererRegistry.register(ModEntities.REPLAY_ENTITY, ReplayRenderer::new);
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.REPLAY_ENTITY, ReplayModel::getTexturedModelData);
-		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.CUSTOM_MODEL, CheaterPlayerModel::getTexturedModelData);
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			if (!client.isInSingleplayer()) {

@@ -3,9 +3,10 @@
   "package": "net.nerdorg.minehop.mixin.client",
   "compatibilityLevel": "JAVA_17",
   "client": [
-    "InGameHudMixin",
+    "EntityRenderDispatcherMixin",
     "GameRendererMixin",
-    "PlayerEntityRendererMixin",
+    "InGameHudMixin",
+    "PlayerEntityModelMixin",
     "SpectatorHudMixin",
     "KeyBindingMixin"
   ],
