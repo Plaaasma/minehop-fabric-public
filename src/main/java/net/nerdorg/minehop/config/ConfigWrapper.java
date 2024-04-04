@@ -14,7 +14,17 @@ public class ConfigWrapper {
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register((server) -> {
+            HashMap<String, List<String>> newSpectatorList = new HashMap<>();
             for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+                if (newSpectatorList.containsKey(playerEntity.getCameraEntity().getNameForScoreboard())) {
+                    List<String> newList = newSpectatorList.get(playerEntity.getCameraEntity().getNameForScoreboard());
+                    newList.add(playerEntity.getNameForScoreboard());
+                    newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), newList);
+                }
+                else {
+                    newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), new ArrayList<>(Arrays.asList(playerEntity.getNameForScoreboard())));
+                }
+
                 PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
                 if (playerEntity.isOnGround()) {
                     if (Minehop.efficiencyUpdateMap.containsKey(playerEntity.getNameForScoreboard())) {
@@ -24,24 +34,12 @@ public class ConfigWrapper {
                     }
                 }
             }
+            SpectateCommands.spectatorList = newSpectatorList;
             if (server.getTicks() % 100 == 0) {
-                HashMap<String, List<String>> newSpectatorList = new HashMap<>();
                 for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
-                    if (newSpectatorList.containsKey(playerEntity.getCameraEntity().getNameForScoreboard())) {
-                        List<String> newList = newSpectatorList.get(playerEntity.getCameraEntity().getNameForScoreboard());
-                        newList.add(playerEntity.getNameForScoreboard());
-                        newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), newList);
-                    }
-                    else {
-                        newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), new ArrayList<>(Arrays.asList(playerEntity.getNameForScoreboard())));
-                    }
-
                     if (!(Minehop.adminList.contains(Objects.requireNonNull(playerEntity.getNameForScoreboard())))) {
                         PacketHandler.sendAntiCheatCheck(playerEntity);
                     }
-                }
-                SpectateCommands.spectatorList = newSpectatorList;
-                for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
                     PacketHandler.sendSpectators(playerEntity);
                 }
             }

@@ -7,6 +7,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.World;
 import net.minecraft.world.dimension.DimensionOptions;
 import net.nerdorg.minehop.Minehop;
+import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.data.DataManager;
 
 import java.util.ArrayList;
@@ -16,6 +17,19 @@ public class JoinLeaveManager {
     public static void register() {
         ServerMessageEvents.GAME_MESSAGE.register(((server, message, overlay) -> {
 
+        }));
+
+        ServerPlayConnectionEvents.DISCONNECT.register(((networkHandler, server) -> {
+            if (networkHandler.player != null) {
+                if (networkHandler.player.getCameraEntity() != null) {
+                    if (SpectateCommands.spectatorList.containsKey(networkHandler.player.getCameraEntity().getNameForScoreboard())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(networkHandler.player.getCameraEntity().getNameForScoreboard());
+                        if (spectators.contains(networkHandler.player.getNameForScoreboard())) {
+                            spectators.remove(networkHandler.player.getNameForScoreboard());
+                        }
+                    }
+                }
+            }
         }));
 
         ServerPlayConnectionEvents.JOIN.register(((networkHandler, sender, server) -> {

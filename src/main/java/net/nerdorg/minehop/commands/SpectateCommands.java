@@ -14,6 +14,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.world.GameMode;
+import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.entity.custom.ReplayEntity;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.Logger;
@@ -84,13 +85,23 @@ public class SpectateCommands {
     private static void handleUnSpectate(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
 
+        if (serverPlayerEntity.getCameraEntity() != null) {
+            if (spectatorList.containsKey(serverPlayerEntity.getCameraEntity().getNameForScoreboard())) {
+                List<String> spectators = spectatorList.get(serverPlayerEntity.getCameraEntity().getNameForScoreboard());
+                if (spectators.contains(serverPlayerEntity.getNameForScoreboard())) {
+                    spectators.remove(serverPlayerEntity.getNameForScoreboard());
+                }
+            }
+        }
+
+        serverPlayerEntity.changeGameMode(GameMode.ADVENTURE);
+        serverPlayerEntity.setCameraEntity(serverPlayerEntity);
+
         if (!serverPlayerEntity.isSpectator()) {
             Logger.logFailure(serverPlayerEntity, "You are not spectating.");
         }
         else {
             Logger.logSuccess(serverPlayerEntity, "No longer spectating.");
-            serverPlayerEntity.changeGameMode(GameMode.ADVENTURE);
-            serverPlayerEntity.setCameraEntity(serverPlayerEntity);
             SpawnCommands.handleSpawn(context);
         }
     }
