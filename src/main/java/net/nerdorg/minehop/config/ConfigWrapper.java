@@ -41,6 +41,7 @@ public class ConfigWrapper {
                         PacketHandler.sendAntiCheatCheck(playerEntity);
                     }
                     PacketHandler.sendSpectators(playerEntity);
+                    PacketHandler.sendRecords(playerEntity);
                 }
             }
         });

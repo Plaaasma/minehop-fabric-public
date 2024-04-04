@@ -107,7 +107,16 @@ public class MapUtilCommands {
                     })
                 )
             )
+            .executes(context -> {
+                handleOpenMapScreen(context);
+                return Command.SINGLE_SUCCESS;
+            })
         ));
+    }
+
+    private static void handleOpenMapScreen(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+        PacketHandler.sendOpenMapScreen(serverPlayerEntity, "Balls");
     }
 
     private static void handleAddCheckpoint(CommandContext<ServerCommandSource> context) {

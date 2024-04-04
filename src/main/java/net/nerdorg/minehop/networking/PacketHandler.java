@@ -159,6 +159,37 @@ public class PacketHandler {
         ServerPlayNetworking.send(player, ModMessages.CLIENT_SPEC_EFFICIENCY, buf);
     }
 
+    public static void sendOpenMapScreen(ServerPlayerEntity player, String title) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeString(title);
+
+        ServerPlayNetworking.send(player, ModMessages.OPEN_MAP_SCREEN, buf);
+    }
+
+    public static void sendRecords(ServerPlayerEntity player) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeInt(Minehop.mapList.size());
+
+        for (DataManager.MapData mapData : Minehop.mapList) {
+            DataManager.RecordData recordData = DataManager.getRecord(mapData.name);
+            if (recordData != null) {
+                buf.writeString(recordData.map_name);
+                buf.writeString(recordData.name);
+                buf.writeDouble(recordData.time);
+            }
+            else {
+                buf.writeString(mapData.name);
+                buf.writeString("None");
+                buf.writeDouble(0);
+            }
+        }
+
+        ServerPlayNetworking.send(player, ModMessages.SEND_RECORDS, buf);
+    }
+
+
     public static void registerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.ANTI_CHEAT_CHECK, (server, player, handler, buf, responseSender) -> {
             boolean cheatSoftwareOpen = buf.readBoolean();

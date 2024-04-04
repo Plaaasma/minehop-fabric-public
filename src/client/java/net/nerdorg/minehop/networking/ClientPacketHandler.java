@@ -8,14 +8,17 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.anticheat.ProcessChecker;
+import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.entity.custom.StartEntity;
+import net.nerdorg.minehop.screen.SelectMapScreen;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -145,6 +148,32 @@ public class ClientPacketHandler {
                 MinehopClient.last_jump_speed = last_jump_speed;
                 MinehopClient.jump_count = jump_count;
                 MinehopClient.last_efficiency = last_efficiency;
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.OPEN_MAP_SCREEN, (client, handler, buf, responseSender) -> {
+
+            String title = buf.readString();
+
+            client.execute(() -> {
+                client.setScreen(new SelectMapScreen(Text.literal(title)));
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.SEND_RECORDS, (client, handler, buf, responseSender) -> {
+
+            List<DataManager.RecordData> newRecordList = new ArrayList<>();
+            int recordCount = buf.readInt();
+
+            for (int i = 0; i < recordCount; i++) {
+                String map_name = buf.readString();
+                String name = buf.readString();
+                double time = buf.readDouble();
+                newRecordList.add(new DataManager.RecordData(name, map_name, time));
+            }
+
+            client.execute(() -> {
+                MinehopClient.clientRecords = newRecordList;
             });
         });
 

@@ -11,6 +11,7 @@ import net.minecraft.util.TimeSupplier;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.client.SqueedometerHud;
 import net.nerdorg.minehop.config.ConfigWrapper;
+import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.client.*;
 import net.nerdorg.minehop.event.KeyInputHandler;
@@ -38,8 +39,9 @@ public class MinehopClient implements ClientModInitializer {
 	public static float lastSendTime = 0;
 
 	public static List<String> spectatorList = new ArrayList<>();
+    public static List<DataManager.RecordData> clientRecords = new ArrayList<>();
 
-	@Override
+    @Override
 	public void onInitializeClient() {
 		ClientPacketHandler.registerReceivers();
 		ConfigWrapper.loadConfig();
