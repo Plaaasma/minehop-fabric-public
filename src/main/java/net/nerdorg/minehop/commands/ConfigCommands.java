@@ -91,6 +91,14 @@ public class ConfigCommands {
                             })
                         )
                     )
+                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_yaw")
+                                .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_yaw", DoubleArgumentType.doubleArg())
+                                        .executes(context -> {
+                                            handleSetYaw(context);
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                )
+                        )
                 )
             ));
     }
@@ -159,6 +167,17 @@ public class ConfigCommands {
         ConfigWrapper.saveConfig(config);
 
         Logger.logSuccess(serverPlayerEntity, "Set sv_gravity to " + config.sv_gravity);
+    }
+
+    private static void handleSetYaw(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+        MinehopConfig config = ConfigWrapper.config;
+
+        config.sv_yaw = DoubleArgumentType.getDouble(context, "sv_yaw");
+
+        ConfigWrapper.saveConfig(config);
+
+        Logger.logSuccess(serverPlayerEntity, "Set sv_yaw to " + config.sv_yaw);
     }
 
     private static void handleList(CommandContext<ServerCommandSource> context) {

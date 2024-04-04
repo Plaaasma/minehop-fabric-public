@@ -96,6 +96,7 @@ public class SqueedometerHud {
             config.sv_maxairspeed = Minehop.o_sv_maxairspeed;
             config.speed_mul = Minehop.o_speed_mul;
             config.sv_gravity = Minehop.o_sv_gravity;
+            config.sv_yaw = Minehop.o_sv_yaw;
         }
         else {
             config = ConfigWrapper.config;

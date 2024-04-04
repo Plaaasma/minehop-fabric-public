@@ -81,6 +81,7 @@ public abstract class LivingEntityMixin extends Entity {
             config.sv_maxairspeed = Minehop.o_sv_maxairspeed;
             config.speed_mul = Minehop.o_speed_mul;
             config.sv_gravity = Minehop.o_sv_gravity;
+            config.sv_yaw = Minehop.o_sv_yaw;
         }
         else {
             config = ConfigWrapper.config;
@@ -197,7 +198,7 @@ public abstract class LivingEntityMixin extends Entity {
             } else {
                 // Increase maximum air speed based on the yawDifference
                 // maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 180.0f))); <- Alternative.
-                maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 10.25f))); // 90.0f is the normal value, might revert back to it
+                maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / config.sv_yaw))); // 90.0f is the normal value, might revert back to it
                 // yawDifference / 50.0f is good
                 // yawDifference / 25.0f may be better, but it's hard to say
                 // yawDifference / 10.0f is good
