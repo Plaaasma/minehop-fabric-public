@@ -94,6 +94,10 @@ public class SpectateCommands {
             }
         }
 
+        if (Minehop.timerManager.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+            Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+        }
+
         serverPlayerEntity.changeGameMode(GameMode.ADVENTURE);
         serverPlayerEntity.setCameraEntity(serverPlayerEntity);
 
@@ -109,6 +113,10 @@ public class SpectateCommands {
     private static void handleSpectateReplay(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         String nameString = new String(context.getArgument("entity", String.class).getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+
+        if (Minehop.timerManager.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+            Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+        }
 
         Entity entity = context.getSource().getServer().getPlayerManager().getPlayer(nameString);
         if (entity == null) {
