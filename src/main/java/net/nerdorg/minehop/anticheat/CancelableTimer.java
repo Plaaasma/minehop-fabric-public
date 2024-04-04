@@ -24,9 +24,9 @@ public class CancelableTimer {
             @Override
             public void run() {
                 // Code to be executed periodically
-                if (!Minehop.adminList.contains(player.getNameForScoreboard())) {
-                    player.networkHandler.disconnect(Text.of("Failed Anti-Cheat Check"));
-                }
+//                if (!Minehop.adminList.contains(player.getNameForScoreboard())) {
+//                    player.networkHandler.disconnect(Text.of("Failed Anti-Cheat Check"));
+//                }
                 timer.cancel();
             }
         };

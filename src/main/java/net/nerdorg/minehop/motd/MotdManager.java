@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Random;
 
 public class MotdManager {
-    private static List<String> randomMessages = new ArrayList<>(Arrays.asList("lolrow is a homosexual.", "Please submit maps to us in discord!", "No you can't have admin.", "Raw accel runs will show up on the cheaterboard.", "You're dumb.", "Nobody likes you."));
+    private static List<String> randomMessages = new ArrayList<>(Arrays.asList("lolrow is a homosexual.", "Please submit maps to us in discord!", "No you can't have admin.", "You're dumb.", "Nobody likes you."));
     private static Random random = new Random();
 
     public static void register() {

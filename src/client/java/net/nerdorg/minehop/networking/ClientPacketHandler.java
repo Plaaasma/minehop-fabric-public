@@ -186,7 +186,6 @@ public class ClientPacketHandler {
                 // Assign the read values to your variables or fields here
                 new Thread(() -> {
                         boolean antiCheatCheck = ProcessChecker.isProcessRunning("rawaccel.exe");
-                        System.out.println(antiCheatCheck + "=> rawaccel check");
                         sendAntiCheatCheck(antiCheatCheck, "rawaccel");
                     /*CustomPlayerEntityRenderer playerRenderer = (CustomPlayerEntityRenderer) client.getEntityRenderDispatcher().getRenderer(client.player);
                     playerRenderer.setPlayerModel(CustomPlayerEntityRenderer.PlayerModel.Cube);*/
