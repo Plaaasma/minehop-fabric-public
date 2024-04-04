@@ -188,6 +188,8 @@ public class PacketHandler {
                         for (String spectatorName : spectators) {
                             if (!spectatorName.equals(player.getNameForScoreboard())) {
                                 ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
+                                spectatorPlayer.teleport(player.getX(), player.getY(), player.getZ());
+                                spectatorPlayer.setCameraEntity(player);
                                 Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));
                             }
                         }

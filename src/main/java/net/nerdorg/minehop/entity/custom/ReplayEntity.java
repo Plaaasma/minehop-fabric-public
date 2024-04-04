@@ -152,8 +152,12 @@ public class ReplayEntity extends MobEntity {
                         for (String spectatorName : spectators) {
                             if (!spectatorName.equals(this.getNameForScoreboard())) {
                                 ServerPlayerEntity spectatorPlayer = this.getServer().getPlayerManager().getPlayer(spectatorName);
-                                PacketHandler.sendSpecEfficiency(spectatorPlayer, last_jump_speed, (int) jump_count, efficiency);
-                                Logger.logActionBar(spectatorPlayer, "End Time: " + String.format("%.5f", replay.time));
+                                if (spectatorPlayer != null) {
+                                    spectatorPlayer.teleport(this.getX(), this.getY(), this.getZ());
+                                    spectatorPlayer.setCameraEntity(this);
+                                    PacketHandler.sendSpecEfficiency(spectatorPlayer, last_jump_speed, (int) jump_count, efficiency);
+                                    Logger.logActionBar(spectatorPlayer, "End Time: " + String.format("%.5f", replay.time));
+                                }
                             }
                         }
                     }
@@ -161,15 +165,6 @@ public class ReplayEntity extends MobEntity {
                     this.replayIndex += 1;
                 }
                 else {
-                    if (SpectateCommands.spectatorList.containsKey(this.getNameForScoreboard())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(this.getNameForScoreboard());
-                        for (String spectator : spectators) {
-                            ServerPlayerEntity spectatorPlayer = this.getServer().getPlayerManager().getPlayer(spectator);
-                            spectatorPlayer.teleport(this.getX(), this.getY(), this.getZ());
-                            spectatorPlayer.setCameraEntity(this);
-                        }
-                    }
-
                     this.replayIndex = 0;
                 }
             }
