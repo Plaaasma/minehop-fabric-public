@@ -7,7 +7,8 @@
     "GameRendererMixin",
     "PlayerEntityRendererMixin",
     "SpectatorHudMixin",
-    "KeyBindingMixin"
+    "KeyBindingMixin",
+    "MultiplayerScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -5,6 +5,9 @@ import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ServerInfo;
+import net.minecraft.client.option.ServerList;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.entity.EntityType;
 import net.minecraft.util.TimeSupplier;
@@ -43,6 +46,17 @@ public class MinehopClient implements ClientModInitializer {
 
     @Override
 	public void onInitializeClient() {
+		MinecraftClient minecraft = MinecraftClient.getInstance();
+		minecraft.execute(() -> {
+			ServerList serverList = new ServerList(minecraft);
+			serverList.loadFile();
+			if (!isServerInList(serverList, "mh.nerd-org.com")) {
+				serverList.add(new ServerInfo("§c§l§nOfficial Minehop Server", "mh.nerd-org.com", ServerInfo.ServerType.OTHER), false);
+				serverList.swapEntries(0, serverList.size() - 1);
+				serverList.saveFile();
+			}
+		});
+
 		ClientPacketHandler.registerReceivers();
 		ConfigWrapper.loadConfig();
 		squeedometerHud = new SqueedometerHud();
@@ -74,5 +88,15 @@ public class MinehopClient implements ClientModInitializer {
 		});
 
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.BOOSTER_BLOCK, RenderLayer.getTranslucent());
+	}
+
+	private boolean isServerInList(ServerList serverList, String ip) {
+		for (int i = 0; i < serverList.size(); i++) {
+			ServerInfo info = serverList.get(i);
+			if (info.address.equals(ip)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
