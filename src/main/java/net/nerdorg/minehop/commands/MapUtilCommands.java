@@ -98,6 +98,15 @@ public class MapUtilCommands {
                     })
                 )
             )
+            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("setspawn")
+                    .requires(source -> source.hasPermissionLevel(4))
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                            .executes(context -> {
+                                handleSetMapSpawn(context);
+                                return Command.SINGLE_SUCCESS;
+                            })
+                    )
+            )
             .then(LiteralArgumentBuilder.<ServerCommandSource>literal("info")
                 .requires(source -> source.hasPermissionLevel(4))
                 .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("search_name", StringArgumentType.string())
@@ -353,6 +362,45 @@ public class MapUtilCommands {
         }
         else {
             Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
+        }
+    }
+
+    private static void handleSetMapSpawn(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+
+        String name = StringArgumentType.getString(context, "map_name");
+
+        double spawn_x = serverPlayerEntity.getX();
+        double spawn_y = serverPlayerEntity.getY();
+        double spawn_z = serverPlayerEntity.getZ();
+        double spawn_xrot = serverPlayerEntity.getPitch();
+        double spawn_yrot = serverPlayerEntity.getYaw();
+
+        DataManager.MapData removedData = null;
+
+        for (Object object : Minehop.mapList) {
+            if (object instanceof DataManager.MapData mapData) {
+                if (mapData.name.equals(name)) {
+                    removedData = mapData;
+                    Minehop.mapList.remove(mapData);
+                    break;
+                }
+            }
+        }
+
+        if (removedData != null) {
+            removedData.x = spawn_x;
+            removedData.y = spawn_y;
+            removedData.z = spawn_z;
+            removedData.xrot = spawn_xrot;
+            removedData.yrot = spawn_yrot;
+            Minehop.mapList.add(removedData);
+            DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+
+            Logger.logSuccess(serverPlayerEntity, "Set map spawn \\/\n" + StringFormatting.limitDecimals(gson.toJson(removedData)));
+        }
+        else {
+            Logger.logSuccess(serverPlayerEntity, "There is no map called " + name + ".");
         }
     }
 
