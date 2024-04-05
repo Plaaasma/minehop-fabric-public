@@ -121,6 +121,30 @@ public class DataManager {
         return null;
     }
 
+    public static RecordData getRecordFromName(String mapName, String playerName) {
+        if (Minehop.recordList != null) {
+            for (RecordData recordData : Minehop.recordList) {
+                if (recordData.name.equals(playerName) && recordData.map_name.equals(mapName)) {
+                    return recordData;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static RecordData getAnyRecordFromName(String playerName) {
+        if (Minehop.recordList != null) {
+            for (RecordData recordData : Minehop.recordList) {
+                if (recordData.name.equals(playerName)) {
+                    return recordData;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public static MapData getMap(String mapName) {
         if (Minehop.mapList != null) {
             for (MapData mapData : Minehop.mapList) {
