@@ -18,6 +18,8 @@ import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.entity.custom.ReplayEntity;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.Logger;
+import net.nerdorg.minehop.util.ZoneUtil;
+import org.apache.commons.collections4.MapUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -153,10 +155,21 @@ public class SpectateCommands {
         }
 
         if (entity instanceof ReplayEntity replayEntity) {
-            Logger.logSuccess(serverPlayerEntity, "Now spectating " + replayEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
-            serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
-            serverPlayerEntity.teleport(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ());
-            serverPlayerEntity.setCameraEntity(replayEntity);
+            String mapName = ZoneUtil.getCurrentMapName(serverPlayerEntity, serverPlayerEntity.getServerWorld());
+            String replayName = replayEntity.getNameForScoreboard();
+            if (mapName != null) {
+                if (replayName.startsWith(mapName)) {
+                    Logger.logSuccess(serverPlayerEntity, "Now spectating " + replayEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
+                    serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
+                    serverPlayerEntity.teleport(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ());
+                    serverPlayerEntity.setCameraEntity(replayEntity);
+                } else {
+                    Logger.logSuccess(serverPlayerEntity, "Please teleport to the map before viewing it's replay.");
+                }
+            }
+            else {
+                Logger.logSuccess(serverPlayerEntity, "Please teleport to the map before viewing it's replay.");
+            }
         }
         else if (entity instanceof PlayerEntity playerEntity) {
             if (playerEntity == serverPlayerEntity) {
