@@ -2,6 +2,7 @@ package net.nerdorg.minehop.networking;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.mojang.brigadier.ParseResults;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.player.PlayerEntity;
@@ -118,6 +119,10 @@ public class PacketHandler {
                             DiscordIntegration.sendRecordToDiscord(recordMessage);
                             Logger.logGlobal(server, recordMessage);
                             Minehop.recordList.remove(mapRecord);
+                            if (DataManager.getAnyRecordFromName(mapRecord.name) == null) {
+                                server.getCommandManager().execute(server.getCommandSource().getDispatcher().parse("lp user " + mapRecord.name + " parent remove record_holder", server.getCommandSource()), "lp user " + mapRecord.name + " parent remove record_holder");
+                            }
+                            server.getCommandManager().execute(server.getCommandSource().getDispatcher().parse("lp user " + player.getNameForScoreboard() + " parent add record_holder", server.getCommandSource()), "lp user " + player.getNameForScoreboard() + " parent add record_holder");
                             Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                             DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
                             ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getNameForScoreboard(), time, ReplayEvents.replayEntryMap.get(player.getNameForScoreboard()));
@@ -127,6 +132,7 @@ public class PacketHandler {
                         String recordMessage = player.getNameForScoreboard() + " just claimed the world record on " + map_name + " with a time of " + formattedNumber + "!";
                         DiscordIntegration.sendRecordToDiscord(recordMessage);
                         Logger.logGlobal(server, recordMessage);
+                        server.getCommandManager().execute(server.getCommandSource().getDispatcher().parse("lp user " + player.getNameForScoreboard() + " parent add record_holder", server.getCommandSource()), "lp user " + player.getNameForScoreboard() + " parent add record_holder");
                         Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                         DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
                         ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getNameForScoreboard(), time, ReplayEvents.replayEntryMap.get(player.getNameForScoreboard()));
