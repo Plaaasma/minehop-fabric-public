@@ -7,6 +7,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.server.MinecraftServer;
+import net.nerdorg.minehop.antispam.SpamManager;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.block.entity.ModBlockEntities;
 import net.nerdorg.minehop.commands.*;
@@ -84,6 +85,7 @@ public class Minehop implements ModInitializer {
 		ModBlocks.registerModBlocks();
 		ModBlockEntities.registerBlockEntities();
 
+		SpamManager.register();
 		MotdManager.register();
 
 		FabricDefaultAttributeRegistry.register(ModEntities.RESET_ENTITY, ResetEntity.createResetEntityAttributes());
