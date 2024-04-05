@@ -16,6 +16,12 @@ public class ConfigWrapper {
         ServerTickEvents.END_SERVER_TICK.register((server) -> {
             HashMap<String, List<String>> newSpectatorList = new HashMap<>();
             for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+                if (playerEntity.isSpectator() || playerEntity.isCreative()) {
+                    if (Minehop.timerManager.containsKey(playerEntity.getNameForScoreboard())) {
+                        Minehop.timerManager.remove(playerEntity.getNameForScoreboard());
+                    }
+                }
+
                 if (newSpectatorList.containsKey(playerEntity.getCameraEntity().getNameForScoreboard())) {
                     List<String> newList = newSpectatorList.get(playerEntity.getCameraEntity().getNameForScoreboard());
                     newList.add(playerEntity.getNameForScoreboard());
