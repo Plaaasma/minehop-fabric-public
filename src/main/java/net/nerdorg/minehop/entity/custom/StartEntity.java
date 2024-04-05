@@ -118,6 +118,11 @@ public class StartEntity extends Zone {
                                 Minehop.timerManager.put(player.getNameForScoreboard(), informationMap);
                             }
                         }
+                        else {
+                            if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
+                                Minehop.timerManager.remove(player.getNameForScoreboard());
+                            }
+                        }
                     }
                 }
                 else {
