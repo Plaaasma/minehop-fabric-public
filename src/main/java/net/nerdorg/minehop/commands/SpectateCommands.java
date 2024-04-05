@@ -152,19 +152,12 @@ public class SpectateCommands {
             }
         }
 
-        if (entity instanceof PlayerEntity playerEntity) {
-            if (playerEntity != serverPlayerEntity) {
-                serverPlayerEntity.setCameraEntity(serverPlayerEntity);
-            }
-        } else {
-            serverPlayerEntity.setCameraEntity(serverPlayerEntity);
-        }
-
         if (entity instanceof ReplayEntity replayEntity) {
             String mapName = ZoneUtil.getCurrentMapName(serverPlayerEntity, serverPlayerEntity.getServerWorld());
             String replayName = replayEntity.getNameForScoreboard();
             if (mapName != null) {
                 if (replayName.startsWith(mapName)) {
+                    serverPlayerEntity.setCameraEntity(serverPlayerEntity);
                     Logger.logSuccess(serverPlayerEntity, "Now spectating " + replayEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
                     serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
                     serverPlayerEntity.teleport(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ());
@@ -185,6 +178,7 @@ public class SpectateCommands {
                 Logger.logFailure(serverPlayerEntity, "You cannot spectate another spectator.");
             }
             else {
+                serverPlayerEntity.setCameraEntity(serverPlayerEntity);
                 Logger.logSuccess(serverPlayerEntity, "Now spectating " + playerEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
                 serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
                 serverPlayerEntity.teleport(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ());
