@@ -30,15 +30,33 @@ public class PlayerJoinMixin {
     @Inject(method = "broadcast(Lnet/minecraft/text/Text;Z)V", at = @At("HEAD"), cancellable = true)
     public void broadcast(Text message, boolean overlay, CallbackInfo ci) {
         if (message.toString().contains("multiplayer.player.joined")) {
-            String playerName = message.withoutStyle().get(0).getString();
-            Logger.logGlobal(this.server,
-                    Text.literal(playerName + " joined!"));
+            List<Text> unstyledMessage = message.withoutStyle();
+            if (unstyledMessage.size() == 1) {
+                String playerName = message.withoutStyle().get(0).getString();
+                Logger.logGlobal(this.server,
+                        Text.literal(playerName + " joined!"));
+            }
+            else {
+                String prefix = message.withoutStyle().get(0).getString();
+                String playerName = message.withoutStyle().get(1).getString();
+                Logger.logGlobal(this.server,
+                        Text.literal(prefix + playerName + " joined!"));
+            }
             ci.cancel();
         }
         else if (message.toString().contains("multiplayer.player.left")) {
-            String playerName = message.withoutStyle().get(0).getString();
-            Logger.logGlobal(this.server,
-                    Text.literal(playerName + " left!"));
+            List<Text> unstyledMessage = message.withoutStyle();
+            if (unstyledMessage.size() == 1) {
+                String playerName = message.withoutStyle().get(0).getString();
+                Logger.logGlobal(this.server,
+                        Text.literal(playerName + " left!"));
+            }
+            else {
+                String prefix = message.withoutStyle().get(0).getString();
+                String playerName = message.withoutStyle().get(1).getString();
+                Logger.logGlobal(this.server,
+                        Text.literal(prefix + playerName + " left!"));
+            }
             ci.cancel();
         }
     }
