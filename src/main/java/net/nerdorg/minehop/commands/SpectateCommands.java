@@ -129,8 +129,6 @@ public class SpectateCommands {
             Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
         }
 
-        serverPlayerEntity.setCameraEntity(serverPlayerEntity);
-
         String nameString = new String(context.getArgument("entity", String.class).getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
 
         if (Minehop.timerManager.containsKey(serverPlayerEntity.getNameForScoreboard())) {
@@ -152,6 +150,14 @@ public class SpectateCommands {
                 Logger.logFailure(serverPlayerEntity, "Entity not found.");
                 return;
             }
+        }
+
+        if (entity instanceof PlayerEntity playerEntity) {
+            if (playerEntity != serverPlayerEntity) {
+                serverPlayerEntity.setCameraEntity(serverPlayerEntity);
+            }
+        } else {
+            serverPlayerEntity.setCameraEntity(serverPlayerEntity);
         }
 
         if (entity instanceof ReplayEntity replayEntity) {
