@@ -8,7 +8,10 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.Arm;
 import net.minecraft.util.Identifier;
+import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
+import net.nerdorg.minehop.config.ConfigWrapper;
+import net.nerdorg.minehop.config.MinehopConfig;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -41,8 +44,28 @@ public abstract class InGameHudMixin {
 
     @Inject(at = @At("TAIL"), method = "render(Lnet/minecraft/client/gui/DrawContext;F)V")
     private void renderSqueedometerHud(DrawContext context, float tickDelta, CallbackInfo info) {
-        MinehopClient.squeedometerHud.drawMain(context, tickDelta);
-        MinehopClient.squeedometerHud.drawSSJ(context, tickDelta);
+        MinehopConfig config;
+        if (Minehop.override_config) {
+            config = new MinehopConfig();
+            config.sv_friction = Minehop.o_sv_friction;
+            config.sv_accelerate = Minehop.o_sv_accelerate;
+            config.sv_airaccelerate = Minehop.o_sv_airaccelerate;
+            config.sv_maxairspeed = Minehop.o_sv_maxairspeed;
+            config.speed_mul = Minehop.o_speed_mul;
+            config.sv_gravity = Minehop.o_sv_gravity;
+            config.sv_yaw = Minehop.o_sv_yaw;
+            config.show_ssj = ConfigWrapper.config.show_ssj;
+            config.show_efficiency = ConfigWrapper.config.show_efficiency;
+            config.show_current_speed = ConfigWrapper.config.show_current_speed;
+        }
+        else {
+            config = ConfigWrapper.config;
+        }
+
+        if (config.show_current_speed) {
+            MinehopClient.squeedometerHud.drawMain(context, tickDelta);
+        }
+        MinehopClient.squeedometerHud.drawSSJ(context, config);
         if (MinehopClient.spectatorList.size() > 0) {
             MinehopClient.squeedometerHud.drawSpectators(context, tickDelta);
         }

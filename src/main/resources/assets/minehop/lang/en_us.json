@@ -6,6 +6,9 @@
   "key.category.minehop": "Minehop",
 
   "text.autoconfig.minehop.title": "Minehop Config",
+  "text.autoconfig.minehop.option.show_ssj": "Show SSJ",
+  "text.autoconfig.minehop.option.show_efficiency": "Show Efficiency",
+  "text.autoconfig.minehop.option.show_current_speed": "Show Current Speed",
   "text.autoconfig.minehop.option.sv_friction": "Ground Friction (sv_friction)",
   "text.autoconfig.minehop.option.sv_accelerate": "Ground Acceleration (sv_accelerate)",
   "text.autoconfig.minehop.option.sv_airaccelerate": "Air Acceleration (sv_airaccelerate)",

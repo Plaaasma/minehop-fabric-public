@@ -86,21 +86,7 @@ public class SqueedometerHud {
         }
     }
 
-    public void drawSSJ(DrawContext context, float tickDelta) {
-        MinehopConfig config;
-        if (Minehop.override_config) {
-            config = new MinehopConfig();
-            config.sv_friction = Minehop.o_sv_friction;
-            config.sv_accelerate = Minehop.o_sv_accelerate;
-            config.sv_airaccelerate = Minehop.o_sv_airaccelerate;
-            config.sv_maxairspeed = Minehop.o_sv_maxairspeed;
-            config.speed_mul = Minehop.o_speed_mul;
-            config.sv_gravity = Minehop.o_sv_gravity;
-            config.sv_yaw = Minehop.o_sv_yaw;
-        }
-        else {
-            config = ConfigWrapper.config;
-        }
+    public void drawSSJ(DrawContext context, MinehopConfig config) {
         Vec3d playerPosVec = client.player.getPos();
         if (MinehopClient.jump_count > 0) {
             this.client = MinecraftClient.getInstance();
@@ -128,8 +114,12 @@ public class SqueedometerHud {
             int left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(ssjText) / 2));
 
             // Render the text
-            context.drawTextWithShadow(this.textRenderer, ssjText, left, top, color);
-            context.drawTextWithShadow(this.textRenderer, effText, eff_left, eff_top, effColor);
+            if (config.show_ssj) {
+                context.drawTextWithShadow(this.textRenderer, ssjText, left, top, color);
+            }
+            if (config.show_efficiency) {
+                context.drawTextWithShadow(this.textRenderer, effText, eff_left, eff_top, effColor);
+            }
         }
         if (client.player == null || !client.player.isSpectator()) {
             if (MinehopClient.jumping) {
