@@ -170,7 +170,7 @@ public class SpectateCommands {
                 Logger.logSuccess(serverPlayerEntity, "Please teleport to the map before viewing it's replay.");
             }
         }
-        else if (entity instanceof PlayerEntity playerEntity) {
+        else if (entity instanceof ServerPlayerEntity playerEntity) {
             if (playerEntity == serverPlayerEntity) {
                 Logger.logFailure(serverPlayerEntity, "You cannot spectate yourself.");
             }
@@ -178,11 +178,18 @@ public class SpectateCommands {
                 Logger.logFailure(serverPlayerEntity, "You cannot spectate another spectator.");
             }
             else {
-                serverPlayerEntity.setCameraEntity(serverPlayerEntity);
-                Logger.logSuccess(serverPlayerEntity, "Now spectating " + playerEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
-                serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
-                serverPlayerEntity.teleport(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ());
-                serverPlayerEntity.setCameraEntity(playerEntity);
+                String mapName = ZoneUtil.getCurrentMapName(serverPlayerEntity, serverPlayerEntity.getServerWorld());
+                String targetMapName = ZoneUtil.getCurrentMapName(playerEntity, playerEntity.getServerWorld());
+                if (mapName.equals(targetMapName)) {
+                    serverPlayerEntity.setCameraEntity(serverPlayerEntity);
+                    Logger.logSuccess(serverPlayerEntity, "Now spectating " + playerEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
+                    serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
+                    serverPlayerEntity.teleport(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ());
+                    serverPlayerEntity.setCameraEntity(playerEntity);
+                }
+                else {
+                    Logger.logSuccess(serverPlayerEntity, "Please teleport to " + targetMapName + " before spectating this player.");
+                }
             }
         }
         else {
