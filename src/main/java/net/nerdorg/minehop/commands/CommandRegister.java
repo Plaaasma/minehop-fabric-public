@@ -23,6 +23,5 @@ public class CommandRegister {
 
         //Dev commands
         TestCommands.register();
-        VanillaCommands.register();
     }
 }
