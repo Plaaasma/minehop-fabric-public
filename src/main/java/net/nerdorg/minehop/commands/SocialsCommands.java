@@ -11,6 +11,10 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.ClickEvent;
+import net.minecraft.text.HoverEvent;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -33,6 +37,14 @@ public class SocialsCommands {
 
     private static void handleDiscord(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
-        Logger.logSuccess(serverPlayerEntity, "https://discord.gg/hMs97RHEgF");
+
+        Text urlText = Text.literal("https://discord.gg/hMs97RHEgF")
+                .styled(style -> style
+                        .withColor(Formatting.BLUE)
+                        .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, "https://discord.gg/hMs97RHEgF"))
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Join or else....")))
+                        .withUnderline(true));
+
+        Logger.log(serverPlayerEntity, urlText);
     }
 }

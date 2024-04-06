@@ -42,6 +42,12 @@ public class Logger {
         }
     }
 
+    public static void log(ServerPlayerEntity serverPlayerEntity, Text message) {
+        if (serverPlayerEntity != null) {
+            serverPlayerEntity.sendMessage(prefix.copy().append(message));
+        }
+    }
+
     public static void logFailure(ServerPlayerEntity serverPlayerEntity, String message) {
         if (serverPlayerEntity != null) {
             serverPlayerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.RED.getColorValue())));
