@@ -7,9 +7,11 @@ import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.navigation.GuiNavigationPath;
 import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
+import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.ElementListWidget;
 import net.minecraft.client.gui.widget.EntryListWidget;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.nerdorg.minehop.data.DataManager;
@@ -21,8 +23,8 @@ import java.util.Optional;
 
 public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
-    public MapListWidget(MinecraftClient client, int width, int height, int top, int bottom) {
-        super(client, width, height, top, 32);
+    public MapListWidget(MinecraftClient client, int width, int height, int top, int itemHeight) {
+        super(client, width, height, top, itemHeight);
     }
 
     public void addEntry(DataManager.RecordData recordData) {
@@ -42,7 +44,9 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
         public MapEntry(DataManager.RecordData recordData) {
             this.recordData = recordData;
 
-            this.mapButtonWidget = ButtonWidget.builder(Text.literal(recordData.map_name), button -> {}).build();
+            this.mapButtonWidget = ButtonWidget.builder(Text.literal(recordData.map_name), button -> {})
+                    .tooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " Time: " + String.format("%.5f", recordData.time)).formatted(Formatting.RED)))
+                    .build();
 
             this.mapButtonWidget.visible = true;
         }
@@ -53,14 +57,11 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
             // Render the object's name and description here
             this.mapButtonWidget.setWidth(entryWidth);
-            this.mapButtonWidget.setHeight(entryHeight - (textRenderer.fontHeight + 2));
+            this.mapButtonWidget.setHeight(entryHeight);
             this.mapButtonWidget.setPosition(x, y);
+//            this.mapButtonWidget.setTooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " Time: " + String.format("%5f", recordData.time)).withColor(Formatting.RED.getColorValue())));
+//            this.mapButtonWidget.setTooltipDelay(0);
             this.mapButtonWidget.render(context, mouseX, mouseY, tickDelta);
-
-            String recordString = "Record holder: " + recordData.name + " Time: " + String.format("%5f", recordData.time);
-            context.drawCenteredTextWithShadow(textRenderer, recordString, x + (entryWidth / 2), y + textRenderer.fontHeight + 12, Formatting.RED.getColorValue());
-//            context.drawText(MinecraftClient.getInstance().textRenderer, mapData.name, x, y, Formatting.AQUA.getColorValue(), true);
-            // Add more rendering details as needed
         }
 
         @Override
