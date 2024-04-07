@@ -52,6 +52,9 @@ public class SpawnCommands {
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
             if (!serverPlayerEntity.isSpectator()) {
+                if (!serverPlayerEntity.isCreative()) {
+                    serverPlayerEntity.getInventory().clear();
+                }
                 serverPlayerEntity.teleport(
                         context.getSource().getServer().getOverworld(),
                         pairedMap.x,
@@ -66,6 +69,9 @@ public class SpawnCommands {
                     List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
                     for (String spectator : spectators) {
                         ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                        if (!spectatorPlayer.isCreative()) {
+                            spectatorPlayer.getInventory().clear();
+                        }
                         spectatorPlayer.teleport(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ());
                         spectatorPlayer.setCameraEntity(serverPlayerEntity);
                     }

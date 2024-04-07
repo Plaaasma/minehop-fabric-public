@@ -50,6 +50,7 @@ public class JoinLeaveManager {
                         }
                     }
                     if (foundWorld != null) {
+                        networkHandler.player.getInventory().clear();
                         networkHandler.player.teleport(
                                 server.getOverworld(),
                                 mapData.x,

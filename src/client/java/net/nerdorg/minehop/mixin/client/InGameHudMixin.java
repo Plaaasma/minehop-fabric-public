@@ -86,47 +86,56 @@ public abstract class InGameHudMixin {
         }
     }
 
+    @Inject(at = @At("HEAD"), method = "renderExperienceBar", cancellable = true)
+    private void renderExperienceBar(DrawContext context, int x, CallbackInfo ci) {
+        if (MinehopClient.hideSelf) {
+            ci.cancel();
+        }
+    }
+
     @Inject(at = @At("HEAD"), method = "renderHotbar")
     private void renderHotbar(float tickDelta, DrawContext context, CallbackInfo ci) {
-        PlayerEntity playerEntity = this.getCameraPlayer();
-        if (playerEntity != null) {
-            ItemStack itemStack = playerEntity.getOffHandStack();
-            Arm arm = playerEntity.getMainArm().getOpposite();
-            int i = this.scaledWidth / 2;
-            context.getMatrices().push();
-            context.getMatrices().translate(0.0F, 0.0F, -90.0F);
-            context.drawGuiTexture(HOTBAR_TEXTURE, i - 91, this.scaledHeight - 22, 182, 22);
-            context.drawGuiTexture(HOTBAR_SELECTION_TEXTURE, i - 91 - 1 + playerEntity.getInventory().selectedSlot * 20, this.scaledHeight - 22 - 1, 24, 23);
-            if (!itemStack.isEmpty()) {
-                if (arm == Arm.LEFT) {
-                    context.drawGuiTexture(HOTBAR_OFFHAND_LEFT_TEXTURE, i - 91 - 29, this.scaledHeight - 23, 29, 24);
-                } else {
-                    context.drawGuiTexture(HOTBAR_OFFHAND_RIGHT_TEXTURE, i + 91, this.scaledHeight - 23, 29, 24);
+        if (!MinehopClient.hideSelf) {
+            PlayerEntity playerEntity = this.getCameraPlayer();
+            if (playerEntity != null) {
+                ItemStack itemStack = playerEntity.getOffHandStack();
+                Arm arm = playerEntity.getMainArm().getOpposite();
+                int i = this.scaledWidth / 2;
+                context.getMatrices().push();
+                context.getMatrices().translate(0.0F, 0.0F, -90.0F);
+                context.drawGuiTexture(HOTBAR_TEXTURE, i - 91, this.scaledHeight - 22, 182, 22);
+                context.drawGuiTexture(HOTBAR_SELECTION_TEXTURE, i - 91 - 1 + playerEntity.getInventory().selectedSlot * 20, this.scaledHeight - 22 - 1, 24, 23);
+                if (!itemStack.isEmpty()) {
+                    if (arm == Arm.LEFT) {
+                        context.drawGuiTexture(HOTBAR_OFFHAND_LEFT_TEXTURE, i - 91 - 29, this.scaledHeight - 23, 29, 24);
+                    } else {
+                        context.drawGuiTexture(HOTBAR_OFFHAND_RIGHT_TEXTURE, i + 91, this.scaledHeight - 23, 29, 24);
+                    }
                 }
-            }
 
-            context.getMatrices().pop();
-            int l = 1;
+                context.getMatrices().pop();
+                int l = 1;
 
-            int m;
-            int n;
-            int o;
-            for(m = 0; m < 9; ++m) {
-                n = i - 90 + m * 20 + 2;
-                o = this.scaledHeight - 16 - 3;
-                this.renderHotbarItem(context, n, o, tickDelta, playerEntity, (ItemStack)playerEntity.getInventory().main.get(m), l++);
-            }
-
-            if (!itemStack.isEmpty()) {
-                m = this.scaledHeight - 16 - 3;
-                if (arm == Arm.LEFT) {
-                    this.renderHotbarItem(context, i - 91 - 26, m, tickDelta, playerEntity, itemStack, l++);
-                } else {
-                    this.renderHotbarItem(context, i + 91 + 10, m, tickDelta, playerEntity, itemStack, l++);
+                int m;
+                int n;
+                int o;
+                for (m = 0; m < 9; ++m) {
+                    n = i - 90 + m * 20 + 2;
+                    o = this.scaledHeight - 16 - 3;
+                    this.renderHotbarItem(context, n, o, tickDelta, playerEntity, (ItemStack) playerEntity.getInventory().main.get(m), l++);
                 }
-            }
 
-            RenderSystem.disableBlend();
+                if (!itemStack.isEmpty()) {
+                    m = this.scaledHeight - 16 - 3;
+                    if (arm == Arm.LEFT) {
+                        this.renderHotbarItem(context, i - 91 - 26, m, tickDelta, playerEntity, itemStack, l++);
+                    } else {
+                        this.renderHotbarItem(context, i + 91 + 10, m, tickDelta, playerEntity, itemStack, l++);
+                    }
+                }
+
+                RenderSystem.disableBlend();
+            }
         }
     }
 }

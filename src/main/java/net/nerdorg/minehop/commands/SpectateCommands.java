@@ -153,13 +153,16 @@ public class SpectateCommands {
         }
 
         if (entity instanceof ReplayEntity replayEntity) {
-            String mapName = ZoneUtil.getCurrentMapName(serverPlayerEntity, serverPlayerEntity.getServerWorld());
+            String mapName = ZoneUtil.getCurrentMapName(serverPlayerEntity);
             String replayName = replayEntity.getNameForScoreboard();
             if (mapName != null) {
                 if (replayName.startsWith(mapName)) {
                     serverPlayerEntity.setCameraEntity(serverPlayerEntity);
                     Logger.logSuccess(serverPlayerEntity, "Now spectating " + replayEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
                     serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
+                    if (!serverPlayerEntity.isCreative()) {
+                        serverPlayerEntity.getInventory().clear();
+                    }
                     serverPlayerEntity.teleport(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ());
                     serverPlayerEntity.setCameraEntity(replayEntity);
                 } else {
@@ -178,12 +181,15 @@ public class SpectateCommands {
                 Logger.logFailure(serverPlayerEntity, "You cannot spectate another spectator.");
             }
             else {
-                String mapName = ZoneUtil.getCurrentMapName(serverPlayerEntity, serverPlayerEntity.getServerWorld());
-                String targetMapName = ZoneUtil.getCurrentMapName(playerEntity, playerEntity.getServerWorld());
+                String mapName = ZoneUtil.getCurrentMapName(serverPlayerEntity);
+                String targetMapName = ZoneUtil.getCurrentMapName(playerEntity);
                 if (mapName.equals(targetMapName)) {
                     serverPlayerEntity.setCameraEntity(serverPlayerEntity);
                     Logger.logSuccess(serverPlayerEntity, "Now spectating " + playerEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
                     serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
+                    if (!serverPlayerEntity.isCreative()) {
+                        serverPlayerEntity.getInventory().clear();
+                    }
                     serverPlayerEntity.teleport(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ());
                     serverPlayerEntity.setCameraEntity(playerEntity);
                 }

@@ -146,7 +146,7 @@ public class InstagibItem extends Item {
     }
 
     private void handleInstaGibHit(ServerPlayerEntity attacker, Entity target) {
-        String mapName = ZoneUtil.getCurrentMapName(target, attacker.getServerWorld());
+        String mapName = ZoneUtil.getCurrentMapName(target);
         if (mapName != null) {
             DataManager.MapData mapData = DataManager.getMap(mapName);
             if (mapData != null) {
@@ -172,6 +172,9 @@ public class InstagibItem extends Item {
                     Vec3d targetPos = randomCheckpoint.get(0);
                     Vec3d rotPos = randomCheckpoint.get(1);
                     target.teleport(foundWorld, targetPos.getX(), targetPos.getY(), targetPos.getZ(), PositionFlag.VALUES, (float) rotPos.getY(), (float) rotPos.getX());
+                    if (target instanceof ServerPlayerEntity targetPlayerEntity) {
+                        targetPlayerEntity.playSound(SoundEvents.BLOCK_ANVIL_DESTROY, SoundCategory.PLAYERS, 1f, 1f);
+                    }
                 }
             }
         }

@@ -151,6 +151,9 @@ public class ResetEntity extends Zone {
                                         Minehop.timerManager.remove(player.getNameForScoreboard());
                                     }
                                 }
+                                if (!player.isCreative()) {
+                                    player.getInventory().clear();
+                                }
                                 player.teleport(serverWorld, targetLocation.getX(), targetLocation.getY(), targetLocation.getZ(), targetRot.y, targetRot.x);
                             }
                         }

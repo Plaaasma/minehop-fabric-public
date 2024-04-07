@@ -9,6 +9,8 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.entity.Entity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -21,9 +23,11 @@ import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.entity.custom.StartEntity;
 import net.nerdorg.minehop.entity.custom.Zone;
+import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.StringFormatting;
+import net.nerdorg.minehop.util.ZoneUtil;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -228,12 +232,18 @@ public class MapUtilCommands {
                 }
                 if (foundWorld != null) {
                     if (!serverPlayerEntity.isSpectator()) {
+                        if (!serverPlayerEntity.isCreative()) {
+                            serverPlayerEntity.getInventory().clear();
+                        }
                         serverPlayerEntity.teleport(foundWorld, currentMapData.x, currentMapData.y, currentMapData.z, (float) currentMapData.yrot, (float) currentMapData.xrot);
                         if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
                             List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
                             for (String spectator : spectators) {
                                 if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
                                     ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                                    if (!spectatorPlayer.isCreative()) {
+                                        spectatorPlayer.getInventory().clear();
+                                    }
                                     spectatorPlayer.teleport(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ());
                                     spectatorPlayer.setCameraEntity(serverPlayerEntity);
                                 }
@@ -299,16 +309,28 @@ public class MapUtilCommands {
                 }
 
                 if (!serverPlayerEntity.isSpectator()) {
+                    if (!serverPlayerEntity.isCreative()) {
+                        serverPlayerEntity.getInventory().clear();
+                    }
                     serverPlayerEntity.teleport(foundWorld, targetPos.getX(), targetPos.getY(), targetPos.getZ(), (float) rotPos.getY(), (float) rotPos.getX());
                     if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
                         List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
                         for (String spectator : spectators) {
                             if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
                                 ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                                if (!spectatorPlayer.isCreative()) {
+                                    spectatorPlayer.getInventory().clear();
+                                }
                                 spectatorPlayer.teleport(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ());
                                 spectatorPlayer.setCameraEntity(serverPlayerEntity);
                             }
                         }
+                    }
+                    if (tpData.arena) {
+                        for (int slotNum = 1; slotNum < serverPlayerEntity.getInventory().size(); slotNum++) {
+                            serverPlayerEntity.getInventory().setStack(slotNum, new ItemStack(Items.AIR));
+                        }
+                        serverPlayerEntity.getInventory().setStack(0, new ItemStack(ModItems.INSTAGIB_GUN));
                     }
                 }
             }

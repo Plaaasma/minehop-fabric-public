@@ -153,6 +153,9 @@ public class ReplayEntity extends MobEntity {
                             if (!spectatorName.equals(this.getNameForScoreboard())) {
                                 ServerPlayerEntity spectatorPlayer = this.getServer().getPlayerManager().getPlayer(spectatorName);
                                 if (spectatorPlayer != null) {
+                                    if (!spectatorPlayer.isCreative()) {
+                                        spectatorPlayer.getInventory().clear();
+                                    }
                                     spectatorPlayer.teleport(this.getX(), this.getY(), this.getZ());
                                     spectatorPlayer.setCameraEntity(this);
                                     PacketHandler.sendSpecEfficiency(spectatorPlayer, last_jump_speed, (int) jump_count, efficiency);

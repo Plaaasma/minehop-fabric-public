@@ -105,7 +105,7 @@ public class PacketHandler {
         float ping_limit = 300; // ping limit in ms
         if (!player.isCreative() && !player.isSpectator()) {
             if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
-                String map_name = ZoneUtil.getCurrentMapName(player, player.getServerWorld());
+                String map_name = ZoneUtil.getCurrentMapName(player);
 
                 HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
                 List<String> keyList = timerMap.keySet().stream().toList();
@@ -230,6 +230,9 @@ public class PacketHandler {
                         for (String spectatorName : spectators) {
                             if (!spectatorName.equals(player.getNameForScoreboard())) {
                                 ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
+                                if (!spectatorPlayer.isCreative()) {
+                                    spectatorPlayer.getInventory().clear();
+                                }
                                 spectatorPlayer.teleport(player.getX(), player.getY(), player.getZ());
                                 spectatorPlayer.setCameraEntity(player);
                                 Logger.logActionBar(spectatorPlayer, "Time: " + formattedNumber + " PB: " + (personalRecord != 0 ? String.format("%.5f", personalRecord) : "No PB"));

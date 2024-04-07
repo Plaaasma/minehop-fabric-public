@@ -2,10 +2,14 @@ package net.nerdorg.minehop.config;
 
 import me.shedaniel.autoconfig.AutoConfig;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.SpectateCommands;
+import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.networking.PacketHandler;
+import net.nerdorg.minehop.util.ZoneUtil;
 
 import java.util.*;
 
@@ -43,6 +47,14 @@ public class ConfigWrapper {
             SpectateCommands.spectatorList = newSpectatorList;
             if (server.getTicks() % 100 == 0) {
                 for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+                    if (!playerEntity.isCreative()) {
+                        if (ZoneUtil.getCurrentMap(playerEntity).arena) {
+                            for (int slotNum = 1; slotNum < playerEntity.getInventory().size(); slotNum++) {
+                                playerEntity.getInventory().setStack(slotNum, new ItemStack(Items.AIR));
+                            }
+                            playerEntity.getInventory().setStack(0, new ItemStack(ModItems.INSTAGIB_GUN));
+                        }
+                    }
                     if (!(Minehop.adminList.contains(Objects.requireNonNull(playerEntity.getNameForScoreboard())))) {
                         PacketHandler.sendAntiCheatCheck(playerEntity);
                     }
