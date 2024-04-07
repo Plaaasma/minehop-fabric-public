@@ -57,6 +57,14 @@ public class MapUtilCommands {
                     return Command.SINGLE_SUCCESS;
                 })
             )
+            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("top")
+                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                    .executes(context -> {
+                        handleListTop(context);
+                        return Command.SINGLE_SUCCESS;
+                    })
+                )
+            )
             .then(LiteralArgumentBuilder.<ServerCommandSource>literal("manage")
             .requires(source -> source.hasPermissionLevel(4))
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("checkpoint")
@@ -67,14 +75,6 @@ public class MapUtilCommands {
                                 return Command.SINGLE_SUCCESS;
                             })
                         )
-                    )
-                )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("top")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                        .executes(context -> {
-                            handleListTop(context);
-                            return Command.SINGLE_SUCCESS;
-                        })
                     )
                 )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
