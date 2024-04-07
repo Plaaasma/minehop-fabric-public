@@ -57,77 +57,73 @@ public class MapUtilCommands {
                     return Command.SINGLE_SUCCESS;
                 })
             )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("checkpoint")
-                .requires(source -> source.hasPermissionLevel(4))
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
+            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("manage")
+            .requires(source -> source.hasPermissionLevel(4))
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("checkpoint")
+                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                            .executes(context -> {
+                                handleAddCheckpoint(context);
+                                return Command.SINGLE_SUCCESS;
+                            })
+                        )
+                    )
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("top")
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
                         .executes(context -> {
-                            handleAddCheckpoint(context);
+                            handleListTop(context);
                             return Command.SINGLE_SUCCESS;
                         })
                     )
                 )
-            )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("top")
-                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                    .executes(context -> {
-                        handleListTop(context);
-                        return Command.SINGLE_SUCCESS;
-                    })
-                )
-            )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
-                .requires(source -> source.hasPermissionLevel(4))
-                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("add_name", StringArgumentType.string())
-                    .executes(context -> {
-                        handleAdd(context);
-                        return Command.SINGLE_SUCCESS;
-                    })
-                )
-            )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("invalidate")
-                .requires(source -> source.hasPermissionLevel(4))
-                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                    .executes(context -> {
-                        handleInvalidate(context);
-                        return Command.SINGLE_SUCCESS;
-                    })
-                )
-            )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("remove")
-                .requires(source -> source.hasPermissionLevel(4))
-                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("remove_name", StringArgumentType.string())
-                    .executes(context -> {
-                        handleRemove(context);
-                        return Command.SINGLE_SUCCESS;
-                    })
-                )
-            )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("setspawn")
-                    .requires(source -> source.hasPermissionLevel(4))
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                            .executes(context -> {
-                                handleSetMapSpawn(context);
-                                return Command.SINGLE_SUCCESS;
-                            })
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("add_name", StringArgumentType.string())
+                        .executes(context -> {
+                            handleAdd(context);
+                            return Command.SINGLE_SUCCESS;
+                        })
                     )
-            )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("arena")
-                    .requires(source -> source.hasPermissionLevel(4))
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("invalidate")
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                            .executes(context -> {
-                                handleToggleArena(context);
-                                return Command.SINGLE_SUCCESS;
-                            })
+                        .executes(context -> {
+                            handleInvalidate(context);
+                            return Command.SINGLE_SUCCESS;
+                        })
                     )
-            )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("info")
-                .requires(source -> source.hasPermissionLevel(4))
-                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("search_name", StringArgumentType.string())
-                    .executes(context -> {
-                        handleInfo(context);
-                        return Command.SINGLE_SUCCESS;
-                    })
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("remove")
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("remove_name", StringArgumentType.string())
+                        .executes(context -> {
+                            handleRemove(context);
+                            return Command.SINGLE_SUCCESS;
+                        })
+                    )
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("setspawn")
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                .executes(context -> {
+                                    handleSetMapSpawn(context);
+                                    return Command.SINGLE_SUCCESS;
+                                })
+                        )
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("arena")
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                .executes(context -> {
+                                    handleToggleArena(context);
+                                    return Command.SINGLE_SUCCESS;
+                                })
+                        )
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("info")
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("search_name", StringArgumentType.string())
+                        .executes(context -> {
+                            handleInfo(context);
+                            return Command.SINGLE_SUCCESS;
+                        })
+                    )
                 )
             )
             .executes(context -> {
