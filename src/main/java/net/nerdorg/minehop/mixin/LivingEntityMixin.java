@@ -202,7 +202,12 @@ public abstract class LivingEntityMixin extends Entity {
             } else {
                 // Increase maximum air speed based on the yawDifference
                 // maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 180.0f))); <- Alternative.
-                maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / (config.sv_yaw / 10)))); // 90.0f is the normal value, might revert back to it
+
+                // Example for adding a style with the circle thing:
+                // double multiplier = (yawDifference / (config.sv_yaw / 10));
+
+                double multiplier = Math.min((yawDifference / (config.sv_yaw / 10)), this.horizontalSpeed / 4);
+                maxVel = (float) (config.sv_maxairspeed * (1.0f + multiplier)); // 90.0f is the normal value, might revert back to it
                 // yawDifference / 50.0f is good
                 // yawDifference / 25.0f may be better, but it's hard to say
                 // yawDifference / 10.0f is good
@@ -221,15 +226,10 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d newVelocity = accelVec.add(accelDir);
 
             if (!this.isOnGround()) {
-                double trueMaxVel = (double) (config.sv_maxairspeed * (1.0f + (60f / 10.25f)));
-                trueMaxVel = Math.min(maxVel, config.sv_maxairspeed * 100.0f);
-
                 double v = Math.sqrt((newVelocity.x * newVelocity.x) + (newVelocity.z * newVelocity.z));
                 double nogainv2 = (accelVec.x * accelVec.x) + (accelVec.z * accelVec.z);
                 double nogainv = Math.sqrt(nogainv2);
-                double maxgainv = Math.sqrt(nogainv2 + (trueMaxVel * trueMaxVel));
-//                double qt = 0.785398f;
-//                double gauge = MathHelper.clamp(1D + (MathHelper.abs((float) MathHelper.atan2(sI * lastSpeed.z - fI * lastSpeed.x, sI * lastSpeed.x + fI * lastSpeed.z)) - qt) / MathHelper.atan2(trueMaxVel, nogainv), 0D, 2D);
+                double maxgainv = Math.sqrt(nogainv2 + (maxVel * maxVel));
                 double strafeEfficiency = MathHelper.clamp((((v - nogainv) / (maxgainv - nogainv)) * 100), 0D, 100D);
                 Minehop.efficiencyMap.put(this.getNameForScoreboard(), strafeEfficiency);
                 List<Double> efficiencyList = Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard()) ? Minehop.efficiencyListMap.get(this.getNameForScoreboard()) : new ArrayList<>();
