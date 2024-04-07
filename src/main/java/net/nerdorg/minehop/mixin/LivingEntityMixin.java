@@ -164,7 +164,7 @@ public abstract class LivingEntityMixin extends Entity {
             yawDifference = (float) config.sv_yaw;
         }
 
-        if (fullGrounded) {
+        if (!fullGrounded) {
             sI = sI * yawDifference;
         }
         if (this.isOnGround()) {
