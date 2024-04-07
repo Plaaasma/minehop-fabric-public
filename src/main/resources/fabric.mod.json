@@ -10,10 +10,9 @@
 		"Moriz"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://discord.gg/hMs97RHEgF"
 	},
-	"license": "CC0-1.0",
+	"license": "ARR (All Rights Reserved)",
 	"icon": "assets/minehop/logo.png",
 	"environment": "*",
 	"entrypoints": {
