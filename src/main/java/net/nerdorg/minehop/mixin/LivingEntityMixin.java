@@ -205,7 +205,7 @@ public abstract class LivingEntityMixin extends Entity {
                 // yawDifference / 7.8f is better
                 // yawDifference / 11.5f
 
-                maxVel = (float) Math.min(maxVel, config.sv_maxairspeed * 1000000000000000.0f); // Limit to prevent astronomical speed gain.
+                maxVel = (float) Math.min(maxVel, config.sv_maxairspeed * 100.0f); // Limit to prevent astronomical speed gain.
                 // 2.0f <- decent maybe
             }
 
@@ -218,7 +218,7 @@ public abstract class LivingEntityMixin extends Entity {
 
             if (!this.isOnGround()) {
                 double trueMaxVel = (double) (config.sv_maxairspeed * (1.0f + (60f / 10.25f)));
-                trueMaxVel = Math.min(maxVel, config.sv_maxairspeed * 1000000000000000.0f);
+                trueMaxVel = Math.min(maxVel, config.sv_maxairspeed * 100.0f);
 
                 double v = Math.sqrt((newVelocity.x * newVelocity.x) + (newVelocity.z * newVelocity.z));
                 double nogainv2 = (accelVec.x * accelVec.x) + (accelVec.z * accelVec.z);
