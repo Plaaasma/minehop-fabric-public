@@ -10,7 +10,14 @@
 		"Moriz"
 	],
 	"contact": {
-		"homepage": "https://discord.gg/hMs97RHEgF"
+		"homepage": "https://modrinth.com/mod/minehop"
+	},
+	"custom": {
+		"modmenu": {
+			"links": {
+				"minehop.discord": "https://discord.gg/jEGF5fb"
+			}
+		}
 	},
 	"license": "ARR (All Rights Reserved)",
 	"icon": "assets/minehop/logo.png",
