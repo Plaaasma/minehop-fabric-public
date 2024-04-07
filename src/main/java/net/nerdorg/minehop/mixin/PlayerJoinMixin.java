@@ -31,32 +31,22 @@ public class PlayerJoinMixin {
     public void broadcast(Text message, boolean overlay, CallbackInfo ci) {
         if (message.toString().contains("multiplayer.player.joined")) {
             List<Text> unstyledMessage = message.withoutStyle();
-            if (unstyledMessage.size() == 1) {
-                String playerName = message.withoutStyle().get(0).getString();
-                Logger.logGlobal(this.server,
-                        Text.literal(playerName + " joined!"));
+            StringBuilder fullDisplayName = new StringBuilder();
+            for (int compIndex = 0; compIndex < unstyledMessage.size() - 1; compIndex++) {
+                fullDisplayName.append(unstyledMessage.get(compIndex));
             }
-            else {
-                String prefix = message.withoutStyle().get(0).getString();
-                String playerName = message.withoutStyle().get(1).getString();
-                Logger.logGlobal(this.server,
-                        Text.literal(prefix + playerName + " joined!"));
-            }
+            Logger.logGlobal(this.server,
+                    Text.literal(fullDisplayName + " joined!"));
             ci.cancel();
         }
         else if (message.toString().contains("multiplayer.player.left")) {
             List<Text> unstyledMessage = message.withoutStyle();
-            if (unstyledMessage.size() == 1) {
-                String playerName = message.withoutStyle().get(0).getString();
-                Logger.logGlobal(this.server,
-                        Text.literal(playerName + " left!"));
+            StringBuilder fullDisplayName = new StringBuilder();
+            for (int compIndex = 0; compIndex < unstyledMessage.size() - 1; compIndex++) {
+                fullDisplayName.append(unstyledMessage.get(compIndex));
             }
-            else {
-                String prefix = message.withoutStyle().get(0).getString();
-                String playerName = message.withoutStyle().get(1).getString();
-                Logger.logGlobal(this.server,
-                        Text.literal(prefix + playerName + " left!"));
-            }
+            Logger.logGlobal(this.server,
+                    Text.literal(fullDisplayName + " left!"));
             ci.cancel();
         }
     }
