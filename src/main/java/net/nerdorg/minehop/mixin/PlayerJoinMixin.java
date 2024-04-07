@@ -33,7 +33,7 @@ public class PlayerJoinMixin {
             List<Text> unstyledMessage = message.withoutStyle();
             StringBuilder fullDisplayName = new StringBuilder();
             for (int compIndex = 0; compIndex < unstyledMessage.size() - 1; compIndex++) {
-                fullDisplayName.append(unstyledMessage.get(compIndex));
+                fullDisplayName.append(unstyledMessage.get(compIndex).getString());
             }
             Logger.logGlobal(this.server,
                     Text.literal(fullDisplayName + " joined!"));
@@ -43,7 +43,7 @@ public class PlayerJoinMixin {
             List<Text> unstyledMessage = message.withoutStyle();
             StringBuilder fullDisplayName = new StringBuilder();
             for (int compIndex = 0; compIndex < unstyledMessage.size() - 1; compIndex++) {
-                fullDisplayName.append(unstyledMessage.get(compIndex));
+                fullDisplayName.append(unstyledMessage.get(compIndex).getString());
             }
             Logger.logGlobal(this.server,
                     Text.literal(fullDisplayName + " left!"));
