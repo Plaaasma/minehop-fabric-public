@@ -29,6 +29,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class MapUtilCommands {
+    private static Random random = new Random();
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     public static void register() {
@@ -103,6 +104,15 @@ public class MapUtilCommands {
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
                             .executes(context -> {
                                 handleSetMapSpawn(context);
+                                return Command.SINGLE_SUCCESS;
+                            })
+                    )
+            )
+            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("arena")
+                    .requires(source -> source.hasPermissionLevel(4))
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                            .executes(context -> {
+                                handleToggleArena(context);
                                 return Command.SINGLE_SUCCESS;
                             })
                     )
@@ -270,8 +280,26 @@ public class MapUtilCommands {
                 }
             }
             if (foundWorld != null) {
+                Vec3d targetPos = new Vec3d(tpData.x, tpData.y, tpData.z);
+                Vec3d rotPos = new Vec3d(tpData.xrot, tpData.yrot, 0);
+                if (tpData.arena) {
+                    List<Vec3d> spawnCheck = new ArrayList<>();
+                    spawnCheck.add(new Vec3d(tpData.x, tpData.y, tpData.z));
+                    spawnCheck.add(new Vec3d(tpData.xrot, tpData.yrot, 0));
+
+                    List<List<Vec3d>> checkpointPositions = new ArrayList<>();
+                    if (tpData.checkpointPositions != null) {
+                        checkpointPositions.addAll(tpData.checkpointPositions);
+                    }
+                    checkpointPositions.add(spawnCheck);
+
+                    List<Vec3d> randomCheckpoint = checkpointPositions.get(random.nextInt(0, checkpointPositions.size()));
+                    targetPos = randomCheckpoint.get(0);
+                    rotPos = randomCheckpoint.get(1);
+                }
+
                 if (!serverPlayerEntity.isSpectator()) {
-                    serverPlayerEntity.teleport(foundWorld, tpData.x, tpData.y, tpData.z, (float) tpData.yrot, (float) tpData.xrot);
+                    serverPlayerEntity.teleport(foundWorld, targetPos.getX(), targetPos.getY(), targetPos.getZ(), (float) rotPos.getY(), (float) rotPos.getX());
                     if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
                         List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
                         for (String spectator : spectators) {
@@ -376,28 +404,57 @@ public class MapUtilCommands {
         double spawn_xrot = serverPlayerEntity.getPitch();
         double spawn_yrot = serverPlayerEntity.getYaw();
 
-        DataManager.MapData removedData = null;
+        DataManager.MapData spawnData = null;
 
         for (Object object : Minehop.mapList) {
             if (object instanceof DataManager.MapData mapData) {
                 if (mapData.name.equals(name)) {
-                    removedData = mapData;
+                    spawnData = mapData;
                     Minehop.mapList.remove(mapData);
                     break;
                 }
             }
         }
 
-        if (removedData != null) {
-            removedData.x = spawn_x;
-            removedData.y = spawn_y;
-            removedData.z = spawn_z;
-            removedData.xrot = spawn_xrot;
-            removedData.yrot = spawn_yrot;
-            Minehop.mapList.add(removedData);
+        if (spawnData != null) {
+            spawnData.x = spawn_x;
+            spawnData.y = spawn_y;
+            spawnData.z = spawn_z;
+            spawnData.xrot = spawn_xrot;
+            spawnData.yrot = spawn_yrot;
+            Minehop.mapList.add(spawnData);
             DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
 
-            Logger.logSuccess(serverPlayerEntity, "Set map spawn \\/\n" + StringFormatting.limitDecimals(gson.toJson(removedData)));
+            Logger.logSuccess(serverPlayerEntity, "Set map spawn \\/\n" + StringFormatting.limitDecimals(gson.toJson(spawnData)));
+        }
+        else {
+            Logger.logSuccess(serverPlayerEntity, "There is no map called " + name + ".");
+        }
+    }
+
+    private static void handleToggleArena(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+
+        String name = StringArgumentType.getString(context, "map_name");
+
+        DataManager.MapData toggleData = null;
+
+        for (Object object : Minehop.mapList) {
+            if (object instanceof DataManager.MapData mapData) {
+                if (mapData.name.equals(name)) {
+                    toggleData = mapData;
+                    Minehop.mapList.remove(mapData);
+                    break;
+                }
+            }
+        }
+
+        if (toggleData != null) {
+            toggleData.arena = !toggleData.arena;
+            Minehop.mapList.add(toggleData);
+            DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+
+            Logger.logSuccess(serverPlayerEntity, "Toggled arena mode to " + toggleData.arena);
         }
         else {
             Logger.logSuccess(serverPlayerEntity, "There is no map called " + name + ".");

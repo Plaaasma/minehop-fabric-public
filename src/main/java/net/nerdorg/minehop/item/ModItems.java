@@ -11,13 +11,19 @@ import net.minecraft.util.Identifier;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.item.custom.BoundsStickItem;
+import net.nerdorg.minehop.item.custom.InstagibItem;
 
 public class ModItems {
     public static final Item BOUNDS_STICK = registerItem("bounds_stick", new BoundsStickItem(new FabricItemSettings()));
+    public static final Item INSTAGIB_GUN = registerItem("instagib_gun", new InstagibItem(new FabricItemSettings()));
 
     private static void addItemsToOperatorTabItemGroup(FabricItemGroupEntries entries) {
         entries.add(BOUNDS_STICK);
         entries.add(ModBlocks.BOOSTER_BLOCK);
+    }
+
+    private static void addItemsToCombatTabItemGroup(FabricItemGroupEntries entries) {
+        entries.add(INSTAGIB_GUN);
     }
 
     private static Item registerItem(String name, Item item) {
@@ -28,5 +34,6 @@ public class ModItems {
         Minehop.LOGGER.info("Registering Mod Items for " + Minehop.MOD_ID);
 
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.OPERATOR).register(ModItems::addItemsToOperatorTabItemGroup);
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(ModItems::addItemsToCombatTabItemGroup);
     }
 }

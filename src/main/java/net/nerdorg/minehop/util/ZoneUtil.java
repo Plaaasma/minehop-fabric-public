@@ -3,6 +3,8 @@ package net.nerdorg.minehop.util;
 import net.minecraft.entity.Entity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.Vec3d;
+import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
@@ -13,44 +15,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ZoneUtil {
-    public static String getCurrentMapName(ServerPlayerEntity serverPlayerEntity, ServerWorld serverWorld) {
-        String mapName = "";
+    public static String getCurrentMapName(Entity target_entity, ServerWorld serverWorld) {
+        Vec3d targetPos = target_entity.getPos();
 
-        List<Zone> zoneEntities = new ArrayList<>();
-        for (Entity entity : serverWorld.iterateEntities()) {
-            if (entity instanceof Zone zone) {
-                zoneEntities.add(zone);
+        String closestMapName = "";
+        double closestMapDistance = Double.POSITIVE_INFINITY;
+        for (DataManager.MapData mapData : Minehop.mapList) {
+            Vec3d mapPos = new Vec3d(mapData.x, mapData.y, mapData.z);
+            double mapDistance = mapPos.distanceTo(targetPos);
+            if (mapDistance < closestMapDistance) {
+                closestMapDistance = mapDistance;
+                closestMapName = mapData.name;
             }
         }
-        double closestDistance = Double.POSITIVE_INFINITY;
-        Zone closestEntity = null;
-        for (Zone zoneEntity : zoneEntities) {
-            double distance = zoneEntity.distanceTo(serverPlayerEntity);
-            if (distance < closestDistance) {
-                closestEntity = zoneEntity;
-                closestDistance = distance;
-            }
-        }
-        if (closestEntity == null) {
-            Logger.logFailure(serverPlayerEntity, "Error finding nearest map.");
-        }
-        else {
-            DataManager.MapData currentMapData = null;
-
-            if (closestEntity instanceof ResetEntity resetEntity) {
-                mapName = resetEntity.getPairedMap();
-            } else if (closestEntity instanceof StartEntity startEntity) {
-                mapName = startEntity.getPairedMap();
-            } else if (closestEntity instanceof EndEntity endEntity) {
-                mapName = endEntity.getPairedMap();
-            }
-        }
-
-        if (mapName.equals("")) {
+        if (closestMapName.equals("")) {
             return null;
         }
         else {
-            return mapName;
+            return closestMapName;
         }
     }
 }

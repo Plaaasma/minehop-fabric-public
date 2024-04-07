@@ -40,6 +40,7 @@ public class DataManager {
         public double yrot;
         public String worldKey;
         public List<List<Vec3d>> checkpointPositions;
+        public boolean arena;
 
         public MapData() {
         }
