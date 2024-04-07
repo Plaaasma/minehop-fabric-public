@@ -1,5 +1,6 @@
 package net.nerdorg.minehop.item.custom;
 
+import com.mojang.logging.LogUtils;
 import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroupEntries;
 import net.minecraft.block.*;
 import net.minecraft.entity.Entity;
@@ -32,6 +33,7 @@ import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.damage.ModDamageSources;
 import net.nerdorg.minehop.damage.ModDamageTypes;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.ZoneUtil;
 import org.apache.logging.log4j.core.jmx.Server;
 
@@ -174,6 +176,8 @@ public class InstagibItem extends Item {
                     Vec3d rotPos = randomCheckpoint.get(1);
                     target.teleport(foundWorld, targetPos.getX(), targetPos.getY(), targetPos.getZ(), PositionFlag.VALUES, (float) rotPos.getY(), (float) rotPos.getX());
                     if (target instanceof ServerPlayerEntity targetPlayerEntity) {
+                        Logger.logSuccess(attacker, "You shot " + targetPlayerEntity.getNameForScoreboard() + ".");
+                        Logger.logFailure(targetPlayerEntity, "You were shot by " + attacker.getNameForScoreboard() + ".");
                         targetPlayerEntity.playSound(SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 1f, 1f);
                     }
                 }
