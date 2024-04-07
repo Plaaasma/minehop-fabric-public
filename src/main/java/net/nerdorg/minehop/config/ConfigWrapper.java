@@ -7,6 +7,7 @@ import net.minecraft.item.Items;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.SpectateCommands;
+import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.ZoneUtil;
@@ -48,11 +49,14 @@ public class ConfigWrapper {
             if (server.getTicks() % 100 == 0) {
                 for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
                     if (!playerEntity.isCreative()) {
-                        if (ZoneUtil.getCurrentMap(playerEntity).arena) {
-                            for (int slotNum = 1; slotNum < playerEntity.getInventory().size(); slotNum++) {
-                                playerEntity.getInventory().setStack(slotNum, new ItemStack(Items.AIR));
+                        DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
+                        if (mapData != null) {
+                            if (mapData.arena) {
+                                for (int slotNum = 1; slotNum < playerEntity.getInventory().size(); slotNum++) {
+                                    playerEntity.getInventory().setStack(slotNum, new ItemStack(Items.AIR));
+                                }
+                                playerEntity.getInventory().setStack(0, new ItemStack(ModItems.INSTAGIB_GUN));
                             }
-                            playerEntity.getInventory().setStack(0, new ItemStack(ModItems.INSTAGIB_GUN));
                         }
                     }
                     if (!(Minehop.adminList.contains(Objects.requireNonNull(playerEntity.getNameForScoreboard())))) {
