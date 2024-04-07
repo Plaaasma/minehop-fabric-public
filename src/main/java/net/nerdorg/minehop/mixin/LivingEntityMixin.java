@@ -186,8 +186,9 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d accelVec = this.getVelocity();
 
             double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
+            double horizontalVelocity = this.getVelocity().horizontalLength();
             // double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate / (this.horizontalSpeed * 10000)));
-            double accelVel = (this.isOnGround() ? config.sv_accelerate : ((config.sv_airaccelerate) / (this.horizontalSpeed * 100000))); // 100000
+            double accelVel = (this.isOnGround() ? config.sv_accelerate : ((config.sv_airaccelerate) / (horizontalVelocity * 100000))); // 100000
             //float maxVel = (float) (this.isOnGround() ? this.movementSpeed * config.speed_mul : config.sv_maxairspeed); //This is fucking dogshit
 
             // Attempt 1: Pretty good!
@@ -206,7 +207,7 @@ public abstract class LivingEntityMixin extends Entity {
                 // Example for adding a style with the circle thing:
                 // double multiplier = (yawDifference / (config.sv_yaw / 10));
 
-                double multiplier = Math.min((yawDifference / (config.sv_yaw / 10)), this.horizontalSpeed / 4);
+                double multiplier = Math.min((yawDifference / (config.sv_yaw / 10)), 2 + (horizontalVelocity * horizontalVelocity));
                 maxVel = (float) (config.sv_maxairspeed * (1.0f + multiplier)); // 90.0f is the normal value, might revert back to it
                 // yawDifference / 50.0f is good
                 // yawDifference / 25.0f may be better, but it's hard to say
