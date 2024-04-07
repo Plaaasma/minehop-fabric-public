@@ -93,7 +93,9 @@ public abstract class InGameHudMixin {
         }
     }
 
-    @Inject(at = @At("HEAD"), method = "renderHotbar")
+
+
+    @Inject(at = @At("HEAD"), method = "renderHotbar", cancellable = true)
     private void renderHotbar(float tickDelta, DrawContext context, CallbackInfo ci) {
         if (!MinehopClient.hideSelf) {
             PlayerEntity playerEntity = this.getCameraPlayer();
@@ -137,5 +139,6 @@ public abstract class InGameHudMixin {
                 RenderSystem.disableBlend();
             }
         }
+        ci.cancel();
     }
 }

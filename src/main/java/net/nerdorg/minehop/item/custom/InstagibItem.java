@@ -110,6 +110,7 @@ public class InstagibItem extends Item {
                 if (entityHitResult != null) {
                     endPos = entityHitResult.getPos();
                     Entity hitEntity = entityHitResult.getEntity();
+                    serverPlayerEntity.playSound(SoundEvents.ENTITY_PLAYER_HURT, SoundCategory.PLAYERS, 1f, 1f);
                     handleInstaGibHit(serverPlayerEntity, hitEntity);
                     handleGibParticles(serverWorld, startPos, endPos);
                 }
@@ -173,7 +174,7 @@ public class InstagibItem extends Item {
                     Vec3d rotPos = randomCheckpoint.get(1);
                     target.teleport(foundWorld, targetPos.getX(), targetPos.getY(), targetPos.getZ(), PositionFlag.VALUES, (float) rotPos.getY(), (float) rotPos.getX());
                     if (target instanceof ServerPlayerEntity targetPlayerEntity) {
-                        targetPlayerEntity.playSound(SoundEvents.BLOCK_ANVIL_DESTROY, SoundCategory.PLAYERS, 1f, 1f);
+                        targetPlayerEntity.playSound(SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 1f, 1f);
                     }
                 }
             }
