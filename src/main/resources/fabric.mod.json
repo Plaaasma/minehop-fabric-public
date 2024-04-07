@@ -14,7 +14,7 @@
 		"sources": "https://github.com/FabricMC/fabric-example-mod"
 	},
 	"license": "CC0-1.0",
-	"icon": "assets/minehop/icon.png",
+	"icon": "assets/minehop/logo.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
