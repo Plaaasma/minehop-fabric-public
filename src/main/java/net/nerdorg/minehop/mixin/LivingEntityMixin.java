@@ -160,10 +160,14 @@ public abstract class LivingEntityMixin extends Entity {
         if (yawDifference < 0) {
             yawDifference = yawDifference * -1;
         }
-        if (!this.isOnGround()) {
+        if (yawDifference > config.sv_yaw) {
+            yawDifference = (float) config.sv_yaw;
+        }
+
+        if (fullGrounded) {
             sI = sI * yawDifference;
         }
-        else {
+        if (this.isOnGround()) {
             if (Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard())) {
                 List<Double> efficiencyList = Minehop.efficiencyListMap.get(this.getNameForScoreboard());
                 if (efficiencyList != null && efficiencyList.size() > 0) {
@@ -193,12 +197,12 @@ public abstract class LivingEntityMixin extends Entity {
              * @Reason Fixed movement made it better and fucking awesome.
              */
             float maxVel;
-            if (this.isOnGround() && !this.jumping) {
+            if (fullGrounded) {
                 maxVel = (float) (this.movementSpeed * config.speed_mul);
             } else {
                 // Increase maximum air speed based on the yawDifference
                 // maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 180.0f))); <- Alternative.
-                maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / config.sv_yaw))); // 90.0f is the normal value, might revert back to it
+                maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / (config.sv_yaw / 10)))); // 90.0f is the normal value, might revert back to it
                 // yawDifference / 50.0f is good
                 // yawDifference / 25.0f may be better, but it's hard to say
                 // yawDifference / 10.0f is good

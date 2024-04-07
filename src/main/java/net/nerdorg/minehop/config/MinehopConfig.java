@@ -14,7 +14,7 @@ public class MinehopConfig implements ConfigData {
     public double sv_maxairspeed = 0.04015;
     public double speed_mul = 2.2;
     public double sv_gravity = 0.066;
-    public double sv_yaw = 8.9;
+    public double sv_yaw = 90;
     public String bot_token = "";
     public String record_channel = "";
 }
