@@ -8,7 +8,6 @@ import net.minecraft.client.render.entity.MobEntityRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockBox;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
@@ -51,7 +50,7 @@ public class EndRenderer extends MobEntityRenderer<EndEntity, EndModel> {
         BlockPos corner1 = endEntity.getCorner1();
         BlockPos corner2 = endEntity.getCorner2();
         if (corner1 != null && corner2 != null) {
-            BlockBox colliderBox = new BlockBox(corner1.getX(), corner1.getY(), corner1.getZ(), corner2.getX(), corner2.getY(), corner2.getZ());
+            Box colliderBox = new Box(new Vec3d(corner1.getX(), corner1.getY(), corner1.getZ()), new Vec3d(corner2.getX(), corner2.getY(), corner2.getZ()));
             if (!client.player.isCreative() && !client.player.isSpectator()) {
                 final float partialTicks = client.getTickDelta(); // Get the partial tick time
 
@@ -63,7 +62,7 @@ public class EndRenderer extends MobEntityRenderer<EndEntity, EndModel> {
 
                 // Predict the next position using current position and velocity scaled by partialTicks
                 Vec3d nextPosition = currentPosition.add(velocity.multiply(partialTicks));
-                if (colliderBox.contains(new BlockPos((int) nextPosition.getX(), (int) nextPosition.getY(), (int) nextPosition.getZ()))) {
+                if (colliderBox.contains(nextPosition)) {
                     if (MinehopClient.startTime != 0) {
                         ClientPacketHandler.sendEndMapEvent(time);
                         MinehopClient.startTime = 0;

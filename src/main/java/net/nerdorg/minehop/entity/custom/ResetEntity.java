@@ -16,7 +16,10 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.*;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec2f;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
@@ -126,11 +129,11 @@ public class ResetEntity extends Zone {
             if (this.corner1 != null && this.corner2 != null) {
                 DataManager.MapData pairedMap = DataManager.getMap(this.paired_map);
                 if (pairedMap != null) {
-                    BlockBox colliderBox = new BlockBox(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ(), this.corner2.getX(), this.corner2.getY(), this.corner2.getZ());
+                    Box colliderBox = new Box(new Vec3d(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ()), new Vec3d(this.corner2.getX(), this.corner2.getY(), this.corner2.getZ()));
                     List<ServerPlayerEntity> players = serverWorld.getPlayers();
                     for (ServerPlayerEntity player : players) {
                         if (!player.isCreative() && !player.isSpectator()) {
-                            if (colliderBox.contains(player.getBlockPos())) {
+                            if (colliderBox.contains(player.getPos())) {
                                 Vec3d targetLocation = new Vec3d(pairedMap.x, pairedMap.y, pairedMap.z);
                                 Vec2f targetRot = new Vec2f((float) pairedMap.xrot, (float) pairedMap.yrot);
                                 if (pairedMap.checkpointPositions != null) {

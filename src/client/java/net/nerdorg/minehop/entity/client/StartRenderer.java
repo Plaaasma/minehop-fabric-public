@@ -7,7 +7,6 @@ import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.render.entity.MobEntityRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockBox;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
@@ -47,9 +46,9 @@ public class StartRenderer extends MobEntityRenderer<StartEntity, StartModel> {
         BlockPos corner1 = startEntity.getCorner1();
         BlockPos corner2 = startEntity.getCorner2();
         if (corner1 != null && corner2 != null) {
-            BlockBox colliderBox = new BlockBox(corner1.getX(), corner1.getY(), corner1.getZ(), corner2.getX(), corner2.getY(), corner2.getZ());
+            Box colliderBox = new Box(new Vec3d(corner1.getX(), corner1.getY(), corner1.getZ()), new Vec3d(corner2.getX(), corner2.getY(), corner2.getZ()));
             if (!client.player.isCreative() && !client.player.isSpectator() && (Minehop.groundedList.contains(client.player.getNameForScoreboard()))) {
-                if (colliderBox.contains(client.player.getBlockPos())) {
+                if (colliderBox.contains(client.player.getPos())) {
                     MinehopClient.startTime = System.nanoTime();
                     MinehopClient.lastSendTime = 0;
                 }
