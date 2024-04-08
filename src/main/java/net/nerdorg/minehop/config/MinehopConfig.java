@@ -11,10 +11,10 @@ public class MinehopConfig implements ConfigData {
     public double sv_friction = 0.35;
     public double sv_accelerate = 0.1;
     public double sv_airaccelerate = 1.0E99;
-    public double sv_maxairspeed = 0.04015;
+    public double sv_maxairspeed = 0.04;
     public double speed_mul = 2.2;
     public double sv_gravity = 0.066;
-    public double sv_yaw = 80;
+    public double sv_yaw = 75;
     public boolean help_command = true;
     public boolean minehop_motd = true;
     public String bot_token = "";
