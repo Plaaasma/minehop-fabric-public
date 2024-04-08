@@ -21,7 +21,6 @@ public class HandshakeHandler {
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(((server) -> {
             for (String playerName : waitingForShake.keySet()) {
-                System.out.println(playerName);
                 if (server.getTicks() > waitingForShake.get(playerName) + 60) {
                     ServerPlayerEntity serverPlayerEntity = server.getPlayerManager().getPlayer(playerName);
                     if (serverPlayerEntity != null) {
