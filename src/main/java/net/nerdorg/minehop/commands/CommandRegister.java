@@ -20,6 +20,7 @@ public class CommandRegister {
         SpectateCommands.register();
         SocialsCommands.register();
         ReplayCommands.register();
+        HelpCommands.register();
 
         //Dev commands
         TestCommands.register();
