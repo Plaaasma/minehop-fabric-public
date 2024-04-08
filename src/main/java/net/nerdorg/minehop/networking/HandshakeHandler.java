@@ -21,7 +21,8 @@ public class HandshakeHandler {
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(((server) -> {
             for (String playerName : waitingForShake.keySet()) {
-                if (waitingForShake.get(playerName) > server.getTicks() + 60) {
+                System.out.println(playerName);
+                if (server.getTicks() > waitingForShake.get(playerName) + 60) {
                     ServerPlayerEntity serverPlayerEntity = server.getPlayerManager().getPlayer(playerName);
                     if (serverPlayerEntity != null) {
                         serverPlayerEntity.networkHandler.disconnect(Text.of("Please install the Minehop mod before joining this server."));
@@ -38,9 +39,9 @@ public class HandshakeHandler {
     }
 
     private static void registerReceivers() {
-        ServerPlayNetworking.registerGlobalReceiver(ModMessages.HANDSHAKE_ID, (server, player, handler, buf, responseSender) -> {
-            System.out.println("Validated " + player.getNameForScoreboard());
-            waitingForShake.remove(player.getNameForScoreboard());
-        });
+//        ServerPlayNetworking.registerGlobalReceiver(ModMessages.HANDSHAKE_ID, (server, player, handler, buf, responseSender) -> {
+//            System.out.println("Validated " + player.getNameForScoreboard());
+//            waitingForShake.remove(player.getNameForScoreboard());
+//        });
     }
 }
