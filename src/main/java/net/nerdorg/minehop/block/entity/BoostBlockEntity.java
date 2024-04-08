@@ -4,8 +4,11 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.nerdorg.minehop.block.BoostBlock;
+import net.nerdorg.minehop.networking.PacketHandler;
 
 public class BoostBlockEntity extends BlockEntity {
     private double x_power = 0;
@@ -23,16 +26,31 @@ public class BoostBlockEntity extends BlockEntity {
     public void setXPower(double x_power) {
         this.x_power = x_power;
         this.markDirty();
+        if (this.world instanceof ServerWorld) {
+            for (ServerPlayerEntity playerEntity : this.world.getServer().getPlayerManager().getPlayerList()) {
+                PacketHandler.sendPower(playerEntity, this.x_power, this.y_power, this.z_power, this.pos);
+            }
+        }
     }
 
     public void setYPower(double y_power) {
         this.y_power = y_power;
         this.markDirty();
+        if (this.world instanceof ServerWorld) {
+            for (ServerPlayerEntity playerEntity : this.world.getServer().getPlayerManager().getPlayerList()) {
+                PacketHandler.sendPower(playerEntity, this.x_power, this.y_power, this.z_power, this.pos);
+            }
+        }
     }
 
     public void setZPower(double z_power) {
         this.z_power = z_power;
         this.markDirty();
+        if (this.world instanceof ServerWorld) {
+            for (ServerPlayerEntity playerEntity : this.world.getServer().getPlayerManager().getPlayerList()) {
+                PacketHandler.sendPower(playerEntity, this.x_power, this.y_power, this.z_power, this.pos);
+            }
+        }
     }
 
     public double getXPower() {

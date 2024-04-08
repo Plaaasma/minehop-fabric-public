@@ -8,11 +8,12 @@ import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
+import net.minecraft.sound.BlockSoundGroup;
 import net.minecraft.util.Identifier;
 import net.nerdorg.minehop.Minehop;
 
 public class ModBlocks {
-    public static final Block BOOSTER_BLOCK = new BoostBlock(FabricBlockSettings.copyOf(Blocks.BEDROCK));
+    public static final Block BOOSTER_BLOCK = new BoostBlock(FabricBlockSettings.copyOf(Blocks.BEDROCK).slipperiness(0.8F).nonOpaque());
 
     private static Block registerBlock(String name, Block block) {
         registerBlockItem(name, block);

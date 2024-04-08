@@ -3,6 +3,7 @@
 package net.nerdorg.minehop.mixin;
 
 import com.mojang.authlib.minecraft.client.MinecraftClient;
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.*;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
@@ -17,6 +18,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.block.ModBlocks;
+import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.networking.PacketHandler;
@@ -58,7 +60,10 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Shadow protected abstract void spawnItemParticles(ItemStack stack, int count);
 
+    @Shadow protected abstract void processEquippedStack(ItemStack stack);
+
     private boolean wasOnGround;
+    private long boostTime = 0;
     private Vec3d lastSpeed = this.getVelocity();
 
     public LivingEntityMixin(EntityType<?> type, World world) {
@@ -86,8 +91,6 @@ public abstract class LivingEntityMixin extends Entity {
         else {
             config = ConfigWrapper.config;
         }
-
-        boolean standingOnBooster = this.getWorld().getBlockState(this.getBlockPos()).isOf(ModBlocks.BOOSTER_BLOCK);
 
         //Enable for Players only
         if (this.getType() != EntityType.PLAYER) { return; }
@@ -133,7 +136,7 @@ public abstract class LivingEntityMixin extends Entity {
                 Minehop.groundedList.remove(this.getNameForScoreboard());
             }
         }
-        if (fullGrounded && !standingOnBooster) {
+        if (fullGrounded) {
             Vec3d velFin = this.getVelocity();
             Vec3d horFin = new Vec3d(velFin.x,0.0F,velFin.z);
             float speed = (float) horFin.length();
@@ -269,6 +272,14 @@ public abstract class LivingEntityMixin extends Entity {
         } else if (!this.hasNoGravity()) {
             yVel -= gravity;
         }
+
+        BlockState belowState = this.getWorld().getBlockState(this.getBlockPos());
+        if (belowState.isOf(ModBlocks.BOOSTER_BLOCK) && (this.getWorld().getTime() > this.boostTime + 5 || this.getWorld().getTime() < this.boostTime)) {
+            this.boostTime = this.getWorld().getTime();
+            BoostBlockEntity boostBlockEntity = (BoostBlockEntity) this.getWorld().getBlockEntity(this.getBlockPos());
+            preVel = preVel.add(boostBlockEntity.getXPower(), 0, boostBlockEntity.getZPower());
+            yVel += boostBlockEntity.getYPower();
+        }
         this.setVelocity(preVel.x,yVel,preVel.z);
 
         //
@@ -282,18 +293,14 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Inject(method = "jump", at = @At("HEAD"), cancellable = true)
     void jump(CallbackInfo ci) {
-        boolean standingOnBooster = this.getWorld().getBlockState(this.getBlockPos()).isOf(ModBlocks.BOOSTER_BLOCK);
-
-        if (!standingOnBooster) {
-            Vec3d vecFin = this.getVelocity();
-            double yVel = this.getJumpVelocity();
-            if (this.hasStatusEffect(StatusEffects.JUMP_BOOST)) {
-                yVel += 0.1F * (this.getStatusEffect(StatusEffects.JUMP_BOOST).getAmplifier() + 1);
-            }
-
-            this.setVelocity(vecFin.x, yVel, vecFin.z);
-            this.velocityDirty = true;
+        Vec3d vecFin = this.getVelocity();
+        double yVel = this.getJumpVelocity();
+        if (this.hasStatusEffect(StatusEffects.JUMP_BOOST)) {
+            yVel += 0.1F * (this.getStatusEffect(StatusEffects.JUMP_BOOST).getAmplifier() + 1);
         }
+
+        this.setVelocity(vecFin.x, yVel, vecFin.z);
+        this.velocityDirty = true;
 
         ci.cancel();
     }

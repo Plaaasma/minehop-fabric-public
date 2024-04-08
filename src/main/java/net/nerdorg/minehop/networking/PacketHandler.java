@@ -201,6 +201,21 @@ public class PacketHandler {
     }
 
 
+    public static void sendPower(ServerPlayerEntity player, double x_power, double y_power, double z_power, BlockPos boosterPos) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeDouble(x_power);
+        buf.writeDouble(y_power);
+        buf.writeDouble(z_power);
+
+        buf.writeInt(boosterPos.getX());
+        buf.writeInt(boosterPos.getY());
+        buf.writeInt(boosterPos.getZ());
+
+        ServerPlayNetworking.send(player, ModMessages.UPDATE_POWER, buf);
+    }
+
+
     public static void registerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.ANTI_CHEAT_CHECK, (server, player, handler, buf, responseSender) -> {
             boolean cheatSoftwareOpen = buf.readBoolean();

@@ -4,6 +4,9 @@ import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.impl.lib.sat4j.core.Vec;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.entity.PlayerEntityRenderer;
@@ -18,6 +21,7 @@ import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.anticheat.ProcessChecker;
+import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.entity.client.CustomPlayerEntityRenderer;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.custom.EndEntity;
@@ -180,6 +184,28 @@ public class ClientPacketHandler {
 
             client.execute(() -> {
                 MinehopClient.clientRecords = newRecordList;
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.UPDATE_POWER, (client, handler, buf, responseSender) -> {
+
+            double power_x = buf.readDouble();
+            double power_y = buf.readDouble();
+            double power_z = buf.readDouble();
+
+            BlockPos boosterPos = new BlockPos(buf.readInt(), buf.readInt(), buf.readInt());
+
+            // Ensure you are on the main thread when modifying the game or accessing client-side only classes
+            client.execute(() -> {
+                // Assign the read values to your variables or fields here
+                new Thread(() -> {
+                    BlockEntity blockEntity = client.player.getWorld().getBlockEntity(boosterPos);
+                    if (blockEntity instanceof BoostBlockEntity boostBlockEntity) {
+                        boostBlockEntity.setXPower(power_x);
+                        boostBlockEntity.setYPower(power_y);
+                        boostBlockEntity.setZPower(power_z);
+                    }
+                }).start();
             });
         });
 
