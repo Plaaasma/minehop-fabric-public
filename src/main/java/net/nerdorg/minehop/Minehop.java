@@ -19,6 +19,7 @@ import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.motd.MotdManager;
+import net.nerdorg.minehop.networking.HandshakeHandler;
 import net.nerdorg.minehop.networking.JoinLeaveManager;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.replays.ReplayEvents;
@@ -69,6 +70,7 @@ public class Minehop implements ModInitializer {
 		AutoConfig.register(MinehopConfig.class, JanksonConfigSerializer::new);
 		ConfigWrapper.loadConfig();
 
+		HandshakeHandler.register();
 		PacketHandler.registerReceivers();
 
 		ConfigWrapper.register();

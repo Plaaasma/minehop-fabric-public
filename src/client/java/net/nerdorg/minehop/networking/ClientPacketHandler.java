@@ -198,6 +198,12 @@ public class ClientPacketHandler {
         });
     }
 
+    public static void sendHandshake() {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        ClientPlayNetworking.send(ModMessages.HANDSHAKE_ID, buf);
+    }
+
     public static void sendSpecEfficiency() {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
 
