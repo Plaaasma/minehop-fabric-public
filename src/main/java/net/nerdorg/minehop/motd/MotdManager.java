@@ -1,6 +1,7 @@
 package net.nerdorg.minehop.motd;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.nerdorg.minehop.config.ConfigWrapper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -8,7 +9,7 @@ import java.util.List;
 import java.util.Random;
 
 public class MotdManager {
-    private static List<String> randomMessages = new ArrayList<>(Arrays.asList("lolrow is a homosexual.",
+    private static List<String> randomMessages = new ArrayList<>(Arrays.asList(
             "Please submit maps to us in discord! (/discord)",
             "No you can't have admin.",
             "You're dumb.",
@@ -23,8 +24,10 @@ public class MotdManager {
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register((server -> {
-            if (server.getTicks() % 200 == 0) {
-                server.setMotd("§2NerdOrg §7(§d§oMinehop§7) §8-> §b" + randomMessages.get(random.nextInt(0, randomMessages.size() - 1)));
+            if (ConfigWrapper.config.minehop_motd) {
+                if (server.getTicks() % 200 == 0) {
+                    server.setMotd("§2NerdOrg §7(§d§oMinehop§7) §8-> §b" + randomMessages.get(random.nextInt(0, randomMessages.size() - 1)));
+                }
             }
         }));
     }

@@ -28,77 +28,79 @@ public class ConfigCommands {
 
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("config")
-                .requires(source -> source.hasPermissionLevel(4))
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reload")
-                    .executes(context -> {
-                        handleReload(context);
-                        return Command.SINGLE_SUCCESS;
-                    })
-                )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("list")
-                    .executes(context -> {
-                        handleList(context);
-                        return Command.SINGLE_SUCCESS;
-                    })
-                )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("set")
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_friction")
-                            .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_friction", DoubleArgumentType.doubleArg())
-                                    .executes(context -> {
-                                        handleSetFriction(context);
-                                        return Command.SINGLE_SUCCESS;
-                                    })
-                            )
+            LiteralArgumentBuilder.<ServerCommandSource>literal("minehop")
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("config")
+                    .requires(source -> source.hasPermissionLevel(4))
+                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reload")
+                        .executes(context -> {
+                            handleReload(context);
+                            return Command.SINGLE_SUCCESS;
+                        })
                     )
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_accelerate")
-                            .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_accelerate", DoubleArgumentType.doubleArg())
-                                    .executes(context -> {
-                                        handleSetAccelerate(context);
-                                        return Command.SINGLE_SUCCESS;
-                                    })
-                            )
+                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("list")
+                        .executes(context -> {
+                            handleList(context);
+                            return Command.SINGLE_SUCCESS;
+                        })
                     )
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_airaccelerate")
-                            .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_airaccelerate", DoubleArgumentType.doubleArg())
-                                    .executes(context -> {
-                                        handleSetAirAccelerate(context);
-                                        return Command.SINGLE_SUCCESS;
-                                    })
-                            )
-                    )
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_maxairspeed")
-                            .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_maxairspeed", DoubleArgumentType.doubleArg())
-                                    .executes(context -> {
-                                        handleSetMaxAirSpeed(context);
-                                        return Command.SINGLE_SUCCESS;
-                                    })
-                            )
-                    )
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("speed_mul")
-                            .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("speed_mul", DoubleArgumentType.doubleArg())
-                                    .executes(context -> {
-                                        handleSetSpeedMul(context);
-                                        return Command.SINGLE_SUCCESS;
-                                    })
-                            )
-                    )
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_gravity")
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_gravity", DoubleArgumentType.doubleArg())
-                            .executes(context -> {
-                                handleSetGravity(context);
-                                return Command.SINGLE_SUCCESS;
-                            })
-                        )
-                    )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_yaw")
-                                .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_yaw", DoubleArgumentType.doubleArg())
+                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("set")
+                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_friction")
+                                .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_friction", DoubleArgumentType.doubleArg())
                                         .executes(context -> {
-                                            handleSetYaw(context);
+                                            handleSetFriction(context);
                                             return Command.SINGLE_SUCCESS;
                                         })
                                 )
                         )
+                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_accelerate")
+                                .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_accelerate", DoubleArgumentType.doubleArg())
+                                        .executes(context -> {
+                                            handleSetAccelerate(context);
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                )
+                        )
+                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_airaccelerate")
+                                .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_airaccelerate", DoubleArgumentType.doubleArg())
+                                        .executes(context -> {
+                                            handleSetAirAccelerate(context);
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                )
+                        )
+                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_maxairspeed")
+                                .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_maxairspeed", DoubleArgumentType.doubleArg())
+                                        .executes(context -> {
+                                            handleSetMaxAirSpeed(context);
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                )
+                        )
+                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("speed_mul")
+                                .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("speed_mul", DoubleArgumentType.doubleArg())
+                                        .executes(context -> {
+                                            handleSetSpeedMul(context);
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                )
+                        )
+                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_gravity")
+                            .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_gravity", DoubleArgumentType.doubleArg())
+                                .executes(context -> {
+                                    handleSetGravity(context);
+                                    return Command.SINGLE_SUCCESS;
+                                })
+                            )
+                        )
+                            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sv_yaw")
+                                    .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("sv_yaw", DoubleArgumentType.doubleArg())
+                                            .executes(context -> {
+                                                handleSetYaw(context);
+                                                return Command.SINGLE_SUCCESS;
+                                            })
+                                    )
+                            )
+                    )
                 )
             ));
     }

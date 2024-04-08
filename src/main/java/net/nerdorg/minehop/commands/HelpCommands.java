@@ -16,19 +16,22 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.RaycastContext;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
+import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.util.Logger;
 
 public class HelpCommands {
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     public static void register() {
-        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("help")
-                .executes(context -> {
-                    handleHelp(context);
-                    return Command.SINGLE_SUCCESS;
-                })
+        if (ConfigWrapper.config.help_command) {
+            CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
+                    LiteralArgumentBuilder.<ServerCommandSource>literal("help")
+                            .executes(context -> {
+                                handleHelp(context);
+                                return Command.SINGLE_SUCCESS;
+                            })
             ));
+        }
     }
 
     private static void handleHelp(CommandContext<ServerCommandSource> context) {

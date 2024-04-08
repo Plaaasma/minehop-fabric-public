@@ -15,6 +15,8 @@ public class MinehopConfig implements ConfigData {
     public double speed_mul = 2.2;
     public double sv_gravity = 0.066;
     public double sv_yaw = 90;
+    public boolean help_command = true;
+    public boolean minehop_motd = true;
     public String bot_token = "";
     public String record_channel = "";
 }
