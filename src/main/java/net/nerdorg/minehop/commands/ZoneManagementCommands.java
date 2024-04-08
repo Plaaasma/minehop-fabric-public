@@ -20,6 +20,7 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.nerdorg.minehop.Minehop;
@@ -120,23 +121,23 @@ public class ZoneManagementCommands {
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
             ServerWorld serverWorld = context.getSource().getWorld();
-            ItemStack heldItemStack = serverPlayerEntity.getMainHandStack();
-            if (heldItemStack.getItem() instanceof BoundsStickItem boundsStickItem) {
-                if (boundsStickItem.pos1 != null && boundsStickItem.pos2 != null) {
-                    ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(serverWorld, boundsStickItem.pos1, SpawnReason.NATURAL);
-                    resetEntity.setCorner1(boundsStickItem.pos1);
-                    resetEntity.setCorner2(boundsStickItem.pos2);
+            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getNameForScoreboard());
+                if (setPositions[0] != null && setPositions[1] != null) {
+                    ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(serverWorld, setPositions[0], SpawnReason.NATURAL);
+                    resetEntity.setCorner1(setPositions[0]);
+                    resetEntity.setCorner2(setPositions[1]);
                     resetEntity.setPairedMap(name);
                     resetEntity.setCheckIndex(check_index);
                     for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
-                        PacketHandler.updateZone(worldPlayer, resetEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name, check_index);
+                        PacketHandler.updateZone(worldPlayer, resetEntity.getId(), setPositions[0], setPositions[1], name, check_index);
                     }
-                    Logger.logSuccess(serverPlayerEntity, "Creating reset zone from " + boundsStickItem.pos1.toShortString() + " to " + boundsStickItem.pos2.toShortString());
+                    Logger.logSuccess(serverPlayerEntity, "Creating reset zone from " + setPositions[0].toShortString() + " to " + setPositions[1].toShortString());
                 } else {
                     Logger.logFailure(serverPlayerEntity, "You haven't set both corner positions.");
                 }
             } else {
-                Logger.logFailure(serverPlayerEntity, "Not holding bounds stick, fabric is fucking gay so you have to be holding one.");
+                Logger.logFailure(serverPlayerEntity, "You need to set positions first.");
             }
         }
         else {
@@ -150,22 +151,22 @@ public class ZoneManagementCommands {
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
             ServerWorld serverWorld = context.getSource().getWorld();
-            ItemStack heldItemStack = serverPlayerEntity.getMainHandStack();
-            if (heldItemStack.getItem() instanceof BoundsStickItem boundsStickItem) {
-                if (boundsStickItem.pos1 != null && boundsStickItem.pos2 != null) {
-                    ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(serverWorld, boundsStickItem.pos1, SpawnReason.NATURAL);
-                    resetEntity.setCorner1(boundsStickItem.pos1);
-                    resetEntity.setCorner2(boundsStickItem.pos2);
+            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getNameForScoreboard());
+                if (setPositions[0] != null && setPositions[1] != null) {
+                    ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(serverWorld, setPositions[0], SpawnReason.NATURAL);
+                    resetEntity.setCorner1(setPositions[0]);
+                    resetEntity.setCorner2(setPositions[1]);
                     resetEntity.setPairedMap(name);
                     for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
-                        PacketHandler.updateZone(worldPlayer, resetEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name, 0);
+                        PacketHandler.updateZone(worldPlayer, resetEntity.getId(), setPositions[0], setPositions[1], name, 0);
                     }
-                    Logger.logSuccess(serverPlayerEntity, "Creating reset zone from " + boundsStickItem.pos1.toShortString() + " to " + boundsStickItem.pos2.toShortString());
+                    Logger.logSuccess(serverPlayerEntity, "Creating reset zone from " + setPositions[0].toShortString() + " to " + setPositions[1].toShortString());
                 } else {
                     Logger.logFailure(serverPlayerEntity, "You haven't set both corner positions.");
                 }
             } else {
-                Logger.logFailure(serverPlayerEntity, "Not holding bounds stick, fabric is fucking gay so you have to be holding one.");
+                Logger.logFailure(serverPlayerEntity, "You need to set positions first.");
             }
         }
         else {
@@ -179,22 +180,22 @@ public class ZoneManagementCommands {
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
             ServerWorld serverWorld = context.getSource().getWorld();
-            ItemStack heldItemStack = serverPlayerEntity.getMainHandStack();
-            if (heldItemStack.getItem() instanceof BoundsStickItem boundsStickItem) {
-                if (boundsStickItem.pos1 != null && boundsStickItem.pos2 != null) {
-                    StartEntity startEntity = ModEntities.START_ENTITY.spawn(serverWorld, boundsStickItem.pos1, SpawnReason.NATURAL);
-                    startEntity.setCorner1(boundsStickItem.pos1);
-                    startEntity.setCorner2(boundsStickItem.pos2);
+            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getNameForScoreboard());
+                if (setPositions[0] != null && setPositions[1] != null) {
+                    StartEntity startEntity = ModEntities.START_ENTITY.spawn(serverWorld, setPositions[0], SpawnReason.NATURAL);
+                    startEntity.setCorner1(setPositions[0]);
+                    startEntity.setCorner2(setPositions[1]);
                     startEntity.setPairedMap(name);
                     for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
-                        PacketHandler.updateZone(worldPlayer, startEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name, 0);
+                        PacketHandler.updateZone(worldPlayer, startEntity.getId(), setPositions[0], setPositions[1], name, 0);
                     }
-                    Logger.logSuccess(serverPlayerEntity, "Creating start zone from " + boundsStickItem.pos1.toShortString() + " to " + boundsStickItem.pos2.toShortString());
+                    Logger.logSuccess(serverPlayerEntity, "Creating start zone from " + setPositions[0].toShortString() + " to " + setPositions[1].toShortString());
                 } else {
                     Logger.logFailure(serverPlayerEntity, "You haven't set both corner positions.");
                 }
             } else {
-                Logger.logFailure(serverPlayerEntity, "Not holding bounds stick, fabric is fucking gay so you have to be holding one.");
+                Logger.logFailure(serverPlayerEntity, "Not holding bounds stick");
             }
         }
         else {
@@ -208,22 +209,22 @@ public class ZoneManagementCommands {
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
             ServerWorld serverWorld = context.getSource().getWorld();
-            ItemStack heldItemStack = serverPlayerEntity.getMainHandStack();
-            if (heldItemStack.getItem() instanceof BoundsStickItem boundsStickItem) {
-                if (boundsStickItem.pos1 != null && boundsStickItem.pos2 != null) {
-                    EndEntity endEntity = ModEntities.END_ENTITY.spawn(serverWorld, boundsStickItem.pos1, SpawnReason.NATURAL);
-                    endEntity.setCorner1(boundsStickItem.pos1);
-                    endEntity.setCorner2(boundsStickItem.pos2);
+            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getNameForScoreboard());
+                if (setPositions[0] != null && setPositions[1] != null) {
+                    EndEntity endEntity = ModEntities.END_ENTITY.spawn(serverWorld, setPositions[0], SpawnReason.NATURAL);
+                    endEntity.setCorner1(setPositions[0]);
+                    endEntity.setCorner2(setPositions[1]);
                     endEntity.setPairedMap(name);
                     for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
-                        PacketHandler.updateZone(worldPlayer, endEntity.getId(), boundsStickItem.pos1, boundsStickItem.pos2, name, 0);
+                        PacketHandler.updateZone(worldPlayer, endEntity.getId(), setPositions[0], setPositions[1], name, 0);
                     }
-                    Logger.logSuccess(serverPlayerEntity, "Creating end zone from " + boundsStickItem.pos1.toShortString() + " to " + boundsStickItem.pos2.toShortString());
+                    Logger.logSuccess(serverPlayerEntity, "Creating end zone from " + setPositions[0].toShortString() + " to " + setPositions[1].toShortString());
                 } else {
                     Logger.logFailure(serverPlayerEntity, "You haven't set both corner positions.");
                 }
             } else {
-                Logger.logFailure(serverPlayerEntity, "Not holding bounds stick, fabric is fucking gay so you have to be holding one.");
+                Logger.logFailure(serverPlayerEntity, "You need to set positions first.");
             }
         }
         else {

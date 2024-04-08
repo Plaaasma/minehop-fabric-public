@@ -9,6 +9,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.BlockBox;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
@@ -105,11 +106,11 @@ public class StartEntity extends Zone {
             if (this.corner1 != null && this.corner2 != null) {
                 DataManager.MapData pairedMap = DataManager.getMap(this.paired_map);
                 if (pairedMap != null) {
-                    Box colliderBox = new Box(new Vec3d(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ()), new Vec3d(this.corner2.getX(), this.corner2.getY(), this.corner2.getZ()));
+                    BlockBox colliderBox = new BlockBox(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ(), this.corner2.getX(), this.corner2.getY(), this.corner2.getZ());
                     List<ServerPlayerEntity> players = serverWorld.getPlayers();
                     for (ServerPlayerEntity player : players) {
                         if (!player.isCreative() && !player.isSpectator() && (Minehop.groundedList.contains(player.getNameForScoreboard()))) {
-                            if (colliderBox.contains(player.getPos())) {
+                            if (colliderBox.contains(player.getBlockPos())) {
                                 HashMap<String, Long> informationMap = new HashMap<>();
                                 informationMap.put(this.paired_map, System.nanoTime());
                                 if (ReplayEvents.replayEntryMap.containsKey(player.getNameForScoreboard())) {
