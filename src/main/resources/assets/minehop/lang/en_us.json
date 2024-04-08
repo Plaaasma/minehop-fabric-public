@@ -19,6 +19,8 @@
   "text.autoconfig.minehop.option.speed_mul": "Speed Multiplier",
   "text.autoconfig.minehop.option.sv_gravity": "Gravity",
   "text.autoconfig.minehop.option.sv_yaw": "Strafe Yaw",
+  "text.autoconfig.minehop.option.help_command": "Enable Minehop /help Command",
+  "text.autoconfig.minehop.option.minehop_motd": "Enable Minehop Server MOTD",
   "text.autoconfig.minehop.option.bot_token": "Discord Bot Token (optional)",
   "text.autoconfig.minehop.option.record_channel": "Discord Record Channel ID (optional, but required with a bot token)"
 }
