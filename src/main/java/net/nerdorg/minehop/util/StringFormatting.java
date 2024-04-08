@@ -11,7 +11,7 @@ public class StringFormatting {
         StringBuffer result = new StringBuffer();
         while (matcher.find()) {
             double floatValue = Double.parseDouble(matcher.group());
-            matcher.appendReplacement(result, String.format("%.2f", floatValue));
+            matcher.appendReplacement(result, String.format("%.5f", floatValue));
         }
         matcher.appendTail(result);
 
