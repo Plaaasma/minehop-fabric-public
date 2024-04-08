@@ -39,9 +39,9 @@ public class HandshakeHandler {
     }
 
     private static void registerReceivers() {
-//        ServerPlayNetworking.registerGlobalReceiver(ModMessages.HANDSHAKE_ID, (server, player, handler, buf, responseSender) -> {
-//            System.out.println("Validated " + player.getNameForScoreboard());
-//            waitingForShake.remove(player.getNameForScoreboard());
-//        });
+        ServerPlayNetworking.registerGlobalReceiver(ModMessages.HANDSHAKE_ID, (server, player, handler, buf, responseSender) -> {
+            System.out.println("Validated " + player.getNameForScoreboard());
+            waitingForShake.remove(player.getNameForScoreboard());
+        });
     }
 }
