@@ -147,6 +147,15 @@ public abstract class LivingEntityMixin extends Entity {
         //
         // Accelerate
         //
+        float yawDifference = MathHelper.wrapDegrees(this.getHeadYaw() - this.prevHeadYaw);
+        if (yawDifference < 0) {
+            yawDifference = yawDifference * -1;
+        }
+
+        if (!fullGrounded) {
+            sI = sI * yawDifference;
+            fI = fI * yawDifference;
+        }
         if (this.isOnGround()) {
             if (Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard())) {
                 List<Double> efficiencyList = Minehop.efficiencyListMap.get(this.getNameForScoreboard());
