@@ -46,16 +46,23 @@ public class BoostBlock extends BlockWithEntity implements BlockEntityProvider {
 
     @Override
     public void randomDisplayTick(BlockState state, World world, BlockPos pos, Random random) {
-        if (world.getTime() % 10 == 0) {
-            BoostBlockEntity boostBlockEntity = (BoostBlockEntity) world.getBlockEntity(pos);
-            if (boostBlockEntity != null) {
-                for (ServerPlayerEntity playerEntity : world.getServer().getPlayerManager().getPlayerList()) {
-                    PacketHandler.sendPower(playerEntity, boostBlockEntity.getXPower(), boostBlockEntity.getYPower(), boostBlockEntity.getZPower(), boostBlockEntity.getPos());
+        ParticleUtil.spawnParticle(world, pos, Random.create(), ParticleTypes.CLOUD);
+        super.randomDisplayTick(state, world, pos, random);
+    }
+
+    @Override
+    public void onEntityCollision(BlockState state, World world, BlockPos pos, Entity entity) {
+        if (world instanceof ServerWorld serverWorld) {
+            if (serverWorld.getTime() % 4 == 0) {
+                BoostBlockEntity boostBlockEntity = (BoostBlockEntity) serverWorld.getBlockEntity(pos);
+                if (boostBlockEntity != null) {
+                    for (ServerPlayerEntity playerEntity : serverWorld.getServer().getPlayerManager().getPlayerList()) {
+                        PacketHandler.sendPower(playerEntity, boostBlockEntity.getXPower(), boostBlockEntity.getYPower(), boostBlockEntity.getZPower(), boostBlockEntity.getPos());
+                    }
                 }
             }
         }
-        ParticleUtil.spawnParticle(world, pos, Random.create(), ParticleTypes.CLOUD);
-        super.randomDisplayTick(state, world, pos, random);
+        super.onEntityCollision(state, world, pos, entity);
     }
 
     @Override
