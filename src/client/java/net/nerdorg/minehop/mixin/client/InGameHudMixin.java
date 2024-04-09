@@ -53,7 +53,6 @@ public abstract class InGameHudMixin {
             config.sv_maxairspeed = Minehop.o_sv_maxairspeed;
             config.speed_mul = Minehop.o_speed_mul;
             config.sv_gravity = Minehop.o_sv_gravity;
-            config.sv_yaw = Minehop.o_sv_yaw;
             config.show_ssj = ConfigWrapper.config.show_ssj;
             config.show_efficiency = ConfigWrapper.config.show_efficiency;
             config.show_current_speed = ConfigWrapper.config.show_current_speed;
