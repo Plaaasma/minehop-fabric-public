@@ -218,7 +218,7 @@ public abstract class LivingEntityMixin extends Entity {
                 // yawDifference / 7.8f is better
                 // yawDifference / 11.5f
 
-                maxVel = (float) Math.min(maxVel, config.sv_maxairspeed * 100.0f); // Limit to prevent astronomical speed gain.
+                maxVel = (float) Math.min(maxVel, config.sv_maxairspeed * 100000000000000000000000000000000000000.0f); // Limit to prevent astronomical speed gain.
                 // 2.0f <- decent maybe
             }
 
