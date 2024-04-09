@@ -1,5 +1,6 @@
 package net.nerdorg.minehop.util;
 
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
@@ -30,27 +31,27 @@ public class Logger {
         server.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.AQUA.getColorValue())));
     }
 
-    public static void logActionBar(ServerPlayerEntity serverPlayerEntity, String message) {
-        if (serverPlayerEntity != null) {
-            serverPlayerEntity.sendMessage(Text.literal(message).withColor(Formatting.AQUA.getColorValue()), true);
+    public static void logActionBar(PlayerEntity playerEntity, String message) {
+        if (playerEntity != null) {
+            playerEntity.sendMessage(Text.literal(message).withColor(Formatting.AQUA.getColorValue()), true);
         }
     }
 
-    public static void logSuccess(ServerPlayerEntity serverPlayerEntity, String message) {
-        if (serverPlayerEntity != null) {
-            serverPlayerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.GOLD.getColorValue())));
+    public static void logSuccess(PlayerEntity playerEntity, String message) {
+        if (playerEntity != null) {
+            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.GOLD.getColorValue())));
         }
     }
 
-    public static void log(ServerPlayerEntity serverPlayerEntity, Text message) {
-        if (serverPlayerEntity != null) {
-            serverPlayerEntity.sendMessage(prefix.copy().append(message));
+    public static void log(PlayerEntity playerEntity, Text message) {
+        if (playerEntity != null) {
+            playerEntity.sendMessage(prefix.copy().append(message));
         }
     }
 
-    public static void logFailure(ServerPlayerEntity serverPlayerEntity, String message) {
-        if (serverPlayerEntity != null) {
-            serverPlayerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.RED.getColorValue())));
+    public static void logFailure(PlayerEntity playerEntity, String message) {
+        if (playerEntity != null) {
+            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.RED.getColorValue())));
         }
     }
 }
