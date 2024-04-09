@@ -24,7 +24,7 @@ public class HandshakeHandler {
                 if (server.getTicks() > waitingForShake.get(playerName) + 60) {
                     ServerPlayerEntity serverPlayerEntity = server.getPlayerManager().getPlayer(playerName);
                     if (serverPlayerEntity != null) {
-                        serverPlayerEntity.networkHandler.disconnect(Text.of("Please install the Minehop mod before joining this server."));
+                        serverPlayerEntity.networkHandler.disconnect(Text.of("Please install/update version " + Minehop.MOD_VERSION_STRING + " of the Minehop mod before joining this server."));
                     }
                 }
             }
@@ -39,8 +39,11 @@ public class HandshakeHandler {
 
     private static void registerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.HANDSHAKE_ID, (server, player, handler, buf, responseSender) -> {
-            System.out.println("Validated " + player.getNameForScoreboard());
-            waitingForShake.remove(player.getNameForScoreboard());
+            int mod_version = buf.readInt();
+            if (mod_version == Minehop.MOD_VERSION) {
+                System.out.println("Validated " + player.getNameForScoreboard());
+                waitingForShake.remove(player.getNameForScoreboard());
+            }
         });
     }
 }

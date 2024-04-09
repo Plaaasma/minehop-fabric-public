@@ -45,7 +45,6 @@ public class ClientPacketHandler {
             double o_sv_maxairspeed = buf.readDouble();
             double o_speed_mul = buf.readDouble();
             double o_sv_gravity = buf.readDouble();
-            double o_sv_yaw = buf.readDouble();
 
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             client.execute(() -> {
@@ -56,7 +55,6 @@ public class ClientPacketHandler {
                 Minehop.o_sv_maxairspeed = o_sv_maxairspeed;
                 Minehop.o_speed_mul = o_speed_mul;
                 Minehop.o_sv_gravity = o_sv_gravity;
-                Minehop.o_sv_yaw = o_sv_yaw;
             });
         });
 
@@ -226,6 +224,7 @@ public class ClientPacketHandler {
 
     public static void sendHandshake() {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+        buf.writeInt(Minehop.MOD_VERSION);
 
         ClientPlayNetworking.send(ModMessages.HANDSHAKE_ID, buf);
     }

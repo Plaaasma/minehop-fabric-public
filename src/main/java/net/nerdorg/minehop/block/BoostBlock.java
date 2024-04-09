@@ -15,6 +15,8 @@ import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleType;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.state.StateManager;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -25,6 +27,7 @@ import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.block.entity.ModBlockEntities;
+import net.nerdorg.minehop.networking.PacketHandler;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
@@ -43,6 +46,14 @@ public class BoostBlock extends BlockWithEntity implements BlockEntityProvider {
 
     @Override
     public void randomDisplayTick(BlockState state, World world, BlockPos pos, Random random) {
+        if (world.getTime() % 10 == 0) {
+            BoostBlockEntity boostBlockEntity = (BoostBlockEntity) world.getBlockEntity(pos);
+            if (boostBlockEntity != null) {
+                for (ServerPlayerEntity playerEntity : world.getServer().getPlayerManager().getPlayerList()) {
+                    PacketHandler.sendPower(playerEntity, boostBlockEntity.getXPower(), boostBlockEntity.getYPower(), boostBlockEntity.getZPower(), boostBlockEntity.getPos());
+                }
+            }
+        }
         ParticleUtil.spawnParticle(world, pos, Random.create(), ParticleTypes.CLOUD);
         super.randomDisplayTick(state, world, pos, random);
     }

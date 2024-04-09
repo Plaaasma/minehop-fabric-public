@@ -1,18 +1,14 @@
-// MADE BY hatninja ON GITHUB
+// ORIGINAL BY hatninja ON GITHUB
 
 package net.nerdorg.minehop.mixin;
 
-import com.mojang.authlib.minecraft.client.MinecraftClient;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.*;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -21,7 +17,6 @@ import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.config.ConfigWrapper;
-import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.MovementUtil;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -56,15 +51,8 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Shadow public abstract float getHeadYaw();
 
-    @Shadow protected abstract boolean shouldSwimInFluids();
-
-    @Shadow protected abstract void spawnItemParticles(ItemStack stack, int count);
-
-    @Shadow protected abstract void processEquippedStack(ItemStack stack);
-
     private boolean wasOnGround;
     private long boostTime = 0;
-    private Vec3d lastSpeed = this.getVelocity();
 
     public LivingEntityMixin(EntityType<?> type, World world) {
         super(type, world);
@@ -74,6 +62,11 @@ public abstract class LivingEntityMixin extends Entity {
     public void isPushable(CallbackInfoReturnable<Boolean> cir) {
         cir.setReturnValue(false);
     }
+
+    /**
+     * @Author lolrow and Plaaasma
+     * @Reason Fixed movement made it better and fucking awesome.
+     */
 
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     public void travel(Vec3d movementInput, CallbackInfo ci) {
@@ -86,7 +79,6 @@ public abstract class LivingEntityMixin extends Entity {
             config.sv_maxairspeed = Minehop.o_sv_maxairspeed;
             config.speed_mul = Minehop.o_speed_mul;
             config.sv_gravity = Minehop.o_sv_gravity;
-            config.sv_yaw = Minehop.o_sv_yaw;
         }
         else {
             config = ConfigWrapper.config;
@@ -110,9 +102,7 @@ public abstract class LivingEntityMixin extends Entity {
         this.sidewaysSpeed /= 0.98F;
         this.forwardSpeed /= 0.98F;
         double sI = movementInput.x / 0.98F;
-        double actualsI = movementInput.x / 0.98F;
         double fI = movementInput.z / 0.98F;
-        double uI = movementInput.y;
 
         //Have no jump cooldown, why not?
         this.jumpingCooldown = 0;
@@ -132,9 +122,7 @@ public abstract class LivingEntityMixin extends Entity {
             }
         }
         else {
-            if (Minehop.groundedList.contains(this.getNameForScoreboard())) {
-                Minehop.groundedList.remove(this.getNameForScoreboard());
-            }
+            Minehop.groundedList.remove(this.getNameForScoreboard());
         }
         if (fullGrounded) {
             Vec3d velFin = this.getVelocity();
@@ -159,17 +147,6 @@ public abstract class LivingEntityMixin extends Entity {
         //
         // Accelerate
         //
-        float yawDifference = MathHelper.wrapDegrees(this.getHeadYaw() - this.prevHeadYaw);
-        if (yawDifference < 0) {
-            yawDifference = yawDifference * -1;
-        }
-        if (yawDifference > config.sv_yaw) {
-            yawDifference = (float) config.sv_yaw;
-        }
-
-        if (!fullGrounded) {
-            sI = sI * yawDifference;
-        }
         if (this.isOnGround()) {
             if (Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard())) {
                 List<Double> efficiencyList = Minehop.efficiencyListMap.get(this.getNameForScoreboard());
@@ -189,37 +166,17 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d accelVec = this.getVelocity();
 
             double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
-            double horizontalVelocity = this.getVelocity().horizontalLength();
-            // double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate / (this.horizontalSpeed * 10000)));
-            double accelVel = (this.isOnGround() ? config.sv_accelerate : ((config.sv_airaccelerate) / (horizontalVelocity * 100000))); // 100000
-            //float maxVel = (float) (this.isOnGround() ? this.movementSpeed * config.speed_mul : config.sv_maxairspeed); //This is fucking dogshit
+            double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate));
 
-            // Attempt 1: Pretty good!
-
-            /**
-             * @Author lolrow
-             * @Reason Fixed movement made it better and fucking awesome.
-             */
             float maxVel;
             if (fullGrounded) {
                 maxVel = (float) (this.movementSpeed * config.speed_mul);
             } else {
-                // Increase maximum air speed based on the yawDifference
-                // maxVel = (float) (config.sv_maxairspeed * (1.0f + (yawDifference / 180.0f))); <- Alternative.
+                maxVel = (float) (config.sv_maxairspeed);
 
-                // Example for adding a style with the circle thing:
-                // double multiplier = (yawDifference / (config.sv_yaw / 10));
+                double angleBetween = Math.acos(accelVec.normalize().dotProduct(moveDir.normalize()));
 
-                double multiplier = Math.min((yawDifference / (config.sv_yaw / 10)), 2 + (horizontalVelocity * horizontalVelocity));
-                maxVel = (float) (config.sv_maxairspeed * (1.0f + multiplier)); // 90.0f is the normal value, might revert back to it
-                // yawDifference / 50.0f is good
-                // yawDifference / 25.0f may be better, but it's hard to say
-                // yawDifference / 10.0f is good
-                // yawDifference / 7.8f is better
-                // yawDifference / 11.5f
-
-                maxVel = (float) Math.min(maxVel, config.sv_maxairspeed * 100000000000000000000000000000000000000.0f); // Limit to prevent astronomical speed gain.
-                // 2.0f <- decent maybe
+                maxVel *= (angleBetween * angleBetween * angleBetween);
             }
 
             if (projVel + accelVel > maxVel) {
@@ -277,8 +234,10 @@ public abstract class LivingEntityMixin extends Entity {
         if (belowState.isOf(ModBlocks.BOOSTER_BLOCK) && (this.getWorld().getTime() > this.boostTime + 5 || this.getWorld().getTime() < this.boostTime)) {
             this.boostTime = this.getWorld().getTime();
             BoostBlockEntity boostBlockEntity = (BoostBlockEntity) this.getWorld().getBlockEntity(this.getBlockPos());
-            preVel = preVel.add(boostBlockEntity.getXPower(), 0, boostBlockEntity.getZPower());
-            yVel += boostBlockEntity.getYPower();
+            if (boostBlockEntity != null) {
+                preVel = preVel.add(boostBlockEntity.getXPower(), 0, boostBlockEntity.getZPower());
+                yVel += boostBlockEntity.getYPower();
+            }
         }
         this.setVelocity(preVel.x,yVel,preVel.z);
 

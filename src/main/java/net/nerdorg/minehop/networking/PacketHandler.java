@@ -37,7 +37,6 @@ public class PacketHandler {
         buf.writeDouble(config.sv_maxairspeed);
         buf.writeDouble(config.speed_mul);
         buf.writeDouble(config.sv_gravity);
-        buf.writeDouble(config.sv_yaw);
 
         ServerPlayNetworking.send(player, ModMessages.CONFIG_SYNC_ID, buf);
     }
