@@ -41,7 +41,9 @@ public class SpectateCommands {
                                 builder.suggest(entity.getNameForScoreboard(), new LiteralMessage(entity.getName().getString()));
                             }
                             else if (entity instanceof PlayerEntity) {
-                                builder.suggest(entity.getNameForScoreboard(), new LiteralMessage(entity.getName().getString()));
+                                if (!((PlayerEntity) entity).isCreative() && !entity.isSpectator()) {
+                                    builder.suggest(entity.getNameForScoreboard(), new LiteralMessage(entity.getName().getString()));
+                                }
                             }
                         }
                         return builder.buildFuture();
