@@ -183,7 +183,7 @@ public class PacketHandler {
             else {
                 buf.writeString(mapData.name);
                 buf.writeString("None");
-                buf.writeDouble(0);
+                buf.writeDouble(1000000);
             }
         }
 
