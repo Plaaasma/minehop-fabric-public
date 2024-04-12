@@ -28,12 +28,10 @@ public class SelectMapScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        this.textFieldWidget = new TextFieldWidget(this.client.textRenderer, 128, 14, Text.literal("Map Filter"));
-        this.textFieldWidget.setX((this.width / 2) - (this.textFieldWidget.getWidth() / 2));
-        this.textFieldWidget.setY(16);
+        this.textFieldWidget = new TextFieldWidget(this.client.textRenderer,(this.width / 2) - (128 / 2), 16, 128, 14, Text.literal("Map Filter"));
         this.addSelectableChild(this.textFieldWidget);
 
-        this.listWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, 20);
+        this.listWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, this.height, 20);
         for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
             if (!recordData.map_name.equals("spawn")) {
                 this.listWidget.addEntry(recordData);
@@ -44,32 +42,36 @@ public class SelectMapScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
-        this.textFieldWidget.render(context, mouseX, mouseY, delta);
-        String fieldText = this.textFieldWidget.getText();
+        this.renderBackground(context);
+        if (this.textFieldWidget != null) {
+            this.textFieldWidget.render(context, mouseX, mouseY, delta);
+            String fieldText = this.textFieldWidget.getText();
 
-        if (!fieldText.equals(this.lastFieldText)) {
-            MapListWidget newListWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, 20);
-            if (!fieldText.equals("")) {
-                for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
-                    if (!recordData.map_name.equals("spawn") && recordData.map_name.contains(fieldText)) {
-                        newListWidget.addEntry(recordData);
+            if (!fieldText.equals(this.lastFieldText)) {
+                MapListWidget newListWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, this.height, 20);
+                if (!fieldText.equals("")) {
+                    for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
+                        if (!recordData.map_name.equals("spawn") && recordData.map_name.contains(fieldText)) {
+                            newListWidget.addEntry(recordData);
+                        }
+                    }
+                } else {
+                    for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
+                        if (!recordData.map_name.equals("spawn")) {
+                            newListWidget.addEntry(recordData);
+                        }
                     }
                 }
-            } else {
-                for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
-                    if (!recordData.map_name.equals("spawn")) {
-                        newListWidget.addEntry(recordData);
-                    }
-                }
+                this.remove(this.listWidget);
+                this.listWidget = newListWidget;
+                this.addSelectableChild(this.listWidget);
+                this.lastFieldText = fieldText;
             }
-            this.remove(this.listWidget);
-            this.listWidget = newListWidget;
-            this.addSelectableChild(this.listWidget);
-            this.lastFieldText = fieldText;
         }
 
-        this.listWidget.render(context, mouseX, mouseY, delta);
+        if (this.listWidget != null) {
+            this.listWidget.render(context, mouseX, mouseY, delta);
+        }
 
         TextRenderer textRenderer = this.client.textRenderer;
         context.drawCenteredTextWithShadow(textRenderer, "Map Selection", this.width / 2, 4, Formatting.WHITE.getColorValue());

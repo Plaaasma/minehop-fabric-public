@@ -79,15 +79,17 @@ public class PacketHandler {
     public static void sendSpectators(ServerPlayerEntity player) {
         if (SpectateCommands.spectatorList.containsKey(player.getEntityName())) {
             List<String> spectators = SpectateCommands.spectatorList.get(player.getEntityName());
-            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
-            buf.writeInt(spectators.size() - 1);
-            for (String spectator : spectators) {
-                if (!spectator.equals(player.getEntityName())) {
-                    buf.writeString(spectator);
+            if (spectators.size() > 1) {
+                PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+                buf.writeInt(spectators.size() - 1);
+                for (String spectator : spectators) {
+                    if (!spectator.equals(player.getEntityName())) {
+                        buf.writeString(spectator);
+                    }
                 }
-            }
 
-            ServerPlayNetworking.send(player, ModMessages.SEND_SPECTATORS, buf);
+                ServerPlayNetworking.send(player, ModMessages.SEND_SPECTATORS, buf);
+            }
         }
     }
 
