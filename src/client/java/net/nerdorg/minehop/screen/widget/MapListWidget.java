@@ -24,7 +24,7 @@ import java.util.Optional;
 public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
     public MapListWidget(MinecraftClient client, int width, int height, int top, int itemHeight) {
-        super(client, width, height, top, top - 32, itemHeight);
+        super(client, width, height, top, height + 32, itemHeight);
     }
 
     public void addEntry(DataManager.RecordData recordData, double avgTime) {
@@ -53,6 +53,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
             this.mapButtonWidget = ButtonWidget.builder(Text.literal(recordData.map_name), button -> {})
                     .tooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " Time: " + String.format("%.5f", recordData.time) + " Average Time: " + String.format("%.5f", avgTime)).formatted(Formatting.RED)))
+                    .size(128, 20)
                     .build();
 
             this.mapButtonWidget.visible = true;
@@ -64,7 +65,6 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
             // Render the object's name and description here
             this.mapButtonWidget.setWidth(entryWidth);
-            this.mapButtonWidget.setHeight(entryHeight);
             this.mapButtonWidget.setPosition(x, y);
 //            this.mapButtonWidget.setTooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " Time: " + String.format("%5f", recordData.time)).withColor(Formatting.RED.getColorValue())));
 //            this.mapButtonWidget.setTooltipDelay(0);
