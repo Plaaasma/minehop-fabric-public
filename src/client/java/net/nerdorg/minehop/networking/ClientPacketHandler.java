@@ -176,7 +176,9 @@ public class ClientPacketHandler {
                 String map_name = buf.readString();
                 String name = buf.readString();
                 double time = buf.readDouble();
-                newRecordList.add(new DataManager.RecordData(name, map_name, time));
+                if (time > 0) {
+                    newRecordList.add(new DataManager.RecordData(name, map_name, time));
+                }
             }
 
             client.execute(() -> {
@@ -192,7 +194,9 @@ public class ClientPacketHandler {
                 String map_name = buf.readString();
                 String name = buf.readString();
                 double time = buf.readDouble();
-                newRecordList.add(new DataManager.RecordData(name, map_name, time));
+                if (time > 0) {
+                    newRecordList.add(new DataManager.RecordData(name, map_name, time));
+                }
             }
 
             client.execute(() -> {

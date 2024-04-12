@@ -106,7 +106,6 @@ public class PacketHandler {
                     if (mapRecord != null) {
                         if (time < mapRecord.time) {
                             String recordMessage = player.getNameForScoreboard() + " just beat " + mapRecord.name + "'s time (" + String.format("%.5f", mapRecord.time) + ") on " + mapRecord.map_name + " and now hold the world record with a time of " + formattedNumber + "!";
-                            DiscordIntegration.sendRecordToDiscord(recordMessage);
                             Logger.logGlobal(server, recordMessage);
                             Minehop.recordList.remove(mapRecord);
                             if (DataManager.getAnyRecordFromName(mapRecord.name) == null) {
@@ -117,16 +116,17 @@ public class PacketHandler {
                             DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
                             ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getNameForScoreboard(), time, ReplayEvents.replayEntryMap.get(player.getNameForScoreboard()));
                             ReplayManager.saveRecordReplay(player.getServerWorld(), replay);
+                            DiscordIntegration.sendRecordToDiscord(recordMessage);
                         }
                     } else {
                         String recordMessage = player.getNameForScoreboard() + " just claimed the world record on " + map_name + " with a time of " + formattedNumber + "!";
-                        DiscordIntegration.sendRecordToDiscord(recordMessage);
                         Logger.logGlobal(server, recordMessage);
                         server.getCommandManager().execute(server.getCommandSource().getDispatcher().parse("lp user " + player.getNameForScoreboard() + " parent add record_holder", server.getCommandSource()), "lp user " + player.getNameForScoreboard() + " parent add record_holder");
                         Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                         DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
                         ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getNameForScoreboard(), time, ReplayEvents.replayEntryMap.get(player.getNameForScoreboard()));
                         ReplayManager.saveRecordReplay(player.getServerWorld(), replay);
+                        DiscordIntegration.sendRecordToDiscord(recordMessage);
                     }
                     DataManager.RecordData mapPersonalRecord = DataManager.getPersonalRecord(player.getNameForScoreboard(), map_name);
                     if (mapPersonalRecord != null) {
