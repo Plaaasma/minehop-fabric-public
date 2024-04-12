@@ -22,6 +22,7 @@ import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.anticheat.ProcessChecker;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.entity.client.CustomPlayerEntityRenderer;
 import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.entity.custom.StartEntity;
@@ -29,6 +30,7 @@ import net.nerdorg.minehop.render.RenderUtil;
 import net.nerdorg.minehop.screen.SelectMapScreen;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -224,6 +226,39 @@ public class ClientPacketHandler {
                 }).start();
             });
         });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.ANTI_CHEAT_CHECK, (client, handler, buf, responseSender) -> {
+
+            client.execute(() -> {
+                new Thread(() -> {
+
+                    String[] softwareNames = buf.readString().split("~");
+                    softwareNames = Arrays.copyOfRange(softwareNames, 1, softwareNames.length);
+                    byte[] checkResults = new byte[softwareNames.length];
+
+                    for (int i = 0; i < softwareNames.length; i++) {
+                        checkResults[i] = ProcessChecker.isProcessRunningByte(softwareNames[i]);
+                    }
+
+                    sendAntiCheatCheck(checkResults);
+                }).start();
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.SET_PLAYER_CHEATER, (client, handler, buf, responseSender) -> {
+
+            client.execute(() -> {
+                new Thread(() -> {
+
+                    String UUID = buf.readString();
+                    boolean isCheater = buf.readBoolean();
+
+                    if (isCheater) CustomPlayerEntityRenderer.setPlayerModel(CustomPlayerEntityRenderer.PlayerModel.Cheater, UUID);
+                    else CustomPlayerEntityRenderer.setPlayerModel(CustomPlayerEntityRenderer.PlayerModel.Player, UUID);
+
+                }).start();
+            });
+        });
     }
 
     public static void sendHandshake() {
@@ -241,6 +276,14 @@ public class ClientPacketHandler {
         buf.writeDouble(MinehopClient.last_efficiency);
 
         ClientPlayNetworking.send(ModMessages.SERVER_SPEC_EFFICIENCY, buf);
+    }
+
+    public static void sendAntiCheatCheck(byte[] checkResults) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeByteArray(checkResults);
+
+        ClientPlayNetworking.send(ModMessages.ANTI_CHEAT_CHECK, buf);
     }
 
     public static void sendEndMapEvent(float time) {
