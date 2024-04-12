@@ -190,6 +190,19 @@ public class PacketHandler {
         ServerPlayNetworking.send(player, ModMessages.SEND_RECORDS, buf);
     }
 
+    public static void sendPersonalRecords(ServerPlayerEntity player) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeInt(Minehop.personalRecordList.size());
+
+        for (DataManager.RecordData recordData : Minehop.personalRecordList) {
+            buf.writeString(recordData.map_name);
+            buf.writeString(recordData.name);
+            buf.writeDouble(recordData.time);
+        }
+
+        ServerPlayNetworking.send(player, ModMessages.SEND_PERSONAL_RECORDS, buf);
+    }
 
     public static void sendPower(ServerPlayerEntity player, double x_power, double y_power, double z_power, BlockPos boosterPos) {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
