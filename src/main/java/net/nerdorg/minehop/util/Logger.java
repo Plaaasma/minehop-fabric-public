@@ -9,13 +9,13 @@ import net.minecraft.util.Formatting;
 import java.util.List;
 
 public class Logger {
-    private static Text prefix = Text.literal("NerdOrg ").withColor(Formatting.GREEN.getColorValue()).append(Text.literal("(").withColor(Formatting.GRAY.getColorValue())).append(Text.literal("Minehop").withColor(Formatting.LIGHT_PURPLE.getColorValue()).formatted(Formatting.ITALIC)).append(Text.literal(") ").withColor(Formatting.GRAY.getColorValue())).append(Text.literal("-> ").withColor(Formatting.DARK_GRAY.getColorValue()));
+    private static Text prefix = Text.literal("NerdOrg ").formatted(Formatting.GREEN).append(Text.literal("(").formatted(Formatting.GRAY)).append(Text.literal("Minehop").formatted(Formatting.LIGHT_PURPLE).formatted(Formatting.ITALIC)).append(Text.literal(") ").formatted(Formatting.GRAY)).append(Text.literal("-> ").formatted(Formatting.DARK_GRAY));
 
     public static void logGlobal(MinecraftServer server, String message) {
         List<ServerPlayerEntity> playerEntities = server.getPlayerManager().getPlayerList();
 
         for (ServerPlayerEntity playerEntity : playerEntities) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.AQUA.getColorValue())));
+            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).formatted(Formatting.AQUA)));
         }
     }
 
@@ -23,23 +23,23 @@ public class Logger {
         List<ServerPlayerEntity> playerEntities = server.getPlayerManager().getPlayerList();
 
         for (ServerPlayerEntity playerEntity : playerEntities) {
-            playerEntity.sendMessage(prefix.copy().append(message.copy().withColor(Formatting.AQUA.getColorValue())));
+            playerEntity.sendMessage(prefix.copy().append(message.copy().formatted(Formatting.AQUA)));
         }
     }
 
     public static void logServer(MinecraftServer server, String message) {
-        server.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.AQUA.getColorValue())));
+        server.sendMessage(prefix.copy().append(Text.literal(message).formatted(Formatting.AQUA)));
     }
 
     public static void logActionBar(PlayerEntity playerEntity, String message) {
         if (playerEntity != null) {
-            playerEntity.sendMessage(Text.literal(message).withColor(Formatting.AQUA.getColorValue()), true);
+            playerEntity.sendMessage(Text.literal(message).formatted(Formatting.AQUA), true);
         }
     }
 
     public static void logSuccess(PlayerEntity playerEntity, String message) {
         if (playerEntity != null) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.GOLD.getColorValue())));
+            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).formatted(Formatting.GOLD)));
         }
     }
 
@@ -51,7 +51,7 @@ public class Logger {
 
     public static void logFailure(PlayerEntity playerEntity, String message) {
         if (playerEntity != null) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.RED.getColorValue())));
+            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).formatted(Formatting.RED)));
         }
     }
 }

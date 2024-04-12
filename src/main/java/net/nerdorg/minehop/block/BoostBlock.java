@@ -40,11 +40,6 @@ public class BoostBlock extends BlockWithEntity implements BlockEntityProvider {
     }
 
     @Override
-    protected MapCodec<? extends BlockWithEntity> getCodec() {
-        return null;
-    }
-
-    @Override
     public void randomDisplayTick(BlockState state, World world, BlockPos pos, Random random) {
         ParticleUtil.spawnParticle(world, pos, Random.create(), ParticleTypes.CLOUD);
         super.randomDisplayTick(state, world, pos, random);

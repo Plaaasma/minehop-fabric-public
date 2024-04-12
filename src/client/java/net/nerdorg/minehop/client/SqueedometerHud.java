@@ -35,34 +35,36 @@ public class SqueedometerHud {
 
     public void drawMain(DrawContext context, float tickDelta) {
         this.client = MinecraftClient.getInstance();
-        this.textRenderer = client.textRenderer;
+        if (client != null) {
+            this.textRenderer = client.textRenderer;
 
-        // Calculating Speed
-        Vec3d playerPosVec = client.player.getPos();
-        double travelledX = playerPosVec.x - client.player.prevX;
-        double travelledZ = playerPosVec.z - client.player.prevZ;
-        double currentSpeed = (double)MathHelper.sqrt((float)(travelledX * travelledX + travelledZ * travelledZ));
+            // Calculating Speed
+            Vec3d playerPosVec = client.player.getPos();
+            double travelledX = playerPosVec.x - client.player.prevX;
+            double travelledZ = playerPosVec.z - client.player.prevZ;
+            double currentSpeed = (double) MathHelper.sqrt((float) (travelledX * travelledX + travelledZ * travelledZ));
 
-        String currentSpeedText = "";
+            String currentSpeedText = "";
 
-        currentSpeedText = SpeedCalculator.speedText(currentSpeed);
-        // Calculate text position
-        int height = this.textRenderer.fontHeight;
-        int paddingX = 2;
-        int paddingY = 2;
-        int marginX = 4;
-        int marginY = 4;
-        int left = 0 + marginX;
-        int top = 0 + marginY;
-        int realHeight = height + paddingY * 2 - 1;
+            currentSpeedText = SpeedCalculator.speedText(currentSpeed);
+            // Calculate text position
+            int height = this.textRenderer.fontHeight;
+            int paddingX = 2;
+            int paddingY = 2;
+            int marginX = 4;
+            int marginY = 4;
+            int left = 0 + marginX;
+            int top = 0 + marginY;
+            int realHeight = height + paddingY * 2 - 1;
 
-        top += client.getWindow().getScaledHeight() - marginY * 2 - realHeight;
+            top += client.getWindow().getScaledHeight() - marginY * 2 - realHeight;
 
-        left += paddingX;
-        top += paddingY;
+            left += paddingX;
+            top += paddingY;
 
-        // Render the text
-        context.drawTextWithShadow(this.textRenderer, currentSpeedText, left, top, color);
+            // Render the text
+            context.drawTextWithShadow(this.textRenderer, currentSpeedText, left, top, color);
+        }
     }
 
     private int getEffColor(double percent) {
@@ -87,61 +89,64 @@ public class SqueedometerHud {
     }
 
     public void drawSSJ(DrawContext context, MinehopConfig config) {
-        Vec3d playerPosVec = client.player.getPos();
-        if (MinehopClient.jump_count > 0) {
-            this.client = MinecraftClient.getInstance();
-            this.textRenderer = client.textRenderer;
-            int eff_top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 4));
+        this.client = MinecraftClient.getInstance();
 
-            double effPercent = MinehopClient.last_efficiency;
-            if (effPercent >= Double.POSITIVE_INFINITY || effPercent <= Double.NEGATIVE_INFINITY) {
-                effPercent = 0;
-            }
-            else if (effPercent < 0) {
-                effPercent = 0;
-            }
+        if (client != null) {
+            Vec3d playerPosVec = client.player.getPos();
+            if (MinehopClient.jump_count > 0) {
+                this.client = MinecraftClient.getInstance();
+                this.textRenderer = client.textRenderer;
+                int eff_top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 4));
 
-            int effColor = getEffColor(effPercent);
-
-            String effText = SpeedCalculator.effText(effPercent);
-
-            int eff_left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(effText) / 2));
-
-            int top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 2));
-
-            String ssjText = SpeedCalculator.ssjText(MinehopClient.last_jump_speed, MinehopClient.jump_count);
-
-            int left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(ssjText) / 2));
-
-            // Render the text
-            if (config.show_ssj) {
-                context.drawTextWithShadow(this.textRenderer, ssjText, left, top, color);
-            }
-            if (config.show_efficiency) {
-                context.drawTextWithShadow(this.textRenderer, effText, eff_left, eff_top, effColor);
-            }
-        }
-        if (client.player == null || !client.player.isSpectator()) {
-            if (MinehopClient.jumping) {
-                if (client.world.getTime() >= MinehopClient.last_jump_time + 1 || client.world.getTime() < MinehopClient.last_jump_time || MinehopClient.last_jump_time == 0) {
-                    if (client.player.isOnGround()) {
-                        double travelledX = playerPosVec.x - client.player.prevX;
-                        double travelledZ = playerPosVec.z - client.player.prevZ;
-                        double speed = (double) MathHelper.sqrt((float) (travelledX * travelledX + travelledZ * travelledZ));
-
-                        MinehopClient.old_jump_speed = MinehopClient.last_jump_speed;
-                        MinehopClient.last_jump_speed = speed;
-                        MinehopClient.jump_count += 1;
-                        MinehopClient.old_jump_time = MinehopClient.last_jump_time;
-                        MinehopClient.last_jump_time = client.world.getTime();
-                    }
+                double effPercent = MinehopClient.last_efficiency;
+                if (effPercent >= Double.POSITIVE_INFINITY || effPercent <= Double.NEGATIVE_INFINITY) {
+                    effPercent = 0;
+                } else if (effPercent < 0) {
+                    effPercent = 0;
                 }
-            } else {
-                MinehopClient.old_jump_speed = 0;
-                MinehopClient.last_jump_speed = 0;
-                MinehopClient.jump_count = 0;
-                MinehopClient.old_jump_time = 0;
-                MinehopClient.last_jump_time = 0;
+
+                int effColor = getEffColor(effPercent);
+
+                String effText = SpeedCalculator.effText(effPercent);
+
+                int eff_left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(effText) / 2));
+
+                int top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 2));
+
+                String ssjText = SpeedCalculator.ssjText(MinehopClient.last_jump_speed, MinehopClient.jump_count);
+
+                int left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(ssjText) / 2));
+
+                // Render the text
+                if (config.show_ssj) {
+                    context.drawTextWithShadow(this.textRenderer, ssjText, left, top, color);
+                }
+                if (config.show_efficiency) {
+                    context.drawTextWithShadow(this.textRenderer, effText, eff_left, eff_top, effColor);
+                }
+            }
+            if (client.player == null || !client.player.isSpectator()) {
+                if (MinehopClient.jumping) {
+                    if (client.world.getTime() >= MinehopClient.last_jump_time + 1 || client.world.getTime() < MinehopClient.last_jump_time || MinehopClient.last_jump_time == 0) {
+                        if (client.player.isOnGround()) {
+                            double travelledX = playerPosVec.x - client.player.prevX;
+                            double travelledZ = playerPosVec.z - client.player.prevZ;
+                            double speed = (double) MathHelper.sqrt((float) (travelledX * travelledX + travelledZ * travelledZ));
+
+                            MinehopClient.old_jump_speed = MinehopClient.last_jump_speed;
+                            MinehopClient.last_jump_speed = speed;
+                            MinehopClient.jump_count += 1;
+                            MinehopClient.old_jump_time = MinehopClient.last_jump_time;
+                            MinehopClient.last_jump_time = client.world.getTime();
+                        }
+                    }
+                } else {
+                    MinehopClient.old_jump_speed = 0;
+                    MinehopClient.last_jump_speed = 0;
+                    MinehopClient.jump_count = 0;
+                    MinehopClient.old_jump_time = 0;
+                    MinehopClient.last_jump_time = 0;
+                }
             }
         }
     }

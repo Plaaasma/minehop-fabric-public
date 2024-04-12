@@ -108,20 +108,20 @@ public class StartEntity extends Zone {
                     Box colliderBox = new Box(new Vec3d(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ()), new Vec3d(this.corner2.getX(), this.corner2.getY(), this.corner2.getZ()));
                     List<ServerPlayerEntity> players = serverWorld.getPlayers();
                     for (ServerPlayerEntity player : players) {
-                        if (!player.isCreative() && !player.isSpectator() && (Minehop.groundedList.contains(player.getNameForScoreboard()))) {
+                        if (!player.isCreative() && !player.isSpectator() && (Minehop.groundedList.contains(player.getEntityName()))) {
                             if (colliderBox.contains(player.getPos())) {
                                 HashMap<String, Long> informationMap = new HashMap<>();
                                 informationMap.put(this.paired_map, System.nanoTime());
-                                if (ReplayEvents.replayEntryMap.containsKey(player.getNameForScoreboard())) {
-                                    ReplayEvents.replayEntryMap.remove(player.getNameForScoreboard());
+                                if (ReplayEvents.replayEntryMap.containsKey(player.getEntityName())) {
+                                    ReplayEvents.replayEntryMap.remove(player.getEntityName());
                                 }
-                                Minehop.timerManager.put(player.getNameForScoreboard(), informationMap);
+                                Minehop.timerManager.put(player.getEntityName(), informationMap);
                             }
                         }
                         else {
                             if (player.isCreative() || player.isSpectator()) {
-                                if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
-                                    Minehop.timerManager.remove(player.getNameForScoreboard());
+                                if (Minehop.timerManager.containsKey(player.getEntityName())) {
+                                    Minehop.timerManager.remove(player.getEntityName());
                                 }
                             }
                         }
