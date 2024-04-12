@@ -8,7 +8,6 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.nerdorg.minehop.Minehop;
-import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.data.DataManager;
 

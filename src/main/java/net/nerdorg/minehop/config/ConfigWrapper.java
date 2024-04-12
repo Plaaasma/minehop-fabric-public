@@ -59,9 +59,6 @@ public class ConfigWrapper {
                             }
                         }
                     }
-                    if (!(Minehop.adminList.contains(Objects.requireNonNull(playerEntity.getNameForScoreboard())))) {
-                        PacketHandler.sendAntiCheatCheck(playerEntity);
-                    }
                     PacketHandler.sendSpectators(playerEntity);
                     PacketHandler.sendRecords(playerEntity);
                 }

@@ -12,7 +12,6 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.nerdorg.minehop.Minehop;
-import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.data.DataManager;
@@ -75,14 +74,6 @@ public class PacketHandler {
         buf.writeDouble(efficiency);
 
         ServerPlayNetworking.send(player, ModMessages.SEND_EFFICIENCY, buf);
-    }
-
-    public static void sendAntiCheatCheck(ServerPlayerEntity player) {
-        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
-
-        ServerPlayNetworking.send(player, ModMessages.ANTI_CHEAT_CHECK, buf);
-
-        AutoDisconnect.startPlayerTimer(player);
     }
 
     public static void sendSpectators(ServerPlayerEntity player) {
@@ -216,16 +207,6 @@ public class PacketHandler {
 
 
     public static void registerReceivers() {
-        ServerPlayNetworking.registerGlobalReceiver(ModMessages.ANTI_CHEAT_CHECK, (server, player, handler, buf, responseSender) -> {
-            boolean cheatSoftwareOpen = buf.readBoolean();
-            String cheatSoftwareName = buf.readString();
-
-            AutoDisconnect.stopPlayerTimer(player);
-
-            if (cheatSoftwareOpen) {
-                player.networkHandler.disconnect(Text.of("Please close " + cheatSoftwareName + "\n This software is not permitted"));
-            }
-        });
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.SEND_TIME, (server, player, handler, buf, responseSender) -> {
             if (!player.isSpectator()) {
                 float time = buf.readFloat();

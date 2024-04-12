@@ -19,7 +19,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
-import net.nerdorg.minehop.anticheat.AutoDisconnect;
 import net.nerdorg.minehop.anticheat.ProcessChecker;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.entity.client.CustomPlayerEntityRenderer;
@@ -206,20 +205,6 @@ public class ClientPacketHandler {
                 }).start();
             });
         });
-
-        ClientPlayNetworking.registerGlobalReceiver(ModMessages.ANTI_CHEAT_CHECK, (client, handler, buf, responseSender) -> {
-
-            // Ensure you are on the main thread when modifying the game or accessing client-side only classes
-            client.execute(() -> {
-                // Assign the read values to your variables or fields here
-                new Thread(() -> {
-                        boolean antiCheatCheck = ProcessChecker.isProcessRunning("rawaccel.exe");
-                        sendAntiCheatCheck(antiCheatCheck, "rawaccel");
-                    /*CustomPlayerEntityRenderer playerRenderer = (CustomPlayerEntityRenderer) client.getEntityRenderDispatcher().getRenderer(client.player);
-                    playerRenderer.setPlayerModel(CustomPlayerEntityRenderer.PlayerModel.Cube);*/
-                }).start();
-            });
-        });
     }
 
     public static void sendHandshake() {
@@ -237,15 +222,6 @@ public class ClientPacketHandler {
         buf.writeDouble(MinehopClient.last_efficiency);
 
         ClientPlayNetworking.send(ModMessages.SERVER_SPEC_EFFICIENCY, buf);
-    }
-
-    public static void sendAntiCheatCheck(boolean softwareDetected, String softwareName) {
-        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
-
-        buf.writeBoolean(softwareDetected);
-        buf.writeString(softwareName);
-
-        ClientPlayNetworking.send(ModMessages.ANTI_CHEAT_CHECK, buf);
     }
 
     public static void sendEndMapEvent(float time) {

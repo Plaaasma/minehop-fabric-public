@@ -19,5 +19,4 @@ public class ModMessages {
     public static final Identifier SEND_RECORDS = new Identifier(Minehop.MOD_ID, "send_records");
     public static final Identifier UPDATE_POWER = new Identifier(Minehop.MOD_ID, "update_power");
     public static final Identifier HANDSHAKE_ID = new Identifier(Minehop.MOD_ID, "handshake_id");
-    public static final Identifier ANTI_CHEAT_CHECK = new Identifier(Minehop.MOD_ID, "anti_cheat_check");
 }
