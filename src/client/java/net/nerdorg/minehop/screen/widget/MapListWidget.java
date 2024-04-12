@@ -27,8 +27,8 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
         super(client, width, height, top, top - 32, itemHeight);
     }
 
-    public void addEntry(DataManager.RecordData recordData) {
-        this.addEntry(new MapEntry(recordData));
+    public void addEntry(DataManager.RecordData recordData, double avgTime) {
+        this.addEntry(new MapEntry(recordData, avgTime));
     }
 
     @Override
@@ -43,14 +43,16 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
     public static class MapEntry extends ElementListWidget.Entry<MapEntry> {
         private final DataManager.RecordData recordData;
+        private final double avgTime;
 
         private final ButtonWidget mapButtonWidget;
 
-        public MapEntry(DataManager.RecordData recordData) {
+        public MapEntry(DataManager.RecordData recordData, double avgTime) {
             this.recordData = recordData;
+            this.avgTime = avgTime;
 
             this.mapButtonWidget = ButtonWidget.builder(Text.literal(recordData.map_name), button -> {})
-                    .tooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " Time: " + String.format("%.5f", recordData.time)).formatted(Formatting.RED)))
+                    .tooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " Time: " + String.format("%.5f", recordData.time) + " Average Time: " + String.format("%.5f", avgTime)).formatted(Formatting.RED)))
                     .build();
 
             this.mapButtonWidget.visible = true;

@@ -77,12 +77,12 @@ public class PacketHandler {
     }
 
     public static void sendSpectators(ServerPlayerEntity player) {
-        if (SpectateCommands.spectatorList.containsKey(player.getEntityName())) {
-            List<String> spectators = SpectateCommands.spectatorList.get(player.getEntityName());
+        if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
+            List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
             PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
             buf.writeInt(spectators.size() - 1);
             for (String spectator : spectators) {
-                if (!spectator.equals(player.getEntityName())) {
+                if (!spectator.equals(player.getNameForScoreboard())) {
                     buf.writeString(spectator);
                 }
             }
@@ -94,10 +94,10 @@ public class PacketHandler {
     private static void handleMapCompletion(ServerPlayerEntity player, MinecraftServer server, float time) {
         float ping_limit = 300; // ping limit in ms
         if (!player.isCreative() && !player.isSpectator()) {
-            if (Minehop.timerManager.containsKey(player.getEntityName())) {
+            if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
                 String map_name = ZoneUtil.getCurrentMapName(player);
 
-                HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getEntityName());
+                HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
                 List<String> keyList = timerMap.keySet().stream().toList();
                 double rawTime = (double) (System.nanoTime() - timerMap.get(keyList.get(0))) / 1000000000;
                 if (time < rawTime + (ping_limit / 1000f) && time > rawTime - (ping_limit / 1000f)) {
@@ -105,47 +105,47 @@ public class PacketHandler {
                     DataManager.RecordData mapRecord = DataManager.getRecord(map_name);
                     if (mapRecord != null) {
                         if (time < mapRecord.time) {
-                            String recordMessage = player.getEntityName() + " just beat " + mapRecord.name + "'s time (" + String.format("%.5f", mapRecord.time) + ") on " + mapRecord.map_name + " and now hold the world record with a time of " + formattedNumber + "!";
-                            DiscordIntegration.sendRecordToDiscord(recordMessage);
+                            String recordMessage = player.getNameForScoreboard() + " just beat " + mapRecord.name + "'s time (" + String.format("%.5f", mapRecord.time) + ") on " + mapRecord.map_name + " and now hold the world record with a time of " + formattedNumber + "!";
                             Logger.logGlobal(server, recordMessage);
                             Minehop.recordList.remove(mapRecord);
                             if (DataManager.getAnyRecordFromName(mapRecord.name) == null) {
-                                server.getCommandManager().execute(server.getCommandManager().getDispatcher().parse("lp user " + mapRecord.name + " parent remove record_holder", server.getCommandSource()), "lp user " + mapRecord.name + " parent remove record_holder");
+                                server.getCommandManager().execute(server.getCommandSource().getDispatcher().parse("lp user " + mapRecord.name + " parent remove record_holder", server.getCommandSource()), "lp user " + mapRecord.name + " parent remove record_holder");
                             }
-                            server.getCommandManager().execute(server.getCommandManager().getDispatcher().parse("lp user " + player.getEntityName() + " parent add record_holder", server.getCommandSource()), "lp user " + player.getEntityName() + " parent add record_holder");
-                            Minehop.recordList.add(new DataManager.RecordData(player.getEntityName(), map_name, time));
+                            server.getCommandManager().execute(server.getCommandSource().getDispatcher().parse("lp user " + player.getNameForScoreboard() + " parent add record_holder", server.getCommandSource()), "lp user " + player.getNameForScoreboard() + " parent add record_holder");
+                            Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                             DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
-                            ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getEntityName(), time, ReplayEvents.replayEntryMap.get(player.getEntityName()));
+                            ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getNameForScoreboard(), time, ReplayEvents.replayEntryMap.get(player.getNameForScoreboard()));
                             ReplayManager.saveRecordReplay(player.getServerWorld(), replay);
+                            DiscordIntegration.sendRecordToDiscord(recordMessage);
                         }
                     } else {
-                        String recordMessage = player.getEntityName() + " just claimed the world record on " + map_name + " with a time of " + formattedNumber + "!";
-                        DiscordIntegration.sendRecordToDiscord(recordMessage);
+                        String recordMessage = player.getNameForScoreboard() + " just claimed the world record on " + map_name + " with a time of " + formattedNumber + "!";
                         Logger.logGlobal(server, recordMessage);
-                        server.getCommandManager().execute(server.getCommandManager().getDispatcher().parse("lp user " + player.getEntityName() + " parent add record_holder", server.getCommandSource()), "lp user " + player.getEntityName() + " parent add record_holder");
-                        Minehop.recordList.add(new DataManager.RecordData(player.getEntityName(), map_name, time));
+                        server.getCommandManager().execute(server.getCommandSource().getDispatcher().parse("lp user " + player.getNameForScoreboard() + " parent add record_holder", server.getCommandSource()), "lp user " + player.getNameForScoreboard() + " parent add record_holder");
+                        Minehop.recordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                         DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
-                        ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getEntityName(), time, ReplayEvents.replayEntryMap.get(player.getEntityName()));
+                        ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getNameForScoreboard(), time, ReplayEvents.replayEntryMap.get(player.getNameForScoreboard()));
                         ReplayManager.saveRecordReplay(player.getServerWorld(), replay);
+                        DiscordIntegration.sendRecordToDiscord(recordMessage);
                     }
-                    DataManager.RecordData mapPersonalRecord = DataManager.getPersonalRecord(player.getEntityName(), map_name);
+                    DataManager.RecordData mapPersonalRecord = DataManager.getPersonalRecord(player.getNameForScoreboard(), map_name);
                     if (mapPersonalRecord != null) {
                         if (time < mapPersonalRecord.time) {
                             Logger.logSuccess(player, "You just beat your time (" + String.format("%.5f", mapPersonalRecord.time) + ") on " + mapPersonalRecord.map_name + ", your new record is " + formattedNumber + "!");
                             Minehop.personalRecordList.remove(mapPersonalRecord);
-                            Minehop.personalRecordList.add(new DataManager.RecordData(player.getEntityName(), map_name, time));
+                            Minehop.personalRecordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                             DataManager.savePersonalRecordData(player.getServerWorld(), Minehop.personalRecordList);
                         }
                     } else {
                         Logger.logSuccess(player, "You just claimed a personal record of " + formattedNumber + "!");
-                        Minehop.personalRecordList.add(new DataManager.RecordData(player.getEntityName(), map_name, time));
+                        Minehop.personalRecordList.add(new DataManager.RecordData(player.getNameForScoreboard(), map_name, time));
                         DataManager.savePersonalRecordData(player.getServerWorld(), Minehop.personalRecordList);
                     }
                     Logger.logSuccess(player, "Completed " + map_name + " in " + formattedNumber + " seconds.");
                 } else {
-                    Logger.logServer(server, "Invalid time for " + player.getEntityName() + ".");
+                    Logger.logServer(server, "Invalid time for " + player.getNameForScoreboard() + ".");
                 }
-                Minehop.timerManager.remove(player.getEntityName());
+                Minehop.timerManager.remove(player.getNameForScoreboard());
             }
         }
     }
@@ -190,6 +190,19 @@ public class PacketHandler {
         ServerPlayNetworking.send(player, ModMessages.SEND_RECORDS, buf);
     }
 
+    public static void sendPersonalRecords(ServerPlayerEntity player) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeInt(Minehop.personalRecordList.size());
+
+        for (DataManager.RecordData recordData : Minehop.personalRecordList) {
+            buf.writeString(recordData.map_name);
+            buf.writeString(recordData.name);
+            buf.writeDouble(recordData.time);
+        }
+
+        ServerPlayNetworking.send(player, ModMessages.SEND_PERSONAL_RECORDS, buf);
+    }
 
     public static void sendPower(ServerPlayerEntity player, double x_power, double y_power, double z_power, BlockPos boosterPos) {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
@@ -210,20 +223,20 @@ public class PacketHandler {
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.SEND_TIME, (server, player, handler, buf, responseSender) -> {
             if (!player.isSpectator()) {
                 float time = buf.readFloat();
-                if (player != null && Minehop.timerManager.containsKey(player.getEntityName())) {
-                    HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getEntityName());
+                if (player != null && Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
+                    HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
                     List<String> keyList = timerMap.keySet().stream().toList();
                     String mapName = keyList.get(0);
-                    DataManager.RecordData personalRecordData = DataManager.getPersonalRecord(player.getEntityName(), mapName);
+                    DataManager.RecordData personalRecordData = DataManager.getPersonalRecord(player.getNameForScoreboard(), mapName);
                     double personalRecord = 0;
                     if (personalRecordData != null) {
                         personalRecord = personalRecordData.time;
                     }
                     String formattedNumber = String.format("%.2f", time);
-                    if (SpectateCommands.spectatorList.containsKey(player.getEntityName())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(player.getEntityName());
+                    if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
                         for (String spectatorName : spectators) {
-                            if (!spectatorName.equals(player.getEntityName())) {
+                            if (!spectatorName.equals(player.getNameForScoreboard())) {
                                 ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
                                 if (!spectatorPlayer.isCreative()) {
                                     spectatorPlayer.getInventory().clear();
@@ -247,14 +260,14 @@ public class PacketHandler {
             int jump_count = buf.readInt();
             double last_efficiency = buf.readDouble();
 
-            Minehop.lastEfficiencyMap.put(player.getEntityName(), new ReplayManager.SSJEntry(jump_count, last_jump_speed, last_efficiency));
+            Minehop.lastEfficiencyMap.put(player.getNameForScoreboard(), new ReplayManager.SSJEntry(jump_count, last_jump_speed, last_efficiency));
 
-            if (SpectateCommands.spectatorList.containsKey(player.getEntityName())) {
-                List<String> spectators = SpectateCommands.spectatorList.get(player.getEntityName());
+            if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
+                List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
                 for (String spectator : spectators) {
                     ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectator);
                     if (spectatorPlayer != null) {
-                        if (!spectatorPlayer.getEntityName().equals(player.getEntityName())) {
+                        if (!spectatorPlayer.getNameForScoreboard().equals(player.getNameForScoreboard())) {
                             sendSpecEfficiency(spectatorPlayer, last_jump_speed, jump_count, last_efficiency);
                         }
                     }

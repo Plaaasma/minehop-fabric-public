@@ -34,9 +34,19 @@ public class SelectMapScreen extends Screen {
         this.addSelectableChild(this.textFieldWidget);
 
         this.listWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, 20);
-        for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
+        for (DataManager.RecordData recordData : Minehop.recordList) {
             if (!recordData.map_name.equals("spawn")) {
-                this.listWidget.addEntry(recordData);
+                double avgTime = 0;
+                double recordCount = 0;
+                for (DataManager.RecordData personalRecordData : Minehop.personalRecordList) {
+                    if (personalRecordData.map_name.equals(recordData.map_name)) {
+                        recordCount += 1;
+                        avgTime += personalRecordData.time;
+                    }
+                }
+                recordCount = recordCount == 0 ? 1 : recordCount;
+                avgTime = avgTime / recordCount;
+                this.listWidget.addEntry(recordData, avgTime);
             }
         }
         this.addSelectableChild(this.listWidget);
@@ -51,15 +61,35 @@ public class SelectMapScreen extends Screen {
         if (!fieldText.equals(this.lastFieldText)) {
             MapListWidget newListWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, 20);
             if (!fieldText.equals("")) {
-                for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
+                for (DataManager.RecordData recordData : Minehop.recordList) {
                     if (!recordData.map_name.equals("spawn") && recordData.map_name.contains(fieldText)) {
-                        newListWidget.addEntry(recordData);
+                        double avgTime = 0;
+                        double recordCount = 0;
+                        for (DataManager.RecordData personalRecordData : Minehop.personalRecordList) {
+                            if (personalRecordData.map_name.equals(recordData.map_name)) {
+                                recordCount += 1;
+                                avgTime += personalRecordData.time;
+                            }
+                        }
+                        recordCount = recordCount == 0 ? 1 : recordCount;
+                        avgTime = avgTime / recordCount;
+                        newListWidget.addEntry(recordData, avgTime);
                     }
                 }
             } else {
-                for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
+                for (DataManager.RecordData recordData : Minehop.recordList) {
                     if (!recordData.map_name.equals("spawn")) {
-                        newListWidget.addEntry(recordData);
+                        double avgTime = 0;
+                        double recordCount = 0;
+                        for (DataManager.RecordData personalRecordData : Minehop.personalRecordList) {
+                            if (personalRecordData.map_name.equals(recordData.map_name)) {
+                                recordCount += 1;
+                                avgTime += personalRecordData.time;
+                            }
+                        }
+                        recordCount = recordCount == 0 ? 1 : recordCount;
+                        avgTime = avgTime / recordCount;
+                        newListWidget.addEntry(recordData, avgTime);
                     }
                 }
             }
