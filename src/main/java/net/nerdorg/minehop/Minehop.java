@@ -36,8 +36,8 @@ public class Minehop implements ModInitializer {
 	// That way, it's clear which mod wrote info, warnings, and errors.
     public static final Logger LOGGER = LoggerFactory.getLogger("minehop");
     public static final String MOD_ID = "minehop";
-    public static final int MOD_VERSION = 109;
-    public static final String MOD_VERSION_STRING = "1.0.9";
+    public static final int MOD_VERSION = 1010;
+    public static final String MOD_VERSION_STRING = "1.0.10";
 
 	public static boolean override_config = false;
 	public static double o_sv_friction = 0;
