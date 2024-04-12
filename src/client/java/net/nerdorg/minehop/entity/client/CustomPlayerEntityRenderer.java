@@ -33,14 +33,14 @@ public class CustomPlayerEntityRenderer extends PlayerEntityRenderer {
         switch (model){
 
             case Player -> {
-                return entity.getSkinTexture();
+                return entity.getSkinTextures().texture();
             }
             case Cheater -> {
                 return TEXTURE;
             }
         }
 
-        return entity.getSkinTexture();
+        return entity.getSkinTextures().texture();
     }
 
     public static void setPlayerModel(PlayerModel playerModel, String UUID) {
