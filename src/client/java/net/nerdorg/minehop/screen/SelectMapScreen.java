@@ -28,13 +28,25 @@ public class SelectMapScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        this.textFieldWidget = new TextFieldWidget(this.client.textRenderer,(this.width / 2) - (128 / 2), 16, 128, 14, Text.literal("Map Filter"));
+        this.textFieldWidget = new TextFieldWidget(this.client.textRenderer, 128, 14, Text.literal("Map Filter"));
+        this.textFieldWidget.setX((this.width / 2) - (this.textFieldWidget.getWidth() / 2));
+        this.textFieldWidget.setY(16);
         this.addSelectableChild(this.textFieldWidget);
 
-        this.listWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, this.height, 20);
-        for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
+        this.listWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, 20);
+        for (DataManager.RecordData recordData : Minehop.recordList) {
             if (!recordData.map_name.equals("spawn")) {
-                this.listWidget.addEntry(recordData);
+                double avgTime = 0;
+                double recordCount = 0;
+                for (DataManager.RecordData personalRecordData : Minehop.personalRecordList) {
+                    if (personalRecordData.map_name.equals(recordData.map_name)) {
+                        recordCount += 1;
+                        avgTime += personalRecordData.time;
+                    }
+                }
+                recordCount = recordCount == 0 ? 1 : recordCount;
+                avgTime = avgTime / recordCount;
+                this.listWidget.addEntry(recordData, avgTime);
             }
         }
         this.addSelectableChild(this.listWidget);
@@ -42,36 +54,52 @@ public class SelectMapScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context);
-        if (this.textFieldWidget != null) {
-            this.textFieldWidget.render(context, mouseX, mouseY, delta);
-            String fieldText = this.textFieldWidget.getText();
+        this.renderBackground(context, mouseX, mouseY, delta);
+        this.textFieldWidget.render(context, mouseX, mouseY, delta);
+        String fieldText = this.textFieldWidget.getText();
 
-            if (!fieldText.equals(this.lastFieldText)) {
-                MapListWidget newListWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, this.height, 20);
-                if (!fieldText.equals("")) {
-                    for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
-                        if (!recordData.map_name.equals("spawn") && recordData.map_name.contains(fieldText)) {
-                            newListWidget.addEntry(recordData);
+        if (!fieldText.equals(this.lastFieldText)) {
+            MapListWidget newListWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, 20);
+            if (!fieldText.equals("")) {
+                for (DataManager.RecordData recordData : Minehop.recordList) {
+                    if (!recordData.map_name.equals("spawn") && recordData.map_name.contains(fieldText)) {
+                        double avgTime = 0;
+                        double recordCount = 0;
+                        for (DataManager.RecordData personalRecordData : Minehop.personalRecordList) {
+                            if (personalRecordData.map_name.equals(recordData.map_name)) {
+                                recordCount += 1;
+                                avgTime += personalRecordData.time;
+                            }
                         }
-                    }
-                } else {
-                    for (DataManager.RecordData recordData : MinehopClient.clientRecords) {
-                        if (!recordData.map_name.equals("spawn")) {
-                            newListWidget.addEntry(recordData);
-                        }
+                        recordCount = recordCount == 0 ? 1 : recordCount;
+                        avgTime = avgTime / recordCount;
+                        newListWidget.addEntry(recordData, avgTime);
                     }
                 }
-                this.remove(this.listWidget);
-                this.listWidget = newListWidget;
-                this.addSelectableChild(this.listWidget);
-                this.lastFieldText = fieldText;
+            } else {
+                for (DataManager.RecordData recordData : Minehop.recordList) {
+                    if (!recordData.map_name.equals("spawn")) {
+                        double avgTime = 0;
+                        double recordCount = 0;
+                        for (DataManager.RecordData personalRecordData : Minehop.personalRecordList) {
+                            if (personalRecordData.map_name.equals(recordData.map_name)) {
+                                recordCount += 1;
+                                avgTime += personalRecordData.time;
+                            }
+                        }
+                        recordCount = recordCount == 0 ? 1 : recordCount;
+                        avgTime = avgTime / recordCount;
+                        newListWidget.addEntry(recordData, avgTime);
+                    }
+                }
             }
+            this.remove(this.listWidget);
+            this.listWidget = newListWidget;
+            this.addSelectableChild(this.listWidget);
+            this.lastFieldText = fieldText;
         }
 
-        if (this.listWidget != null) {
-            this.listWidget.render(context, mouseX, mouseY, delta);
-        }
+        this.listWidget.render(context, mouseX, mouseY, delta);
 
         TextRenderer textRenderer = this.client.textRenderer;
         context.drawCenteredTextWithShadow(textRenderer, "Map Selection", this.width / 2, 4, Formatting.WHITE.getColorValue());

@@ -42,7 +42,6 @@ public class MinehopClient implements ClientModInitializer {
 	public static float lastSendTime = 0;
 
 	public static List<String> spectatorList = new ArrayList<>();
-    public static List<DataManager.RecordData> clientRecords = new ArrayList<>();
 
     @Override
 	public void onInitializeClient() {
