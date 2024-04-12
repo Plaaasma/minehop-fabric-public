@@ -22,10 +22,10 @@ public class JoinLeaveManager {
         ServerPlayConnectionEvents.DISCONNECT.register(((networkHandler, server) -> {
             if (networkHandler.player != null) {
                 if (networkHandler.player.getCameraEntity() != null) {
-                    if (SpectateCommands.spectatorList.containsKey(networkHandler.player.getCameraEntity().getEntityName())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(networkHandler.player.getCameraEntity().getEntityName());
-                        if (spectators.contains(networkHandler.player.getEntityName())) {
-                            spectators.remove(networkHandler.player.getEntityName());
+                    if (SpectateCommands.spectatorList.containsKey(networkHandler.player.getCameraEntity().getNameForScoreboard())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(networkHandler.player.getCameraEntity().getNameForScoreboard());
+                        if (spectators.contains(networkHandler.player.getNameForScoreboard())) {
+                            spectators.remove(networkHandler.player.getNameForScoreboard());
                         }
                     }
                 }

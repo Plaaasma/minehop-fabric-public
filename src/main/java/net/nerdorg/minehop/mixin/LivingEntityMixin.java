@@ -117,12 +117,12 @@ public abstract class LivingEntityMixin extends Entity {
         //
         boolean fullGrounded = this.wasOnGround && this.isOnGround(); //Allows for no friction 1-frame upon landing.
         if (fullGrounded) {
-            if (!Minehop.groundedList.contains(this.getEntityName())) {
-                Minehop.groundedList.add(this.getEntityName());
+            if (!Minehop.groundedList.contains(this.getNameForScoreboard())) {
+                Minehop.groundedList.add(this.getNameForScoreboard());
             }
         }
         else {
-            Minehop.groundedList.remove(this.getEntityName());
+            Minehop.groundedList.remove(this.getNameForScoreboard());
         }
         if (fullGrounded) {
             Vec3d velFin = this.getVelocity();
@@ -157,15 +157,15 @@ public abstract class LivingEntityMixin extends Entity {
             fI = fI * yawDifference;
         }
         if (this.isOnGround()) {
-            if (Minehop.efficiencyListMap.containsKey(this.getEntityName())) {
-                List<Double> efficiencyList = Minehop.efficiencyListMap.get(this.getEntityName());
+            if (Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard())) {
+                List<Double> efficiencyList = Minehop.efficiencyListMap.get(this.getNameForScoreboard());
                 if (efficiencyList != null && efficiencyList.size() > 0) {
                     double averageEfficiency = efficiencyList.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
                     Entity localEntity = this.getWorld().getEntityById(this.getId());
                     if (localEntity instanceof PlayerEntity playerEntity) {
-                        Minehop.efficiencyUpdateMap.put(playerEntity.getEntityName(), averageEfficiency);
+                        Minehop.efficiencyUpdateMap.put(playerEntity.getNameForScoreboard(), averageEfficiency);
                     }
-                    Minehop.efficiencyListMap.put(this.getEntityName(), new ArrayList<>());
+                    Minehop.efficiencyListMap.put(this.getNameForScoreboard(), new ArrayList<>());
                 }
             }
         }
@@ -201,10 +201,10 @@ public abstract class LivingEntityMixin extends Entity {
                 double nogainv = Math.sqrt(nogainv2);
                 double maxgainv = Math.sqrt(nogainv2 + (maxVel * maxVel));
                 double strafeEfficiency = MathHelper.clamp((((v - nogainv) / (maxgainv - nogainv)) * 100), 0D, 100D);
-                Minehop.efficiencyMap.put(this.getEntityName(), strafeEfficiency);
-                List<Double> efficiencyList = Minehop.efficiencyListMap.containsKey(this.getEntityName()) ? Minehop.efficiencyListMap.get(this.getEntityName()) : new ArrayList<>();
+                Minehop.efficiencyMap.put(this.getNameForScoreboard(), strafeEfficiency);
+                List<Double> efficiencyList = Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard()) ? Minehop.efficiencyListMap.get(this.getNameForScoreboard()) : new ArrayList<>();
                 efficiencyList.add(strafeEfficiency);
-                Minehop.efficiencyListMap.put(this.getEntityName(), efficiencyList);
+                Minehop.efficiencyListMap.put(this.getNameForScoreboard(), efficiencyList);
             }
 
             this.setVelocity(newVelocity);

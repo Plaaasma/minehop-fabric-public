@@ -18,15 +18,15 @@ public class ReplayEvents {
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(((server) -> {
             for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
-                if (Minehop.timerManager.containsKey(playerEntity.getEntityName())) {
-                    if (replayEntryMap.containsKey(playerEntity.getEntityName())) {
-                        List<ReplayManager.ReplayEntry> replayEntries = replayEntryMap.get(playerEntity.getEntityName());
+                if (Minehop.timerManager.containsKey(playerEntity.getNameForScoreboard())) {
+                    if (replayEntryMap.containsKey(playerEntity.getNameForScoreboard())) {
+                        List<ReplayManager.ReplayEntry> replayEntries = replayEntryMap.get(playerEntity.getNameForScoreboard());
                         double jump_count = 0;
                         double last_jump_speed = 0;
                         double efficiency = 0;
 
-                        if (Minehop.lastEfficiencyMap.containsKey(playerEntity.getEntityName())) {
-                            ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerEntity.getEntityName());
+                        if (Minehop.lastEfficiencyMap.containsKey(playerEntity.getNameForScoreboard())) {
+                            ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerEntity.getNameForScoreboard());
                             jump_count = ssjEntry.jump_count;
                             last_jump_speed = ssjEntry.last_jump_speed;
                             efficiency = ssjEntry.efficiency;
@@ -42,7 +42,7 @@ public class ReplayEvents {
                                 efficiency
                         ));
 
-                        replayEntryMap.put(playerEntity.getEntityName(), replayEntries);
+                        replayEntryMap.put(playerEntity.getNameForScoreboard(), replayEntries);
                     }
                     else {
                         List<ReplayManager.ReplayEntry> replayEntries = new ArrayList<>();
@@ -50,8 +50,8 @@ public class ReplayEvents {
                         double last_jump_speed = 0;
                         double efficiency = 0;
 
-                        if (Minehop.lastEfficiencyMap.containsKey(playerEntity.getEntityName())) {
-                            ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerEntity.getEntityName());
+                        if (Minehop.lastEfficiencyMap.containsKey(playerEntity.getNameForScoreboard())) {
+                            ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerEntity.getNameForScoreboard());
                             jump_count = ssjEntry.jump_count;
                             last_jump_speed = ssjEntry.last_jump_speed;
                             efficiency = ssjEntry.efficiency;
@@ -67,7 +67,7 @@ public class ReplayEvents {
                                 efficiency
                         ));
 
-                        replayEntryMap.put(playerEntity.getEntityName(), replayEntries);
+                        replayEntryMap.put(playerEntity.getNameForScoreboard(), replayEntries);
                     }
                 }
             }

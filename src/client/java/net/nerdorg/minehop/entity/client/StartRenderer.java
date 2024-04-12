@@ -47,7 +47,7 @@ public class StartRenderer extends MobEntityRenderer<StartEntity, StartModel> {
         BlockPos corner2 = startEntity.getCorner2();
         if (corner1 != null && corner2 != null) {
             Box colliderBox = new Box(new Vec3d(corner1.getX(), corner1.getY(), corner1.getZ()), new Vec3d(corner2.getX(), corner2.getY(), corner2.getZ()));
-            if (!client.player.isCreative() && !client.player.isSpectator() && (Minehop.groundedList.contains(client.player.getEntityName()))) {
+            if (!client.player.isCreative() && !client.player.isSpectator() && (Minehop.groundedList.contains(client.player.getNameForScoreboard()))) {
                 if (colliderBox.contains(client.player.getPos())) {
                     MinehopClient.startTime = System.nanoTime();
                     MinehopClient.lastSendTime = 0;

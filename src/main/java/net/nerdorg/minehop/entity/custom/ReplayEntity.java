@@ -113,7 +113,7 @@ public class ReplayEntity extends MobEntity {
     }
 
     @Override
-    public String getEntityName() {
+    public String getNameForScoreboard() {
         return map_name + "_replay";
     }
 
@@ -147,10 +147,10 @@ public class ReplayEntity extends MobEntity {
                     this.setHeadYaw((float) yrot);
                     this.setPitch((float) xrot);
 
-                    if (SpectateCommands.spectatorList.containsKey(this.getEntityName())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(this.getEntityName());
+                    if (SpectateCommands.spectatorList.containsKey(this.getNameForScoreboard())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(this.getNameForScoreboard());
                         for (String spectatorName : spectators) {
-                            if (!spectatorName.equals(this.getEntityName())) {
+                            if (!spectatorName.equals(this.getNameForScoreboard())) {
                                 ServerPlayerEntity spectatorPlayer = this.getServer().getPlayerManager().getPlayer(spectatorName);
                                 if (spectatorPlayer != null) {
                                     if (!spectatorPlayer.isCreative()) {

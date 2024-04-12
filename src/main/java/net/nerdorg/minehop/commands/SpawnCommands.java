@@ -63,10 +63,10 @@ public class SpawnCommands {
                         (float) pairedMap.yrot,
                         (float) pairedMap.xrot
                 );
-                Minehop.timerManager.remove(serverPlayerEntity.getEntityName());
+                Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
                 Logger.logSuccess(serverPlayerEntity, "Teleporting to spawn.");
-                if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getEntityName())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getEntityName());
+                if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
+                    List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
                     for (String spectator : spectators) {
                         ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
                         if (!spectatorPlayer.isCreative()) {

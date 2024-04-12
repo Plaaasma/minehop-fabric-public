@@ -97,7 +97,7 @@ public class InstagibItem extends Item {
     public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
         if (world instanceof ServerWorld serverWorld) {
             ServerPlayerEntity serverPlayerEntity = (ServerPlayerEntity) user;
-            if (!gibDelayList.containsKey(user.getEntityName()) || serverWorld.getServer().getTicks() > gibDelayList.get(user.getEntityName()) + 15) {
+            if (!gibDelayList.containsKey(user.getNameForScoreboard()) || serverWorld.getServer().getTicks() > gibDelayList.get(user.getNameForScoreboard()) + 15) {
                 Vec3d startPos = serverPlayerEntity.getCameraPosVec(1.0F);
 
                 // Direction - based on where the player is looking
@@ -120,7 +120,7 @@ public class InstagibItem extends Item {
                     handleGibParticles(serverWorld, startPos, endPos);
                 }
 
-                gibDelayList.put(user.getEntityName(), serverWorld.getServer().getTicks());
+                gibDelayList.put(user.getNameForScoreboard(), serverWorld.getServer().getTicks());
             }
             return TypedActionResult.consume(user.getStackInHand(hand));
         }
@@ -176,8 +176,8 @@ public class InstagibItem extends Item {
                     Vec3d rotPos = randomCheckpoint.get(1);
                     target.teleport(foundWorld, targetPos.getX(), targetPos.getY(), targetPos.getZ(), PositionFlag.VALUES, (float) rotPos.getY(), (float) rotPos.getX());
                     if (target instanceof ServerPlayerEntity targetPlayerEntity) {
-                        Logger.logSuccess(attacker, "You shot " + targetPlayerEntity.getEntityName() + ".");
-                        Logger.logFailure(targetPlayerEntity, "You were shot by " + attacker.getEntityName() + ".");
+                        Logger.logSuccess(attacker, "You shot " + targetPlayerEntity.getNameForScoreboard() + ".");
+                        Logger.logFailure(targetPlayerEntity, "You were shot by " + attacker.getNameForScoreboard() + ".");
                         targetPlayerEntity.playSound(SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 1f, 1f);
                     }
                 }

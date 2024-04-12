@@ -30,7 +30,7 @@ public class HandshakeHandler {
         }));
 
         ServerPlayConnectionEvents.JOIN.register(((networkHandler, sender, server) -> {
-            waitingForShake.put(networkHandler.player.getEntityName(), server.getTicks());
+            waitingForShake.put(networkHandler.player.getNameForScoreboard(), server.getTicks());
         }));
 
         registerReceivers();
@@ -40,8 +40,8 @@ public class HandshakeHandler {
         ServerPlayNetworking.registerGlobalReceiver(ModMessages.HANDSHAKE_ID, (server, player, handler, buf, responseSender) -> {
             int mod_version = buf.readInt();
             if (mod_version == Minehop.MOD_VERSION) {
-                System.out.println("Validated " + player.getEntityName());
-                waitingForShake.remove(player.getEntityName());
+                System.out.println("Validated " + player.getNameForScoreboard());
+                waitingForShake.remove(player.getNameForScoreboard());
             }
         });
     }
