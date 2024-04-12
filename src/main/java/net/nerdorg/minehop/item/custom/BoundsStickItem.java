@@ -32,7 +32,7 @@ public class BoundsStickItem extends Item {
             }
 
             BlockPos currentPos = context.getBlockPos();
-            String playerName = player.getNameForScoreboard();
+            String playerName = player.getEntityName();
             BlockPos[] positions = playerPositions.getOrDefault(playerName, new BlockPos[2]);
 
             // If first position is not set or both positions are already set, reset to first position

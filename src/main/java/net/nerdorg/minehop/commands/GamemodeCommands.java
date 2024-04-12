@@ -150,7 +150,7 @@ public class GamemodeCommands {
         ServerPlayerEntity serverPlayerEntity = EntityArgumentType.getPlayer(context, "player");
 
         serverPlayerEntity.changeGameMode(GameMode.CREATIVE);
-        Logger.logSuccess(senderEntity, "Setting gamemode to creative for " + serverPlayerEntity.getNameForScoreboard() + ".");
+        Logger.logSuccess(senderEntity, "Setting gamemode to creative for " + serverPlayerEntity.getEntityName() + ".");
     }
 
     private static void handleSpectator(CommandContext<ServerCommandSource> context) {
@@ -165,7 +165,7 @@ public class GamemodeCommands {
         ServerPlayerEntity serverPlayerEntity = EntityArgumentType.getPlayer(context, "player");
 
         serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
-        Logger.logSuccess(senderEntity, "Setting gamemode to spectator for " + serverPlayerEntity.getNameForScoreboard() + ".");
+        Logger.logSuccess(senderEntity, "Setting gamemode to spectator for " + serverPlayerEntity.getEntityName() + ".");
     }
 
     private static void handleSurvival(CommandContext<ServerCommandSource> context) {
@@ -180,7 +180,7 @@ public class GamemodeCommands {
         ServerPlayerEntity serverPlayerEntity = EntityArgumentType.getPlayer(context, "player");
 
         serverPlayerEntity.changeGameMode(GameMode.SURVIVAL);
-        Logger.logSuccess(senderEntity, "Setting gamemode to survival for " + serverPlayerEntity.getNameForScoreboard() + ".");
+        Logger.logSuccess(senderEntity, "Setting gamemode to survival for " + serverPlayerEntity.getEntityName() + ".");
     }
 
     private static void handleAdventure(CommandContext<ServerCommandSource> context) {
@@ -195,6 +195,6 @@ public class GamemodeCommands {
         ServerPlayerEntity serverPlayerEntity = EntityArgumentType.getPlayer(context, "player");
 
         serverPlayerEntity.changeGameMode(GameMode.ADVENTURE);
-        Logger.logSuccess(senderEntity, "Setting gamemode to adventure for " + serverPlayerEntity.getNameForScoreboard() + ".");
+        Logger.logSuccess(senderEntity, "Setting gamemode to adventure for " + serverPlayerEntity.getEntityName() + ".");
     }
 }

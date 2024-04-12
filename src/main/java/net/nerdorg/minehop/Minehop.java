@@ -71,7 +71,6 @@ public class Minehop implements ModInitializer {
 		DataManager.register();
 		JoinLeaveManager.register();
 		MobManager.register();
-		//Bruh
 
 		CommandRegister.register();
 

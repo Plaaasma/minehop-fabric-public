@@ -218,7 +218,7 @@ public class MapUtilCommands {
                     Minehop.mapList.add(currentMapData);
                     DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
                 }
-                Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+                Minehop.timerManager.remove(serverPlayerEntity.getEntityName());
                 ServerWorld foundWorld = null;
                 for (ServerWorld svrWorld : context.getSource().getServer().getWorlds()) {
                     if (svrWorld.getRegistryKey().toString().equals(currentMapData.worldKey)) {
@@ -232,10 +232,10 @@ public class MapUtilCommands {
                             serverPlayerEntity.getInventory().clear();
                         }
                         serverPlayerEntity.teleport(foundWorld, currentMapData.x, currentMapData.y, currentMapData.z, (float) currentMapData.yrot, (float) currentMapData.xrot);
-                        if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                            List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                        if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getEntityName())) {
+                            List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getEntityName());
                             for (String spectator : spectators) {
-                                if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
+                                if (!spectator.equals(serverPlayerEntity.getEntityName())) {
                                     ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
                                     if (!spectatorPlayer.isCreative()) {
                                         spectatorPlayer.getInventory().clear();
@@ -309,10 +309,10 @@ public class MapUtilCommands {
                         serverPlayerEntity.getInventory().clear();
                     }
                     serverPlayerEntity.teleport(foundWorld, targetPos.getX(), targetPos.getY(), targetPos.getZ(), (float) rotPos.getY(), (float) rotPos.getX());
-                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getEntityName())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getEntityName());
                         for (String spectator : spectators) {
-                            if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
+                            if (!spectator.equals(serverPlayerEntity.getEntityName())) {
                                 ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
                                 if (!spectatorPlayer.isCreative()) {
                                     spectatorPlayer.getInventory().clear();

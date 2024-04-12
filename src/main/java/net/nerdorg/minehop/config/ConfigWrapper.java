@@ -22,24 +22,24 @@ public class ConfigWrapper {
             HashMap<String, List<String>> newSpectatorList = new HashMap<>();
             for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
                 if (playerEntity.isSpectator() || playerEntity.isCreative()) {
-                    if (Minehop.timerManager.containsKey(playerEntity.getNameForScoreboard())) {
-                        Minehop.timerManager.remove(playerEntity.getNameForScoreboard());
+                    if (Minehop.timerManager.containsKey(playerEntity.getEntityName())) {
+                        Minehop.timerManager.remove(playerEntity.getEntityName());
                     }
                 }
 
-                if (newSpectatorList.containsKey(playerEntity.getCameraEntity().getNameForScoreboard())) {
-                    List<String> newList = newSpectatorList.get(playerEntity.getCameraEntity().getNameForScoreboard());
-                    newList.add(playerEntity.getNameForScoreboard());
-                    newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), newList);
+                if (newSpectatorList.containsKey(playerEntity.getCameraEntity().getEntityName())) {
+                    List<String> newList = newSpectatorList.get(playerEntity.getCameraEntity().getEntityName());
+                    newList.add(playerEntity.getEntityName());
+                    newSpectatorList.put(playerEntity.getCameraEntity().getEntityName(), newList);
                 }
                 else {
-                    newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), new ArrayList<>(Arrays.asList(playerEntity.getNameForScoreboard())));
+                    newSpectatorList.put(playerEntity.getCameraEntity().getEntityName(), new ArrayList<>(Arrays.asList(playerEntity.getEntityName())));
                 }
 
                 PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
                 if (playerEntity.isOnGround()) {
-                    if (Minehop.efficiencyUpdateMap.containsKey(playerEntity.getNameForScoreboard())) {
-                        PacketHandler.sendEfficiency(playerEntity, Minehop.efficiencyUpdateMap.get(playerEntity.getNameForScoreboard()));
+                    if (Minehop.efficiencyUpdateMap.containsKey(playerEntity.getEntityName())) {
+                        PacketHandler.sendEfficiency(playerEntity, Minehop.efficiencyUpdateMap.get(playerEntity.getEntityName()));
                     } else {
                         PacketHandler.sendEfficiency(playerEntity, 0);
                     }

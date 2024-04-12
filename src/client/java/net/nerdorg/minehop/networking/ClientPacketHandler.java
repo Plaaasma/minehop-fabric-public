@@ -132,12 +132,12 @@ public class ClientPacketHandler {
                     MinehopClient.last_efficiency = efficiency;
                 }
                 else {
-                    if (Minehop.efficiencyListMap.containsKey(client.player.getNameForScoreboard())) {
-                        List<Double> efficiencyList = Minehop.efficiencyListMap.get(client.player.getNameForScoreboard());
+                    if (Minehop.efficiencyListMap.containsKey(client.player.getEntityName())) {
+                        List<Double> efficiencyList = Minehop.efficiencyListMap.get(client.player.getEntityName());
                         if (efficiencyList != null && efficiencyList.size() > 1) {
                             double averageEfficiency = efficiencyList.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
                             MinehopClient.last_efficiency = averageEfficiency;
-                            Minehop.efficiencyListMap.put(client.player.getNameForScoreboard(), new ArrayList<>());
+                            Minehop.efficiencyListMap.put(client.player.getEntityName(), new ArrayList<>());
                         }
                     }
                 }
