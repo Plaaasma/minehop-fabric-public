@@ -52,7 +52,7 @@ public class SelectMapScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context);
+        this.renderBackground(context, mouseX, mouseY, delta);
         this.textFieldWidget.render(context, mouseX, mouseY, delta);
         String fieldText = this.textFieldWidget.getText();
 

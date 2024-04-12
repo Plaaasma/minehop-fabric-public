@@ -24,7 +24,7 @@ import java.util.Optional;
 public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
     public MapListWidget(MinecraftClient client, int width, int height, int top, int itemHeight) {
-        super(client, width, height, top, height + 32, itemHeight);
+        super(client, width, height, top, itemHeight);
     }
 
     public void addEntry(DataManager.RecordData recordData, double avgTime) {
@@ -37,7 +37,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
     }
 
     @Override
-    public void appendNarrations(NarrationMessageBuilder builder) {
+    protected void appendClickableNarrations(NarrationMessageBuilder builder) {
 
     }
 
