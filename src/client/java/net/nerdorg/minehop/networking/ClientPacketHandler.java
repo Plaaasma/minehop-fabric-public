@@ -21,7 +21,6 @@ import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.anticheat.ProcessChecker;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
-import net.nerdorg.minehop.entity.client.CustomPlayerEntityRenderer;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.entity.custom.ResetEntity;

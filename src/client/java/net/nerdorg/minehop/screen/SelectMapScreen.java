@@ -28,9 +28,7 @@ public class SelectMapScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        this.textFieldWidget = new TextFieldWidget(this.client.textRenderer, 128, 14, Text.literal("Map Filter"));
-        this.textFieldWidget.setX((this.width / 2) - (this.textFieldWidget.getWidth() / 2));
-        this.textFieldWidget.setY(16);
+        this.textFieldWidget = new TextFieldWidget(this.client.textRenderer, (this.width / 2) - (128 / 2), 16, 128, 14, Text.literal("Map Filter"));
         this.addSelectableChild(this.textFieldWidget);
 
         this.listWidget = new MapListWidget(this.client, this.width, this.height - 32, 32, 20);
@@ -54,7 +52,7 @@ public class SelectMapScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+        this.renderBackground(context);
         this.textFieldWidget.render(context, mouseX, mouseY, delta);
         String fieldText = this.textFieldWidget.getText();
 
