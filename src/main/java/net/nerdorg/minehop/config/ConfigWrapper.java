@@ -48,7 +48,6 @@ public class ConfigWrapper {
             SpectateCommands.spectatorList = newSpectatorList;
             if (server.getTicks() % 100 == 0) {
                 for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
-                    System.out.println(server.getTicks());
                     if (!playerEntity.isCreative()) {
                         DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
                         if (mapData != null) {
