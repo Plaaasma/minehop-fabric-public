@@ -16,6 +16,7 @@ import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.MobManager;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
+import net.nerdorg.minehop.hns.HNSManager;
 import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.motd.MotdManager;
 import net.nerdorg.minehop.networking.HandshakeHandler;
@@ -46,6 +47,8 @@ public class Minehop implements ModInitializer {
 	public static double o_sv_maxairspeed = 0;
 	public static double o_speed_mul = 0;
 	public static double o_sv_gravity = 0;
+	public static double o_speed_cap = 0;
+	public static boolean o_hns = false;
 
 	public static List<DataManager.MapData> mapList = new ArrayList<>();
 	public static List<DataManager.RecordData> personalRecordList = new ArrayList<>();
@@ -58,6 +61,7 @@ public class Minehop implements ModInitializer {
 	public static HashMap<String, List<Double>> efficiencyListMap = new HashMap<>();
 	public static HashMap<String, ReplayManager.SSJEntry> lastEfficiencyMap = new HashMap<>();
 	public static HashMap<String, Double> efficiencyUpdateMap = new HashMap<>();
+	public static HashMap<String, Double> speedCapMap = new HashMap<>();
 
 	@Override
 	public void onInitialize() {
@@ -71,6 +75,8 @@ public class Minehop implements ModInitializer {
 		DataManager.register();
 		JoinLeaveManager.register();
 		MobManager.register();
+
+		HNSManager.register();
 
 		CommandRegister.register();
 

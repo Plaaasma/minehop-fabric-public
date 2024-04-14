@@ -21,6 +21,8 @@ public class ConfigWrapper {
         ServerTickEvents.END_SERVER_TICK.register((server) -> {
             HashMap<String, List<String>> newSpectatorList = new HashMap<>();
             for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+                DataManager.MapData currentMap = ZoneUtil.getCurrentMap(playerEntity);
+
                 if (playerEntity.isSpectator() || playerEntity.isCreative()) {
                     if (Minehop.timerManager.containsKey(playerEntity.getEntityName())) {
                         Minehop.timerManager.remove(playerEntity.getEntityName());
@@ -36,6 +38,13 @@ public class ConfigWrapper {
                     newSpectatorList.put(playerEntity.getCameraEntity().getEntityName(), new ArrayList<>(Arrays.asList(playerEntity.getEntityName())));
                 }
 
+                if (currentMap != null) {
+                    if (currentMap.hns) {
+                        Minehop.speedCapMap.put(playerEntity.getNameForScoreboard(), 0.5);
+                    } else {
+                        Minehop.speedCapMap.remove(playerEntity.getNameForScoreboard());
+                    }
+                }
                 PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
                 if (playerEntity.isOnGround()) {
                     if (Minehop.efficiencyUpdateMap.containsKey(playerEntity.getEntityName())) {
