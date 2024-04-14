@@ -62,7 +62,7 @@ public abstract class InGameHudMixin {
         if (config.show_current_speed) {
             MinehopClient.squeedometerHud.drawMain(context, tickDelta);
         }
-        MinehopClient.squeedometerHud.drawSSJ(context, config);
+        MinehopClient.squeedometerHud.drawJHUD(context, config);
         if (MinehopClient.spectatorList.size() > 0) {
             MinehopClient.squeedometerHud.drawSpectators(context, tickDelta);
         }

@@ -29,10 +29,12 @@ public class MinehopClient implements ClientModInitializer {
 	public static int jump_count = 0;
 	public static boolean jumping = false;
 	public static double last_jump_speed = 0;
+	public static double start_jump_speed = 0;
 	public static double old_jump_speed = 0;
 	public static long last_jump_time = 0;
 	public static long old_jump_time = 0;
 	public static double last_efficiency;
+	public static boolean wasOnGround = false;
 
 	public static boolean hideSelf = false;
 	public static boolean hideReplay = false;
