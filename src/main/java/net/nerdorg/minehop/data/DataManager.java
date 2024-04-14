@@ -41,6 +41,7 @@ public class DataManager {
         public String worldKey;
         public List<List<Vec3d>> checkpointPositions;
         public boolean arena;
+        public boolean hns;
 
         public MapData() {
         }

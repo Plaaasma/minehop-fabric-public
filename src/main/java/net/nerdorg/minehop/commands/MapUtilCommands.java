@@ -117,6 +117,14 @@ public class MapUtilCommands {
                                 })
                         )
                 )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("hns")
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                .executes(context -> {
+                                    handleToggleHNS(context);
+                                    return Command.SINGLE_SUCCESS;
+                                })
+                        )
+                )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("info")
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("search_name", StringArgumentType.string())
                         .executes(context -> {
@@ -473,6 +481,35 @@ public class MapUtilCommands {
             DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Toggled arena mode to " + toggleData.arena);
+        }
+        else {
+            Logger.logSuccess(serverPlayerEntity, "There is no map called " + name + ".");
+        }
+    }
+
+    private static void handleToggleHNS(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+
+        String name = StringArgumentType.getString(context, "map_name");
+
+        DataManager.MapData toggleData = null;
+
+        for (Object object : Minehop.mapList) {
+            if (object instanceof DataManager.MapData mapData) {
+                if (mapData.name.equals(name)) {
+                    toggleData = mapData;
+                    Minehop.mapList.remove(mapData);
+                    break;
+                }
+            }
+        }
+
+        if (toggleData != null) {
+            toggleData.hns = !toggleData.hns;
+            Minehop.mapList.add(toggleData);
+            DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+
+            Logger.logSuccess(serverPlayerEntity, "Toggled hns mode to " + toggleData.hns);
         }
         else {
             Logger.logSuccess(serverPlayerEntity, "There is no map called " + name + ".");
