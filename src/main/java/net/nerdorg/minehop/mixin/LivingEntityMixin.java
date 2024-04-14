@@ -4,6 +4,7 @@ package net.nerdorg.minehop.mixin;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.*;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
@@ -17,7 +18,10 @@ import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.config.ConfigWrapper;
+import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.hns.HNSManager;
 import net.nerdorg.minehop.util.MovementUtil;
+import net.nerdorg.minehop.util.ZoneUtil;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -51,6 +55,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Shadow public abstract float getHeadYaw();
 
+    @Shadow public int stuckArrowTimer;
     private boolean wasOnGround;
     private long boostTime = 0;
 
@@ -60,7 +65,30 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Inject(method = "isPushable", at = @At("HEAD"), cancellable = true)
     public void isPushable(CallbackInfoReturnable<Boolean> cir) {
-        cir.setReturnValue(false);
+        if (!Minehop.o_hns) {
+            cir.setReturnValue(false);
+        }
+    }
+
+    @Inject(method = "teleport", at = @At("HEAD"))
+    public void onTeleport(double x, double y, double z, boolean particleEffects, CallbackInfoReturnable<Boolean> cir) {
+        HNSManager.taggedMap.remove(this.getNameForScoreboard());
+    }
+
+    @Inject(method = "damage", at = @At("HEAD"), cancellable = true)
+    public void onDamage(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+        Entity sourceEntity = source.getSource();
+        if (sourceEntity != null) {
+            DataManager.MapData mapData = ZoneUtil.getCurrentMap(sourceEntity);
+
+            if (mapData != null && mapData.hns) {
+                if (sourceEntity instanceof PlayerEntity player) {
+                    if (player.getPos().getY() <= this.getPos().getY() - 2) {
+                        cir.cancel();
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -71,6 +99,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     public void travel(Vec3d movementInput, CallbackInfo ci) {
         MinehopConfig config;
+        double speedCap = 1000000;
         if (Minehop.override_config) {
             config = new MinehopConfig();
             config.sv_friction = Minehop.o_sv_friction;
@@ -79,6 +108,7 @@ public abstract class LivingEntityMixin extends Entity {
             config.sv_maxairspeed = Minehop.o_sv_maxairspeed;
             config.speed_mul = Minehop.o_speed_mul;
             config.sv_gravity = Minehop.o_sv_gravity;
+            speedCap = Minehop.o_speed_cap;
         }
         else {
             config = ConfigWrapper.config;
@@ -152,7 +182,7 @@ public abstract class LivingEntityMixin extends Entity {
             yawDifference = yawDifference * -1;
         }
 
-        if (!fullGrounded) {
+        if (!fullGrounded && !this.isClimbing()) {
             sI = sI * yawDifference;
             fI = fI * yawDifference;
         }
@@ -194,6 +224,11 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d accelDir = moveDir.multiply(Math.max(accelVel, 0.0F));
 
             Vec3d newVelocity = accelVec.add(accelDir);
+            Vec3d newHorizontalVelocity = newVelocity;
+
+            if (newHorizontalVelocity.horizontalLength() > speedCap && !fullGrounded) {
+                newHorizontalVelocity = newHorizontalVelocity.normalize().multiply(speedCap);
+            }
 
             if (!this.isOnGround()) {
                 double v = Math.sqrt((newVelocity.x * newVelocity.x) + (newVelocity.z * newVelocity.z));
@@ -207,7 +242,7 @@ public abstract class LivingEntityMixin extends Entity {
                 Minehop.efficiencyListMap.put(this.getEntityName(), efficiencyList);
             }
 
-            this.setVelocity(newVelocity);
+            this.setVelocity(new Vec3d(newHorizontalVelocity.getX(), newVelocity.getY(), newHorizontalVelocity.getZ()));
         }
 
         this.setVelocity(this.applyClimbingSpeed(this.getVelocity()));
