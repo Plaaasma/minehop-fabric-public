@@ -7,6 +7,7 @@
   "item.minehop.instagib_gun": "Instagib Coil",
 
   "key.category.minehop": "Minehop",
+  "key.minehop.restart": "Restart Map",
 
   "text.autoconfig.minehop.title": "Minehop Config",
   "text.autoconfig.minehop.option.show_ssj": "Show SSJ",
