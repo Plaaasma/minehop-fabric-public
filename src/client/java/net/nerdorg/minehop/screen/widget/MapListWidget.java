@@ -27,8 +27,8 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
         super(client, width, height, top, itemHeight);
     }
 
-    public void addEntry(DataManager.RecordData recordData, double avgTime) {
-        this.addEntry(new MapEntry(recordData, avgTime));
+    public void addEntry(DataManager.RecordData recordData, double avgTime, boolean minigame) {
+        this.addEntry(new MapEntry(recordData, avgTime, minigame));
     }
 
     @Override
@@ -47,14 +47,23 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
         private final ButtonWidget mapButtonWidget;
 
-        public MapEntry(DataManager.RecordData recordData, double avgTime) {
+        public MapEntry(DataManager.RecordData recordData, double avgTime, boolean minigame) {
             this.recordData = recordData;
             this.avgTime = avgTime;
 
-            this.mapButtonWidget = ButtonWidget.builder(Text.literal(recordData.map_name), button -> {})
-                    .tooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " Time: " + String.format("%.5f", recordData.time) + " Average Time: " + String.format("%.5f", avgTime)).formatted(Formatting.RED)))
-                    .size(128, 20)
-                    .build();
+            if (!minigame) {
+                this.mapButtonWidget = ButtonWidget.builder(Text.literal(recordData.map_name), button -> {
+                        })
+                        .tooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " Time: " + String.format("%.5f", recordData.time) + " Average Time: " + String.format("%.5f", avgTime)).formatted(Formatting.RED)))
+                        .size(128, 20)
+                        .build();
+            }
+            else {
+                this.mapButtonWidget = ButtonWidget.builder(Text.literal(recordData.map_name), button -> {
+                        })
+                        .size(128, 20)
+                        .build();
+            }
 
             this.mapButtonWidget.visible = true;
         }
