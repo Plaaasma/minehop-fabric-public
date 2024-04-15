@@ -37,22 +37,22 @@ public class HNSManager {
             resetMapHasTaggers();
 
             for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
-                if (!taggedMap.containsKey(playerEntity.getNameForScoreboard())) {
-                    taggedMap.put(playerEntity.getNameForScoreboard(), false);
+                if (!taggedMap.containsKey(playerEntity.getEntityName())) {
+                    taggedMap.put(playerEntity.getEntityName(), false);
                     playerEntity.setGlowing(false);
                 }
                 else {
                     DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
-                    if (taggedMap.get(playerEntity.getNameForScoreboard())) {
+                    if (taggedMap.get(playerEntity.getEntityName())) {
                         if (mapData != null) {
                             if (!mapData.hns) {
-                                taggedMap.put(playerEntity.getNameForScoreboard(), false);
+                                taggedMap.put(playerEntity.getEntityName(), false);
                             }
                         }
                     }
 
                     if (mapData != null) {
-                        boolean isTagged = taggedMap.get(playerEntity.getNameForScoreboard());
+                        boolean isTagged = taggedMap.get(playerEntity.getEntityName());
                         if (isTagged) {
                             mapHasTaggers.put(mapData.name, true);
 
@@ -78,12 +78,12 @@ public class HNSManager {
                         Entity sourceEntity = damageSource.getSource();
                         if (sourceEntity != null) {
                             if (sourceEntity instanceof PlayerEntity sourcePlayer) {
-                                if (!sourcePlayer.isCreative() && !sourcePlayer.isSpectator() && taggedMap.containsKey(sourcePlayer.getNameForScoreboard())) {
-                                    boolean sourceIsTagged = taggedMap.get(sourcePlayer.getNameForScoreboard());
+                                if (!sourcePlayer.isCreative() && !sourcePlayer.isSpectator() && taggedMap.containsKey(sourcePlayer.getEntityName())) {
+                                    boolean sourceIsTagged = taggedMap.get(sourcePlayer.getEntityName());
                                     if (sourceIsTagged) {
-                                        Logger.logFailure(player, "You were tagged by " + sourcePlayer.getNameForScoreboard());
-                                        Logger.logSuccess(sourcePlayer, "You tagged " + player.getNameForScoreboard());
-                                        taggedMap.put(player.getNameForScoreboard(), true);
+                                        Logger.logFailure(player, "You were tagged by " + sourcePlayer.getEntityName());
+                                        Logger.logSuccess(sourcePlayer, "You tagged " + player.getEntityName());
+                                        taggedMap.put(player.getEntityName(), true);
                                     }
                                 }
                             }
@@ -167,7 +167,7 @@ public class HNSManager {
         if (!playersOnMap.isEmpty()) {
             ServerPlayerEntity randomPlayer = playersOnMap.get(random.nextInt(playersOnMap.size()));
             Logger.logFailure(randomPlayer, "You were randomly selected to be tagged because nobody was tagged.");
-            taggedMap.put(randomPlayer.getNameForScoreboard(), true);
+            taggedMap.put(randomPlayer.getEntityName(), true);
         }
     }
 
@@ -179,8 +179,8 @@ public class HNSManager {
             if (mapData != null) {
                 if (mapData.name.equals(mapName)) {
                     players += 1;
-                    if (taggedMap.containsKey(playerEntity.getNameForScoreboard())) {
-                        boolean tagged = taggedMap.get(playerEntity.getNameForScoreboard());
+                    if (taggedMap.containsKey(playerEntity.getEntityName())) {
+                        boolean tagged = taggedMap.get(playerEntity.getEntityName());
                         if (!tagged) {
                             allTagged = false;
                             break;
@@ -203,7 +203,7 @@ public class HNSManager {
             DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
             if (mapData != null) {
                 if (mapData.name.equals(mapName)) {
-                    taggedMap.remove(playerEntity.getNameForScoreboard());
+                    taggedMap.remove(playerEntity.getEntityName());
                 }
             }
         }
@@ -236,13 +236,13 @@ public class HNSManager {
                         Vec3d targetPos = randomCheckpoint.get(0);
                         Vec3d rotPos = randomCheckpoint.get(1);
                         boolean tagged = false;
-                        if (taggedMap.containsKey(playerEntity.getNameForScoreboard())) {
-                            tagged = taggedMap.get(playerEntity.getNameForScoreboard());
+                        if (taggedMap.containsKey(playerEntity.getEntityName())) {
+                            tagged = taggedMap.get(playerEntity.getEntityName());
                         }
                         Logger.logSuccess(playerEntity, "HNS round over, " + (tagged ? "you got tagged :(" : "you survived as a hider!"));
                         playerEntity.teleport(foundWorld, targetPos.getX(), targetPos.getY(), targetPos.getZ(), PositionFlag.VALUES, (float) rotPos.getY(), (float) rotPos.getX());
                     }
-                    taggedMap.remove(playerEntity.getNameForScoreboard());
+                    taggedMap.remove(playerEntity.getEntityName());
                 }
             }
         }

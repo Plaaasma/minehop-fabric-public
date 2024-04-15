@@ -393,14 +393,14 @@ public class MapUtilCommands {
             }
         }
 
-        DataManager.removePersonalRecordsForPlayer(name, serverPlayerEntity.getNameForScoreboard());
+        DataManager.removePersonalRecordsForPlayer(name, serverPlayerEntity.getEntityName());
         DataManager.savePersonalRecordData(context.getSource().getWorld(), Minehop.personalRecordList);
 
-        DataManager.removeRecordsForPlayer(name, serverPlayerEntity.getNameForScoreboard());
+        DataManager.removeRecordsForPlayer(name, serverPlayerEntity.getEntityName());
         DataManager.saveRecordData(context.getSource().getWorld(), Minehop.recordList);
 
         if (invalidateData != null) {
-            Logger.logSuccess(senderEntity, "Invalidated times for player " + serverPlayerEntity.getNameForScoreboard() + " on map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));
+            Logger.logSuccess(senderEntity, "Invalidated times for player " + serverPlayerEntity.getEntityName() + " on map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));
         }
         else {
             Logger.logFailure(senderEntity, "The map " + name + " does not exist.");
