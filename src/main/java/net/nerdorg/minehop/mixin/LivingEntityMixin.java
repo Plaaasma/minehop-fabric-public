@@ -3,13 +3,18 @@
 package net.nerdorg.minehop.mixin;
 
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.entity.*;
 import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.damage.DamageTypes;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -22,8 +27,10 @@ import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.hns.HNSManager;
 import net.nerdorg.minehop.util.MovementUtil;
 import net.nerdorg.minehop.util.ZoneUtil;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -40,7 +47,6 @@ public abstract class LivingEntityMixin extends Entity {
     @Shadow private int jumpingCooldown;
     @Shadow protected boolean jumping;
 
-    @Shadow protected abstract Vec3d applyClimbingSpeed(Vec3d velocity);
     @Shadow protected abstract float getJumpVelocity();
     @Shadow public abstract boolean hasStatusEffect(StatusEffect effect);
     @Shadow public abstract StatusEffectInstance getStatusEffect(StatusEffect effect);
@@ -56,8 +62,17 @@ public abstract class LivingEntityMixin extends Entity {
     @Shadow public abstract float getHeadYaw();
 
     @Shadow public int stuckArrowTimer;
+
+    @Shadow public abstract boolean isHoldingOntoLadder();
+
+    @Shadow protected float field_6215;
+
+    @Shadow protected abstract boolean shouldSwimInFluids();
+
+    @Shadow @Final public static int field_30063;
     private boolean wasOnGround;
     private long boostTime = 0;
+    private long ladderReleaseTime = 0;
 
     public LivingEntityMixin(EntityType<?> type, World world) {
         super(type, world);
@@ -77,14 +92,19 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Inject(method = "damage", at = @At("HEAD"), cancellable = true)
     public void onDamage(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
-        Entity sourceEntity = source.getSource();
-        if (sourceEntity != null) {
-            DataManager.MapData mapData = ZoneUtil.getCurrentMap(sourceEntity);
+        if (source.isOf(DamageTypes.FALL)) {
+            cir.cancel();
+        }
+        else {
+            Entity sourceEntity = source.getSource();
+            if (sourceEntity != null) {
+                DataManager.MapData mapData = ZoneUtil.getCurrentMap(sourceEntity);
 
-            if (mapData != null && mapData.hns) {
-                if (sourceEntity instanceof PlayerEntity player) {
-                    if (player.getPos().getY() <= this.getPos().getY() - 2) {
-                        cir.cancel();
+                if (mapData != null && mapData.hns) {
+                    if (sourceEntity instanceof PlayerEntity player) {
+                        if (player.getPos().getY() <= this.getPos().getY() - 2) {
+                            cir.cancel();
+                        }
                     }
                 }
             }
@@ -215,7 +235,7 @@ public abstract class LivingEntityMixin extends Entity {
 
                 double angleBetween = Math.acos(accelVec.normalize().dotProduct(moveDir.normalize()));
 
-                maxVel *= (angleBetween * angleBetween * angleBetween);
+                maxVel *= (float) (angleBetween * angleBetween * angleBetween);
             }
 
             if (projVel + accelVel > maxVel) {
@@ -245,15 +265,57 @@ public abstract class LivingEntityMixin extends Entity {
             this.setVelocity(new Vec3d(newHorizontalVelocity.getX(), newVelocity.getY(), newHorizontalVelocity.getZ()));
         }
 
-        this.setVelocity(this.applyClimbingSpeed(this.getVelocity()));
+        double ladderYaw = 0;
+        BlockState blockState = this.getBlockStateAtPos();
+        if (blockState.isIn(BlockTags.CLIMBABLE)) {
+            ladderYaw = normalizeAngle(blockState.get(HorizontalFacingBlock.FACING).asRotation() + 180);
+        }
+
+        this.setVelocity(applyClimbingSpeed(this.getVelocity(), fI, sI, ladderYaw));
         this.move(MovementType.SELF, this.getVelocity());
 
         //u8
         //Ladder Logic
         //
         Vec3d preVel = this.getVelocity();
-        if ((this.horizontalCollision || this.jumping) && this.isClimbing()) {
-            preVel = new Vec3d(preVel.x * 0.7D, 0.2D, preVel.z * 0.7D);
+        if (this.isClimbing()) {
+            if (jumping) {
+                if (this.getWorld().getTime() < ladderReleaseTime || this.getWorld().getTime() > ladderReleaseTime + 4) {
+                    Vec3d jumpDir = MovementUtil.movementInputToVelocity(new Vec3d(0.0F, 0.0F, -1.0F), 1.0F, (float) ladderYaw);
+
+                    Vec3d accelDir = jumpDir.multiply(0.25);
+
+                    preVel = preVel.add(accelDir);
+
+                    ladderReleaseTime = this.getWorld().getTime();
+                }
+            }
+            else {
+                double ladderfI;
+                double entityYaw = normalizeAngle(this.getYaw());
+                double yawDif = normalizeAngle(entityYaw - ladderYaw);
+                if (yawDif < -45 && yawDif > -135) {
+                    ladderfI = -sI;
+                }
+                else if (yawDif < -135 || yawDif > 135) {
+                    ladderfI = -fI;
+                }
+                else if (yawDif < 135 && yawDif > 45) {
+                    ladderfI = sI;
+                }
+                else {
+                    ladderfI = fI;
+                }
+
+                if (ladderfI > 0.4) {
+                    ladderfI = 0.4;
+                }
+                else if (ladderfI < -0.35) {
+                    ladderfI = -0.35;
+                }
+
+                preVel = new Vec3d(preVel.x * 0.7F, ladderfI, preVel.z * 0.7F);
+            }
         }
 
         //
@@ -292,6 +354,59 @@ public abstract class LivingEntityMixin extends Entity {
 
         //Override original method.
         ci.cancel();
+    }
+
+    private static double normalizeAngle(double angle) {
+        angle = angle % 360;          // Bring the angle within [-359,359]
+        if (angle > 180) {
+            angle -= 360;             // Adjust if the angle is greater than 180
+        } else if (angle <= -180) {
+            angle += 360;             // Adjust if the angle is less than -180
+        }
+        return angle;
+    }
+
+    @Unique
+    private Vec3d applyClimbingSpeed(Vec3d motion, double fI, double sI, double ladderYaw) {
+        if (this.isClimbing() && !this.jumping) {
+            this.onLanding();
+            double d = 0;
+            if (!(ladderYaw == 90 || ladderYaw == -90)) {
+                 d = MathHelper.clamp(motion.x, -0.25000000596046448, 0.25000000596046448);
+            }
+            double e = 0;
+            if (!(ladderYaw == 180 || ladderYaw == -180 || ladderYaw == 0)) {
+                e = MathHelper.clamp(motion.z, -0.25000000596046448, 0.25000000596046448);
+            }
+            double g = motion.y;
+            if (g < 0.0 && this.getWorld().getEntityById(this.getId()) instanceof PlayerEntity && fI == 0 && sI == 0) {
+                g = 0.0;
+            }
+
+            motion = new Vec3d(d, g, e);
+        }
+        else if (this.isClimbing() && this.jumping) {
+            this.onLanding();
+            double d = motion.x;
+            if (ladderYaw == 90) {
+                d = MathHelper.clamp(motion.x, 0, 1000000);
+            }
+            else if (ladderYaw == -90) {
+                d = MathHelper.clamp(motion.x, -1000000, 0);
+            }
+            double e = motion.z;
+            if (ladderYaw == 180 || ladderYaw == -180) {
+                e = MathHelper.clamp(motion.z, 0, 1000000);
+            }
+            else if (ladderYaw == 0) {
+                e = MathHelper.clamp(motion.z, -1000000, 0);
+            }
+            double g = motion.y;
+
+            motion = new Vec3d(d, g, e);
+        }
+
+        return motion;
     }
 
     @Inject(method = "jump", at = @At("HEAD"), cancellable = true)
