@@ -87,7 +87,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Inject(method = "teleport", at = @At("HEAD"))
     public void onTeleport(double x, double y, double z, boolean particleEffects, CallbackInfoReturnable<Boolean> cir) {
-        HNSManager.taggedMap.remove(this.getNameForScoreboard());
+        HNSManager.taggedMap.remove(this.getEntityName());
     }
 
     @Inject(method = "damage", at = @At("HEAD"), cancellable = true)

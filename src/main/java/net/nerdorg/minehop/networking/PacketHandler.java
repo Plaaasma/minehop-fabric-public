@@ -36,7 +36,7 @@ public class PacketHandler {
         buf.writeDouble(config.sv_maxairspeed);
         buf.writeDouble(config.speed_mul);
         buf.writeDouble(config.sv_gravity);
-        buf.writeDouble(Minehop.speedCapMap.containsKey(player.getNameForScoreboard()) ? Minehop.speedCapMap.get(player.getNameForScoreboard()) : 1000000);
+        buf.writeDouble(Minehop.speedCapMap.containsKey(player.getEntityName()) ? Minehop.speedCapMap.get(player.getEntityName()) : 1000000);
         DataManager.MapData currentMap = ZoneUtil.getCurrentMap(player);
         buf.writeBoolean(currentMap != null && currentMap.hns);
 

@@ -40,9 +40,9 @@ public class ConfigWrapper {
 
                 if (currentMap != null) {
                     if (currentMap.hns) {
-                        Minehop.speedCapMap.put(playerEntity.getNameForScoreboard(), 0.6);
+                        Minehop.speedCapMap.put(playerEntity.getEntityName(), 0.6);
                     } else {
-                        Minehop.speedCapMap.remove(playerEntity.getNameForScoreboard());
+                        Minehop.speedCapMap.remove(playerEntity.getEntityName());
                     }
                 }
                 PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
