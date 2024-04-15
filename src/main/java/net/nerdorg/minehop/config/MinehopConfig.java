@@ -9,6 +9,7 @@ public class MinehopConfig implements ConfigData {
     public boolean show_efficiency = true;
     public boolean show_current_speed = true;
     public boolean show_prespeed = true;
+    public boolean nulls = true;
     public double sv_friction = 0.35;
     public double sv_accelerate = 0.1;
     public double sv_airaccelerate = 1.0E99;
