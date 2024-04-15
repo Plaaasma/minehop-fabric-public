@@ -45,11 +45,11 @@ public class SelectMapScreen extends Screen {
                     bhop_tab = true;
                     arena_tab = false;
                     this.hnsButtonWidget.active = true;
-                    this.hnsListWidget.active = false;
                     this.bhopButtonWidget.active = false;
-                    this.bhopListWidget.active = true;
                     this.arenaButtonWidget.active = true;
-                    this.arenaListWidget.active = false;
+                    this.addSelectableChild(this.bhopListWidget);
+                    this.remove(this.hnsListWidget);
+                    this.remove(this.arenaListWidget);
                 })
                 .size(48, 12)
                 .build();
@@ -63,11 +63,11 @@ public class SelectMapScreen extends Screen {
                     bhop_tab = false;
                     arena_tab = true;
                     this.hnsButtonWidget.active = true;
-                    this.hnsListWidget.active = false;
                     this.bhopButtonWidget.active = true;
-                    this.bhopListWidget.active = false;
                     this.arenaButtonWidget.active = false;
-                    this.arenaListWidget.active = true;
+                    this.addSelectableChild(this.arenaListWidget);
+                    this.remove(this.hnsListWidget);
+                    this.remove(this.bhopListWidget);
                 })
                 .size(48, 12)
                 .build();
@@ -81,11 +81,11 @@ public class SelectMapScreen extends Screen {
                     bhop_tab = false;
                     arena_tab = false;
                     this.hnsButtonWidget.active = false;
-                    this.hnsListWidget.active = true;
                     this.bhopButtonWidget.active = true;
-                    this.bhopListWidget.active = false;
                     this.arenaButtonWidget.active = true;
-                    this.arenaListWidget.active = false;
+                    this.addSelectableChild(this.hnsListWidget);
+                    this.remove(this.arenaListWidget);
+                    this.remove(this.bhopListWidget);
                 })
                 .size(48, 12)
                 .build();
@@ -129,13 +129,7 @@ public class SelectMapScreen extends Screen {
             }
         }
 
-        this.bhopListWidget.active = false;
-        this.arenaListWidget.active = false;
-        this.hnsListWidget.active = false;
-
         this.addSelectableChild(this.bhopListWidget);
-        this.addSelectableChild(this.arenaListWidget);
-        this.addSelectableChild(this.hnsListWidget);
     }
 
     @Override
