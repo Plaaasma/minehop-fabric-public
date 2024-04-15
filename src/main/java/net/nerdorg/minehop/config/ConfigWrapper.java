@@ -24,31 +24,32 @@ public class ConfigWrapper {
                 DataManager.MapData currentMap = ZoneUtil.getCurrentMap(playerEntity);
 
                 if (playerEntity.isSpectator() || playerEntity.isCreative()) {
-                    if (Minehop.timerManager.containsKey(playerEntity.getEntityName())) {
-                        Minehop.timerManager.remove(playerEntity.getEntityName());
+                    if (Minehop.timerManager.containsKey(playerEntity.getNameForScoreboard())) {
+                        Minehop.timerManager.remove(playerEntity.getNameForScoreboard());
                     }
                 }
 
-                if (newSpectatorList.containsKey(playerEntity.getCameraEntity().getEntityName())) {
-                    List<String> newList = newSpectatorList.get(playerEntity.getCameraEntity().getEntityName());
-                    newList.add(playerEntity.getEntityName());
-                    newSpectatorList.put(playerEntity.getCameraEntity().getEntityName(), newList);
+                if (newSpectatorList.containsKey(playerEntity.getCameraEntity().getNameForScoreboard())) {
+                    List<String> newList = newSpectatorList.get(playerEntity.getCameraEntity().getNameForScoreboard());
+                    newList.add(playerEntity.getNameForScoreboard());
+                    newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), newList);
                 }
                 else {
-                    newSpectatorList.put(playerEntity.getCameraEntity().getEntityName(), new ArrayList<>(Arrays.asList(playerEntity.getEntityName())));
+                    newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), new ArrayList<>(Arrays.asList(playerEntity.getNameForScoreboard())));
                 }
 
                 if (currentMap != null) {
                     if (currentMap.hns) {
-                        Minehop.speedCapMap.put(playerEntity.getEntityName(), 0.6);
+                        Minehop.speedCapMap.put(playerEntity.getNameForScoreboard(), 0.6);
                     } else {
-                        Minehop.speedCapMap.remove(playerEntity.getEntityName());
+                        playerEntity.setGlowing(false);
+                        Minehop.speedCapMap.remove(playerEntity.getNameForScoreboard());
                     }
                 }
                 PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
                 if (playerEntity.isOnGround()) {
-                    if (Minehop.efficiencyUpdateMap.containsKey(playerEntity.getEntityName())) {
-                        PacketHandler.sendEfficiency(playerEntity, Minehop.efficiencyUpdateMap.get(playerEntity.getEntityName()));
+                    if (Minehop.efficiencyUpdateMap.containsKey(playerEntity.getNameForScoreboard())) {
+                        PacketHandler.sendEfficiency(playerEntity, Minehop.efficiencyUpdateMap.get(playerEntity.getNameForScoreboard()));
                     } else {
                         PacketHandler.sendEfficiency(playerEntity, 0);
                     }
