@@ -166,7 +166,7 @@ public class HNSManager {
         }
         if (!playersOnMap.isEmpty()) {
             ServerPlayerEntity randomPlayer = playersOnMap.get(random.nextInt(playersOnMap.size()));
-            Logger.logFailure(randomPlayer, "You were randomly seleceted to be tagged because nobody was tagged.");
+            Logger.logFailure(randomPlayer, "You were randomly selected to be tagged because nobody was tagged.");
             taggedMap.put(randomPlayer.getNameForScoreboard(), true);
         }
     }
@@ -214,7 +214,6 @@ public class HNSManager {
             DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
             if (mapData != null) {
                 if (mapData.name.equals(mapName)) {
-                    taggedMap.remove(playerEntity.getNameForScoreboard());
                     ServerWorld foundWorld = null;
                     for (ServerWorld serverWorld : server.getWorlds()) {
                         if (serverWorld.getRegistryKey().toString().equals(mapData.worldKey)) {
@@ -243,6 +242,7 @@ public class HNSManager {
                         Logger.logSuccess(playerEntity, "HNS round over, " + (tagged ? "you got tagged :(" : "you survived as a hider!"));
                         playerEntity.teleport(foundWorld, targetPos.getX(), targetPos.getY(), targetPos.getZ(), PositionFlag.VALUES, (float) rotPos.getY(), (float) rotPos.getX());
                     }
+                    taggedMap.remove(playerEntity.getNameForScoreboard());
                 }
             }
         }

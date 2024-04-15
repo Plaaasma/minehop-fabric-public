@@ -42,6 +42,7 @@ public class ConfigWrapper {
                     if (currentMap.hns) {
                         Minehop.speedCapMap.put(playerEntity.getNameForScoreboard(), 0.6);
                     } else {
+                        playerEntity.setGlowing(false);
                         Minehop.speedCapMap.remove(playerEntity.getNameForScoreboard());
                     }
                 }
