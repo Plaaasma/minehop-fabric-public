@@ -55,6 +55,18 @@ public class DataManager {
             this.yrot = yrot;
             this.worldKey = worldKey;
         }
+
+        public MapData(String name, double x, double y, double z, double xrot, double yrot, String worldKey, boolean arena, boolean hns) {
+            this.name = name;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.xrot = xrot;
+            this.yrot = yrot;
+            this.worldKey = worldKey;
+            this.arena = arena;
+            this.hns = hns;
+        }
     }
 
     public static class RecordData {

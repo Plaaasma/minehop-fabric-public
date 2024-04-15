@@ -17,6 +17,7 @@ public class ModMessages {
     public static final Identifier SERVER_SPEC_EFFICIENCY = new Identifier(Minehop.MOD_ID, "server_spec_efficiency");
     public static final Identifier OPEN_MAP_SCREEN = new Identifier(Minehop.MOD_ID, "open_map_screen");
     public static final Identifier SEND_RECORDS = new Identifier(Minehop.MOD_ID, "send_records");
+    public static final Identifier SEND_MAPS = new Identifier(Minehop.MOD_ID, "send_maps");
     public static final Identifier SEND_PERSONAL_RECORDS = new Identifier(Minehop.MOD_ID, "send_personal_records");
     public static final Identifier UPDATE_POWER = new Identifier(Minehop.MOD_ID, "update_power");
     public static final Identifier HANDSHAKE_ID = new Identifier(Minehop.MOD_ID, "handshake_id");

@@ -173,6 +173,26 @@ public class PacketHandler {
         ServerPlayNetworking.send(player, ModMessages.OPEN_MAP_SCREEN, buf);
     }
 
+    public static void sendMaps(ServerPlayerEntity player) {
+        PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
+
+        buf.writeInt(Minehop.mapList.size());
+
+        for (DataManager.MapData mapData : Minehop.mapList) {
+            buf.writeString(mapData.name);
+            buf.writeDouble(mapData.x);
+            buf.writeDouble(mapData.y);
+            buf.writeDouble(mapData.z);
+            buf.writeDouble(mapData.xrot);
+            buf.writeDouble(mapData.yrot);
+            buf.writeString(mapData.worldKey);
+            buf.writeBoolean(mapData.arena);
+            buf.writeBoolean(mapData.hns);
+        }
+
+        ServerPlayNetworking.send(player, ModMessages.SEND_MAPS, buf);
+    }
+
     public static void sendRecords(ServerPlayerEntity player) {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
 
