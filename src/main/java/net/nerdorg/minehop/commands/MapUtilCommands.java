@@ -7,7 +7,10 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.command.EntitySelector;
+import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.entity.Entity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -91,6 +94,16 @@ public class MapUtilCommands {
                             handleInvalidate(context);
                             return Command.SINGLE_SUCCESS;
                         })
+                    )
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("invalidate_player")
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, EntitySelector>argument("player", EntityArgumentType.player())
+                            .executes(context -> {
+                                handleInvalidatePlayer(context);
+                                return Command.SINGLE_SUCCESS;
+                            })
+                        )
                     )
                 )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("remove")
@@ -361,6 +374,37 @@ public class MapUtilCommands {
         Logger.logSuccess(serverPlayerEntity, "Created map \\/\n" + StringFormatting.limitDecimals(gson.toJson(mapData)));
 
 
+    }
+
+    private static void handleInvalidatePlayer(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
+        ServerPlayerEntity serverPlayerEntity = EntityArgumentType.getPlayer(context, "player");
+
+        String name = StringArgumentType.getString(context, "map_name");
+
+        DataManager.MapData invalidateData = null;
+
+        for (Object object : Minehop.mapList) {
+            if (object instanceof DataManager.MapData mapData) {
+                if (mapData.name.equals(name)) {
+                    invalidateData = mapData;
+                    break;
+                }
+            }
+        }
+
+        DataManager.removePersonalRecordsForPlayer(name, serverPlayerEntity.getNameForScoreboard());
+        DataManager.savePersonalRecordData(context.getSource().getWorld(), Minehop.personalRecordList);
+
+        DataManager.removeRecordsForPlayer(name, serverPlayerEntity.getNameForScoreboard());
+        DataManager.saveRecordData(context.getSource().getWorld(), Minehop.recordList);
+
+        if (invalidateData != null) {
+            Logger.logSuccess(senderEntity, "Invalidated times for player " + serverPlayerEntity.getNameForScoreboard() + " on map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));
+        }
+        else {
+            Logger.logFailure(senderEntity, "The map " + name + " does not exist.");
+        }
     }
 
     private static void handleInvalidate(CommandContext<ServerCommandSource> context) {
