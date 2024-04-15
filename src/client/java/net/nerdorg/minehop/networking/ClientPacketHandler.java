@@ -190,6 +190,30 @@ public class ClientPacketHandler {
                 Minehop.recordList = newRecordList;
             });
         });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModMessages.SEND_MAPS, (client, handler, buf, responseSender) -> {
+
+            List<DataManager.MapData> newMapList = new ArrayList<>();
+            int recordCount = buf.readInt();
+
+            for (int i = 0; i < recordCount; i++) {
+                String name = buf.readString();
+                double x = buf.readDouble();
+                double y = buf.readDouble();
+                double z = buf.readDouble();
+                double xrot = buf.readDouble();
+                double yrot = buf.readDouble();
+                String worldKey = buf.readString();
+                boolean arena = buf.readBoolean();
+                boolean hns = buf.readBoolean();
+                newMapList.add(new DataManager.MapData(name, x, y, z, xrot, yrot, worldKey, arena, hns));
+            }
+
+            client.execute(() -> {
+                Minehop.mapList = newMapList;
+            });
+        });
+
         ClientPlayNetworking.registerGlobalReceiver(ModMessages.SEND_PERSONAL_RECORDS, (client, handler, buf, responseSender) -> {
 
             List<DataManager.RecordData> newRecordList = new ArrayList<>();
