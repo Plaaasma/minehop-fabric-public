@@ -73,6 +73,45 @@ public class DataManager {
         }
     }
 
+    public static RecordData removePersonalRecordsForPlayer(String mapName, String playerName) {
+        if (Minehop.personalRecordList != null) {
+            for (RecordData recordData : Minehop.personalRecordList) {
+                if (recordData.map_name.equals(mapName) && recordData.name.equals(playerName)) {
+                    Minehop.personalRecordList.remove(recordData);
+                    return recordData;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static RecordData removeRecordsForPlayer(String mapName, String playerName) {
+        if (Minehop.recordList != null) {
+            for (RecordData recordData : Minehop.recordList) {
+                if (recordData.map_name.equals(mapName) && recordData.name.equals(playerName)) {
+                    Minehop.recordList.remove(recordData);
+                    double lowestTime = Double.MAX_VALUE;
+                    RecordData recordToAdd = null;
+                    for (RecordData newRecordData : Minehop.recordList) {
+                        if (newRecordData.map_name.equals(mapName)) {
+                            if (newRecordData.time < lowestTime) {
+                                lowestTime = newRecordData.time;
+                                recordToAdd = newRecordData;
+                            }
+                        }
+                    }
+                    if (recordToAdd != null) {
+                        Minehop.recordList.add(recordToAdd);
+                    }
+                    return recordData;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public static RecordData removePersonalRecords(String mapName) {
         if (Minehop.personalRecordList != null) {
             for (RecordData recordData : Minehop.personalRecordList) {
