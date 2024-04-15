@@ -71,6 +71,7 @@ public class ConfigWrapper {
                     }
                     PacketHandler.sendSpectators(playerEntity);
                     PacketHandler.sendRecords(playerEntity);
+                    PacketHandler.sendMaps(playerEntity);
                     PacketHandler.sendPersonalRecords(playerEntity);
                 }
             }
