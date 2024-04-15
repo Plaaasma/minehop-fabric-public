@@ -246,8 +246,11 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d newVelocity = accelVec.add(accelDir);
             Vec3d newHorizontalVelocity = newVelocity;
 
-            if (newHorizontalVelocity.horizontalLength() > speedCap && !fullGrounded) {
-                newHorizontalVelocity = newHorizontalVelocity.normalize().multiply(speedCap);
+            double currentHorizontalSpeed = newHorizontalVelocity.horizontalLength();
+
+            if (currentHorizontalSpeed > speedCap && !fullGrounded) {
+                // Scale down the horizontal velocity to the speedCap
+                newHorizontalVelocity = newHorizontalVelocity.multiply(speedCap / currentHorizontalSpeed);
             }
 
             if (!this.isOnGround()) {
