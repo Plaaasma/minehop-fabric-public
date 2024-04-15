@@ -102,7 +102,7 @@ public abstract class LivingEntityMixin extends Entity {
 
                 if (mapData != null && mapData.hns) {
                     if (sourceEntity instanceof PlayerEntity player) {
-                        if (player.getEyePos().distanceTo(this.getEyePos()) > 2) {
+                        if (player.getEyePos().distanceTo(this.getEyePos()) > 3.5 && player.getEyePos().distanceTo(this.getPos()) > 3.5) {
                             cir.cancel();
                         }
                         if (player.getEyePos().getY() <= this.getPos().getY() - 1) {
