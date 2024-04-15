@@ -372,11 +372,11 @@ public abstract class LivingEntityMixin extends Entity {
             this.onLanding();
             double d = 0;
             if (!(ladderYaw == 90 || ladderYaw == -90)) {
-                 d = MathHelper.clamp(motion.x, -0.25000000596046448, 0.25000000596046448);
+                 d = MathHelper.clamp(motion.x, -0.35000000596046448, 0.35000000596046448);
             }
             double e = 0;
             if (!(ladderYaw == 180 || ladderYaw == -180 || ladderYaw == 0)) {
-                e = MathHelper.clamp(motion.z, -0.25000000596046448, 0.25000000596046448);
+                e = MathHelper.clamp(motion.z, -0.35000000596046448, 0.35000000596046448);
             }
             double g = motion.y;
             if (g < 0.0 && this.getWorld().getEntityById(this.getId()) instanceof PlayerEntity && fI == 0 && sI == 0) {
