@@ -268,7 +268,9 @@ public abstract class LivingEntityMixin extends Entity {
         double ladderYaw = 0;
         BlockState blockState = this.getBlockStateAtPos();
         if (blockState.isIn(BlockTags.CLIMBABLE)) {
-            ladderYaw = normalizeAngle(blockState.get(HorizontalFacingBlock.FACING).asRotation() + 180);
+            if (blockState.isOf(Blocks.LADDER)) {
+                ladderYaw = normalizeAngle(blockState.get(HorizontalFacingBlock.FACING).asRotation() + 180);
+            }
         }
 
         this.setVelocity(applyClimbingSpeed(this.getVelocity(), fI, sI, ladderYaw));
