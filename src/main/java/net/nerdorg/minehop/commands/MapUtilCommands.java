@@ -32,6 +32,7 @@ import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.StringFormatting;
 import net.nerdorg.minehop.util.ZoneUtil;
 
+import javax.xml.crypto.Data;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -98,7 +99,7 @@ public class MapUtilCommands {
                 )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("invalidate_player")
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, EntitySelector>argument("player", EntityArgumentType.player())
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player_name", StringArgumentType.string())
                             .executes(context -> {
                                 handleInvalidatePlayer(context);
                                 return Command.SINGLE_SUCCESS;
@@ -376,9 +377,9 @@ public class MapUtilCommands {
 
     }
 
-    private static void handleInvalidatePlayer(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+    private static void handleInvalidatePlayer(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity senderEntity = context.getSource().getPlayer();
-        ServerPlayerEntity serverPlayerEntity = EntityArgumentType.getPlayer(context, "player");
+        String playerName = StringArgumentType.getString(context, "player_name");
 
         String name = StringArgumentType.getString(context, "map_name");
 
@@ -393,14 +394,18 @@ public class MapUtilCommands {
             }
         }
 
-        DataManager.removePersonalRecordsForPlayer(name, serverPlayerEntity.getNameForScoreboard());
-        DataManager.savePersonalRecordData(context.getSource().getWorld(), Minehop.personalRecordList);
-
-        DataManager.removeRecordsForPlayer(name, serverPlayerEntity.getNameForScoreboard());
-        DataManager.saveRecordData(context.getSource().getWorld(), Minehop.recordList);
-
         if (invalidateData != null) {
-            Logger.logSuccess(senderEntity, "Invalidated times for player " + serverPlayerEntity.getNameForScoreboard() + " on map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));
+            if (DataManager.getPersonalRecord(playerName, invalidateData.name) != null) {
+                DataManager.removePersonalRecordsForPlayer(name, playerName);
+                DataManager.savePersonalRecordData(context.getSource().getWorld(), Minehop.personalRecordList);
+
+                DataManager.removeRecordsForPlayer(name, playerName);
+                DataManager.saveRecordData(context.getSource().getWorld(), Minehop.recordList);
+                Logger.logSuccess(senderEntity, "Invalidated times for player " + playerName + " on map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));
+            }
+            else {
+                Logger.logFailure(senderEntity, playerName + " does not have a time on " + invalidateData.name);
+            }
         }
         else {
             Logger.logFailure(senderEntity, "The map " + name + " does not exist.");
