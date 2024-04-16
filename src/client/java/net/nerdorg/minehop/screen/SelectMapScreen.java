@@ -47,6 +47,9 @@ public class SelectMapScreen extends Screen {
                     this.hnsButtonWidget.active = true;
                     this.bhopButtonWidget.active = false;
                     this.arenaButtonWidget.active = true;
+                    this.addSelectableChild(this.bhopListWidget);
+                    this.remove(this.hnsListWidget);
+                    this.remove(this.arenaListWidget);
                 })
                 .size(48, 12)
                 .build();
@@ -62,6 +65,9 @@ public class SelectMapScreen extends Screen {
                     this.hnsButtonWidget.active = true;
                     this.bhopButtonWidget.active = true;
                     this.arenaButtonWidget.active = false;
+                    this.addSelectableChild(this.arenaListWidget);
+                    this.remove(this.hnsListWidget);
+                    this.remove(this.bhopListWidget);
                 })
                 .size(48, 12)
                 .build();
@@ -77,6 +83,9 @@ public class SelectMapScreen extends Screen {
                     this.hnsButtonWidget.active = false;
                     this.bhopButtonWidget.active = true;
                     this.arenaButtonWidget.active = true;
+                    this.addSelectableChild(this.hnsListWidget);
+                    this.remove(this.arenaListWidget);
+                    this.remove(this.bhopListWidget);
                 })
                 .size(48, 12)
                 .build();
