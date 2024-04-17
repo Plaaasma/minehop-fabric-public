@@ -42,6 +42,8 @@ public class DataManager {
         public List<List<Vec3d>> checkpointPositions;
         public boolean arena;
         public boolean hns;
+        public int difficulty;
+        public int player_count;
 
         public MapData() {
         }
@@ -56,7 +58,7 @@ public class DataManager {
             this.worldKey = worldKey;
         }
 
-        public MapData(String name, double x, double y, double z, double xrot, double yrot, String worldKey, boolean arena, boolean hns) {
+        public MapData(String name, double x, double y, double z, double xrot, double yrot, String worldKey, boolean arena, boolean hns, int difficulty, int player_count) {
             this.name = name;
             this.x = x;
             this.y = y;
@@ -66,6 +68,8 @@ public class DataManager {
             this.worldKey = worldKey;
             this.arena = arena;
             this.hns = hns;
+            this.difficulty = difficulty;
+            this.player_count = player_count;
         }
     }
 
@@ -234,6 +238,17 @@ public class DataManager {
         }
 
         return null;
+    }
+
+    public static void resetPlayerCounts() {
+        if (Minehop.mapList != null) {
+            List<MapData> newMapList = new ArrayList<>();
+            for (MapData mapData : Minehop.mapList) {
+                mapData.player_count = 0;
+                newMapList.add(mapData);
+            }
+            Minehop.mapList = newMapList;
+        }
     }
 
     public static <T> void saveData(ServerWorld world, String location, List<T> data) {

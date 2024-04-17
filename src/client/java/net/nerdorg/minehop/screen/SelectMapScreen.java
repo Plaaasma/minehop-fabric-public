@@ -113,18 +113,18 @@ public class SelectMapScreen extends Screen {
 
                 if (mapData.arena) {
                     DataManager.RecordData recordData = new DataManager.RecordData(mapData.name, mapData.name, 1000000);;
-                    this.arenaListWidget.addEntry(recordData, avgTime, true);
+                    this.arenaListWidget.addEntry(recordData, avgTime, true, mapData.player_count, mapData.difficulty);
                 }
                 else if (mapData.hns) {
                     DataManager.RecordData recordData = new DataManager.RecordData(mapData.name, mapData.name, 1000000);;
-                    this.hnsListWidget.addEntry(recordData, avgTime, true);
+                    this.hnsListWidget.addEntry(recordData, avgTime, true, mapData.player_count, mapData.difficulty);
                 }
                 else {
                     DataManager.RecordData recordData = DataManager.getRecord(mapData.name);
                     if (recordData == null) {
                         recordData = new DataManager.RecordData(mapData.name, mapData.name, 1000000);
                     }
-                    this.bhopListWidget.addEntry(recordData, avgTime, false);
+                    this.bhopListWidget.addEntry(recordData, avgTime, false, mapData.player_count, mapData.difficulty);
                 }
             }
         }
@@ -158,16 +158,16 @@ public class SelectMapScreen extends Screen {
 
                         if (mapData.arena) {
                             DataManager.RecordData recordData = new DataManager.RecordData(mapData.name, mapData.name, 1000000);;
-                            newArenaListWidget.addEntry(recordData, avgTime, true);
+                            newArenaListWidget.addEntry(recordData, avgTime, true, mapData.player_count, mapData.difficulty);
                         } else if (mapData.hns) {
                             DataManager.RecordData recordData = new DataManager.RecordData(mapData.name, mapData.name, 1000000);;
-                            newHNSListWidget.addEntry(recordData, avgTime, true);
+                            newHNSListWidget.addEntry(recordData, avgTime, true, mapData.player_count, mapData.difficulty);
                         } else {
                             DataManager.RecordData recordData = DataManager.getRecord(mapData.name);
                             if (recordData == null) {
                                 recordData = new DataManager.RecordData(mapData.name, mapData.name, 1000000);;
                             }
-                            newBhopListWidget.addEntry(recordData, avgTime, false);
+                            newBhopListWidget.addEntry(recordData, avgTime, false, mapData.player_count, mapData.difficulty);
                         }
                     }
                 }
@@ -187,16 +187,16 @@ public class SelectMapScreen extends Screen {
 
                         if (mapData.arena) {
                             DataManager.RecordData recordData = new DataManager.RecordData(mapData.name, mapData.name, 1000000);;
-                            newArenaListWidget.addEntry(recordData, avgTime, true);
+                            newArenaListWidget.addEntry(recordData, avgTime, true, mapData.player_count, mapData.difficulty);
                         } else if (mapData.hns) {
                             DataManager.RecordData recordData = new DataManager.RecordData(mapData.name, mapData.name, 1000000);;
-                            newHNSListWidget.addEntry(recordData, avgTime, true);
+                            newHNSListWidget.addEntry(recordData, avgTime, true, mapData.player_count, mapData.difficulty);
                         } else {
                             DataManager.RecordData recordData = DataManager.getRecord(mapData.name);
                             if (recordData == null) {
                                 recordData = new DataManager.RecordData(mapData.name, mapData.name, 1000000);;
                             }
-                            newBhopListWidget.addEntry(recordData, avgTime, false);
+                            newBhopListWidget.addEntry(recordData, avgTime, false, mapData.player_count, mapData.difficulty);
                         }
                     }
                 }

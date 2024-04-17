@@ -3,6 +3,7 @@ package net.nerdorg.minehop.commands;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.LiteralMessage;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -55,6 +56,12 @@ public class ZoneManagementCommands {
                         .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reset")
                                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                                .suggests((context, builder) -> {
+                                                    for (DataManager.MapData mapData : Minehop.mapList) {
+                                                        builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                                                    }
+                                                    return builder.buildFuture();
+                                                })
                                                 .then(RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("check_index", IntegerArgumentType.integer())
                                                         .executes(context -> {
                                                             handleAddResetCustom(context);
@@ -69,6 +76,12 @@ public class ZoneManagementCommands {
                                 )
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("start")
                                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                                .suggests((context, builder) -> {
+                                                    for (DataManager.MapData mapData : Minehop.mapList) {
+                                                        builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                                                    }
+                                                    return builder.buildFuture();
+                                                })
                                                 .executes(context -> {
                                                     handleAddStart(context);
                                                     return Command.SINGLE_SUCCESS;
@@ -77,6 +90,12 @@ public class ZoneManagementCommands {
                                 )
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("end")
                                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                                .suggests((context, builder) -> {
+                                                    for (DataManager.MapData mapData : Minehop.mapList) {
+                                                        builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                                                    }
+                                                    return builder.buildFuture();
+                                                })
                                                 .executes(context -> {
                                                     handleAddEnd(context);
                                                     return Command.SINGLE_SUCCESS;

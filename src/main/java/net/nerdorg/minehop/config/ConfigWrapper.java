@@ -57,10 +57,14 @@ public class ConfigWrapper {
             }
             SpectateCommands.spectatorList = newSpectatorList;
             if (server.getTicks() % 100 == 0) {
+                DataManager.resetPlayerCounts();
                 for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
                     if (!playerEntity.isCreative()) {
                         DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
                         if (mapData != null) {
+                            Minehop.mapList.remove(mapData);
+                            mapData.player_count += 1;
+                            Minehop.mapList.add(mapData);
                             if (mapData.arena) {
                                 for (int slotNum = 1; slotNum < playerEntity.getInventory().size(); slotNum++) {
                                     playerEntity.getInventory().setStack(slotNum, new ItemStack(Items.AIR));

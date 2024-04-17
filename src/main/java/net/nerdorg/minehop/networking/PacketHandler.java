@@ -186,6 +186,8 @@ public class PacketHandler {
             buf.writeString(mapData.worldKey);
             buf.writeBoolean(mapData.arena);
             buf.writeBoolean(mapData.hns);
+            buf.writeInt(mapData.difficulty);
+            buf.writeInt(mapData.player_count);
         }
 
         ServerPlayNetworking.send(player, ModMessages.SEND_MAPS, buf);
