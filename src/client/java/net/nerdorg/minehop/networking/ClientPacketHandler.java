@@ -206,7 +206,9 @@ public class ClientPacketHandler {
                 String worldKey = buf.readString();
                 boolean arena = buf.readBoolean();
                 boolean hns = buf.readBoolean();
-                newMapList.add(new DataManager.MapData(name, x, y, z, xrot, yrot, worldKey, arena, hns));
+                int difficulty = buf.readInt();
+                int player_count = buf.readInt();
+                newMapList.add(new DataManager.MapData(name, x, y, z, xrot, yrot, worldKey, arena, hns, difficulty, player_count));
             }
 
             client.execute(() -> {

@@ -3,6 +3,8 @@ package net.nerdorg.minehop.commands;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.LiteralMessage;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
@@ -12,6 +14,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.EntitySelector;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.server.command.ServerCommandSource;
@@ -22,10 +25,7 @@ import net.minecraft.util.math.Vec2f;
 import net.minecraft.util.math.Vec3d;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
-import net.nerdorg.minehop.entity.custom.EndEntity;
-import net.nerdorg.minehop.entity.custom.ResetEntity;
-import net.nerdorg.minehop.entity.custom.StartEntity;
-import net.nerdorg.minehop.entity.custom.Zone;
+import net.nerdorg.minehop.entity.custom.*;
 import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.Logger;
@@ -63,6 +63,12 @@ public class MapUtilCommands {
             )
             .then(LiteralArgumentBuilder.<ServerCommandSource>literal("top")
                 .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                    .suggests((context, builder) -> {
+                        for (DataManager.MapData mapData : Minehop.mapList) {
+                            builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                        }
+                        return builder.buildFuture();
+                    })
                     .executes(context -> {
                         handleListTop(context);
                         return Command.SINGLE_SUCCESS;
@@ -74,6 +80,12 @@ public class MapUtilCommands {
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("checkpoint")
                     .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                            .suggests((context, builder) -> {
+                                for (DataManager.MapData mapData : Minehop.mapList) {
+                                    builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                                }
+                                return builder.buildFuture();
+                            })
                             .executes(context -> {
                                 handleAddCheckpoint(context);
                                 return Command.SINGLE_SUCCESS;
@@ -91,6 +103,12 @@ public class MapUtilCommands {
                 )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("invalidate")
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                        .suggests((context, builder) -> {
+                            for (DataManager.MapData mapData : Minehop.mapList) {
+                                builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                            }
+                            return builder.buildFuture();
+                        })
                         .executes(context -> {
                             handleInvalidate(context);
                             return Command.SINGLE_SUCCESS;
@@ -99,6 +117,12 @@ public class MapUtilCommands {
                 )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("invalidate_player")
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                        .suggests((context, builder) -> {
+                            for (DataManager.MapData mapData : Minehop.mapList) {
+                                builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                            }
+                            return builder.buildFuture();
+                        })
                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player_name", StringArgumentType.string())
                             .executes(context -> {
                                 handleInvalidatePlayer(context);
@@ -109,6 +133,12 @@ public class MapUtilCommands {
                 )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("remove")
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("remove_name", StringArgumentType.string())
+                        .suggests((context, builder) -> {
+                            for (DataManager.MapData mapData : Minehop.mapList) {
+                                builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                            }
+                            return builder.buildFuture();
+                        })
                         .executes(context -> {
                             handleRemove(context);
                             return Command.SINGLE_SUCCESS;
@@ -117,14 +147,51 @@ public class MapUtilCommands {
                 )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("setspawn")
                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                .suggests((context, builder) -> {
+                                    for (DataManager.MapData mapData : Minehop.mapList) {
+                                        builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                                    }
+                                    return builder.buildFuture();
+                                })
                                 .executes(context -> {
                                     handleSetMapSpawn(context);
                                     return Command.SINGLE_SUCCESS;
                                 })
                         )
                 )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("difficulty")
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                .suggests((context, builder) -> {
+                                    for (DataManager.MapData mapData : Minehop.mapList) {
+                                        builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .then(RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("difficulty", IntegerArgumentType.integer())
+                                        .suggests((context, builder) -> {
+                                            builder.suggest(0, new LiteralMessage("Beginner"));
+                                            builder.suggest(1, new LiteralMessage("Easy"));
+                                            builder.suggest(2, new LiteralMessage("Moderate"));
+                                            builder.suggest(3, new LiteralMessage("Challenging"));
+                                            builder.suggest(4, new LiteralMessage("Extremely Hard"));
+                                            builder.suggest(5, new LiteralMessage("Impossible"));
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(context -> {
+                                            handleSetDifficulty(context);
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                )
+                        )
+                )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("arena")
                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                .suggests((context, builder) -> {
+                                    for (DataManager.MapData mapData : Minehop.mapList) {
+                                        builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                                    }
+                                    return builder.buildFuture();
+                                })
                                 .executes(context -> {
                                     handleToggleArena(context);
                                     return Command.SINGLE_SUCCESS;
@@ -133,6 +200,12 @@ public class MapUtilCommands {
                 )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("hns")
                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                .suggests((context, builder) -> {
+                                    for (DataManager.MapData mapData : Minehop.mapList) {
+                                        builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                                    }
+                                    return builder.buildFuture();
+                                })
                                 .executes(context -> {
                                     handleToggleHNS(context);
                                     return Command.SINGLE_SUCCESS;
@@ -465,6 +538,36 @@ public class MapUtilCommands {
         }
         else {
             Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
+        }
+    }
+
+    private static void handleSetDifficulty(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+
+        String name = StringArgumentType.getString(context, "map_name");
+        int difficulty = IntegerArgumentType.getInteger(context, "difficulty");
+
+        DataManager.MapData difficultyData = null;
+
+        for (Object object : Minehop.mapList) {
+            if (object instanceof DataManager.MapData mapData) {
+                if (mapData.name.equals(name)) {
+                    difficultyData = mapData;
+                    Minehop.mapList.remove(mapData);
+                    break;
+                }
+            }
+        }
+
+        if (difficultyData != null) {
+            difficultyData.difficulty = difficulty;
+            Minehop.mapList.add(difficultyData);
+            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+
+            Logger.logSuccess(serverPlayerEntity, "Set map difficulty \\/\n" + StringFormatting.limitDecimals(gson.toJson(difficultyData)));
+        }
+        else {
+            Logger.logSuccess(serverPlayerEntity, "There is no map called " + name + ".");
         }
     }
 
