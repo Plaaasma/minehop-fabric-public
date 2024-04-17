@@ -184,7 +184,7 @@ public class MapUtilCommands {
             Minehop.mapList.remove(mapToAddTo);
             mapToAddTo.checkpointPositions.add(new ArrayList<>(Arrays.asList(serverPlayerEntity.getPos(), new Vec3d(serverPlayerEntity.getRotationClient().x, serverPlayerEntity.getRotationClient().y, 0))));
             Minehop.mapList.add(mapToAddTo);
-            DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
         }
         else {
             Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
@@ -238,7 +238,7 @@ public class MapUtilCommands {
                     Minehop.mapList.remove(currentMapData);
                     currentMapData.worldKey = context.getSource().getServer().getOverworld().getRegistryKey().toString();
                     Minehop.mapList.add(currentMapData);
-                    DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+                    DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
                 }
                 Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
                 ServerWorld foundWorld = null;
@@ -297,7 +297,7 @@ public class MapUtilCommands {
                 Minehop.mapList.remove(tpData);
                 tpData.worldKey = context.getSource().getServer().getOverworld().getRegistryKey().toString();
                 Minehop.mapList.add(tpData);
-                DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+                DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
             }
             Logger.logSuccess(serverPlayerEntity, "Teleporting to " + name);
             ServerWorld foundWorld = null;
@@ -370,7 +370,7 @@ public class MapUtilCommands {
 
         DataManager.MapData mapData = new DataManager.MapData(name, spawn_x, spawn_y, spawn_z, spawn_xrot, spawn_yrot, serverPlayerEntity.getWorld().getRegistryKey().toString());
         Minehop.mapList.add(mapData);
-        DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+        DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
 
         Logger.logSuccess(serverPlayerEntity, "Created map \\/\n" + StringFormatting.limitDecimals(gson.toJson(mapData)));
 
@@ -397,10 +397,10 @@ public class MapUtilCommands {
         if (invalidateData != null) {
             if (DataManager.getPersonalRecord(playerName, invalidateData.name) != null) {
                 DataManager.removePersonalRecordsForPlayer(name, playerName);
-                DataManager.savePersonalRecordData(context.getSource().getWorld(), Minehop.personalRecordList);
+                DataManager.saveData(context.getSource().getWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
 
                 DataManager.removeRecordsForPlayer(name, playerName);
-                DataManager.saveRecordData(context.getSource().getWorld(), Minehop.recordList);
+                DataManager.saveData(context.getSource().getWorld(), DataManager.recordsListLocation, Minehop.recordList);
                 Logger.logSuccess(senderEntity, "Invalidated times for player " + playerName + " on map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));
             }
             else {
@@ -429,10 +429,10 @@ public class MapUtilCommands {
         }
 
         DataManager.removePersonalRecords(name);
-        DataManager.savePersonalRecordData(context.getSource().getWorld(), Minehop.personalRecordList);
+        DataManager.saveData(context.getSource().getWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
 
         DataManager.removeRecords(name);
-        DataManager.saveRecordData(context.getSource().getWorld(), Minehop.recordList);
+        DataManager.saveData(context.getSource().getWorld(), DataManager.recordsListLocation, Minehop.recordList);
 
         if (invalidateData != null) {
             Logger.logSuccess(serverPlayerEntity, "Invalidated times for map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));
@@ -454,7 +454,7 @@ public class MapUtilCommands {
                 if (mapData.name.equals(name)) {
                     removedData = mapData;
                     Minehop.mapList.remove(mapData);
-                    DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+                    DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
                     break;
                 }
             }
@@ -498,7 +498,7 @@ public class MapUtilCommands {
             spawnData.xrot = spawn_xrot;
             spawnData.yrot = spawn_yrot;
             Minehop.mapList.add(spawnData);
-            DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Set map spawn \\/\n" + StringFormatting.limitDecimals(gson.toJson(spawnData)));
         }
@@ -527,7 +527,7 @@ public class MapUtilCommands {
         if (toggleData != null) {
             toggleData.arena = !toggleData.arena;
             Minehop.mapList.add(toggleData);
-            DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Toggled arena mode to " + toggleData.arena);
         }
@@ -556,7 +556,7 @@ public class MapUtilCommands {
         if (toggleData != null) {
             toggleData.hns = !toggleData.hns;
             Minehop.mapList.add(toggleData);
-            DataManager.saveMapData(context.getSource().getWorld(), Minehop.mapList);
+            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Toggled hns mode to " + toggleData.hns);
         }

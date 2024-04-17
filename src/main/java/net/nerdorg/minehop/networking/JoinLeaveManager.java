@@ -40,7 +40,7 @@ public class JoinLeaveManager {
                         Minehop.mapList.remove(mapData);
                         mapData.worldKey = server.getOverworld().getRegistryKey().toString();
                         Minehop.mapList.add(mapData);
-                        DataManager.saveMapData(networkHandler.player.getServerWorld(), Minehop.mapList);
+                        DataManager.saveData(networkHandler.player.getServerWorld(), DataManager.mapListLocation, Minehop.mapList);
                     }
                     ServerWorld foundWorld = null;
                     for (ServerWorld serverWorld : server.getWorlds()) {

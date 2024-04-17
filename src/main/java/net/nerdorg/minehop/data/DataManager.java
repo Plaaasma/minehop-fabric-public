@@ -2,34 +2,34 @@ package net.nerdorg.minehop.data;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.mojang.datafixers.util.Pair;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.RegistryKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.WorldSavePath;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec2f;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
-import net.minecraft.world.dimension.DimensionType;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.networking.PacketHandler;
+import net.nerdorg.minehop.util.Logger;
 
+import javax.xml.crypto.Data;
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
+import java.nio.file.Paths;
+import java.util.*;
 
 public class DataManager {
-    private static Type mapListType = new TypeToken<List<MapData>>(){}.getType();
-    private static Type recordListType = new TypeToken<List<RecordData>>(){}.getType();
+    private static final Type mapListType = new TypeToken<List<MapData>>(){}.getType();
+    private static final Type recordListType = new TypeToken<List<RecordData>>(){}.getType();
+
+    private static final String folderName = "MineHop_Data";
+    public static final String mapListLocation = folderName+"/minehop_maps.json";
+    public static final String pbListLocation = folderName+"/minehop_pbs.json";
+    public static final String recordsListLocation = folderName+"/minehop_records.json";
 
     public static class MapData {
         public String name;
@@ -83,6 +83,32 @@ public class DataManager {
             this.map_name = map_name;
             this.time = time;
         }
+    }
+
+    public static void register() {
+        ServerWorldEvents.LOAD.register(((server, world) -> {
+            Minehop.mapList = new ArrayList<>();
+            Minehop.recordList = new ArrayList<>();
+            Minehop.personalRecordList = new ArrayList<>();
+            List<DataManager.MapData> newMapList = DataManager.loadData(world, mapListLocation, mapListType);
+            List<DataManager.RecordData> newPersonalRecordList = DataManager.loadData(world, pbListLocation, recordListType);
+            List<DataManager.RecordData> newRecordList = DataManager.loadData(world, recordsListLocation, recordListType);
+            if (newMapList != null) {
+                Minehop.mapList = newMapList;
+            }
+            if (newPersonalRecordList != null) {
+                Minehop.personalRecordList = newPersonalRecordList;
+            }
+            if (newRecordList != null) {
+                Minehop.recordList = newRecordList;
+            }
+        }));
+
+        ServerWorldEvents.UNLOAD.register(((server, world) -> {
+            DataManager.saveData(world, mapListLocation, Minehop.mapList);
+            DataManager.saveData(world, pbListLocation, Minehop.personalRecordList);
+            DataManager.saveData(world, recordsListLocation, Minehop.recordList);
+        }));
     }
 
     public static RecordData removePersonalRecordsForPlayer(String mapName, String playerName) {
@@ -210,80 +236,33 @@ public class DataManager {
         return null;
     }
 
-    public static void register() {
-        ServerWorldEvents.LOAD.register(((server, world) -> {
-            Minehop.mapList = new ArrayList<>();
-            Minehop.recordList = new ArrayList<>();
-            Minehop.personalRecordList = new ArrayList<>();
-            List<DataManager.MapData> newMapList = DataManager.loadMapData(world);
-            List<DataManager.RecordData> newPersonalRecordList = DataManager.loadPersonalRecordData(world);
-            List<DataManager.RecordData> newRecordList = DataManager.loadRecordData(world);
-            if (newMapList != null) {
-                Minehop.mapList = newMapList;
-            }
-            if (newPersonalRecordList != null) {
-                Minehop.personalRecordList = newPersonalRecordList;
-            }
-            if (newRecordList != null) {
-                Minehop.recordList = newRecordList;
-            }
-        }));
+    public static <T> void saveData(ServerWorld world, String location, List<T> data) {
 
-        ServerWorldEvents.UNLOAD.register(((server, world) -> {
-            DataManager.saveMapData(world, Minehop.mapList);
-            DataManager.savePersonalRecordData(world, Minehop.personalRecordList);
-            DataManager.saveRecordData(world, Minehop.recordList);
-        }));
-    }
 
-    public static void savePersonalRecordData(ServerWorld world, List<RecordData> data) {
         Gson gson = new Gson();
         String jsonData = gson.toJson(data);
 
         MinecraftServer server = world.getServer();
         Path worldDir = server.getSavePath(WorldSavePath.ROOT);
 
+        folderCheck(worldDir);
+
         try {
-            Files.write(worldDir.resolve("minehop_pbs.json"), jsonData.getBytes());
+            Files.write(worldDir.resolve(location), jsonData.getBytes());
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public static void saveRecordData(ServerWorld world, List<RecordData> data) {
-        Gson gson = new Gson();
-        String jsonData = gson.toJson(data);
+    public static <T> List<T> loadData(ServerWorld world, String location, Type recordListType) {
 
-        MinecraftServer server = world.getServer();
-        Path worldDir = server.getSavePath(WorldSavePath.ROOT);
 
-        try {
-            Files.write(worldDir.resolve("minehop_records.json"), jsonData.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 
-    public static void saveMapData(ServerWorld world, List<MapData> data) {
-        Gson gson = new Gson();
-        String jsonData = gson.toJson(data);
-
-        MinecraftServer server = world.getServer();
-        Path worldDir = server.getSavePath(WorldSavePath.ROOT);
-
-        try {
-            Files.write(worldDir.resolve("minehop_maps.json"), jsonData.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static List<RecordData> loadPersonalRecordData(ServerWorld world) {
         Path worldDir = world.getServer().getSavePath(WorldSavePath.ROOT);
-        Path filePath = worldDir.resolve("minehop_pbs.json");
+        folderCheck(worldDir);
 
         try {
-            String jsonData = new String(Files.readAllBytes(filePath));
+            String jsonData = new String(Files.readAllBytes(worldDir.resolve(location)));
             Gson gson = new Gson();
             return gson.fromJson(jsonData, recordListType); // Replace Object.class with your data type
         } catch (IOException e) {
@@ -292,31 +271,13 @@ public class DataManager {
         }
     }
 
-    public static List<RecordData> loadRecordData(ServerWorld world) {
-        Path worldDir = world.getServer().getSavePath(WorldSavePath.ROOT);
-        Path filePath = worldDir.resolve("minehop_records.json");
-
+    private static void folderCheck(Path path){
+        Path folderPath = Paths.get(folderName);
         try {
-            String jsonData = new String(Files.readAllBytes(filePath));
-            Gson gson = new Gson();
-            return gson.fromJson(jsonData, recordListType); // Replace Object.class with your data type
+            Files.createDirectories(path.resolve(folderPath));
         } catch (IOException e) {
             e.printStackTrace();
-            return null; // Handle the case where the data doesn't exist yet
-        }
-    }
-
-    public static List<MapData> loadMapData(ServerWorld world) {
-        Path worldDir = world.getServer().getSavePath(WorldSavePath.ROOT);
-        Path filePath = worldDir.resolve("minehop_maps.json");
-
-        try {
-            String jsonData = new String(Files.readAllBytes(filePath));
-            Gson gson = new Gson();
-            return gson.fromJson(jsonData, mapListType); // Replace Object.class with your data type
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null; // Handle the case where the data doesn't exist yet
+            return;
         }
     }
 }
