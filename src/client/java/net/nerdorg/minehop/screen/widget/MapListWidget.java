@@ -27,8 +27,8 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
         super(client, width, height, top, height + 32, itemHeight);
     }
 
-    public void addEntry(DataManager.RecordData recordData, double avgTime, boolean minigame) {
-        this.addEntry(new MapEntry(recordData, avgTime, minigame));
+    public void addEntry(DataManager.RecordData recordData, double avgTime, boolean minigame, int player_count, int difficulty) {
+        this.addEntry(new MapEntry(recordData, avgTime, minigame, player_count, difficulty));
     }
 
     @Override
@@ -47,20 +47,48 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
         private final ButtonWidget mapButtonWidget;
 
-        public MapEntry(DataManager.RecordData recordData, double avgTime, boolean minigame) {
+        public MapEntry(DataManager.RecordData recordData, double avgTime, boolean minigame, int player_count, int difficulty) {
             this.recordData = recordData;
             this.avgTime = avgTime;
+
+            String difficultyText = "Beginner";
+            Formatting colorFormatting = Formatting.AQUA;
+            if (difficulty == 1) {
+                difficultyText = "Easy";
+                colorFormatting = Formatting.GREEN;
+            }
+            else if (difficulty == 2) {
+                difficultyText = "Moderate";
+                colorFormatting = Formatting.YELLOW;
+            }
+            else if (difficulty == 3) {
+                difficultyText = "Challenging";
+                colorFormatting = Formatting.RED;
+            }
+            else if (difficulty == 4) {
+                difficultyText = "Extremely Hard";
+                colorFormatting = Formatting.DARK_RED;
+            }
+            else if (difficulty == 5) {
+                difficultyText = "Impossible";
+                colorFormatting = Formatting.LIGHT_PURPLE;
+            }
+            else {
+                difficultyText = "Impossible";
+                colorFormatting = Formatting.LIGHT_PURPLE;
+            }
 
             if (!minigame) {
                 this.mapButtonWidget = ButtonWidget.builder(Text.literal(recordData.map_name), button -> {
                         })
-                        .tooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " \nRecord Time: " + String.format("%.5f", recordData.time) + " \nAverage Time: " + String.format("%.5f", avgTime)).formatted(Formatting.RED)))
+                        .tooltip(Tooltip.of(Text.literal("Players: " + player_count + "\nRecord holder: " + recordData.name + "\nRecord Time: " + String.format("%.5f", recordData.time) + "\nAverage Time: " + String.format("%.5f", avgTime) + "\nDifficulty: " + difficultyText).formatted(colorFormatting)))
                         .size(128, 20)
                         .build();
             }
             else {
                 this.mapButtonWidget = ButtonWidget.builder(Text.literal(recordData.map_name), button -> {
                         })
+                        .tooltip(Tooltip.of(Text.literal("Players: " + player_count).formatted(Formatting.GOLD)))
                         .size(128, 20)
                         .build();
             }
