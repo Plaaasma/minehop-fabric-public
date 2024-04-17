@@ -100,7 +100,7 @@ public abstract class LivingEntityMixin extends Entity {
                 if (mapData != null && mapData.hns) {
                     BlockState belowState = this.getWorld().getBlockState(this.getBlockPos().offset(Direction.DOWN, 1));
                     if (amount >= 20 && !(belowState.getBlock() instanceof StairsBlock)) {
-                        HNSManager.taggedMap.put(player.getEntityName(), true);
+                        HNSManager.taggedMap.put(player.getNameForScoreboard(), true);
                         Logger.logFailure(player, "You were tagged because you fell too far. You can break your fall by landing on stairs.");
                     }
                 }
