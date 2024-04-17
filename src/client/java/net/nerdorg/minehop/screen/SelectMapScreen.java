@@ -130,8 +130,6 @@ public class SelectMapScreen extends Screen {
         }
 
         this.addSelectableChild(this.bhopListWidget);
-        this.addSelectableChild(this.arenaListWidget);
-        this.addSelectableChild(this.hnsListWidget);
     }
 
     @Override
