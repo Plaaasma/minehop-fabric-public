@@ -5,6 +5,7 @@ package net.nerdorg.minehop.mixin;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.HorizontalFacingBlock;
+import net.minecraft.block.StairsBlock;
 import net.minecraft.entity.*;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageTypes;
@@ -25,6 +26,7 @@ import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.hns.HNSManager;
+import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.MovementUtil;
 import net.nerdorg.minehop.util.ZoneUtil;
 import org.spongepowered.asm.mixin.Final;
@@ -93,6 +95,16 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "damage", at = @At("HEAD"), cancellable = true)
     public void onDamage(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         if (source.isOf(DamageTypes.FALL)) {
+            if (this.getWorld().getEntityById(this.getId()) instanceof PlayerEntity player) {
+                DataManager.MapData mapData = ZoneUtil.getCurrentMap(player);
+                if (mapData != null && mapData.hns) {
+                    BlockState belowState = this.getWorld().getBlockState(this.getBlockPos().offset(Direction.DOWN, 1));
+                    if (amount >= 20 && !(belowState.getBlock() instanceof StairsBlock)) {
+                        HNSManager.taggedMap.put(player.getEntityName(), true);
+                        Logger.logFailure(player, "You were tagged because you fell too far. You can break your fall by landing on stairs.");
+                    }
+                }
+            }
             cir.cancel();
         }
         else {
