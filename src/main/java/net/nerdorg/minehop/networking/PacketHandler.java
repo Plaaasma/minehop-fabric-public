@@ -116,7 +116,7 @@ public class PacketHandler {
                             }
                             server.getCommandManager().execute(server.getCommandManager().getDispatcher().parse("lp user " + player.getEntityName() + " parent add record_holder", server.getCommandSource()), "lp user " + player.getEntityName() + " parent add record_holder");
                             Minehop.recordList.add(new DataManager.RecordData(player.getEntityName(), map_name, time));
-                            DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
+                            DataManager.saveData(player.getServerWorld(), DataManager.recordsListLocation, Minehop.recordList);
                             ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getEntityName(), time, ReplayEvents.replayEntryMap.get(player.getEntityName()));
                             ReplayManager.saveRecordReplay(player.getServerWorld(), replay);
                             DiscordIntegration.sendRecordToDiscord(recordMessage);
@@ -126,7 +126,7 @@ public class PacketHandler {
                         Logger.logGlobal(server, recordMessage);
                         server.getCommandManager().execute(server.getCommandManager().getDispatcher().parse("lp user " + player.getEntityName() + " parent add record_holder", server.getCommandSource()), "lp user " + player.getEntityName() + " parent add record_holder");
                         Minehop.recordList.add(new DataManager.RecordData(player.getEntityName(), map_name, time));
-                        DataManager.saveRecordData(player.getServerWorld(), Minehop.recordList);
+                        DataManager.saveData(player.getServerWorld(), DataManager.recordsListLocation, Minehop.recordList);
                         ReplayManager.Replay replay = new ReplayManager.Replay(map_name, player.getEntityName(), time, ReplayEvents.replayEntryMap.get(player.getEntityName()));
                         ReplayManager.saveRecordReplay(player.getServerWorld(), replay);
                         DiscordIntegration.sendRecordToDiscord(recordMessage);
@@ -137,12 +137,12 @@ public class PacketHandler {
                             Logger.logSuccess(player, "You just beat your time (" + String.format("%.5f", mapPersonalRecord.time) + ") on " + mapPersonalRecord.map_name + ", your new record is " + formattedNumber + "!");
                             Minehop.personalRecordList.remove(mapPersonalRecord);
                             Minehop.personalRecordList.add(new DataManager.RecordData(player.getEntityName(), map_name, time));
-                            DataManager.savePersonalRecordData(player.getServerWorld(), Minehop.personalRecordList);
+                            DataManager.saveData(player.getServerWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
                         }
                     } else {
                         Logger.logSuccess(player, "You just claimed a personal record of " + formattedNumber + "!");
                         Minehop.personalRecordList.add(new DataManager.RecordData(player.getEntityName(), map_name, time));
-                        DataManager.savePersonalRecordData(player.getServerWorld(), Minehop.personalRecordList);
+                        DataManager.saveData(player.getServerWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
                     }
                     Logger.logSuccess(player, "Completed " + map_name + " in " + formattedNumber + " seconds.");
                 } else {
