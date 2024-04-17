@@ -54,7 +54,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
             if (!minigame) {
                 this.mapButtonWidget = ButtonWidget.builder(Text.literal(recordData.map_name), button -> {
                         })
-                        .tooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " Time: " + String.format("%.5f", recordData.time) + " Average Time: " + String.format("%.5f", avgTime)).formatted(Formatting.RED)))
+                        .tooltip(Tooltip.of(Text.literal("Record holder: " + recordData.name + " \nRecord Time: " + String.format("%.5f", recordData.time) + " \nAverage Time: " + String.format("%.5f", avgTime)).formatted(Formatting.RED)))
                         .size(128, 20)
                         .build();
             }
