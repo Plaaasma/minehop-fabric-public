@@ -51,9 +51,13 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
             this.recordData = recordData;
             this.avgTime = avgTime;
 
-            String difficultyText = "Beginner";
-            Formatting colorFormatting = Formatting.AQUA;
-            if (difficulty == 1) {
+            String difficultyText;
+            Formatting colorFormatting;
+            if (difficulty == 0) {
+                difficultyText = "Beginner";
+                colorFormatting = Formatting.AQUA;
+            }
+            else if (difficulty == 1) {
                 difficultyText = "Easy";
                 colorFormatting = Formatting.GREEN;
             }
