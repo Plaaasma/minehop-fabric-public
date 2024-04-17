@@ -8,7 +8,8 @@
     "PlayerEntityModelMixin",
     "SpectatorHudMixin",
     "KeyBindingMixin",
-    "MultiplayerScreenMixin"
+    "MultiplayerScreenMixin",
+    "SoundSystemMixin"
   ],
   "injectors": {
     "defaultRequire": 1
