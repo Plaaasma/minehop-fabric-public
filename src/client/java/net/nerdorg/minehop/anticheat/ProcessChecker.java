@@ -16,6 +16,7 @@ public class ProcessChecker {
         try {
             Process process = processBuilder.start();
             byte[] output = process.getInputStream().readAllBytes();
+            process.destroy();
             return new String(output).contains(processName);
         } catch (IOException e) {
             e.printStackTrace();
