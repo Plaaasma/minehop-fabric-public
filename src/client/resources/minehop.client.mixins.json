@@ -9,7 +9,8 @@
     "SpectatorHudMixin",
     "KeyBindingMixin",
     "MultiplayerScreenMixin",
-    "SoundSystemMixin"
+    "SoundSystemMixin",
+    "PlayerEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
