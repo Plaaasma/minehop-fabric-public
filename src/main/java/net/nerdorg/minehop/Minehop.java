@@ -62,6 +62,7 @@ public class Minehop implements ModInitializer {
 	public static HashMap<String, ReplayManager.SSJEntry> lastEfficiencyMap = new HashMap<>();
 	public static HashMap<String, Double> efficiencyUpdateMap = new HashMap<>();
 	public static HashMap<String, Double> speedCapMap = new HashMap<>();
+	public static HashMap<String, List<Double>> gaugeListMap = new HashMap<>();
 
 	@Override
 	public void onInitialize() {

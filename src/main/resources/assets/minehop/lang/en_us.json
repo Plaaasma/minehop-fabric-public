@@ -14,6 +14,7 @@
   "text.autoconfig.minehop.option.show_efficiency": "Show Efficiency",
   "text.autoconfig.minehop.option.show_current_speed": "Show Current Speed",
   "text.autoconfig.minehop.option.show_prespeed": "Show Pre Speed (The speed you're going when you first left the ground)",
+  "text.autoconfig.minehop.option.show_gauge": "Show Gauge (Displays if you're strafing too quickly/too slowly.)",
   "text.autoconfig.minehop.option.nulls": "Nulls (Uses the last key pressed as your sideways movement input instead of combining them)",
   "text.autoconfig.minehop.option.sv_friction": "Ground Friction (sv_friction)",
   "text.autoconfig.minehop.option.sv_accelerate": "Ground Acceleration (sv_accelerate)",

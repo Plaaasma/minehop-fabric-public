@@ -7,7 +7,9 @@ import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.text.StringVisitable;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Position;
 import net.minecraft.util.math.Vec3d;
@@ -15,10 +17,12 @@ import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
+import oshi.util.tuples.Pair;
+
+import java.util.List;
 
 @Environment(EnvType.CLIENT)
 public class SqueedometerHud {
-
     // Vars
     private MinecraftClient client;
     private TextRenderer textRenderer;
@@ -88,6 +92,28 @@ public class SqueedometerHud {
         }
     }
 
+    private int getGaugeColor(double gauge) {
+        int absGauge = MathHelper.abs((int) gauge);
+        if (absGauge > 90) {
+            return Formatting.DARK_RED.getColorValue();
+        }
+        else if (absGauge > 70) {
+            return Formatting.RED.getColorValue();
+        }
+        else if (absGauge > 50) {
+            return Formatting.YELLOW.getColorValue();
+        }
+        else if (absGauge > 30) {
+            return Formatting.DARK_GREEN.getColorValue();
+        }
+        else if (absGauge > 10) {
+            return Formatting.GREEN.getColorValue();
+        }
+        else {
+            return Formatting.AQUA.getColorValue();
+        }
+    }
+
     public void drawJHUD(DrawContext context, MinehopConfig config) {
         this.client = MinecraftClient.getInstance();
 
@@ -110,21 +136,47 @@ public class SqueedometerHud {
 
                 int eff_top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 4));
 
-                int top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 2));
+                int eff_left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(effText) / 2));
 
                 String ssjText = SpeedCalculator.ssjText(MinehopClient.last_jump_speed, MinehopClient.jump_count);
 
-                int eff_left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(effText) / 2));
+                int ssj_top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 2));
 
-                int left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(ssjText) / 2));
+                int ssj_left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(ssjText) / 2));
 
+                if (Minehop.gaugeListMap.containsKey(client.player.getNameForScoreboard())) {
+                    if (client.world.getTime() % 4 == 0) {
+                        List<Double> gaugeList = Minehop.gaugeListMap.get(client.player.getNameForScoreboard());
+
+                        if (gaugeList.size() > 4) {
+                            gaugeList = gaugeList.subList(gaugeList.size() - 4, gaugeList.size());
+                        }
+
+                        MinehopClient.gauge = gaugeList.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
+
+                        Minehop.gaugeListMap.put(client.player.getNameForScoreboard(), gaugeList);
+                    }
+                }
+
+                Pair<String, Integer> gaugeData = SpeedCalculator.gaugeText(MinehopClient.gauge);
+                String gauge_text = gaugeData.getA();
+                int offsetToO = gaugeData.getB();
+
+                int gauge_top = (int) ((client.getWindow().getScaledHeight() / 2) - (this.textRenderer.fontHeight * offsetToO));
+
+                int gauge_left = (int) ((client.getWindow().getScaledWidth()) - (this.textRenderer.getWidth("/\\") / 2) - 12);
+
+                int gaugeColor = getGaugeColor(MinehopClient.gauge);
 
                 // Render the text
                 if (config.show_ssj) {
-                    context.drawTextWithShadow(this.textRenderer, ssjText, left, top, color);
+                    context.drawTextWithShadow(this.textRenderer, ssjText, ssj_left, ssj_top, color);
                 }
                 if (config.show_efficiency) {
                     context.drawTextWithShadow(this.textRenderer, effText, eff_left, eff_top, effColor);
+                }
+                if (config.show_gauge) {
+                    context.drawTextWrapped(this.textRenderer, StringVisitable.plain(gauge_text), gauge_left, gauge_top, this.textRenderer.getWidth("/\\"), gaugeColor);
                 }
             }
             if (config.show_prespeed) {

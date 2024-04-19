@@ -128,7 +128,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     /**
      * @Author lolrow and Plaaasma
-     * @Reason Fixed movement made it better and fucking awesome.
+     * @Reason Improved quick turning and added gauge/efficiency calculation. I don't think any of lolrows code is here anymore but he's cool so he can stay.
      */
 
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
@@ -221,6 +221,12 @@ public abstract class LivingEntityMixin extends Entity {
             sI = sI * yawDifference;
             fI = fI * yawDifference;
         }
+
+        double perfectAngle = findOptimalStrafeAngle(sI, fI, config, fullGrounded);
+
+        // AUTOSTRAFER FOR TESTING PURPOSES, PROBABLY GOING TO ADD IT AS A GAMEMODE CAUSE IT'S REALLY FUN
+//        this.setYaw((float) perfectAngle);
+
         if (this.isOnGround()) {
             if (Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard())) {
                 List<Double> efficiencyList = Minehop.efficiencyListMap.get(this.getNameForScoreboard());
@@ -243,12 +249,13 @@ public abstract class LivingEntityMixin extends Entity {
             double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate));
 
             float maxVel;
+            double angleBetween = 0;
             if (fullGrounded) {
                 maxVel = (float) (this.movementSpeed * config.speed_mul);
             } else {
                 maxVel = (float) (config.sv_maxairspeed);
 
-                double angleBetween = Math.acos(accelVec.normalize().dotProduct(moveDir.normalize()));
+                angleBetween = Math.acos(accelVec.normalize().dotProduct(moveDir.normalize()));
 
                 maxVel *= (float) (angleBetween * angleBetween * angleBetween);
             }
@@ -268,14 +275,21 @@ public abstract class LivingEntityMixin extends Entity {
                 newHorizontalVelocity = newHorizontalVelocity.multiply(speedCap / currentHorizontalSpeed);
             }
 
-            if (!this.isOnGround()) {
+            if (!fullGrounded) {
                 double v = Math.sqrt((newVelocity.x * newVelocity.x) + (newVelocity.z * newVelocity.z));
                 double nogainv2 = (accelVec.x * accelVec.x) + (accelVec.z * accelVec.z);
                 double nogainv = Math.sqrt(nogainv2);
                 double maxgainv = Math.sqrt(nogainv2 + (maxVel * maxVel));
-                double qt = 0;
-                double gauge = MathHelper.clamp(1 + (MathHelper.abs((float) (MathHelper.atan2(fI * accelVec.getZ() - sI * accelVec.getX(), fI * accelVec.getX() + sI * accelVec.getZ()))) - qt) / MathHelper.atan2(accelVel, nogainv), 0, 2);
-                System.out.println(gauge);
+
+                double normalYaw = this.getYaw();
+
+                double gaugeValue = sI < 0 || fI < 0 ? (normalYaw - perfectAngle) : (perfectAngle - normalYaw);
+                gaugeValue = normalizeAngle(gaugeValue);
+
+                List<Double> gaugeList = Minehop.gaugeListMap.containsKey(this.getNameForScoreboard()) ? Minehop.gaugeListMap.get(this.getNameForScoreboard()) : new ArrayList<>();
+                gaugeList.add(gaugeValue);
+                Minehop.gaugeListMap.put(this.getNameForScoreboard(), gaugeList);
+
                 double strafeEfficiency = MathHelper.clamp((((v - nogainv) / (maxgainv - nogainv)) * 100), 0D, 100D);
                 Minehop.efficiencyMap.put(this.getNameForScoreboard(), strafeEfficiency);
                 List<Double> efficiencyList = Minehop.efficiencyListMap.containsKey(this.getNameForScoreboard()) ? Minehop.efficiencyListMap.get(this.getNameForScoreboard()) : new ArrayList<>();
@@ -379,13 +393,46 @@ public abstract class LivingEntityMixin extends Entity {
         ci.cancel();
     }
 
-    private static double normalizeAngle(double angle) {
-        angle = angle % 360;          // Bring the angle within [-359,359]
-        if (angle > 180) {
-            angle -= 360;             // Adjust if the angle is greater than 180
-        } else if (angle <= -180) {
-            angle += 360;             // Adjust if the angle is less than -180
+    public double findOptimalStrafeAngle(double sI, double fI, MinehopConfig config, boolean fullGrounded) {
+        double highestVelocity = -Double.MAX_VALUE;
+        double optimalAngle = 0;
+        for (double angle = this.prevYaw - 45; angle < this.prevYaw + 45; angle += 1) {  // Test angles 0 to 355 degrees, in 5 degree increments
+            Vec3d moveDir = MovementUtil.movementInputToVelocity(new Vec3d(sI, 0.0F, fI), 1.0F, (float) angle);
+            Vec3d accelVec = this.getVelocity();
+
+            double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
+            double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate));
+
+            float maxVel;
+            if (fullGrounded) {
+                maxVel = (float) (this.movementSpeed * config.speed_mul);
+            } else {
+                maxVel = (float) (config.sv_maxairspeed);
+
+                double angleBetween = Math.acos(accelVec.normalize().dotProduct(moveDir.normalize()));
+
+                maxVel *= (float) (angleBetween * angleBetween * angleBetween);
+            }
+
+            if (projVel + accelVel > maxVel) {
+                accelVel = maxVel - projVel;
+            }
+            Vec3d accelDir = moveDir.multiply(Math.max(accelVel, 0.0F));
+
+            Vec3d newVelocity = accelVec.add(accelDir);
+
+            if (newVelocity.horizontalLength() > highestVelocity) {
+                highestVelocity = newVelocity.horizontalLength();
+                optimalAngle = angle;
+            }
         }
+        return optimalAngle;
+    }
+
+    private static double normalizeAngle(double angle) {
+        angle = angle % 360;
+        if (angle > 180) angle -= 360;
+        else if (angle < -180) angle += 360;
         return angle;
     }
 
