@@ -284,7 +284,7 @@ public abstract class LivingEntityMixin extends Entity {
                 double normalYaw = this.getYaw();
 
                 double gaugeValue = sI < 0 || fI < 0 ? (normalYaw - perfectAngle) : (perfectAngle - normalYaw);
-                gaugeValue = normalizeAngle(gaugeValue);
+                gaugeValue = normalizeAngle(gaugeValue) * 2;
 
                 List<Double> gaugeList = Minehop.gaugeListMap.containsKey(this.getNameForScoreboard()) ? Minehop.gaugeListMap.get(this.getNameForScoreboard()) : new ArrayList<>();
                 gaugeList.add(gaugeValue);
