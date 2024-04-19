@@ -54,6 +54,7 @@ public abstract class InGameHudMixin {
             config.show_ssj = ConfigWrapper.config.show_ssj;
             config.show_efficiency = ConfigWrapper.config.show_efficiency;
             config.show_current_speed = ConfigWrapper.config.show_current_speed;
+            config.show_gauge = ConfigWrapper.config.show_gauge;
         }
         else {
             config = ConfigWrapper.config;
