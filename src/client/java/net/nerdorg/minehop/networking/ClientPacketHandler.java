@@ -29,14 +29,21 @@ import net.nerdorg.minehop.entity.custom.StartEntity;
 import net.nerdorg.minehop.render.RenderUtil;
 import net.nerdorg.minehop.screen.SelectMapScreen;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class ClientPacketHandler {
+    public static void sortMapList(List<DataManager.MapData> mapList) {
+        Collections.sort(mapList, new Comparator<DataManager.MapData>() {
+            @Override
+            public int compare(DataManager.MapData m1, DataManager.MapData m2) {
+                return m1.name.compareToIgnoreCase(m2.name);
+            }
+        });
+    }
+
     public static void registerReceivers() {
         ClientPlayNetworking.registerGlobalReceiver(ModMessages.CONFIG_SYNC_ID, (client, handler, buf, responseSender) -> {
             double o_sv_friction = buf.readDouble();
@@ -213,6 +220,7 @@ public class ClientPacketHandler {
 
             client.execute(() -> {
                 Minehop.mapList = newMapList;
+                sortMapList(Minehop.mapList);
             });
         });
 
