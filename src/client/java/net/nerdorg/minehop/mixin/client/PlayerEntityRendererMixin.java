@@ -24,7 +24,7 @@ public class PlayerEntityRendererMixin {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client != null) {
             if (client.player != null) {
-                if (MinehopClient.hideOthers && !abstractClientPlayerEntity.getEntityName().equals(client.player.getEntityName())) {
+                if (MinehopClient.hideOthers && !abstractClientPlayerEntity.getNameForScoreboard().equals(client.player.getNameForScoreboard())) {
                     ci.cancel();
                 }
             }
