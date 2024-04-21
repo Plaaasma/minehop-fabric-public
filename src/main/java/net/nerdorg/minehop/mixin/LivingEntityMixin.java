@@ -135,7 +135,7 @@ public abstract class LivingEntityMixin extends Entity {
     public void travel(Vec3d movementInput, CallbackInfo ci) {
         MinehopConfig config;
         double speedCap = 1000000;
-        if (Minehop.override_config) {
+        if (Minehop.override_config && Minehop.receivedConfig) {
             config = new MinehopConfig();
             config.sv_friction = Minehop.o_sv_friction;
             config.sv_accelerate = Minehop.o_sv_accelerate;

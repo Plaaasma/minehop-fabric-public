@@ -50,6 +50,8 @@ public class Minehop implements ModInitializer {
 	public static double o_speed_cap = 0;
 	public static boolean o_hns = false;
 
+	public static boolean receivedConfig = false;
+
 	public static List<DataManager.MapData> mapList = new ArrayList<>();
 	public static List<DataManager.RecordData> personalRecordList = new ArrayList<>();
 	public static List<DataManager.RecordData> recordList = new ArrayList<>();
