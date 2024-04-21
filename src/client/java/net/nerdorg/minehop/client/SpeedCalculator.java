@@ -20,12 +20,12 @@ public class SpeedCalculator {
         int down_amount = 0;
 
         if (gauge < 0) {
-            for (int i = 0; i > gauge && down_amount < 4; i -= 10) {
+            for (int i = 0; i > gauge && down_amount < 6; i -= 2) {
                 down_amount += 1;
             }
         }
         else if (gauge > 0) {
-            for (int i = 0; i < gauge && up_amount < 4; i += 10) {
+            for (int i = 0; i < gauge && up_amount < 6; i += 2) {
                 up_amount += 1;
             }
         }
