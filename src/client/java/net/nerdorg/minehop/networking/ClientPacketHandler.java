@@ -66,6 +66,8 @@ public class ClientPacketHandler {
                 Minehop.o_sv_gravity = o_sv_gravity;
                 Minehop.o_speed_cap = o_speed_cap;
                 Minehop.o_hns = o_hns;
+
+                Minehop.receivedConfig = true;
             });
         });
 
