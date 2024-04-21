@@ -9,6 +9,8 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.SpectateCommands;
+import net.nerdorg.minehop.config.ConfigWrapper;
+import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.data.DataManager;
 
 import java.util.HashMap;
@@ -19,11 +21,16 @@ public class HandshakeHandler {
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(((server) -> {
-            for (String playerName : waitingForShake.keySet()) {
-                if (server.getTicks() > waitingForShake.get(playerName) + 60) {
-                    ServerPlayerEntity serverPlayerEntity = server.getPlayerManager().getPlayer(playerName);
-                    if (serverPlayerEntity != null) {
-                        serverPlayerEntity.networkHandler.disconnect(Text.of("Please install/update version " + Minehop.MOD_VERSION_STRING + " of the Minehop mod before joining this server."));
+            MinehopConfig config = ConfigWrapper.config;
+            if (config != null) {
+                if (config.client_validation) {
+                    for (String playerName : waitingForShake.keySet()) {
+                        if (server.getTicks() > waitingForShake.get(playerName) + 60) {
+                            ServerPlayerEntity serverPlayerEntity = server.getPlayerManager().getPlayer(playerName);
+                            if (serverPlayerEntity != null) {
+                                serverPlayerEntity.networkHandler.disconnect(Text.of("Please install/update version " + Minehop.MOD_VERSION_STRING + " of the Minehop mod before joining this server."));
+                            }
+                        }
                     }
                 }
             }
