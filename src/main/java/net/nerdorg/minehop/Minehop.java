@@ -16,6 +16,7 @@ import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.MobManager;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
+import net.nerdorg.minehop.entity.custom.Zone;
 import net.nerdorg.minehop.hns.HNSManager;
 import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.motd.MotdManager;
@@ -65,6 +66,7 @@ public class Minehop implements ModInitializer {
 	public static HashMap<String, Double> efficiencyUpdateMap = new HashMap<>();
 	public static HashMap<String, Double> speedCapMap = new HashMap<>();
 	public static HashMap<String, List<Double>> gaugeListMap = new HashMap<>();
+	public static HashMap<String, Zone> playerMapLocation = new HashMap<>();
 
 	@Override
 	public void onInitialize() {
