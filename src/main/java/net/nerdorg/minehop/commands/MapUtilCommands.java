@@ -266,22 +266,15 @@ public class MapUtilCommands {
 
     private static void handleRestart(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
-        ServerWorld serverWorld = serverPlayerEntity.getServerWorld();
-        List<Zone> zoneEntities = new ArrayList<>();
-        for (Entity entity : serverWorld.iterateEntities()) {
-            if (entity instanceof Zone zone) {
-                zoneEntities.add(zone);
-            }
-        }
-        double closestDistance = Double.POSITIVE_INFINITY;
-        Zone closestEntity = null;
-        for (Zone zoneEntity : zoneEntities) {
-            double distance = zoneEntity.distanceTo(serverPlayerEntity);
-            if (distance < closestDistance) {
-                closestEntity = zoneEntity;
-                closestDistance = distance;
-            }
-        }
+
+
+
+        assert serverPlayerEntity != null;
+        Zone closestEntity = Minehop.playerMapLocation.get(serverPlayerEntity.getUuidAsString());
+
+
+
+
         if (closestEntity == null) {
             Logger.logFailure(serverPlayerEntity, "Error finding nearest map.");
         }

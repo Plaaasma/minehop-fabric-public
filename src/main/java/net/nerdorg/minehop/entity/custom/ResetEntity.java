@@ -154,6 +154,19 @@ public class ResetEntity extends Zone {
                                 if (!player.isCreative()) {
                                     player.getInventory().clear();
                                 }
+
+                                Zone startZone = null;
+                                for (Entity entity : serverWorld.iterateEntities()) {
+                                    if (entity instanceof StartEntity startEntity) {
+                                        if (startEntity.getPairedMap().equals(paired_map)) {
+                                            startZone = startEntity;
+                                        }
+                                    }
+                                }
+
+                                if (startZone != null){
+                                    Minehop.playerMapLocation.put(player.getUuidAsString(), startZone);
+                                }
                                 player.teleport(serverWorld, targetLocation.getX(), targetLocation.getY(), targetLocation.getZ(), targetRot.y, targetRot.x);
                             }
                         }
