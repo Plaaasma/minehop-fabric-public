@@ -123,7 +123,14 @@ public class SqueedometerHud {
                 this.client = MinecraftClient.getInstance();
                 this.textRenderer = client.textRenderer;
 
-                double effPercent = MinehopClient.last_efficiency;
+                double effPercent;
+                if (client.player.isSpectator()) {
+                    effPercent = MinehopClient.last_efficiency;
+                }
+                else {
+                    var returnedEff = Minehop.efficiencyUpdateMap.get(client.player.getNameForScoreboard());
+                    effPercent = returnedEff == null ? 0 : returnedEff;
+                }
                 if (effPercent >= Double.POSITIVE_INFINITY || effPercent <= Double.NEGATIVE_INFINITY) {
                     effPercent = 0;
                 } else if (effPercent < 0) {
