@@ -14,7 +14,6 @@ import net.nerdorg.minehop.Minehop;
 
 public class ModBlocks {
     public static final Block BOOSTER_BLOCK = new BoostBlock(FabricBlockSettings.copyOf(Blocks.BEDROCK).slipperiness(0.8F).nonOpaque());
-    public static final Block RAMP_BLOCK = new RampBlock(FabricBlockSettings.copyOf(Blocks.BEDROCK).nonOpaque());
 
     private static Block registerBlock(String name, Block block) {
         registerBlockItem(name, block);
@@ -29,6 +28,5 @@ public class ModBlocks {
     public static void registerModBlocks() {
         Minehop.LOGGER.info("Registering ModBlocks for " + Minehop.MOD_ID);
         registerBlock("boost_pad", BOOSTER_BLOCK);
-        registerBlock("ramp", RAMP_BLOCK);
     }
 }
