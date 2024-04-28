@@ -90,7 +90,6 @@ public class MinehopClient implements ClientModInitializer {
 		});
 
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.BOOSTER_BLOCK, RenderLayer.getTranslucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.RAMP_BLOCK, RenderLayer.getTranslucent());
 	}
 
 	private boolean isServerInList(ServerList serverList, String ip) {
