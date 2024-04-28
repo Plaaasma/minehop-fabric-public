@@ -35,18 +35,21 @@ public class ResetRenderer extends MobEntityRenderer<ResetEntity, ResetModel> {
 
     @Override
     public void render(ResetEntity resetEntity, float f, float g, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
-        float time = (((float) System.nanoTime() - (float) MinehopClient.startTime) / 1000000000f);
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player.isCreative()) {
+            float time = (((float) System.nanoTime() - (float) MinehopClient.startTime) / 1000000000f);
 
-        if (MinehopClient.startTime != 0) {
-            ClientPacketHandler.sendCurrentTime(time);
-        }
+            if (MinehopClient.startTime != 0) {
+                ClientPacketHandler.sendCurrentTime(time);
+            }
 
-        BlockPos corner1 = resetEntity.getCorner1();
-        BlockPos corner2 = resetEntity.getCorner2();
-        if (corner1 != null && corner2 != null) {
-            Vec3d corner1Offset = new Vec3d(corner1.getX(), corner1.getY(), corner1.getZ()).subtract(resetEntity.getPos());
-            Vec3d corner2Offset = new Vec3d(corner2.getX(), corner2.getY(), corner2.getZ()).subtract(resetEntity.getPos());
-            RenderUtil.drawCuboid(vertexConsumerProvider, matrixStack, new Vector3f((float) corner1Offset.getX(), (float) corner1Offset.getY(), (float) corner1Offset.getZ()), new Vector3f((float) corner2Offset.getX(), (float) corner2Offset.getY(), (float) corner2Offset.getZ()), 10, 255, 140, 140, 140);
+            BlockPos corner1 = resetEntity.getCorner1();
+            BlockPos corner2 = resetEntity.getCorner2();
+            if (corner1 != null && corner2 != null) {
+                Vec3d corner1Offset = new Vec3d(corner1.getX(), corner1.getY(), corner1.getZ()).subtract(resetEntity.getPos());
+                Vec3d corner2Offset = new Vec3d(corner2.getX(), corner2.getY(), corner2.getZ()).subtract(resetEntity.getPos());
+                RenderUtil.drawCuboid(vertexConsumerProvider, matrixStack, new Vector3f((float) corner1Offset.getX(), (float) corner1Offset.getY(), (float) corner1Offset.getZ()), new Vector3f((float) corner2Offset.getX(), (float) corner2Offset.getY(), (float) corner2Offset.getZ()), 10, 255, 140, 140, 140);
+            }
         }
         super.render(resetEntity, f, g, matrixStack, vertexConsumerProvider, i);
     }
