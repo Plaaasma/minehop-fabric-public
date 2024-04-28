@@ -116,6 +116,7 @@ public class StartEntity extends Zone {
                                     ReplayEvents.replayEntryMap.remove(player.getNameForScoreboard());
                                 }
                                 Minehop.timerManager.put(player.getNameForScoreboard(), informationMap);
+                                Minehop.playerMapLocation.put(player.getUuidAsString(), this);
                             }
                         }
                         else {
