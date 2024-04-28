@@ -36,8 +36,9 @@ public class StartRenderer extends MobEntityRenderer<StartEntity, StartModel> {
 
     @Override
     public void render(StartEntity startEntity, float f, float g, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
-        float time = (((float) System.nanoTime() - (float) MinehopClient.startTime) / 1000000000f);
         MinecraftClient client = MinecraftClient.getInstance();
+
+        float time = (((float) System.nanoTime() - (float) MinehopClient.startTime) / 1000000000f);
 
         if (MinehopClient.startTime != 0) {
             ClientPacketHandler.sendCurrentTime(time);

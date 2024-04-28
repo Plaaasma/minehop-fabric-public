@@ -40,8 +40,8 @@ public class EndRenderer extends MobEntityRenderer<EndEntity, EndModel> {
 
     @Override
     public void render(EndEntity endEntity, float f, float g, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
-        float time = (((float) System.nanoTime() - (float) MinehopClient.startTime) / 1000000000f);
         MinecraftClient client = MinecraftClient.getInstance();
+        float time = (((float) System.nanoTime() - (float) MinehopClient.startTime) / 1000000000f);
 
         if (MinehopClient.startTime != 0) {
             ClientPacketHandler.sendCurrentTime(time);
@@ -51,7 +51,7 @@ public class EndRenderer extends MobEntityRenderer<EndEntity, EndModel> {
         BlockPos corner2 = endEntity.getCorner2();
         if (corner1 != null && corner2 != null) {
             Box colliderBox = new Box(new Vec3d(corner1.getX(), corner1.getY(), corner1.getZ()), new Vec3d(corner2.getX(), corner2.getY(), corner2.getZ()));
-            if (!client.player.isCreative() && !client.player.isSpectator()) {
+            if (!client.player.isSpectator()) {
                 final float partialTicks = client.getTickDelta(); // Get the partial tick time
 
                 // Current position
