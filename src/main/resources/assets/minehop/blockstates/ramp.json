@@ -1,0 +1,148 @@
+{
+  "variants": {
+    "facing=north,height=0": {
+      "model": "minehop:block/ramp",
+      "y": 0
+    },
+    "facing=east,height=0": {
+      "model": "minehop:block/ramp",
+      "y": 90
+    },
+    "facing=south,height=0": {
+      "model": "minehop:block/ramp",
+      "y": 180
+    },
+    "facing=west,height=0": {
+      "model": "minehop:block/ramp",
+      "y": 270
+    },
+    "facing=north,height=1": {
+      "model": "minehop:block/ramp1",
+      "y": 0
+    },
+    "facing=east,height=1": {
+      "model": "minehop:block/ramp1",
+      "y": 90
+    },
+    "facing=south,height=1": {
+      "model": "minehop:block/ramp1",
+      "y": 180
+    },
+    "facing=west,height=1": {
+      "model": "minehop:block/ramp1",
+      "y": 270
+    },
+    "facing=north,height=2": {
+      "model": "minehop:block/ramp2",
+      "y": 0
+    },
+    "facing=east,height=2": {
+      "model": "minehop:block/ramp2",
+      "y": 90
+    },
+    "facing=south,height=2": {
+      "model": "minehop:block/ramp2",
+      "y": 180
+    },
+    "facing=west,height=2": {
+      "model": "minehop:block/ramp2",
+      "y": 270
+    },
+    "facing=north,height=3": {
+      "model": "minehop:block/ramp3",
+      "y": 0
+    },
+    "facing=east,height=3": {
+      "model": "minehop:block/ramp3",
+      "y": 90
+    },
+    "facing=south,height=3": {
+      "model": "minehop:block/ramp3",
+      "y": 180
+    },
+    "facing=west,height=3": {
+      "model": "minehop:block/ramp3",
+      "y": 270
+    },
+    "facing=north,height=4": {
+      "model": "minehop:block/ramp4",
+      "y": 0
+    },
+    "facing=east,height=4": {
+      "model": "minehop:block/ramp4",
+      "y": 90
+    },
+    "facing=south,height=4": {
+      "model": "minehop:block/ramp4",
+      "y": 180
+    },
+    "facing=west,height=4": {
+      "model": "minehop:block/ramp4",
+      "y": 270
+    },
+    "facing=north,height=5": {
+      "model": "minehop:block/ramp5",
+      "y": 0
+    },
+    "facing=east,height=5": {
+      "model": "minehop:block/ramp5",
+      "y": 90
+    },
+    "facing=south,height=5": {
+      "model": "minehop:block/ramp5",
+      "y": 180
+    },
+    "facing=west,height=5": {
+      "model": "minehop:block/ramp5",
+      "y": 270
+    },
+    "facing=north,height=6": {
+      "model": "minehop:block/ramp6",
+      "y": 0
+    },
+    "facing=east,height=6": {
+      "model": "minehop:block/ramp6",
+      "y": 90
+    },
+    "facing=south,height=6": {
+      "model": "minehop:block/ramp6",
+      "y": 180
+    },
+    "facing=west,height=6": {
+      "model": "minehop:block/ramp6",
+      "y": 270
+    },
+    "facing=north,height=7": {
+      "model": "minehop:block/ramp7",
+      "y": 0
+    },
+    "facing=east,height=7": {
+      "model": "minehop:block/ramp7",
+      "y": 90
+    },
+    "facing=south,height=7": {
+      "model": "minehop:block/ramp7",
+      "y": 180
+    },
+    "facing=west,height=7": {
+      "model": "minehop:block/ramp7",
+      "y": 270
+    },
+    "facing=north,height=8": {
+      "model": "minehop:block/ramp8",
+      "y": 0
+    },
+    "facing=east,height=8": {
+      "model": "minehop:block/ramp8",
+      "y": 90
+    },
+    "facing=south,height=8": {
+      "model": "minehop:block/ramp8",
+      "y": 180
+    },
+    "facing=west,height=8": {
+      "model": "minehop:block/ramp8",
+      "y": 270
+    }
+  }
+}

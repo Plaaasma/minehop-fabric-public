@@ -1,0 +1,32 @@
+{
+	"credit": "Made with Blockbench",
+	"texture_size": [64, 64],
+	"textures": {
+		"0": "minehop:block/ramp_texture",
+		"particle": "minehop:block/ramp_texture"
+	},
+	"elements": [
+		{
+			"from": [0.05, 3.20333, -1.34196],
+			"to": [16, 4.20333, 17.40804],
+			"rotation": {"angle": -22.5, "axis": "x", "origin": [8.025, 3.70333, 10.03304]},
+			"faces": {
+				"north": {"uv": [8.5, 5.25, 4.5, 5.5], "rotation": 180, "texture": "#0"},
+				"east": {"uv": [0, 5.25, 0.25, 10.5], "rotation": 270, "texture": "#0"},
+				"south": {"uv": [4.5, 5.5, 0.5, 5.25], "texture": "#0"},
+				"west": {"uv": [0.25, 5.25, 0.5, 10.5], "rotation": 90, "texture": "#0"},
+				"up": {"uv": [0, 0, 4, 5.25], "rotation": 180, "texture": "#0"},
+				"down": {"uv": [4, 0, 8, 5.25], "texture": "#0"}
+			}
+		}
+	],
+	"groups": [
+		{
+			"name": "model",
+			"origin": [8, 8, 8],
+			"color": 0,
+			"children": []
+		},
+		0
+	]
+}
