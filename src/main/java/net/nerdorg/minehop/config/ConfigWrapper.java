@@ -47,13 +47,6 @@ public class ConfigWrapper {
                     }
                 }
                 PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
-                if (playerEntity.isOnGround()) {
-                    if (Minehop.efficiencyUpdateMap.containsKey(playerEntity.getNameForScoreboard())) {
-                        PacketHandler.sendEfficiency(playerEntity, Minehop.efficiencyUpdateMap.get(playerEntity.getNameForScoreboard()));
-                    } else {
-                        PacketHandler.sendEfficiency(playerEntity, 0);
-                    }
-                }
             }
             SpectateCommands.spectatorList = newSpectatorList;
             if (server.getTicks() % 100 == 0) {

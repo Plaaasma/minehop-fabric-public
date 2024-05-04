@@ -128,8 +128,7 @@ public class SqueedometerHud {
                     effPercent = MinehopClient.last_efficiency;
                 }
                 else {
-                    var returnedEff = Minehop.efficiencyUpdateMap.get(client.player.getNameForScoreboard());
-                    effPercent = returnedEff == null ? 0 : returnedEff;
+                    effPercent = Minehop.efficiencyUpdateMap.containsKey(client.player.getNameForScoreboard()) ? Minehop.efficiencyUpdateMap.get(client.player.getNameForScoreboard()) : 0;
                 }
                 if (effPercent >= Double.POSITIVE_INFINITY || effPercent <= Double.NEGATIVE_INFINITY) {
                     effPercent = 0;
