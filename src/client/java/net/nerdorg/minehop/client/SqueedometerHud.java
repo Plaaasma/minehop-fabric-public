@@ -164,13 +164,17 @@ public class SqueedometerHud {
                     }
                 }
 
-                Pair<String, Integer> gaugeData = SpeedCalculator.gaugeText(MinehopClient.gauge);
+                Pair<String, Integer> gaugeData = SpeedCalculator.gaugeText(MinehopClient.gauge, config.horizontal_gauge);
                 String gauge_text = gaugeData.getA();
                 int offsetToO = gaugeData.getB();
 
-                int gauge_top = (int) ((client.getWindow().getScaledHeight() / 2) - (this.textRenderer.fontHeight * offsetToO));
+                int gauge_top = (int) ((((float) config.gauge_y_offset / 100f) * client.getWindow().getScaledHeight()) - (this.textRenderer.fontHeight * (config.horizontal_gauge ? 1 : offsetToO)));
 
-                int gauge_left = (int) ((client.getWindow().getScaledWidth()) - (this.textRenderer.getWidth("/\\") / 2) - 12);
+                int gauge_horizontal_offset = offsetToO >= 0 ? ((this.textRenderer.getWidth(gauge_text) / 2) + (this.textRenderer.getWidth(gauge_text.substring(0, offsetToO)) / 2)) : ((this.textRenderer.getWidth(gauge_text) / 2) - (this.textRenderer.getWidth(gauge_text.substring(gauge_text.length() - 1 + offsetToO, gauge_text.length() - 1)) / 2));
+
+                int gauge_offset_left = config.horizontal_gauge ? gauge_horizontal_offset : this.textRenderer.getWidth("/\\") / 2;
+
+                int gauge_left = (int) ((((float) config.gauge_x_offset / 100f) * client.getWindow().getScaledWidth()) - gauge_offset_left);
 
                 int gaugeColor = getGaugeColor(MinehopClient.gauge);
 
@@ -182,7 +186,12 @@ public class SqueedometerHud {
                     context.drawTextWithShadow(this.textRenderer, effText, eff_left, eff_top, effColor);
                 }
                 if (config.show_gauge) {
-                    context.drawTextWrapped(this.textRenderer, StringVisitable.plain(gauge_text), gauge_left, gauge_top, this.textRenderer.getWidth("/\\"), gaugeColor);
+                    if (config.horizontal_gauge) {
+                        context.drawTextWithShadow(this.textRenderer, gauge_text, gauge_left, gauge_top, gaugeColor);
+                    }
+                    else {
+                        context.drawTextWrapped(this.textRenderer, StringVisitable.plain(gauge_text), gauge_left, gauge_top, this.textRenderer.getWidth("/\\"), gaugeColor);
+                    }
                 }
             }
             if (config.show_prespeed) {
