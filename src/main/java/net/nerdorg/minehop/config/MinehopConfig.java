@@ -2,6 +2,7 @@ package net.nerdorg.minehop.config;
 
 import me.shedaniel.autoconfig.ConfigData;
 import me.shedaniel.autoconfig.annotation.Config;
+import me.shedaniel.autoconfig.annotation.ConfigEntry;
 
 @Config(name = "minehop")
 public class MinehopConfig implements ConfigData {
@@ -10,6 +11,11 @@ public class MinehopConfig implements ConfigData {
     public boolean show_current_speed = true;
     public boolean show_prespeed = true;
     public boolean show_gauge = true;
+    @ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+    public int gauge_x_offset = 98;
+    @ConfigEntry.BoundedDiscrete(min = 0, max = 100)
+    public int gauge_y_offset = 50;
+    public boolean horizontal_gauge = false;
     public boolean nulls = true;
     public double sv_friction = 0.35;
     public double sv_accelerate = 0.1;
