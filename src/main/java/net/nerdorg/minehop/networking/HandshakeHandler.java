@@ -28,7 +28,7 @@ public class HandshakeHandler {
                         if (server.getTicks() > waitingForShake.get(playerName) + 60) {
                             ServerPlayerEntity serverPlayerEntity = server.getPlayerManager().getPlayer(playerName);
                             if (serverPlayerEntity != null) {
-                                serverPlayerEntity.networkHandler.disconnect(Text.of("Please install/update version " + Minehop.MOD_VERSION_STRING + " of the Minehop mod before joining this server."));
+                                serverPlayerEntity.networkHandler.disconnect(Text.of("Please install/update to at least version " + Minehop.MOD_VERSION_STRING + " of the Minehop mod before joining this server."));
                             }
                         }
                     }
