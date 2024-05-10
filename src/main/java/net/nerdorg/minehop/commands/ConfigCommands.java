@@ -101,66 +101,66 @@ public class ConfigCommands {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         MinehopConfig config = ConfigWrapper.config;
 
-        config.sv_friction = DoubleArgumentType.getDouble(context, "sv_friction");
+        config.movement.sv_friction = DoubleArgumentType.getDouble(context, "sv_friction");
 
         ConfigWrapper.saveConfig(config);
 
-        Logger.logSuccess(serverPlayerEntity, "Set sv_friction to " + config.sv_friction);
+        Logger.logSuccess(serverPlayerEntity, "Set sv_friction to " + config.movement.sv_friction);
     }
 
     private static void handleSetAccelerate(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         MinehopConfig config = ConfigWrapper.config;
 
-        config.sv_accelerate = DoubleArgumentType.getDouble(context, "sv_accelerate");
+        config.movement.sv_accelerate = DoubleArgumentType.getDouble(context, "sv_accelerate");
 
         ConfigWrapper.saveConfig(config);
 
-        Logger.logSuccess(serverPlayerEntity, "Set sv_accelerate to " + config.sv_accelerate);
+        Logger.logSuccess(serverPlayerEntity, "Set sv_accelerate to " + config.movement.sv_accelerate);
     }
 
     private static void handleSetAirAccelerate(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         MinehopConfig config = ConfigWrapper.config;
 
-        config.sv_airaccelerate = DoubleArgumentType.getDouble(context, "sv_airaccelerate");
+        config.movement.sv_airaccelerate = DoubleArgumentType.getDouble(context, "sv_airaccelerate");
 
         ConfigWrapper.saveConfig(config);
 
-        Logger.logSuccess(serverPlayerEntity, "Set sv_airaccelerate to " + config.sv_airaccelerate);
+        Logger.logSuccess(serverPlayerEntity, "Set sv_airaccelerate to " + config.movement.sv_airaccelerate);
     }
 
     private static void handleSetMaxAirSpeed(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         MinehopConfig config = ConfigWrapper.config;
 
-        config.sv_maxairspeed = DoubleArgumentType.getDouble(context, "sv_maxairspeed");
+        config.movement.sv_maxairspeed = DoubleArgumentType.getDouble(context, "sv_maxairspeed");
 
         ConfigWrapper.saveConfig(config);
 
-        Logger.logSuccess(serverPlayerEntity, "Set sv_maxairspeed to " + config.sv_maxairspeed);
+        Logger.logSuccess(serverPlayerEntity, "Set sv_maxairspeed to " + config.movement.sv_maxairspeed);
     }
 
     private static void handleSetSpeedMul(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         MinehopConfig config = ConfigWrapper.config;
 
-        config.speed_mul = DoubleArgumentType.getDouble(context, "speed_mul");
+        config.movement.speed_mul = DoubleArgumentType.getDouble(context, "speed_mul");
 
         ConfigWrapper.saveConfig(config);
 
-        Logger.logSuccess(serverPlayerEntity, "Set speed_mul to " + config.speed_mul);
+        Logger.logSuccess(serverPlayerEntity, "Set speed_mul to " + config.movement.speed_mul);
     }
 
     private static void handleSetGravity(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
         MinehopConfig config = ConfigWrapper.config;
 
-        config.sv_gravity = DoubleArgumentType.getDouble(context, "sv_gravity");
+        config.movement.sv_gravity = DoubleArgumentType.getDouble(context, "sv_gravity");
 
         ConfigWrapper.saveConfig(config);
 
-        Logger.logSuccess(serverPlayerEntity, "Set sv_gravity to " + config.sv_gravity);
+        Logger.logSuccess(serverPlayerEntity, "Set sv_gravity to " + config.movement.sv_gravity);
     }
 
     private static void handleList(CommandContext<ServerCommandSource> context) {

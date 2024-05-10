@@ -137,12 +137,12 @@ public abstract class LivingEntityMixin extends Entity {
         double speedCap = 1000000;
         if (Minehop.override_config && Minehop.receivedConfig) {
             config = new MinehopConfig();
-            config.sv_friction = Minehop.o_sv_friction;
-            config.sv_accelerate = Minehop.o_sv_accelerate;
-            config.sv_airaccelerate = Minehop.o_sv_airaccelerate;
-            config.sv_maxairspeed = Minehop.o_sv_maxairspeed;
-            config.speed_mul = Minehop.o_speed_mul;
-            config.sv_gravity = Minehop.o_sv_gravity;
+            config.movement.sv_friction = Minehop.o_sv_friction;
+            config.movement.sv_accelerate = Minehop.o_sv_accelerate;
+            config.movement.sv_airaccelerate = Minehop.o_sv_airaccelerate;
+            config.movement.sv_maxairspeed = Minehop.o_sv_maxairspeed;
+            config.movement.speed_mul = Minehop.o_speed_mul;
+            config.movement.sv_gravity = Minehop.o_sv_gravity;
             speedCap = Minehop.o_speed_cap;
         }
         else {
@@ -196,7 +196,7 @@ public abstract class LivingEntityMixin extends Entity {
             if (speed > 0.001F) {
                 float drop = 0.0F;
 
-                drop += (speed * config.sv_friction * friction);
+                drop += (speed * config.movement.sv_friction * friction);
 
                 float newspeed = Math.max(speed - drop, 0.0F);
                 newspeed /= speed;
@@ -246,14 +246,14 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d accelVec = this.getVelocity();
 
             double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
-            double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate));
+            double accelVel = (this.isOnGround() ? config.movement.sv_accelerate : (config.movement.sv_airaccelerate));
 
             float maxVel;
             double angleBetween = 0;
             if (fullGrounded) {
-                maxVel = (float) (this.movementSpeed * config.speed_mul);
+                maxVel = (float) (this.movementSpeed * config.movement.speed_mul);
             } else {
-                maxVel = (float) (config.sv_maxairspeed);
+                maxVel = (float) (config.movement.sv_maxairspeed);
 
                 angleBetween = Math.acos(accelVec.normalize().dotProduct(moveDir.normalize()));
 
@@ -359,7 +359,7 @@ public abstract class LivingEntityMixin extends Entity {
         //Apply Gravity (If not in Water)
         //
         double yVel = preVel.y;
-        double gravity = config.sv_gravity;
+        double gravity = config.movement.sv_gravity;
         if (preVel.y <= 0.0D && this.hasStatusEffect(StatusEffects.SLOW_FALLING)) {
             gravity = 0.01D;
             this.fallDistance = 0.0F;
@@ -401,13 +401,13 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d accelVec = this.getVelocity();
 
             double projVel = new Vec3d(accelVec.x, 0.0F, accelVec.z).dotProduct(moveDir);
-            double accelVel = (this.isOnGround() ? config.sv_accelerate : (config.sv_airaccelerate));
+            double accelVel = (this.isOnGround() ? config.movement.sv_accelerate : (config.movement.sv_airaccelerate));
 
             float maxVel;
             if (fullGrounded) {
-                maxVel = (float) (this.movementSpeed * config.speed_mul);
+                maxVel = (float) (this.movementSpeed * config.movement.speed_mul);
             } else {
-                maxVel = (float) (config.sv_maxairspeed);
+                maxVel = (float) (config.movement.sv_maxairspeed);
 
                 double angleBetween = Math.acos(accelVec.normalize().dotProduct(moveDir.normalize()));
 
