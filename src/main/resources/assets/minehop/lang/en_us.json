@@ -10,21 +10,46 @@
   "key.minehop.restart": "Restart Map",
 
   "text.autoconfig.minehop.title": "Minehop Config",
-  "text.autoconfig.minehop.option.show_ssj": "Show SSJ",
-  "text.autoconfig.minehop.option.show_efficiency": "Show Efficiency",
-  "text.autoconfig.minehop.option.show_current_speed": "Show Current Speed",
-  "text.autoconfig.minehop.option.show_prespeed": "Show Pre Speed (The speed you're going when you first left the ground)",
-  "text.autoconfig.minehop.option.show_gauge": "Show Gauge (Displays if you're strafing too quickly/too slowly.)",
-  "text.autoconfig.minehop.option.gauge_x_offset": "Gauge X Offset (The values are percentages, 50 is centered.)",
-  "text.autoconfig.minehop.option.gauge_y_offset": "Gauge Y Offset (The values are percentages, 50 is centered.)",
-  "text.autoconfig.minehop.option.horizontal_gauge": "Display Gauge Horizontally",
+
+  "text.autoconfig.minehop.option.movement": "Movement Settings",
+
+  "text.autoconfig.minehop.option.jHud": "JHUD Settings",
+
+  "text.autoconfig.minehop.option.jHud.ssjHud": "SSJ HUD Settings",
+  "text.autoconfig.minehop.option.jHud.ssjHud.show_ssj": "Show SSJ",
+  "text.autoconfig.minehop.option.jHud.ssjHud.ssj_x_offset": "SSJ X Offset (The values are percentages, 50 is centered).",
+  "text.autoconfig.minehop.option.jHud.ssjHud.ssj_y_offset": "SSJ Y Offset (The values are percentages, 50 is centered).",
+
+  "text.autoconfig.minehop.option.jHud.efficiencyHud": "Efficiency HUD Settings",
+  "text.autoconfig.minehop.option.jHud.efficiencyHud.show_efficiency": "Show Efficiency",
+  "text.autoconfig.minehop.option.jHud.efficiencyHud.efficiency_x_offset": "Efficiency X Offset (The values are percentages, 50 is centered).",
+  "text.autoconfig.minehop.option.jHud.efficiencyHud.efficiency_y_offset": "Efficiency Y Offset (The values are percentages, 50 is centered).",
+
+  "text.autoconfig.minehop.option.jHud.speedHud": "Speedometer HUD Settings",
+  "text.autoconfig.minehop.option.jHud.speedHud.show_current_speed": "Show Current Speed",
+  "text.autoconfig.minehop.option.jHud.speedHud.speed_x_offset": "Speedometer X Offset (The values are percentages, 50 is centered).",
+  "text.autoconfig.minehop.option.jHud.speedHud.speed_y_offset": "Speedometer Y Offset (The values are percentages, 50 is centered).",
+
+  "text.autoconfig.minehop.option.jHud.prespeedHud": "Prespeed HUD Settings",
+  "text.autoconfig.minehop.option.jHud.prespeedHud.show_prespeed": "Show Pre Speed (The speed you're going when you first left the ground)",
+  "text.autoconfig.minehop.option.jHud.prespeedHud.prespeed_x_offset": "Prespeed X Offset (The values are percentages, 50 is centered).",
+  "text.autoconfig.minehop.option.jHud.prespeedHud.prespeed_y_offset": "Prespeed Y Offset (The values are percentages, 50 is centered).",
+
+  "text.autoconfig.minehop.option.jHud.gaugeHud": "Gauge HUD Settings",
+  "text.autoconfig.minehop.option.jHud.gaugeHud.show_gauge": "Show Gauge (Displays if you're strafing too quickly/too slowly.)",
+  "text.autoconfig.minehop.option.jHud.gaugeHud.horizontal_gauge": "Display Gauge Horizontally",
+  "text.autoconfig.minehop.option.jHud.gaugeHud.gauge_x_offset": "Gauge X Offset (The values are percentages, 50 is centered).",
+  "text.autoconfig.minehop.option.jHud.gaugeHud.gauge_y_offset": "Gauge Y Offset (The values are percentages, 50 is centered).",
+
   "text.autoconfig.minehop.option.nulls": "Nulls (Uses the last key pressed as your sideways movement input instead of combining them)",
-  "text.autoconfig.minehop.option.sv_friction": "Ground Friction (sv_friction)",
-  "text.autoconfig.minehop.option.sv_accelerate": "Ground Acceleration (sv_accelerate)",
-  "text.autoconfig.minehop.option.sv_airaccelerate": "Air Acceleration (sv_airaccelerate)",
-  "text.autoconfig.minehop.option.sv_maxairspeed": "Max Gain (sv_maxairspeed)",
-  "text.autoconfig.minehop.option.speed_mul": "Speed Multiplier",
-  "text.autoconfig.minehop.option.sv_gravity": "Gravity",
+
+  "text.autoconfig.minehop.option.movement.sv_friction": "Ground Friction (sv_friction)",
+  "text.autoconfig.minehop.option.movement.sv_accelerate": "Ground Acceleration (sv_accelerate)",
+  "text.autoconfig.minehop.option.movement.sv_airaccelerate": "Air Acceleration (sv_airaccelerate)",
+  "text.autoconfig.minehop.option.movement.sv_maxairspeed": "Max Gain (sv_maxairspeed)",
+  "text.autoconfig.minehop.option.movement.speed_mul": "Speed Multiplier",
+  "text.autoconfig.minehop.option.movement.sv_gravity": "Gravity",
+
   "text.autoconfig.minehop.option.help_command": "Enable Minehop /help Command",
   "text.autoconfig.minehop.option.minehop_motd": "Enable Minehop Server MOTD",
   "text.autoconfig.minehop.option.client_validation": "Kick players that don't have the Minehop mod installed",

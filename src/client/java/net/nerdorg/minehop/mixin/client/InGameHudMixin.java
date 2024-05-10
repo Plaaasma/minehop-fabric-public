@@ -52,27 +52,25 @@ public abstract class InGameHudMixin {
         MinehopConfig config;
         if (Minehop.override_config) {
             config = new MinehopConfig();
-            config.sv_friction = Minehop.o_sv_friction;
-            config.sv_accelerate = Minehop.o_sv_accelerate;
-            config.sv_airaccelerate = Minehop.o_sv_airaccelerate;
-            config.sv_maxairspeed = Minehop.o_sv_maxairspeed;
-            config.speed_mul = Minehop.o_speed_mul;
-            config.sv_gravity = Minehop.o_sv_gravity;
-            config.show_ssj = ConfigWrapper.config.show_ssj;
-            config.show_efficiency = ConfigWrapper.config.show_efficiency;
-            config.show_current_speed = ConfigWrapper.config.show_current_speed;
+            config.movement.sv_friction = Minehop.o_sv_friction;
+            config.movement.sv_accelerate = Minehop.o_sv_accelerate;
+            config.movement.sv_airaccelerate = Minehop.o_sv_airaccelerate;
+            config.movement.sv_maxairspeed = Minehop.o_sv_maxairspeed;
+            config.movement.speed_mul = Minehop.o_speed_mul;
+            config.movement.sv_gravity = Minehop.o_sv_gravity;
             config.nulls = ConfigWrapper.config.nulls;
-            config.show_gauge = ConfigWrapper.config.show_gauge;
-            config.gauge_x_offset = ConfigWrapper.config.gauge_x_offset;
-            config.gauge_y_offset = ConfigWrapper.config.gauge_y_offset;
-            config.horizontal_gauge = ConfigWrapper.config.horizontal_gauge;
+            config.jHud.ssjHud = ConfigWrapper.config.jHud.ssjHud;
+            config.jHud.efficiencyHud = ConfigWrapper.config.jHud.efficiencyHud;
+            config.jHud.speedHud = ConfigWrapper.config.jHud.speedHud;
+            config.jHud.prespeedHud = ConfigWrapper.config.jHud.prespeedHud;
+            config.jHud.gaugeHud = ConfigWrapper.config.jHud.gaugeHud;
         }
         else {
             config = ConfigWrapper.config;
         }
 
-        if (config.show_current_speed) {
-            MinehopClient.squeedometerHud.drawMain(context, tickDelta);
+        if (config.jHud.speedHud.show_current_speed) {
+            MinehopClient.squeedometerHud.drawMain(context, tickDelta, config);
         }
         MinehopClient.squeedometerHud.drawJHUD(context, config);
         if (MinehopClient.spectatorList.size() > 0) {

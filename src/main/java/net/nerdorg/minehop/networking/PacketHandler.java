@@ -30,12 +30,12 @@ public class PacketHandler {
     public static void sendConfigToClient(ServerPlayerEntity player, MinehopConfig config) {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer());
 
-        buf.writeDouble(config.sv_friction);
-        buf.writeDouble(config.sv_accelerate);
-        buf.writeDouble(config.sv_airaccelerate);
-        buf.writeDouble(config.sv_maxairspeed);
-        buf.writeDouble(config.speed_mul);
-        buf.writeDouble(config.sv_gravity);
+        buf.writeDouble(config.movement.sv_friction);
+        buf.writeDouble(config.movement.sv_accelerate);
+        buf.writeDouble(config.movement.sv_airaccelerate);
+        buf.writeDouble(config.movement.sv_maxairspeed);
+        buf.writeDouble(config.movement.speed_mul);
+        buf.writeDouble(config.movement.sv_gravity);
         buf.writeDouble(Minehop.speedCapMap.containsKey(player.getEntityName()) ? Minehop.speedCapMap.get(player.getEntityName()) : 1000000);
         DataManager.MapData currentMap = ZoneUtil.getCurrentMap(player);
         buf.writeBoolean(currentMap != null && currentMap.hns);
