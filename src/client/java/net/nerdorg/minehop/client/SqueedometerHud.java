@@ -37,7 +37,7 @@ public class SqueedometerHud {
     public static double actualGain = 0;
 
 
-    public void drawMain(DrawContext context, float tickDelta) {
+    public void drawMain(DrawContext context, float tickDelta, MinehopConfig config) {
         this.client = MinecraftClient.getInstance();
         if (client != null) {
             this.textRenderer = client.textRenderer;
@@ -51,23 +51,9 @@ public class SqueedometerHud {
             String currentSpeedText = "";
 
             currentSpeedText = SpeedCalculator.speedText(currentSpeed);
-            // Calculate text position
-            int height = this.textRenderer.fontHeight;
-            int paddingX = 2;
-            int paddingY = 2;
-            int marginX = 4;
-            int marginY = 4;
-            int left = 0 + marginX;
-            int top = 0 + marginY;
-            int realHeight = height + paddingY * 2 - 1;
-
-            top += client.getWindow().getScaledHeight() - marginY * 2 - realHeight;
-
-            left += paddingX;
-            top += paddingY;
 
             // Render the text
-            context.drawTextWithShadow(this.textRenderer, currentSpeedText, left, top, color);
+            context.drawTextWithShadow(this.textRenderer, currentSpeedText, (int) ((config.jHud.speedHud.speed_x_offset / 100f) * client.getWindow().getScaledWidth()), (int) ((config.jHud.speedHud.speed_y_offset / 100f) * client.getWindow().getScaledHeight()), color);
         }
     }
 
@@ -140,15 +126,15 @@ public class SqueedometerHud {
 
                 String effText = SpeedCalculator.effText(effPercent);
 
-                int eff_top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 4));
+                int eff_top = (int) (((float) config.jHud.efficiencyHud.efficiency_y_offset / 100f) * client.getWindow().getScaledHeight());
 
-                int eff_left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(effText) / 2));
+                int eff_left = (int) ((((float) config.jHud.efficiencyHud.efficiency_x_offset / 100f) * client.getWindow().getScaledWidth()) - (this.textRenderer.getWidth(effText) / 2));
 
                 String ssjText = SpeedCalculator.ssjText(MinehopClient.last_jump_speed, MinehopClient.jump_count);
 
-                int ssj_top = (int) ((client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 2));
+                int ssj_top = (int) (((float) config.jHud.ssjHud.ssj_y_offset / 100f) * client.getWindow().getScaledHeight());
 
-                int ssj_left = (int) ((client.getWindow().getScaledWidth() / 2) - (this.textRenderer.getWidth(ssjText) / 2));
+                int ssj_left = (int) ((((float) config.jHud.ssjHud.ssj_x_offset / 100f) * client.getWindow().getScaledWidth()) - (this.textRenderer.getWidth(ssjText) / 2));
 
                 if (Minehop.gaugeListMap.containsKey(client.player.getNameForScoreboard())) {
                     if (client.world.getTime() % 4 == 0) {
@@ -164,29 +150,29 @@ public class SqueedometerHud {
                     }
                 }
 
-                Pair<String, Integer> gaugeData = SpeedCalculator.gaugeText(MinehopClient.gauge, config.horizontal_gauge);
+                Pair<String, Integer> gaugeData = SpeedCalculator.gaugeText(MinehopClient.gauge, config.jHud.gaugeHud.horizontal_gauge);
                 String gauge_text = gaugeData.getA();
                 int offsetToO = gaugeData.getB();
 
-                int gauge_top = (int) ((((float) config.gauge_y_offset / 100f) * client.getWindow().getScaledHeight()) - (this.textRenderer.fontHeight * (config.horizontal_gauge ? 1 : offsetToO)));
+                int gauge_top = (int) ((((float) config.jHud.gaugeHud.gauge_y_offset / 100f) * client.getWindow().getScaledHeight()) - (this.textRenderer.fontHeight * (config.jHud.gaugeHud.horizontal_gauge ? 1 : offsetToO)));
 
                 int gauge_horizontal_offset = offsetToO >= 0 ? ((this.textRenderer.getWidth(gauge_text) / 2) + (this.textRenderer.getWidth(gauge_text.substring(0, offsetToO)) / 2)) : ((this.textRenderer.getWidth(gauge_text) / 2) - (this.textRenderer.getWidth(gauge_text.substring(gauge_text.length() - 1 + offsetToO, gauge_text.length() - 1)) / 2));
 
-                int gauge_offset_left = config.horizontal_gauge ? gauge_horizontal_offset : this.textRenderer.getWidth("/\\") / 2;
+                int gauge_offset_left = config.jHud.gaugeHud.horizontal_gauge ? gauge_horizontal_offset : this.textRenderer.getWidth("/\\") / 2;
 
-                int gauge_left = (int) ((((float) config.gauge_x_offset / 100f) * client.getWindow().getScaledWidth()) - gauge_offset_left);
+                int gauge_left = (int) ((((float) config.jHud.gaugeHud.gauge_x_offset / 100f) * client.getWindow().getScaledWidth()) - gauge_offset_left);
 
                 int gaugeColor = getGaugeColor(MinehopClient.gauge);
 
                 // Render the text
-                if (config.show_ssj) {
+                if (config.jHud.ssjHud.show_ssj) {
                     context.drawTextWithShadow(this.textRenderer, ssjText, ssj_left, ssj_top, color);
                 }
-                if (config.show_efficiency) {
+                if (config.jHud.efficiencyHud.show_efficiency) {
                     context.drawTextWithShadow(this.textRenderer, effText, eff_left, eff_top, effColor);
                 }
-                if (config.show_gauge) {
-                    if (config.horizontal_gauge) {
+                if (config.jHud.gaugeHud.show_gauge) {
+                    if (config.jHud.gaugeHud.horizontal_gauge) {
                         context.drawTextWithShadow(this.textRenderer, gauge_text, gauge_left, gauge_top, gaugeColor);
                     }
                     else {
@@ -194,18 +180,16 @@ public class SqueedometerHud {
                     }
                 }
             }
-            if (config.show_prespeed) {
+            if (config.jHud.prespeedHud.show_prespeed) {
                 String preText = SpeedCalculator.speedText(MinehopClient.start_jump_speed);
 
-                int pre_top = (int) ((client.getWindow().getScaledHeight()) - (this.textRenderer.fontHeight * 4));
-                int pre_left = 6;
                 double travelledX = playerPosVec.x - client.player.prevX;
                 double travelledZ = playerPosVec.z - client.player.prevZ;
                 double speed = (double) MathHelper.sqrt((float) (travelledX * travelledX + travelledZ * travelledZ));
                 if (MinehopClient.wasOnGround && !client.player.isOnGround() && MinehopClient.jump_count == 0) {
                     MinehopClient.start_jump_speed = speed;
                 }
-                context.drawTextWithShadow(this.textRenderer, preText, pre_left, pre_top, Formatting.GREEN.getColorValue());
+                context.drawTextWithShadow(this.textRenderer, preText, (int) ((config.jHud.prespeedHud.prespeed_x_offset / 100f) * client.getWindow().getScaledWidth()), (int) ((config.jHud.prespeedHud.prespeed_y_offset / 100f) * client.getWindow().getScaledHeight()), Formatting.GREEN.getColorValue());
             }
 
             if (client.player == null || !client.player.isSpectator()) {
