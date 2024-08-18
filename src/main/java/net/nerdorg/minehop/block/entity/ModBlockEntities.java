@@ -10,7 +10,7 @@ import net.nerdorg.minehop.block.ModBlocks;
 
 public class ModBlockEntities {
     public static final BlockEntityType<BoostBlockEntity> BOOST_BE =
-            Registry.register(Registries.BLOCK_ENTITY_TYPE, new Identifier(Minehop.MOD_ID, "boost_be"),
+            Registry.register(Registries.BLOCK_ENTITY_TYPE, Identifier.of(Minehop.MOD_ID, "boost_be"),
                     FabricBlockEntityTypeBuilder.create(BoostBlockEntity::new, ModBlocks.BOOSTER_BLOCK).build());
 
     public static void registerBlockEntities() {

@@ -47,12 +47,6 @@ public class TestCommands {
     }
 
     private static void handleTest(CommandContext<ServerCommandSource> context) {
-        MinecraftServer server = context.getSource().getServer();
-        FakePlayer fakePlayer = FakePlayer.get(context.getSource().getWorld(), new GameProfile(UUID.randomUUID(), "Replay"));
-        fakePlayer.setInvisible(false);
-        server.getPlayerManager().sendToAll(new PlayerListS2CPacket(PlayerListS2CPacket.Action.ADD_PLAYER, fakePlayer));
 
-        context.getSource().getWorld().spawnEntity(fakePlayer);
-        server.getPlayerManager().sendToAll(new EntitySpawnS2CPacket(fakePlayer));
     }
 }

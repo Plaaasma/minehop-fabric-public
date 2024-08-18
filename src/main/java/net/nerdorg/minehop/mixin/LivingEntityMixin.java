@@ -13,6 +13,7 @@ import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -29,6 +30,7 @@ import net.nerdorg.minehop.hns.HNSManager;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.MovementUtil;
 import net.nerdorg.minehop.util.ZoneUtil;
+import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -50,8 +52,6 @@ public abstract class LivingEntityMixin extends Entity {
     @Shadow protected boolean jumping;
 
     @Shadow protected abstract float getJumpVelocity();
-    @Shadow public abstract boolean hasStatusEffect(StatusEffect effect);
-    @Shadow public abstract StatusEffectInstance getStatusEffect(StatusEffect effect);
     @Shadow public abstract boolean isFallFlying();
     @Shadow public abstract boolean isClimbing();
 
@@ -72,6 +72,11 @@ public abstract class LivingEntityMixin extends Entity {
     @Shadow protected abstract boolean shouldSwimInFluids();
 
     @Shadow @Final public static int field_30063;
+
+    @Shadow public abstract boolean hasStatusEffect(RegistryEntry<StatusEffect> effect);
+
+    @Shadow @Nullable public abstract StatusEffectInstance getStatusEffect(RegistryEntry<StatusEffect> effect);
+
     private boolean wasOnGround;
     private long boostTime = 0;
     private long ladderReleaseTime = 0;

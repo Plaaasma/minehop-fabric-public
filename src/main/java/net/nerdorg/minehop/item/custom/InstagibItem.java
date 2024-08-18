@@ -105,14 +105,14 @@ public class InstagibItem extends Item {
 
                 // Calculate the end position 64 blocks away in the look direction
                 Vec3d endPos = startPos.add(lookVec.x * 64, lookVec.y * 64, lookVec.z * 64);
-                serverPlayerEntity.playSound(SoundEvents.ENTITY_WARDEN_ATTACK_IMPACT, SoundCategory.PLAYERS, 1f, 1f);
+                serverPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_WARDEN_ATTACK_IMPACT, SoundCategory.PLAYERS, 1f, 1f);
                 serverWorld.playSound(user, user.getBlockPos(), SoundEvents.ENTITY_WARDEN_ATTACK_IMPACT, SoundCategory.PLAYERS, 1f, 1f);
 
                 EntityHitResult entityHitResult = raycastEntities(serverPlayerEntity, startPos, endPos, 64);
                 if (entityHitResult != null) {
                     endPos = entityHitResult.getPos();
                     Entity hitEntity = entityHitResult.getEntity();
-                    serverPlayerEntity.playSound(SoundEvents.ENTITY_PLAYER_HURT, SoundCategory.PLAYERS, 1f, 1f);
+                    serverPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_PLAYER_HURT, SoundCategory.PLAYERS, 1f, 1f);
                     handleInstaGibHit(serverPlayerEntity, hitEntity);
                     handleGibParticles(serverWorld, startPos, endPos);
                 }
@@ -178,7 +178,7 @@ public class InstagibItem extends Item {
                     if (target instanceof ServerPlayerEntity targetPlayerEntity) {
                         Logger.logSuccess(attacker, "You shot " + targetPlayerEntity.getNameForScoreboard() + ".");
                         Logger.logFailure(targetPlayerEntity, "You were shot by " + attacker.getNameForScoreboard() + ".");
-                        targetPlayerEntity.playSound(SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 1f, 1f);
+                        targetPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 1f, 1f);
                     }
                 }
             }

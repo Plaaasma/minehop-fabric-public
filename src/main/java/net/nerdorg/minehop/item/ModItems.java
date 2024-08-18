@@ -1,6 +1,5 @@
 package net.nerdorg.minehop.item;
 
-import net.fabricmc.fabric.api.item.v1.FabricItemSettings;
 import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroupEntries;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.item.Item;
@@ -14,8 +13,8 @@ import net.nerdorg.minehop.item.custom.BoundsStickItem;
 import net.nerdorg.minehop.item.custom.InstagibItem;
 
 public class ModItems {
-    public static final Item BOUNDS_STICK = registerItem("bounds_stick", new BoundsStickItem(new FabricItemSettings()));
-    public static final Item INSTAGIB_GUN = registerItem("instagib_gun", new InstagibItem(new FabricItemSettings()));
+    public static final Item BOUNDS_STICK = registerItem("bounds_stick", new BoundsStickItem(new Item.Settings()));
+    public static final Item INSTAGIB_GUN = registerItem("instagib_gun", new InstagibItem(new Item.Settings()));
 
     private static void addItemsToOperatorTabItemGroup(FabricItemGroupEntries entries) {
         entries.add(BOUNDS_STICK);
@@ -27,7 +26,7 @@ public class ModItems {
     }
 
     private static Item registerItem(String name, Item item) {
-        return Registry.register(Registries.ITEM, new Identifier(Minehop.MOD_ID, name), item);
+        return Registry.register(Registries.ITEM, Identifier.of(Minehop.MOD_ID, name), item);
     }
 
     public static void registerModItems() {

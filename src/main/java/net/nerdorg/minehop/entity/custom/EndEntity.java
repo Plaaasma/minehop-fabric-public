@@ -101,7 +101,7 @@ public class EndEntity extends Zone {
                     int avgY = (this.corner1.getY() + this.corner2.getY()) / 2;
                     int avgZ = (this.corner1.getZ() + this.corner2.getZ()) / 2;
 
-                    this.teleport(avgX, avgY, avgZ);
+                    this.teleport(avgX, avgY, avgZ, false);
                 }
                 for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
                     PacketHandler.updateZone(worldPlayer, this.getId(), this.corner1, this.corner2, this.paired_map, 0);

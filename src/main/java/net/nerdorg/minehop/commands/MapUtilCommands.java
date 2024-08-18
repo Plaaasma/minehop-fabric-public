@@ -328,7 +328,7 @@ public class MapUtilCommands {
                                     if (!spectatorPlayer.isCreative()) {
                                         spectatorPlayer.getInventory().clear();
                                     }
-                                    spectatorPlayer.teleport(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ());
+                                    spectatorPlayer.teleport(serverPlayerEntity.getServerWorld(), serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ(), serverPlayerEntity.headYaw, serverPlayerEntity.getPitch());
                                     spectatorPlayer.setCameraEntity(serverPlayerEntity);
                                 }
                             }
@@ -405,7 +405,7 @@ public class MapUtilCommands {
                                 if (!spectatorPlayer.isCreative()) {
                                     spectatorPlayer.getInventory().clear();
                                 }
-                                spectatorPlayer.teleport(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ());
+                                spectatorPlayer.teleport(serverPlayerEntity.getServerWorld(), serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ(), serverPlayerEntity.headYaw, serverPlayerEntity.getPitch());
                                 spectatorPlayer.setCameraEntity(serverPlayerEntity);
                             }
                         }

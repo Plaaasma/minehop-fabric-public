@@ -2,8 +2,10 @@ package net.nerdorg.minehop.networking;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
+import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -44,8 +46,11 @@ public class HandshakeHandler {
     }
 
     private static void registerReceivers() {
-        ServerPlayNetworking.registerGlobalReceiver(ModMessages.HANDSHAKE_ID, (server, player, handler, buf, responseSender) -> {
-            int mod_version = buf.readInt();
+        ServerPlayNetworking.registerGlobalReceiver(ModMessages.HANDSHAKE_ID, (arg1, packet) -> {
+            MinecraftServer server = packet.server();
+            ServerPlayerEntity player = packet.player();
+            PacketSender responseSender = packet.responseSender();
+            int mod_version = AHHHHHHHHHHHHHHHHHHHH;
             if (mod_version == Minehop.MOD_VERSION) {
                 System.out.println("Validated " + player.getNameForScoreboard());
                 waitingForShake.remove(player.getNameForScoreboard());

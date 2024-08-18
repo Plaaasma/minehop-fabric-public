@@ -13,6 +13,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.GameMode;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.entity.custom.ReplayEntity;
@@ -165,7 +166,7 @@ public class SpectateCommands {
                     if (!serverPlayerEntity.isCreative()) {
                         serverPlayerEntity.getInventory().clear();
                     }
-                    serverPlayerEntity.teleport(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ());
+                    serverPlayerEntity.teleport((ServerWorld) replayEntity.getWorld(), replayEntity.getX(), replayEntity.getY(), replayEntity.getZ(), replayEntity.headYaw, replayEntity.getPitch());
                     serverPlayerEntity.setCameraEntity(replayEntity);
                 } else {
                     Logger.logSuccess(serverPlayerEntity, "Please teleport to the map before viewing it's replay.");
@@ -192,7 +193,7 @@ public class SpectateCommands {
                     if (!serverPlayerEntity.isCreative()) {
                         serverPlayerEntity.getInventory().clear();
                     }
-                    serverPlayerEntity.teleport(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ());
+                    serverPlayerEntity.teleport(playerEntity.getServerWorld(), playerEntity.getX(), playerEntity.getY(), playerEntity.getZ(), playerEntity.headYaw, playerEntity.getPitch());
                     serverPlayerEntity.setCameraEntity(playerEntity);
                 }
                 else {

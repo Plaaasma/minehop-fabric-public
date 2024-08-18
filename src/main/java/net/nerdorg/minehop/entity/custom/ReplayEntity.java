@@ -142,7 +142,7 @@ public class ReplayEntity extends MobEntity {
                         xrot = 0.01;
                     }
 
-                    this.teleport(x, y, z);
+                    this.teleport(x, y, z, false);
                     this.setYaw((float) yrot);
                     this.setHeadYaw((float) yrot);
                     this.setPitch((float) xrot);
@@ -156,7 +156,7 @@ public class ReplayEntity extends MobEntity {
                                     if (!spectatorPlayer.isCreative()) {
                                         spectatorPlayer.getInventory().clear();
                                     }
-                                    spectatorPlayer.teleport(this.getX(), this.getY(), this.getZ());
+                                    spectatorPlayer.teleport(serverWorld, this.getX(), this.getY(), this.getZ(), this.headYaw, this.getPitch());
                                     spectatorPlayer.setCameraEntity(this);
                                     PacketHandler.sendSpecEfficiency(spectatorPlayer, last_jump_speed, (int) jump_count, efficiency);
                                     Logger.logActionBar(spectatorPlayer, "End Time: " + String.format("%.5f", replay.time));

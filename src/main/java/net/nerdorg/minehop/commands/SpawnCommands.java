@@ -72,7 +72,7 @@ public class SpawnCommands {
                         if (!spectatorPlayer.isCreative()) {
                             spectatorPlayer.getInventory().clear();
                         }
-                        spectatorPlayer.teleport(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ());
+                        spectatorPlayer.teleport(serverPlayerEntity.getServerWorld(), serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ(), serverPlayerEntity.headYaw, serverPlayerEntity.getPitch());
                         spectatorPlayer.setCameraEntity(serverPlayerEntity);
                     }
                 }
