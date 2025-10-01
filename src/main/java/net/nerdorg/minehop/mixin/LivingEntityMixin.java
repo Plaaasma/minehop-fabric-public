@@ -13,6 +13,7 @@ import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerPosition;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
@@ -60,7 +61,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Shadow public abstract void updateLimbs(boolean flutter);
 
-    @Shadow public float prevHeadYaw;
+    @Shadow public float lastHeadYaw;
 
     @Shadow public abstract float getHeadYaw();
 
@@ -130,7 +131,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     public void travel(Vec3d movementInput, CallbackInfo ci) {
         MinehopConfig config;
-        double speedCap = 1000000;
+        double speedCap = 1000000f;
         if (Minehop.override_config && Minehop.receivedConfig) {
             config = new MinehopConfig();
             config.movement.sv_friction = Minehop.o_sv_friction;
@@ -179,7 +180,7 @@ public abstract class LivingEntityMixin extends Entity {
         float slipperiness = this.getWorld().getBlockState(blockPos).getBlock().getSlipperiness();
         float friction = 1-(slipperiness*slipperiness);
 
-        //
+
         //Apply Friction
         //
         boolean fullGrounded = this.wasOnGround && this.isOnGround(); //Allows for no friction 1-frame upon landing.
@@ -214,7 +215,7 @@ public abstract class LivingEntityMixin extends Entity {
         //
         // Accelerate
         //
-        float yawDifference = MathHelper.wrapDegrees(this.getHeadYaw() - this.prevHeadYaw);
+        float yawDifference = MathHelper.wrapDegrees(this.getYaw() - this.lastHeadYaw);
         if (yawDifference < 0) {
             yawDifference = yawDifference * -1;
         }
@@ -281,7 +282,7 @@ public abstract class LivingEntityMixin extends Entity {
                 newHorizontalVelocity = newHorizontalVelocity.multiply(speedCap / currentHorizontalSpeed);
             }
 
-            if (!fullGrounded) {
+             if (!fullGrounded) {
                 double v = Math.sqrt((newVelocity.x * newVelocity.x) + (newVelocity.z * newVelocity.z));
                 double nogainv2 = (accelVec.x * accelVec.x) + (accelVec.z * accelVec.z);
                 double nogainv = Math.sqrt(nogainv2);
@@ -411,7 +412,7 @@ public abstract class LivingEntityMixin extends Entity {
     public double findOptimalStrafeAngle(double sI, double fI, MinehopConfig config, boolean fullGrounded) {
         double highestVelocity = -Double.MAX_VALUE;
         double optimalAngle = 0;
-        for (double angle = this.prevYaw - 45; angle < this.prevYaw + 45; angle += 1) {  // Test angles 0 to 355 degrees, in 5 degree increments
+        for (double angle = this.lastYaw - 45; angle < this.lastYaw + 45; angle += 1) {  // Test angles 0 to 355 degrees, in 5 degree increments
             Vec3d moveDir = MovementUtil.movementInputToVelocity(new Vec3d(sI, 0.0F, fI), 1.0F, (float) angle);
             Vec3d accelVec = this.getVelocity();
 

@@ -38,7 +38,7 @@ public class ReplayEntity extends MobEntity {
     @Override
     public void readCustomDataFromNbt(NbtCompound nbt) {
         super.readCustomDataFromNbt(nbt);
-        map_name = nbt.getString("map");
+        map_name = nbt.getString("map", "map");
     }
 
     public static DefaultAttributeContainer.Builder createResetEntityAttributes() {

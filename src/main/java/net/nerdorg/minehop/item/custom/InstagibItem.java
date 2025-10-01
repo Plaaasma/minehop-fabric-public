@@ -6,9 +6,11 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.network.packet.s2c.play.PositionFlag;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.registry.Registry;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
@@ -18,6 +20,7 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.ZoneUtil;
@@ -163,7 +166,7 @@ public class InstagibItem extends Item {
                     if (target instanceof ServerPlayerEntity targetPlayerEntity) {
                         Logger.logSuccess(attacker, "You shot " + targetPlayerEntity.getNameForScoreboard() + ".");
                         Logger.logFailure(targetPlayerEntity, "You were shot by " + attacker.getNameForScoreboard() + ".");
-                        targetPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 1f, 1f);
+                        targetPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_ITEM_BREAK.value(), SoundCategory.PLAYERS, 1f, 1f);
                     }
                 }
             }

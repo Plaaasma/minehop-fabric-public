@@ -7,6 +7,7 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityTicker;
 import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityCollisionHandler;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemPlacementContext;
@@ -51,7 +52,7 @@ public class BoostBlock extends BlockWithEntity implements BlockEntityProvider {
     }
 
     @Override
-    public void onEntityCollision(BlockState state, World world, BlockPos pos, Entity entity) {
+    public void onEntityCollision(BlockState state, World world, BlockPos pos, Entity entity, EntityCollisionHandler handler) {
         if (world instanceof ServerWorld serverWorld) {
             if (serverWorld.getTime() % 4 == 0) {
                 BoostBlockEntity boostBlockEntity = (BoostBlockEntity) serverWorld.getBlockEntity(pos);
@@ -62,7 +63,7 @@ public class BoostBlock extends BlockWithEntity implements BlockEntityProvider {
                 }
             }
         }
-        super.onEntityCollision(state, world, pos, entity);
+        super.onEntityCollision(state, world, pos, entity, EntityCollisionHandler.DUMMY);
     }
 
     @Override

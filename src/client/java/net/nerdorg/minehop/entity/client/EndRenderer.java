@@ -55,7 +55,7 @@ public class EndRenderer extends MobEntityRenderer<EndEntity, EndEntityRenderSta
         if (corner1 != null && corner2 != null) {
             Box colliderBox = new Box(new Vec3d(corner1.getX(), corner1.getY(), corner1.getZ()), new Vec3d(corner2.getX(), corner2.getY(), corner2.getZ()));
             if (!client.player.isCreative() && !client.player.isSpectator()) {
-                final float partialTicks = client.getRenderTickCounter().getTickDelta(true); // Get the partial tick time
+                final float partialTicks = client.getRenderTickCounter().getTickProgress(true); // Get the partial tick time
 
                 // Current position
                 Vec3d currentPosition = client.player.getPos();

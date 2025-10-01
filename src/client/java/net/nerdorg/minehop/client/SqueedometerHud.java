@@ -44,8 +44,8 @@ public class SqueedometerHud {
 
             // Calculating Speed
             Vec3d playerPosVec = client.player.getPos();
-            double travelledX = playerPosVec.x - client.player.prevX;
-            double travelledZ = playerPosVec.z - client.player.prevZ;
+            double travelledX = playerPosVec.x - client.player.lastX;
+            double travelledZ = playerPosVec.z - client.player.lastZ;
             double currentSpeed = (double) MathHelper.sqrt((float) (travelledX * travelledX + travelledZ * travelledZ));
 
             String currentSpeedText = "";
@@ -183,8 +183,8 @@ public class SqueedometerHud {
             if (config.jHud.prespeedHud.show_prespeed) {
                 String preText = SpeedCalculator.speedText(MinehopClient.start_jump_speed);
 
-                double travelledX = playerPosVec.x - client.player.prevX;
-                double travelledZ = playerPosVec.z - client.player.prevZ;
+                double travelledX = playerPosVec.x - client.player.lastX;
+                double travelledZ = playerPosVec.z - client.player.lastZ;
                 double speed = (double) MathHelper.sqrt((float) (travelledX * travelledX + travelledZ * travelledZ));
                 if (MinehopClient.wasOnGround && !client.player.isOnGround() && MinehopClient.jump_count == 0) {
                     MinehopClient.start_jump_speed = speed;
@@ -196,8 +196,8 @@ public class SqueedometerHud {
                 if (MinehopClient.jumping) {
                     if (client.world.getTime() >= MinehopClient.last_jump_time + 1 || client.world.getTime() < MinehopClient.last_jump_time || MinehopClient.last_jump_time == 0) {
                         if (client.player.isOnGround()) {
-                            double travelledX = playerPosVec.x - client.player.prevX;
-                            double travelledZ = playerPosVec.z - client.player.prevZ;
+                            double travelledX = playerPosVec.x - client.player.lastX;
+                            double travelledZ = playerPosVec.z - client.player.lastZ;
                             double speed = (double) MathHelper.sqrt((float) (travelledX * travelledX + travelledZ * travelledZ));
                             MinehopClient.old_jump_speed = MinehopClient.last_jump_speed;
                             MinehopClient.last_jump_speed = speed;

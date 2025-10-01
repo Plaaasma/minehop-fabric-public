@@ -80,7 +80,7 @@ public class Zone extends MobEntity {
     @Override
     public void readCustomDataFromNbt(NbtCompound nbt) {
         super.readCustomDataFromNbt(nbt);
-        paired_map = nbt.getString("map");
+        paired_map = nbt.getString("map", "map");
     }
 
     public String getPairedMap() {

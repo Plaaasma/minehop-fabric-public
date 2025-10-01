@@ -77,9 +77,9 @@ public class BoostBlockEntity extends BlockEntity {
     @Override
     protected void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
         super.readNbt(nbt, registries);
-        this.x_power = nbt.getDouble("x_power");
-        this.y_power = nbt.getDouble("y_power");
-        this.z_power = nbt.getDouble("z_power");
+        this.x_power = nbt.getDouble("x_power", 1f);
+        this.y_power = nbt.getDouble("y_power", 1f);
+        this.z_power = nbt.getDouble("z_power", 1f);
         this.markDirty();
     }
 }
