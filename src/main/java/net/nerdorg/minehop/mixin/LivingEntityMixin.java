@@ -283,6 +283,10 @@ public abstract class LivingEntityMixin extends Entity {
     // impulse. Gates the coyote buffer so it can't re-fire near apex while still RISING from a jump
     // (on slopes/stairs hasRealGroundBelow stays true the whole rise, pinning groundedCoyote at 0).
     @Unique private boolean minehop$descendedSinceJump = true;
+    // True only if jump has been held CONTINUOUSLY since the last ground contact. Gates the coyote
+    // buffer so walking off a ledge (not holding jump) then tapping jump in the air can't trigger an
+    // air jump, while an edge skim during a bhop (jump held the whole time) still fires.
+    @Unique private boolean minehop$jumpHeldFromGround = false;
     @Unique private int minehop$nearRampAcGraceTicks;
     @Unique private boolean minehop$sweepHit;
     @Unique private double minehop$sweepT;
@@ -320,6 +324,7 @@ public abstract class LivingEntityMixin extends Entity {
         HNSManager.taggedMap.remove(this.getNameForScoreboard());
         this.minehop$hasLastTravelYaw = false;
         this.minehop$descendedSinceJump = true; // don't carry a stale rising-state across a teleport
+        this.minehop$jumpHeldFromGround = false;
         this.minehop$jumpCooldownTicks = 0;
     }
 
@@ -477,20 +482,31 @@ public abstract class LivingEntityMixin extends Entity {
         }
         boolean nearSurfRampPre = !this.isClimbing() && this.isNearSurfRamp();
 
-        // Jump buffer + coyote time: an edge (esp. thin blocks like carpet) can fail to register
-        // onGround on the landing tick, or you can lose ground contact for a tick while sliding off,
-        // so vanilla never calls jump() and you slide off ("edge bug"). Track how many ticks since
-        // we were last grounded-ish; if you're holding jump within a short window of that, aren't
-        // rising, and aren't on/near a surf ramp, apply the jump. Once consumed it won't re-fire mid
-        // air until grounded again. vy<=0.10 means a real vanilla jump (vy>>0.10) won't double.
+        // Jump buffer for the edge bug: an edge (esp. thin blocks like carpet) can fail to register
+        // onGround on the landing tick, so vanilla never calls jump() and you slide off ("edge bug").
+        // The buffer fires a jump when you're holding jump and there is ACTUALLY ground within 0.20
+        // below right now (groundedishForCoyote), aren't rising (vy<=0.10), have descended/landed
+        // since the last jump, and aren't on/near a surf ramp. There is deliberately NO air coyote
+        // window — requiring ground-below-NOW is what stops "walk off a platform then jump in the
+        // air". Once consumed it won't re-fire until grounded again. (groundedCoyote field is kept
+        // only for telemetry; it no longer gates the buffer.)
         if (this.minehop$jumpCooldownTicks > 0) {
             this.minehop$jumpCooldownTicks--;
         }
         boolean groundedishForCoyote = this.isOnGround() || this.minehop$hasRealGroundBelow();
         if (groundedishForCoyote) {
             this.minehop$groundedCoyote = 0;
-        } else if (this.minehop$groundedCoyote < 999) {
-            this.minehop$groundedCoyote++;
+            // Seed the continuous-hold flag from whether jump is held at this ground contact.
+            this.minehop$jumpHeldFromGround = this.jumping;
+        } else {
+            if (this.minehop$groundedCoyote < 999) {
+                this.minehop$groundedCoyote++;
+            }
+            // Released in the air -> the hold is no longer continuous from the ground, so a later
+            // re-press can't fire the buffer (kills the walk-off-then-jump-in-air exploit).
+            if (!this.jumping) {
+                this.minehop$jumpHeldFromGround = false;
+            }
         }
         // We've genuinely descended/landed (not rising from a jump) once we're truly on the ground
         // or actually falling. Until then the buffer must not fire — otherwise on a slope/stairs,
@@ -503,10 +519,11 @@ public abstract class LivingEntityMixin extends Entity {
                 && ((Object) this) instanceof PlayerEntity
                 && this.minehop$jumpCooldownTicks <= 0
                 && this.minehop$descendedSinceJump
+                && this.minehop$jumpHeldFromGround
                 && !this.isClimbing()
                 && !this.isTouchingWater() && !this.isInLava() && !this.isGliding()
                 && this.getVelocity().y <= 0.10D
-                && this.minehop$groundedCoyote <= SURF_JUMP_COYOTE_TICKS
+                && groundedishForCoyote
                 && preMoveSurfContact == null
                 && !nearSurfRampPre) {
             double bufferYVel = config.movement.sv_jump_impulse * SOURCE_UNIT_TO_BLOCKS_PER_TICK;
@@ -3966,6 +3983,17 @@ public abstract class LivingEntityMixin extends Entity {
         // few ticks, don't fire again (prevents the buffer + vanilla path double-jumping). Far below
         // the bhop air cycle, so legit consecutive bhops are unaffected.
         if (((Object) this) instanceof PlayerEntity && this.minehop$jumpCooldownTicks > 0) {
+            this.velocityDirty = true;
+            ci.cancel();
+            return;
+        }
+
+        // Hard guard: by here all surf-ramp jumps are already cancelled, so the only legitimate
+        // remaining jump is off real ground. Never let jump() apply an impulse in mid-air (e.g. if
+        // vanilla calls jump() during a client/server onGround desync) — that would be the "walk off
+        // a platform then jump in the air" bug. The coyote buffer in travel() is the only sanctioned
+        // non-onGround jump and it requires ground within 0.20 below at the firing tick.
+        if (((Object) this) instanceof PlayerEntity && !this.isOnGround() && !jumpRealGroundBelow) {
             this.velocityDirty = true;
             ci.cancel();
             return;
