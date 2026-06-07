@@ -355,6 +355,7 @@ public abstract class LivingEntityMixin extends Entity {
             config.movement.speed_coefficient = Minehop.o_speed_coefficient;
             config.movement.auto_step_up = Minehop.o_auto_step_up;
             config.movement.css_crouch_jump = Minehop.o_css_crouch_jump;
+            config.movement.disable_sprint = Minehop.o_disable_sprint;
             config.enabled = Minehop.o_enabled;
             config.fall_damage = Minehop.o_fall_damage;
             speedCap = Minehop.o_speed_cap;
@@ -364,6 +365,12 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         if (this.getType() != EntityType.PLAYER) { return; }
+
+        // Fully disable sprinting when configured (global or per-map). Runs on both client and
+        // server every tick so the sprint state can never stick.
+        if (config.movement.disable_sprint && this.isSprinting()) {
+            this.setSprinting(false);
+        }
 
         this.minehop$updateCssCrouchOffset(config);
 
@@ -3696,7 +3703,7 @@ public abstract class LivingEntityMixin extends Entity {
 
         if (this.cssAirCrouchSprintLock) {
             if (cssCrouchEnabled && airborneForSprintCarry && sneakingNow) {
-                if (!this.isSprinting()) {
+                if (!this.isSprinting() && !config.movement.disable_sprint) {
                     this.setSprinting(true);
                 }
             } else {
@@ -3768,6 +3775,7 @@ public abstract class LivingEntityMixin extends Entity {
             config.movement.speed_coefficient = Minehop.o_speed_coefficient;
             config.movement.auto_step_up = Minehop.o_auto_step_up;
             config.movement.css_crouch_jump = Minehop.o_css_crouch_jump;
+            config.movement.disable_sprint = Minehop.o_disable_sprint;
             config.enabled = Minehop.o_enabled;
             config.fall_damage = Minehop.o_fall_damage;
         }

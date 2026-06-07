@@ -28,6 +28,7 @@ public class MovementSettingsScreen extends Screen {
     private ButtonWidget overrideButton;
     private ButtonWidget autoStepButton;
     private ButtonWidget cssCrouchButton;
+    private ButtonWidget disableSprintButton;
     private ButtonWidget fallDamageButton;
 
     public MovementSettingsScreen(Screen parent, Values values, Consumer<Values> onApply) {
@@ -49,7 +50,7 @@ public class MovementSettingsScreen extends Screen {
     protected void init() {
         super.init();
         int panelWidth = 460;
-        int panelHeight = 360;
+        int panelHeight = 384;
         int panelX = (this.width - panelWidth) / 2;
         int panelY = (this.height - panelHeight) / 2;
         int labelX = panelX + 18;
@@ -92,6 +93,11 @@ public class MovementSettingsScreen extends Screen {
             this.updateButtonText();
         }).dimensions(fieldX, y, fieldWidth, 20).build());
         y += 24;
+        this.disableSprintButton = this.addDrawableChild(ButtonWidget.builder(Text.empty(), button -> {
+            this.values = this.values.withDisableSprint(!this.values.disableSprint());
+            this.updateButtonText();
+        }).dimensions(fieldX, y, fieldWidth, 20).build());
+        y += 24;
         this.fallDamageButton = this.addDrawableChild(ButtonWidget.builder(Text.empty(), button -> {
             this.values = this.values.withFallDamage(!this.values.fallDamage());
             this.updateButtonText();
@@ -124,7 +130,7 @@ public class MovementSettingsScreen extends Screen {
         this.renderBackground(context, mouseX, mouseY, delta);
 
         int panelWidth = 460;
-        int panelHeight = 360;
+        int panelHeight = 384;
         int panelX = (this.width - panelWidth) / 2;
         int panelY = (this.height - panelHeight) / 2;
         int labelX = panelX + 18;
@@ -158,6 +164,8 @@ public class MovementSettingsScreen extends Screen {
         y += 24;
         this.drawLabel(context, "css_crouch_jump", labelX, y);
         y += 24;
+        this.drawLabel(context, "disable_sprint", labelX, y);
+        y += 24;
         this.drawLabel(context, "fall_damage", labelX, y);
 
         super.render(context, mouseX, mouseY, delta);
@@ -183,6 +191,11 @@ public class MovementSettingsScreen extends Screen {
                     ? Text.translatable("screen.minehop.map_creator.toggle.on")
                     : Text.translatable("screen.minehop.map_creator.toggle.off"));
         }
+        if (this.disableSprintButton != null) {
+            this.disableSprintButton.setMessage(this.values.disableSprint()
+                    ? Text.translatable("screen.minehop.map_creator.toggle.on")
+                    : Text.translatable("screen.minehop.map_creator.toggle.off"));
+        }
         if (this.fallDamageButton != null) {
             this.fallDamageButton.setMessage(this.values.fallDamage()
                     ? Text.translatable("screen.minehop.map_creator.toggle.on")
@@ -204,6 +217,7 @@ public class MovementSettingsScreen extends Screen {
                 this.parse(this.speedCoefficientField, this.values.speedCoefficient()),
                 this.values.autoStepUp(),
                 this.values.cssCrouchJump(),
+                this.values.disableSprint(),
                 this.values.fallDamage()
         );
         if (this.onApply != null) {
@@ -244,26 +258,31 @@ public class MovementSettingsScreen extends Screen {
             double speedCoefficient,
             boolean autoStepUp,
             boolean cssCrouchJump,
+            boolean disableSprint,
             boolean fallDamage
     ) {
         public static Values defaults() {
-            return new Values(false, 4.0D, 10.0D, 100.0D, 30.0D, 300.0D, 3.25D, 800.0D, 75.0D, 1.0D, true, true, false);
+            return new Values(false, 4.0D, 10.0D, 100.0D, 30.0D, 300.0D, 3.25D, 800.0D, 75.0D, 1.0D, false, true, false, false);
         }
 
         public Values withOverride(boolean value) {
-            return new Values(value, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, cssCrouchJump, fallDamage);
+            return new Values(value, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, cssCrouchJump, disableSprint, fallDamage);
         }
 
         public Values withAutoStepUp(boolean value) {
-            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, value, cssCrouchJump, fallDamage);
+            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, value, cssCrouchJump, disableSprint, fallDamage);
         }
 
         public Values withCssCrouchJump(boolean value) {
-            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, value, fallDamage);
+            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, value, disableSprint, fallDamage);
+        }
+
+        public Values withDisableSprint(boolean value) {
+            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, cssCrouchJump, value, fallDamage);
         }
 
         public Values withFallDamage(boolean value) {
-            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, cssCrouchJump, value);
+            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, cssCrouchJump, disableSprint, value);
         }
     }
 }

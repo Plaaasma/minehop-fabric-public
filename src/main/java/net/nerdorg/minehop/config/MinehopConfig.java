@@ -38,8 +38,9 @@ public class MinehopConfig implements ConfigData {
         public double sv_gravity = 800.0;
         public double sv_stopspeed = 75.0;
         public double speed_coefficient = 0.9;
-        public boolean auto_step_up = true;
+        public boolean auto_step_up = false;
         public boolean css_crouch_jump = true;
+        public boolean disable_sprint = false;
         @ConfigEntry.Gui.Excluded
         public boolean source_units_migrated = true;
         @ConfigEntry.Gui.Excluded

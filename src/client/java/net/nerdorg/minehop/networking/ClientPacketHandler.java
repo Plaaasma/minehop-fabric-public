@@ -71,6 +71,7 @@ public class ClientPacketHandler {
                 Minehop.o_speed_cap = payload.speedCap();
                 Minehop.o_auto_step_up = payload.autoStepUp();
                 Minehop.o_css_crouch_jump = payload.cssCrouchJump();
+                Minehop.o_disable_sprint = payload.disableSprint();
                 Minehop.o_hns = payload.isHNS();
                 Minehop.o_enabled = payload.isEnabled();
                 Minehop.o_fall_damage = payload.fallDamage();
@@ -325,6 +326,7 @@ public class ClientPacketHandler {
                                     payload.movementSpeedCoefficient(),
                                     payload.movementAutoStepUp(),
                                     payload.movementCssCrouchJump(),
+                                    payload.movementDisableSprint(),
                                     payload.movementFallDamage(),
                                     payload.checkpointIndex()
                             )
@@ -441,6 +443,7 @@ public class ClientPacketHandler {
                 boolean movementAutoStepUp = parseBooleanSafe(buff, 38, true);
                 boolean movementCssCrouchJump = parseBooleanSafe(buff, 39, true);
                 boolean movementFallDamage = parseBooleanSafe(buff, 40, false);
+                boolean movementDisableSprint = parseBooleanSafe(buff, 41, false);
 
                 DataManager.MapData mapData = new DataManager.MapData(
                         name,
@@ -485,6 +488,7 @@ public class ClientPacketHandler {
                         movementSpeedCoefficient,
                         movementAutoStepUp,
                         movementCssCrouchJump,
+                        movementDisableSprint,
                         movementFallDamage
                 );
                 newMapList.add(mapData);
@@ -681,6 +685,7 @@ public class ClientPacketHandler {
             double movementSpeedCoefficient,
             boolean movementAutoStepUp,
             boolean movementCssCrouchJump,
+            boolean movementDisableSprint,
             boolean movementFallDamage,
             int checkpointIndex
     ) {
@@ -705,6 +710,7 @@ public class ClientPacketHandler {
                         movementSpeedCoefficient,
                         movementAutoStepUp,
                         movementCssCrouchJump,
+                        movementDisableSprint,
                         movementFallDamage,
                         checkpointIndex
                 )

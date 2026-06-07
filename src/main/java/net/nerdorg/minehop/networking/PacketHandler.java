@@ -124,7 +124,8 @@ public class PacketHandler {
             currentMap != null && currentMap.hns,
             effectiveConfig.enabled,
             effectiveConfig.fall_damage,
-            effectiveConfig.movement.sv_stopspeed
+            effectiveConfig.movement.sv_stopspeed,
+            effectiveConfig.movement.disable_sprint
         ));
     }
     public static void updateZone(ServerPlayerEntity player, int entityId, BlockPos pos1, BlockPos pos2, String name, int check_index) {
@@ -270,6 +271,7 @@ public class PacketHandler {
         }
         String playerName = player.getNameForScoreboard();
         Minehop.timerManager.remove(playerName);
+        Minehop.finishTimeManager.remove(playerName);
         ReplayEvents.replayEntryMap.remove(playerName);
         clearRunTimerHudForRunnerAndSpectators(player, server);
     }
@@ -321,7 +323,13 @@ public class PacketHandler {
             return;
         }
 
-        double rawTime = (double) (System.nanoTime() - timerStart) / 1000000000;
+        // Prefer the server-stamped end-zone entry time (measured at the real crossing) over `now`
+        // (packet-processing time), so a server-thread stall can't inflate rawTime and reject a
+        // legit run.
+        HashMap<String, Long> finishMap = Minehop.finishTimeManager.get(player.getNameForScoreboard());
+        Long finishStamp = finishMap == null ? null : finishMap.get(activeMapName);
+        long finishNanos = finishStamp != null ? finishStamp : System.nanoTime();
+        double rawTime = (double) (finishNanos - timerStart) / 1000000000;
         if (time < rawTime + (ping_limit / 1000f) && time > rawTime - (ping_limit / 1000f)) {
             String formattedNumber = String.format("%.5f", time);
             String playerName = player.getNameForScoreboard();
@@ -455,6 +463,7 @@ public class PacketHandler {
             double movementSpeedCoefficient,
             boolean movementAutoStepUp,
             boolean movementCssCrouchJump,
+            boolean movementDisableSprint,
             boolean movementFallDamage,
             int checkpointIndex
     ) {
@@ -479,6 +488,7 @@ public class PacketHandler {
                         movementSpeedCoefficient,
                         movementAutoStepUp,
                         movementCssCrouchJump,
+                        movementDisableSprint,
                         movementFallDamage,
                         checkpointIndex
                 )
@@ -534,7 +544,8 @@ public class PacketHandler {
             buff += mapData.movement_speed_coefficient;buff += "~";
             buff += mapData.movement_auto_step_up;buff += "~";
             buff += mapData.movement_css_crouch_jump;buff += "~";
-            buff += mapData.movement_fall_damage;
+            buff += mapData.movement_fall_damage;buff += "~";
+            buff += mapData.movement_disable_sprint;
 
             ServerPlayNetworking.send(player,  new SendMapPayload(buff));
         }
@@ -779,6 +790,7 @@ public class PacketHandler {
                     payload.movementSpeedCoefficient(),
                     payload.movementAutoStepUp(),
                     payload.movementCssCrouchJump(),
+                    payload.movementDisableSprint(),
                     payload.movementFallDamage(),
                     payload.checkpointIndex()
             ));

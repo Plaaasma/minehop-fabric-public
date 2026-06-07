@@ -11,7 +11,7 @@ public record ConfigSyncPayload(double sv_friction, double sv_accelerate,
                                 double sv_airaccelerate, double sv_maxairspeed, double sv_jump_impulse,
                                 double speed_mul, double sv_gravity, double speedCoef, double speedCap, boolean autoStepUp,
                                 boolean cssCrouchJump, boolean isHNS, boolean isEnabled, boolean fallDamage,
-                                double sv_stopspeed) implements CustomPayload {
+                                double sv_stopspeed, boolean disableSprint) implements CustomPayload {
     public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "config");
     public static final Id<ConfigSyncPayload> ID = new Id<>(HANDSHAKE_ID);
     public static final PacketCodec<PacketByteBuf, ConfigSyncPayload> CODEC = PacketCodec.of(
@@ -31,6 +31,7 @@ public record ConfigSyncPayload(double sv_friction, double sv_accelerate,
                 value.writeBoolean(buf.isEnabled);
                 value.writeBoolean(buf.fallDamage);
                 value.writeDouble(buf.sv_stopspeed);
+                value.writeBoolean(buf.disableSprint);
             },
             buf -> new ConfigSyncPayload(
                     buf.readDouble(),
@@ -47,7 +48,8 @@ public record ConfigSyncPayload(double sv_friction, double sv_accelerate,
                     buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readBoolean(),
-                    buf.readDouble()
+                    buf.readDouble(),
+                    buf.readBoolean()
             )
     );
 

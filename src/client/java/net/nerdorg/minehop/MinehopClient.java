@@ -219,15 +219,23 @@ public class MinehopClient implements ClientModInitializer {
 			}
 		}
 
-		if (insideStartZone && grounded) {
+		// Arm a fresh start by slowing below walk on the ground in the start zone (circling never
+		// goes below walk, so it can't re-arm/reset). While armed + grounded the timer is held at 0
+		// (ground prestrafe is free); the run STARTS the moment they go airborne. Mirrors StartEntity.
+		Vec3d vel = client.player.getVelocity();
+		double horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+		boolean belowWalk = horizontalSpeed < net.nerdorg.minehop.entity.custom.StartEntity.WALK_SPEED_BPT;
+		if (insideStartZone && grounded && belowWalk) {
 			startZoneArmed = true;
 		}
-
-		boolean shouldStartRun = startZoneArmed && (!insideStartZone || !grounded);
-		if (shouldStartRun) {
-			startTime = System.nanoTime();
-			lastSendTime = 0.0F;
-			startZoneArmed = false;
+		if (startZoneArmed) {
+			if (insideStartZone && grounded) {
+				startTime = System.nanoTime();
+				lastSendTime = 0.0F;
+			} else {
+				// became airborne (or left the zone) -> run starts; freeze startTime, disarm
+				startZoneArmed = false;
+			}
 		}
 
 		if (startTime != 0L && insideEndZone && !wasInsideEndZone) {

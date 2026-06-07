@@ -253,6 +253,7 @@ public final class PlotCommands {
                 mapData.movement_speed_coefficient,
                 mapData.movement_auto_step_up,
                 mapData.movement_css_crouch_jump,
+                mapData.movement_disable_sprint,
                 mapData.movement_fall_damage,
                 Math.max(0, checkpointIndex)
         );

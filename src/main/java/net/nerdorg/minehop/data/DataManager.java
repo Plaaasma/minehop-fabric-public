@@ -59,6 +59,7 @@ public class DataManager {
         public double movement_speed_coefficient;
         public boolean movement_auto_step_up;
         public boolean movement_css_crouch_jump;
+        public boolean movement_disable_sprint;
         public boolean movement_fall_damage;
         public boolean userMap;
         public int difficulty;
@@ -246,6 +247,7 @@ public class DataManager {
             this.movement_speed_coefficient = source.movement.speed_coefficient;
             this.movement_auto_step_up = source.movement.auto_step_up;
             this.movement_css_crouch_jump = source.movement.css_crouch_jump;
+            this.movement_disable_sprint = source.movement.disable_sprint;
             this.movement_fall_damage = source.fall_damage;
         }
 
@@ -262,6 +264,7 @@ public class DataManager {
                 double speedCoefficient,
                 boolean autoStepUp,
                 boolean cssCrouchJump,
+                boolean disableSprint,
                 boolean fallDamage
         ) {
             this.movement_override = overrideEnabled;
@@ -276,6 +279,7 @@ public class DataManager {
             this.movement_speed_coefficient = clampFinite(speedCoefficient, 0.0D, 10.0D, 1.0D);
             this.movement_auto_step_up = autoStepUp;
             this.movement_css_crouch_jump = cssCrouchJump;
+            this.movement_disable_sprint = disableSprint;
             this.movement_fall_damage = fallDamage;
         }
     }

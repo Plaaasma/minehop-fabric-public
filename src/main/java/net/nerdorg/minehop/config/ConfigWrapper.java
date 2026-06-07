@@ -103,6 +103,7 @@ public class ConfigWrapper {
         effective.movement.speed_coefficient = mapData.movement_speed_coefficient;
         effective.movement.auto_step_up = mapData.movement_auto_step_up;
         effective.movement.css_crouch_jump = mapData.movement_css_crouch_jump;
+        effective.movement.disable_sprint = mapData.movement_disable_sprint;
         effective.fall_damage = mapData.movement_fall_damage;
         return effective;
     }
@@ -148,6 +149,7 @@ public class ConfigWrapper {
         copy.movement.speed_coefficient = input.movement.speed_coefficient;
         copy.movement.auto_step_up = input.movement.auto_step_up;
         copy.movement.css_crouch_jump = input.movement.css_crouch_jump;
+        copy.movement.disable_sprint = input.movement.disable_sprint;
         copy.movement.source_units_migrated = input.movement.source_units_migrated;
         copy.movement.source_movement_version = input.movement.source_movement_version;
         return copy;

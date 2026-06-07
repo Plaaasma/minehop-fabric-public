@@ -22,12 +22,25 @@ import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.replays.ReplayEvents;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class StartEntity extends Zone {
     private static final double SOURCE_UNIT_TO_BLOCKS_PER_TICK = 1.0D / 800.0D;
+    // ~walking speed in blocks/tick (MC walk ≈ 4.3 b/s ≈ 0.215 bpt). The run timer only (re)starts
+    // while the player is below this in the start zone, so circle-bhopping (always faster) can't
+    // keep resetting the timer for a free running start. See [[run-timer-validation]].
+    public static final double WALK_SPEED_BPT = 0.25D;
     private BlockPos corner1;
     private BlockPos corner2;
+    // Players (by name) that were inside this start zone last tick — used to detect a fresh airborne
+    // RE-ENTRY (the timer-reset-while-keeping-speed exploit) vs jumping out from the ground.
+    private final Set<String> insideLastTick = new HashSet<>();
+    // Players who slowed below walk on the ground in this zone and haven't launched yet. While armed
+    // the timer is held at 0 (so ground prestrafe doesn't count); it STARTS when they go airborne.
+    // Circle-bhopping never goes below walk, so it never (re)arms -> no free reset.
+    private final Set<String> startArmed = new HashSet<>();
 
     public StartEntity(EntityType<? extends MobEntity> entityType, World world) {
         super(entityType, world);
@@ -103,26 +116,59 @@ public class StartEntity extends Zone {
                     Box colliderBox = this.getBoundsBox();
                     List<ServerPlayerEntity> players = serverWorld.getPlayers();
                     for (ServerPlayerEntity player : players) {
+                        String playerName = player.getNameForScoreboard();
                         boolean insideStartZone = colliderBox.contains(player.getPos());
-                        if (!player.isCreative() && !player.isSpectator() && insideStartZone) {
+                        boolean runner = !player.isCreative() && !player.isSpectator();
+                        if (runner && insideStartZone) {
                             Minehop.playerMapLocation.put(player.getUuidAsString(), this);
+                            boolean grounded = Minehop.groundedList.contains(playerName);
+                            // Anti-exploit: entering the start zone while AIRBORNE (and not already
+                            // inside last tick) is a re-entry to reset the timer without losing
+                            // speed -> fully stop the player. Jumping out from the ground is fine
+                            // because the player was inside (grounded) the previous tick.
+                            if (!grounded && !this.insideLastTick.contains(playerName)) {
+                                fullStopPlayer(player);
+                            }
                             clampPlayerToStartZoneSpeed(player);
-                            if (Minehop.groundedList.contains(player.getNameForScoreboard())) {
-                                Minehop.playerMapLocation.put(player.getUuidAsString(), this);
-                                HashMap<String, Long> informationMap = new HashMap<>();
-                                informationMap.put(this.getPairedMap(), System.nanoTime());
-                                if (ReplayEvents.replayEntryMap.containsKey(player.getNameForScoreboard())) {
-                                    ReplayEvents.replayEntryMap.remove(player.getNameForScoreboard());
+                            Vec3d vel = player.getVelocity();
+                            double horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+                            if (grounded) {
+                                // Arm a fresh start by slowing below walk on the ground (so circling,
+                                // which never goes below walk, can't re-arm and reset the timer).
+                                if (horizontalSpeed < WALK_SPEED_BPT) {
+                                    this.startArmed.add(playerName);
                                 }
-                                Minehop.timerManager.put(player.getNameForScoreboard(), informationMap);
+                                // While armed + grounded, hold the timer at 0 (ground prestrafe is
+                                // free); it begins the moment they leave the ground (below).
+                                if (this.startArmed.contains(playerName)) {
+                                    Minehop.playerMapLocation.put(player.getUuidAsString(), this);
+                                    HashMap<String, Long> informationMap = new HashMap<>();
+                                    informationMap.put(this.getPairedMap(), System.nanoTime());
+                                    if (ReplayEvents.replayEntryMap.containsKey(playerName)) {
+                                        ReplayEvents.replayEntryMap.remove(playerName);
+                                    }
+                                    Minehop.timerManager.put(playerName, informationMap);
+                                    Minehop.finishTimeManager.remove(playerName);
+                                }
+                            } else {
+                                // Airborne in the start zone -> the run has begun; stop re-stamping
+                                // (timer frozen at the last grounded tick = the launch) until they
+                                // slow on the ground again.
+                                this.startArmed.remove(playerName);
                             }
                         }
                         else {
                             if (player.isCreative() || player.isSpectator()) {
-                                if (Minehop.timerManager.containsKey(player.getNameForScoreboard())) {
-                                    Minehop.timerManager.remove(player.getNameForScoreboard());
+                                if (Minehop.timerManager.containsKey(playerName)) {
+                                    Minehop.timerManager.remove(playerName);
                                 }
                             }
+                        }
+                        if (runner && insideStartZone) {
+                            this.insideLastTick.add(playerName);
+                        } else {
+                            this.insideLastTick.remove(playerName);
+                            this.startArmed.remove(playerName);
                         }
                     }
                 }
@@ -154,6 +200,15 @@ public class StartEntity extends Zone {
             }
         }
         return null;
+    }
+
+    public static void fullStopPlayer(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+        player.setVelocity(0.0D, 0.0D, 0.0D);
+        player.velocityDirty = true;
+        player.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(player));
     }
 
     public static void clampPlayerToStartZoneSpeed(ServerPlayerEntity player) {

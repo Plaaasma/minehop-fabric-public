@@ -144,6 +144,7 @@
   "text.autoconfig.minehop.option.movement.speed_coefficient": "Speed Coefficient",
   "text.autoconfig.minehop.option.movement.auto_step_up": "Auto Step Up (1-block step while grounded)",
   "text.autoconfig.minehop.option.movement.css_crouch_jump": "Source-Style Crouch Jump (sneak to clear higher obstacles)",
+  "text.autoconfig.minehop.option.movement.disable_sprint": "Disable Sprinting",
 
   "text.autoconfig.minehop.option.help_command": "Enable Minehop /help Command",
   "text.autoconfig.minehop.option.minehop_motd": "Enable Minehop Server MOTD",

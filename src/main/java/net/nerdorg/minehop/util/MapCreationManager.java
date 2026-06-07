@@ -104,6 +104,7 @@ public final class MapCreationManager {
                 movementConfig.movement.speed_coefficient,
                 movementConfig.movement.auto_step_up,
                 movementConfig.movement.css_crouch_jump,
+                movementConfig.movement.disable_sprint,
                 movementConfig.fall_damage,
                 checkpointIndex
         );
@@ -130,6 +131,7 @@ public final class MapCreationManager {
             double movementSpeedCoefficient,
             boolean movementAutoStepUp,
             boolean movementCssCrouchJump,
+            boolean movementDisableSprint,
             boolean movementFallDamage,
             int checkpointIndex
     ) {
@@ -185,6 +187,7 @@ public final class MapCreationManager {
                             movementSpeedCoefficient,
                             movementAutoStepUp,
                             movementCssCrouchJump,
+                            movementDisableSprint,
                             movementFallDamage
                     );
             case MapCreatorActionPayload.ACTION_SET_SPAWN ->
@@ -221,6 +224,7 @@ public final class MapCreationManager {
             double movementSpeedCoefficient,
             boolean movementAutoStepUp,
             boolean movementCssCrouchJump,
+            boolean movementDisableSprint,
             boolean movementFallDamage
     ) {
         ServerWorld world = player.getServerWorld();
@@ -255,6 +259,7 @@ public final class MapCreationManager {
                     movementSpeedCoefficient,
                     movementAutoStepUp,
                     movementCssCrouchJump,
+                    movementDisableSprint,
                     movementFallDamage
             );
             Minehop.mapList.add(mapData);
@@ -284,6 +289,7 @@ public final class MapCreationManager {
                     movementSpeedCoefficient,
                     movementAutoStepUp,
                     movementCssCrouchJump,
+                    movementDisableSprint,
                     movementFallDamage
             );
             Logger.logSuccess(player, "Updated map '" + mapName + "' at your current location.");
@@ -506,6 +512,7 @@ public final class MapCreationManager {
         config.movement.speed_coefficient = mapData.movement_speed_coefficient;
         config.movement.auto_step_up = mapData.movement_auto_step_up;
         config.movement.css_crouch_jump = mapData.movement_css_crouch_jump;
+        config.movement.disable_sprint = mapData.movement_disable_sprint;
         config.fall_damage = mapData.movement_fall_damage;
         return config;
     }

@@ -26,6 +26,7 @@ public record MapCreatorActionPayload(
         double movementSpeedCoefficient,
         boolean movementAutoStepUp,
         boolean movementCssCrouchJump,
+        boolean movementDisableSprint,
         boolean movementFallDamage,
         int checkpointIndex
 ) implements CustomPayload {
@@ -61,6 +62,7 @@ public record MapCreatorActionPayload(
                 buf.writeDouble(value.movementSpeedCoefficient);
                 buf.writeBoolean(value.movementAutoStepUp);
                 buf.writeBoolean(value.movementCssCrouchJump);
+                buf.writeBoolean(value.movementDisableSprint);
                 buf.writeBoolean(value.movementFallDamage);
                 buf.writeInt(value.checkpointIndex);
             },
@@ -82,6 +84,7 @@ public record MapCreatorActionPayload(
                     buf.readDouble(),
                     buf.readDouble(),
                     buf.readDouble(),
+                    buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readBoolean(),

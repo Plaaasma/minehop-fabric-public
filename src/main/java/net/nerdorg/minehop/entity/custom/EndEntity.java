@@ -97,9 +97,48 @@ public class EndEntity extends Zone {
                 DataManager.MapData pairedMap = DataManager.getMap(this.getPairedMap());
                 if (pairedMap == null) {
                     this.kill(serverWorld);
+                } else {
+                    Box endBox = this.getBoundsBox();
+                    String mapName = this.getPairedMap();
+                    for (ServerPlayerEntity player : serverWorld.getPlayers()) {
+                        if (player.isCreative() || player.isSpectator()) {
+                            continue;
+                        }
+                        String playerName = player.getNameForScoreboard();
+                        HashMap<String, Long> timerMap = Minehop.timerManager.get(playerName);
+                        // Only stamp while a run for this map is actually active.
+                        if (timerMap == null || !timerMap.containsKey(mapName)) {
+                            continue;
+                        }
+                        if (!endBox.contains(player.getPos())) {
+                            continue;
+                        }
+                        HashMap<String, Long> finishMap = Minehop.finishTimeManager.computeIfAbsent(playerName, k -> new HashMap<>());
+                        // first crossing only — keep the earliest entry time for this run
+                        finishMap.putIfAbsent(mapName, System.nanoTime());
+                    }
                 }
             }
         }
         super.tick();
+    }
+
+    private Box getBoundsBox() {
+        double minX = Math.min(this.corner1.getX(), this.corner2.getX());
+        double minY = Math.min(this.corner1.getY(), this.corner2.getY());
+        double minZ = Math.min(this.corner1.getZ(), this.corner2.getZ());
+        double maxX = Math.max(this.corner1.getX(), this.corner2.getX());
+        double maxY = Math.max(this.corner1.getY(), this.corner2.getY());
+        double maxZ = Math.max(this.corner1.getZ(), this.corner2.getZ());
+        if (maxX <= minX) {
+            maxX = minX + 1.0D;
+        }
+        if (maxY <= minY) {
+            maxY = minY + 1.0D;
+        }
+        if (maxZ <= minZ) {
+            maxZ = minZ + 1.0D;
+        }
+        return new Box(minX, minY, minZ, maxX, maxY, maxZ);
     }
 }

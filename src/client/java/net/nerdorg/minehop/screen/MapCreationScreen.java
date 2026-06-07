@@ -71,6 +71,7 @@ public class MapCreationScreen extends Screen {
             double movementSpeedCoefficient,
             boolean movementAutoStepUp,
             boolean movementCssCrouchJump,
+            boolean movementDisableSprint,
             boolean movementFallDamage,
             int checkpointIndex
     ) {
@@ -94,6 +95,7 @@ public class MapCreationScreen extends Screen {
                 movementSpeedCoefficient,
                 movementAutoStepUp,
                 movementCssCrouchJump,
+                movementDisableSprint,
                 movementFallDamage
         );
         this.initialCheckpointIndex = Math.max(0, checkpointIndex);
@@ -469,6 +471,7 @@ public class MapCreationScreen extends Screen {
                 this.selectedMovementSettings.speedCoefficient(),
                 this.selectedMovementSettings.autoStepUp(),
                 this.selectedMovementSettings.cssCrouchJump(),
+                this.selectedMovementSettings.disableSprint(),
                 this.selectedMovementSettings.fallDamage(),
                 checkpointIndex
         );

@@ -60,6 +60,7 @@ public class Minehop implements ModInitializer {
 	public static double o_speed_coefficient = 0;
 	public static boolean o_auto_step_up = true;
 	public static boolean o_css_crouch_jump = true;
+	public static boolean o_disable_sprint = false;
 	public static boolean o_hns = false;
 	public static boolean o_enabled = true;
 	public static boolean o_fall_damage = true;
@@ -80,6 +81,11 @@ public class Minehop implements ModInitializer {
 	public static final Set<Integer> surfCollisionBypassEntities = Collections.newSetFromMap(new ConcurrentHashMap<>());
 	public static final Set<UUID> surfDebugPlayers = Collections.newSetFromMap(new ConcurrentHashMap<>());
 	public static HashMap<String, HashMap<String, Long>> timerManager = new HashMap<>();
+	// Server-stamped finish time (nanoTime) at the tick the runner enters the end zone, so the run
+	// time is measured server-side at the real zone crossing and isn't inflated by packet/processing
+	// latency (e.g. a plot fill/clear stall) like `now - timerStart` was — which wrongly rejected
+	// legit runs as "Invalid time".
+	public static HashMap<String, HashMap<String, Long>> finishTimeManager = new HashMap<>();
 	public static HashMap<String, Double> efficiencyMap = new HashMap<>();
 	public static HashMap<String, List<Double>> efficiencyListMap = new HashMap<>();
 	public static HashMap<String, ReplayManager.SSJEntry> lastEfficiencyMap = new HashMap<>();
