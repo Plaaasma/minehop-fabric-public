@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "package": "net.nerdorg.minehop.mixin.client",
+  "compatibilityLevel": "JAVA_17",
+  "client": [
+    "GameRendererMixin",
+    "InGameHudMixin",
+    "PlayerEntityModelMixin",
+    "SpectatorHudMixin",
+    "KeyBindingMixin",
+    "MultiplayerScreenMixin",
+    "SoundSystemMixin",
+    "PlayerEntityRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [
+  ]
+}

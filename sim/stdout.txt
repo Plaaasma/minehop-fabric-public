@@ -1,0 +1,70 @@
+======================================================================
+MINEHOP SIM v2
+======================================================================
+airCap=57.0u/s  accelSpeed/tick: 20Hz=1300.0u/s 64Hz=406.2u/s (both >> cap -> add cap-bound)
+[consistency] cold-start along wishdir -> 57.000 u/s (==cap 57)
+
+(1) OPTIMAL ANGLE off velocity (faithful Source accel), 20Hz & 64Hz
+   100u/s  20Hz: 90.0deg(+-99.856)  64Hz: 90.0deg(+-99.856)
+   200u/s  20Hz: 90.0deg(+-199.740)  64Hz: 90.0deg(+-199.740)
+   300u/s  20Hz: 90.0deg(+-299.618)  64Hz: 90.0deg(+-299.618)
+   400u/s  20Hz: 90.0deg(+-399.495)  64Hz: 90.0deg(+-399.495)
+   500u/s  20Hz: 90.0deg(+-499.371)  64Hz: 90.0deg(+-499.371)
+   600u/s  20Hz: 90.0deg(+-599.247)  64Hz: 90.0deg(+-599.247)
+   700u/s  20Hz: 90.0deg(+-699.122)  64Hz: 90.0deg(+-699.122)
+   800u/s  20Hz: 90.0deg(+-798.997)  64Hz: 90.0deg(+-798.997)
+   900u/s  20Hz: 90.0deg(+-898.873)  64Hz: 90.0deg(+-898.873)
+
+(1b) WIDEST press still ~optimal (>=99% of best gain) vs speed:
+   100u/s widest near-optimal theta = 87.0 deg (tight)
+   200u/s widest near-optimal theta = 88.5 deg (tight)
+   300u/s widest near-optimal theta = 89.0 deg (tight)
+   400u/s widest near-optimal theta = 89.5 deg (tight)
+   500u/s widest near-optimal theta = 89.5 deg (tight)
+   600u/s widest near-optimal theta = 89.5 deg (tight)
+   700u/s widest near-optimal theta = 90.0 deg (tight)
+   800u/s widest near-optimal theta = 90.0 deg (tight)
+   900u/s widest near-optimal theta = 90.0 deg (tight)
+  -> smaller theta = wider strafe usable. Confirms wide@low, tight@high.
+
+(2) BUG1: gain from a WIDE press (theta=45) vs optimal, low speed 150u/s
+  A current   : wide(45deg) gain=  0.000u/s  best gain= 10.465u/s at 90.0deg
+  B norescale : wide(45deg) gain=  0.000u/s  best gain= 10.465u/s at 90.0deg
+  Wide-end (theta=30) gain:
+    A current   : theta=30 -> +0.000u/s ; theta=20 -> +0.000u/s
+    B norescale : theta=30 -> +0.000u/s ; theta=20 -> +0.000u/s
+    CS64        : theta=30 -> +0.000u/s ; theta=20 -> +0.000u/s
+
+(3) BUG2: no-mouse heading change (deg/sec) + speed kept, start 300u/s
+  A current   : turn= 2768.15 deg/s, speed after 1s =    65.3 u/s
+  B norescale : turn= 2767.54 deg/s, speed after 1s =    61.7 u/s
+  C K=3       : turn= 2767.54 deg/s, speed after 1s =    61.7 u/s
+  C K=4       : turn= 2767.54 deg/s, speed after 1s =    61.7 u/s
+  CS64        : turn= 8707.50 deg/s, speed after 1s =    61.7 u/s
+
+  Interpretation: real CS lets you turn only a little with no mouse
+  BECAUSE pressing backward bleeds speed (you stall). Engine A's rescale
+  refills speed every tick -> you can keep turning for free.
+
+(4) recommended K (effective Hz vs 64):
+   K=2: 40Hz  turn=2767.54deg/s (CS64 ref=8707.50)
+   K=3: 60Hz  turn=2767.54deg/s (CS64 ref=8707.50)
+   K=4: 80Hz  turn=2767.54deg/s (CS64 ref=8707.50)
+   -> K=3 (60Hz) closest to 64 without overshoot.
+
+(5) RAMP: substep vs single-step (maxair=57)
+   hop 0: B=  300.0  C3=  300.0  C4=  300.0
+   hop 1: B=  372.5  C3=  372.5  C4=  372.5
+   hop 2: B=  433.0  C3=  433.0  C4=  433.0
+   hop 3: B=  486.0  C3=  486.0  C4=  486.0
+   hop 4: B=  533.8  C3=  533.8  C4=  533.8
+   hop 5: B=  577.6  C3=  577.6  C4=  577.6
+   hop 6: B=  618.4  C3=  618.4  C4=  618.4
+   hop 7: B=  656.6  C3=  656.6  C4=  656.6
+   hop 8: B=  692.7  C3=  692.7  C4=  692.7
+   hop 9: B=  727.1  C3=  727.1  C4=  727.1
+   hop10: B=  759.8  C3=  759.8  C4=  759.8
+   final delta vs B: C3=-0.00%  C4=-0.00%
+   equiv maxair for C3 to match B(57) ramp = 57.00 u/s
+
+MACHINE: (2768.1491912058427, 65.34745673618339) (2767.5395759954345, 61.67872321233786) (2767.5395759954345, 61.67872321233786) (8707.500000009433, 61.69635541245911)

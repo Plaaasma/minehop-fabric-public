@@ -1,0 +1,117 @@
+==============================================================================
+MINEHOP MOVEMENT SIM — bug quantification & fix validation
+==============================================================================
+AIR_CAP = 0.071250 b/t = 57.00 u/s   AIR_WISH = 0.325 b/t = 260 u/s   AIR_ACCEL=100.0
+accelSpeed (uncapped, per 20Hz tick) = 1.6250 b/t  (per 64Hz tick = 0.5078 b/t)
+-> 20Hz accelSpeed >> airCap (1.625 vs 0.0713), so add is ALWAYS cap-bound on a cold start. addmax/tick = airCap = 0.0713 b/t = 57.0 u/s
+
+[consistency] CS step from rest along wishdir: speed=57.000 u/s (expect min(accel*dt*wish, cap)= 57.000)
+
+------------------------------------------------------------------------------
+(1) OPTIMAL STRAFE ANGLE vs SPEED  (angle between velocity & wishdir
+    that MAXIMIZES next-tick speed; faithful Source accel)
+------------------------------------------------------------------------------
+ speed u/s |  20Hz optA(deg)   gain u/s |  64Hz optA(deg)   gain u/s
+       100 |            90.0     15.104 |            90.0     15.104
+       200 |            90.0      7.964 |            90.0      7.964
+       300 |            90.0      5.367 |            90.0      5.367
+       400 |            90.0      4.041 |            90.0      4.041
+       500 |            90.0      3.239 |            90.0      3.239
+       600 |            90.0      2.701 |            90.0      2.701
+       700 |            90.0      2.317 |            90.0      2.317
+       800 |            90.0      2.028 |            90.0      2.028
+       900 |            90.0      1.803 |            90.0      1.803
+
+Trend (faithful): 100u=90deg, 200u=90deg, 300u=90deg, 400u=90deg, 500u=90deg, 600u=90deg, 700u=90deg, 800u=90deg, 900u=90deg
+
+------------------------------------------------------------------------------
+(2) BUG1: wide low-speed strafing. post-tick speed vs wishdir angle
+    (start speed 150 u/s). Faithful (B) should reward WIDE angles;
+    Engine A (rescale) flattens them.
+------------------------------------------------------------------------------
+start=150.0 u/s
+ angle |   A speed |   B speed
+     0 |   150.000 |   150.000
+     5 |   150.000 |   150.000
+    10 |   150.000 |   150.000
+    15 |   150.000 |   150.000
+    20 |   150.000 |   150.000
+    25 |   150.000 |   150.000
+    30 |   150.000 |   150.000
+    35 |   150.000 |   150.000
+    40 |   150.000 |   150.000
+    45 |   150.000 |   150.000
+    50 |   150.000 |   150.000
+    55 |   150.000 |   150.000
+    60 |   150.000 |   150.000
+    65 |   150.000 |   150.000
+    70 |   152.043 |   152.043
+    75 |   155.698 |   155.698
+    80 |   158.337 |   158.337
+    85 |   159.932 |   159.932
+    90 |   160.465 |   160.465
+
+Engine A: speed spread across angles = 10.465 u/s, best angle = 90 deg
+Engine B: speed spread across angles = 10.465 u/s, best angle = 90 deg
+BUG1 (A collapses all angles to ~equal speed): False  (A spread 10.465 vs faithful B spread 10.465)
+Max low-speed gain — A: 10.465 u/s, B(faithful): 10.465 u/s
+
+------------------------------------------------------------------------------
+(3) BUG2: max heading change per SECOND, NO view-yaw change,
+    cycling 8 key-relative wishdirs optimally, start ~300 u/s.
+------------------------------------------------------------------------------
+Engine A  (current, 20Hz, rescale)  :  2768.15 deg/sec
+Engine B  (no rescale, 20Hz)        :  2767.54 deg/sec
+Engine C3 (no rescale, K=3 substep) :  2767.54 deg/sec
+Engine C4 (no rescale, K=4 substep) :  2767.54 deg/sec
+Real CS:S (64-tick faithful)        :  8707.50 deg/sec  <-- target feel
+
+(User says real CS no-mouse redirect is small (~1 'unit'/tiny). A's huge number == BUG2.)
+
+------------------------------------------------------------------------------
+(4) Recommended substep K (match ~64Hz feel for turn rate & accel cadence)
+------------------------------------------------------------------------------
+  K=2: effective 40 Hz, no-mouse turn = 2767.54 deg/sec (CS64=8707.50)
+  K=3: effective 60 Hz, no-mouse turn = 2767.54 deg/sec (CS64=8707.50)
+  K=4: effective 80 Hz, no-mouse turn = 2767.54 deg/sec (CS64=8707.50)
+  -> K=3 gives 60Hz (closest below 64 without overshoot); K=4 gives 80Hz (slightly over). Recommend K=3.
+
+------------------------------------------------------------------------------
+(5) Bhop speed RAMP: does substepping change tuned maxair=57 single-step?
+------------------------------------------------------------------------------
+air_ticks/hop=15 (~0.75s), hops=12, start=300.0 u/s
+ hop |   B single |      C K=3 |      C K=4
+   0 |     300.00 |     300.00 |     300.00
+   1 |     372.47 |     372.47 |     372.47
+   2 |     432.98 |     432.98 |     432.98
+   3 |     486.01 |     486.01 |     486.01
+   4 |     533.80 |     533.80 |     533.80
+   5 |     577.65 |     577.65 |     577.65
+   6 |     618.39 |     618.39 |     618.39
+   7 |     656.62 |     656.62 |     656.62
+   8 |     692.73 |     692.73 |     692.73
+   9 |     727.06 |     727.06 |     727.06
+  10 |     759.84 |     759.84 |     759.84
+  11 |     791.26 |     791.26 |     791.26
+  12 |     821.47 |     821.47 |     821.47
+
+First-hop gain: B=72.47  C3=72.47  C4=72.47 u/s
+Final speed:  B=821.47  C3=821.47  C4=821.47 u/s
+C3 vs B single-step final-speed delta = -0.00%
+Equivalent maxair for C3 to reproduce B(57) ramp = 57.00 u/s
+
+==============================================================================
+SUMMARY (machine-readable)
+==============================================================================
+BUG1_A_spread_u/s=10.465
+BUG1_B_spread_u/s=10.465
+BUG1_A_best_angle_deg=90
+BUG1_B_best_angle_deg=90
+BUG1_collapse=False
+turn_A_degpersec=2768.15
+turn_B_degpersec=2767.54
+turn_C3_degpersec=2767.54
+turn_CS64_degpersec=8707.50
+recommended_K=3
+ramp_C3_vs_B_final_pct=-0.00
+equiv_maxair_C3_u/s=57.00

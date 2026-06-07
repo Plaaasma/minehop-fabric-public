@@ -1,0 +1,49 @@
+﻿
+[B  FIX (no rescale)] optimal-angle curve (single 20Hz tick):
+  speed(u/s)  bestTheta  bestGain(u/s)  widest>=99%(deg)
+     100       90.0       15.104        90.0
+     200       90.0        7.964        90.0
+     300       90.0        5.367        90.0
+     400       90.0        4.041        90.0
+     500       90.0        3.239        90.0
+     600       90.0        2.701        90.0
+     700       90.0        2.317        90.0
+     800       90.0        2.028        90.0
+     900       90.0        1.803        90.0
+
+[A  CURRENT (rescale on)] optimal-angle curve (single 20Hz tick):
+  speed(u/s)  bestTheta  bestGain(u/s)  widest>=99%(deg)
+     100       90.0       15.104        90.0
+     200       90.0        7.964        90.0
+     300       90.0        5.367        90.0
+     400       90.0        4.041        90.0
+     500       90.0        3.239        90.0
+     600       90.0        2.701        90.0
+     700       90.0        2.317        90.0
+     800       90.0        2.028        90.0
+     900       90.0        1.803        90.0
+
+(b) No-mouse redirect (fixed-8-direction greedy, 1 s):
+  [A current] no-mouse turn =     0.00 deg/s
+  [B fix] no-mouse turn =     0.00 deg/s
+  [C3 60Hz] no-mouse turn =     0.00 deg/s
+  [REF CS-64] no-mouse turn =   105.27 deg/s
+
+(b') Continuous-wishdir upper bound:
+  [A current] continuous-perp turn =    79.64 deg/s
+  [B fix] continuous-perp turn =    79.64 deg/s
+  [REF CS-64] continuous-perp turn =   117.17 deg/s
+
+(c) [B fix 20Hz] bhop ramp (perfect strafe, 15 ticks/hop):
+    260.0   341.1   406.3   462.4   512.4   557.9   600.0   639.3   676.4
+
+(c) [C3 60Hz] bhop ramp (perfect strafe, 15 ticks/hop):
+    260.0   341.1   406.3   462.4   512.4   557.9   600.0   639.3   676.4
+
+Ramp delta B vs C3 (u/s): +0.00  +0.00  +0.00  -0.00  +0.00  +0.00  -0.00  +0.00  +0.00
+
+Cold-start check: 57.000 u/s (expect 57.000)
+
+DECISION: remove rescale clause (lines 635-644); keep 20Hz single step;
+keep sv_maxairspeed=57; keep findOptimalStrafeAngle as HUD-only (no auto-steer).
+

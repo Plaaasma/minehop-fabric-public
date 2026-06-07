@@ -1,0 +1,35 @@
+{
+  "sv_airaccelerate": 100,
+  "sv_maxairspeed": 61,
+  "sv_jump_impulse": 262,
+  "sv_gravity": 780,
+  "airTicksPerJump": 13,
+  "jumpHeightBlocks": 1.1001,
+  "a_bpt": 0.07625,
+  "airCap_bpt": 0.07625,
+  "capBound": true,
+  "scalar_ramp": [
+    336.9,
+    399.3,
+    453.2,
+    501.4,
+    545.3,
+    585.9,
+    623.9,
+    659.7
+  ],
+  "vector_ramp": [
+    336.9,
+    399.3,
+    453.2,
+    501.4,
+    545.3,
+    585.9,
+    623.9,
+    659.7
+  ],
+  "max_scalar_vector_diff": 0.0455,
+  "rms_j2_6": 26.52,
+  "avg_j6_8": 623.1,
+  "asymptote_j8": 659.7
+}
