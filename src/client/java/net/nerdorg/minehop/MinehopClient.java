@@ -48,6 +48,7 @@ public class MinehopClient implements ClientModInitializer {
 	public static double old_jump_speed = 0;
 	public static long last_jump_time = 0;
 	public static long old_jump_time = 0;
+	public static double prevVelY = 0.0D;
 	public static double last_efficiency;
 	public static double gauge;
 	public static boolean wasOnGround = false;
@@ -146,6 +147,33 @@ public class MinehopClient implements ClientModInitializer {
 				}
 				else {
 					jumping = false;
+				}
+
+				// Jump/SSJ counter via upward-velocity spike (takeoff). With auto-bhop the player
+				// lands AND jumps in the same tick, so onGround is never true at a tick boundary —
+				// counting on isOnGround() missed jumps. Detect the jump impulse directly instead.
+				if (!client.player.isSpectator()) {
+					Vec3d jv = client.player.getVelocity();
+					double jumpImpulseBpt = (Minehop.override_config && Minehop.receivedConfig
+							? Minehop.o_sv_jump_impulse
+							: ConfigWrapper.config.movement.sv_jump_impulse) / 800.0D;
+					double takeoffThreshold = Math.max(0.05D, jumpImpulseBpt * 0.6D);
+					if (jumping) {
+						if (prevVelY <= 0.05D && jv.y >= takeoffThreshold) {
+							old_jump_speed = last_jump_speed;
+							last_jump_speed = Math.sqrt(jv.x * jv.x + jv.z * jv.z);
+							jump_count += 1;
+							old_jump_time = last_jump_time;
+							last_jump_time = client.world != null ? client.world.getTime() : 0L;
+						}
+					} else {
+						old_jump_speed = 0;
+						last_jump_speed = 0;
+						jump_count = 0;
+						old_jump_time = 0;
+						last_jump_time = 0;
+					}
+					prevVelY = jv.y;
 				}
 
 				if (startTime != 0L && !client.player.isSpectator()) {

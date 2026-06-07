@@ -317,7 +317,13 @@ public class PacketHandler {
             clearFinishedRunState(player, server);
             return;
         }
-        if (!isPlayerInsideMatchingEndZone(player, activeMapName)) {
+        // The server stamps end-zone entry in EndEntity.tick (finishTimeManager). Accept the finish
+        // if that stamp exists OR the player is still inside the zone now — a fast bhop/surf finish
+        // can carry the player THROUGH the thin end zone before this packet is processed, which made
+        // the "currently inside" check falsely reject legit runs.
+        HashMap<String, Long> finishMap = Minehop.finishTimeManager.get(player.getNameForScoreboard());
+        Long finishStamp = finishMap == null ? null : finishMap.get(activeMapName);
+        if (finishStamp == null && !isPlayerInsideMatchingEndZone(player, activeMapName)) {
             Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " because they were not inside an end zone for " + activeMapName + ".");
             clearFinishedRunState(player, server);
             return;
@@ -326,8 +332,6 @@ public class PacketHandler {
         // Prefer the server-stamped end-zone entry time (measured at the real crossing) over `now`
         // (packet-processing time), so a server-thread stall can't inflate rawTime and reject a
         // legit run.
-        HashMap<String, Long> finishMap = Minehop.finishTimeManager.get(player.getNameForScoreboard());
-        Long finishStamp = finishMap == null ? null : finishMap.get(activeMapName);
         long finishNanos = finishStamp != null ? finishStamp : System.nanoTime();
         double rawTime = (double) (finishNanos - timerStart) / 1000000000;
         if (time < rawTime + (ping_limit / 1000f) && time > rawTime - (ping_limit / 1000f)) {

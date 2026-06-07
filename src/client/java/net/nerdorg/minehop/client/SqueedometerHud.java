@@ -271,31 +271,9 @@ public class SqueedometerHud {
                     (float) Math.max(0.1, config.jHud.prespeedHud.prespeed_scale), C_GREEN);
         }
 
-        // jump-count / chain bookkeeping (client-side) -----------------------------------------
-        if (this.client.player == null || !this.client.player.isSpectator()) {
-            if (MinehopClient.jumping) {
-                if (this.client.world.getTime() >= MinehopClient.last_jump_time + 1
-                        || this.client.world.getTime() < MinehopClient.last_jump_time
-                        || MinehopClient.last_jump_time == 0) {
-                    if (this.client.player.isOnGround()) {
-                        double dx = pos.x - this.client.player.prevX;
-                        double dz = pos.z - this.client.player.prevZ;
-                        double speed = Math.sqrt(dx * dx + dz * dz);
-                        MinehopClient.old_jump_speed = MinehopClient.last_jump_speed;
-                        MinehopClient.last_jump_speed = speed;
-                        MinehopClient.jump_count += 1;
-                        MinehopClient.old_jump_time = MinehopClient.last_jump_time;
-                        MinehopClient.last_jump_time = this.client.world.getTime();
-                    }
-                }
-            } else {
-                MinehopClient.old_jump_speed = 0;
-                MinehopClient.last_jump_speed = 0;
-                MinehopClient.jump_count = 0;
-                MinehopClient.old_jump_time = 0;
-                MinehopClient.last_jump_time = 0;
-            }
-        }
+        // jump_count / SSJ are driven by the per-tick takeoff detector in MinehopClient (reliable
+        // for auto-bhop where land+jump happen in one tick). Render only tracks wasOnGround for the
+        // prespeed readout above.
         MinehopClient.wasOnGround = this.client.player.isOnGround();
     }
 

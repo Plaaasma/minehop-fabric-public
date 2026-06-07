@@ -2,39 +2,38 @@ package net.nerdorg.minehop.mixin.client;
 
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.model.*;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.entity.LivingEntityRenderer;
-import net.minecraft.client.render.entity.PlayerEntityRenderer;
-import net.minecraft.client.render.entity.model.BipedEntityModel;
-import net.minecraft.client.render.entity.model.EntityModel;
-import net.minecraft.client.render.entity.model.PlayerEntityModel;
-import net.minecraft.client.render.entity.state.EntityRenderState;
-import net.minecraft.client.render.entity.state.LivingEntityRenderState;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.render.Frustum;
+import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(PlayerEntityRenderer.class)
-public abstract class PlayerEntityRendererMixin<T extends LivingEntity, S extends LivingEntityRenderState, M extends EntityModel<? super S>> {
-    @Inject(method = "updateRenderState(Lnet/minecraft/entity/Entity;Lnet/minecraft/client/render/entity/state/EntityRenderState;F)V", at = @At("HEAD"), cancellable = true)
-    private void onRender(Entity entity, EntityRenderState state, float tickDelta, CallbackInfo ci) {
+@Mixin(EntityRenderer.class)
+public abstract class PlayerEntityRendererMixin {
+    // hide others: skip rendering OTHER players entirely (model, nametag, shadow). The old hook
+    // cancelled updateRenderState, which only froze the model (no animation) but still drew it —
+    // that was the bug. shouldRender is gated in WorldRenderer before the entity is dispatched, so
+    // returning false is a full skip. shouldRender is declared ONLY in EntityRenderer (neither
+    // LivingEntityRenderer nor PlayerEntityRenderer override it), so this is the method that runs
+    // for players. Param erases to Entity so the mixin AP resolves the remapped (production) refmap.
+    @Inject(method = "shouldRender", at = @At("HEAD"), cancellable = true)
+    private void minehop$hideOtherPlayers(Entity entity, Frustum frustum, double x, double y, double z, CallbackInfoReturnable<Boolean> cir) {
+        if (!ConfigWrapper.config.hideOthers) {
+            return;
+        }
+        if (!(entity instanceof PlayerEntity)) {
+            return;
+        }
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null) {
-            if (client.player != null) {
-                if (ConfigWrapper.config.hideOthers && !entity.getNameForScoreboard().equals(client.player.getNameForScoreboard())) {
-                    ci.cancel();
-                }
-            }
+        if (client == null || client.player == null) {
+            return;
+        }
+        if (entity != client.player) {
+            cir.setReturnValue(false);
         }
     }
 }

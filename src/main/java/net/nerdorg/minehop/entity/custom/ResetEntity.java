@@ -160,14 +160,14 @@ public class ResetEntity extends Zone {
         ));
         double tickDeltaHorizontalSq = (tickDeltaVelocity.x * tickDeltaVelocity.x) + (tickDeltaVelocity.z * tickDeltaVelocity.z);
 
-        Vec3d preferred;
-        if (tickDeltaHorizontalSq > 1.0E-6D) {
-            preferred = tickDeltaVelocity;
-        } else {
-            Vec3d observedVelocity = this.resolveObservedVelocity(player);
-            double observedHorizontalSq = (observedVelocity.x * observedVelocity.x) + (observedVelocity.z * observedVelocity.z);
-            preferred = observedHorizontalSq > 1.0E-6D ? observedVelocity : sanitizeVelocity(player.getVelocity());
-        }
+        // The realized movement this tick is the truth (how fast you were ACTUALLY going as you
+        // entered the zone). Only fall back to the CURRENT getVelocity if that delta is ~0
+        // (teleport-stale). Do NOT use the persisted observed sample — it lingers up to 10 ticks and
+        // can be a stale HIGH value (e.g. from fast surf right before falling), which rocketed a slow
+        // falling player on reset.
+        Vec3d preferred = tickDeltaHorizontalSq > 1.0E-6D
+                ? tickDeltaVelocity
+                : sanitizeVelocity(player.getVelocity());
         // Keep horizontal momentum and only preserve downward vertical velocity to avoid upward launch spikes.
         return new Vec3d(preferred.x, Math.min(preferred.y, 0.0D), preferred.z);
     }

@@ -815,34 +815,20 @@ public class SelectMapScreen extends Screen {
                 hash = 31 * hash;
                 continue;
             }
+            // Only STRUCTURAL identity here — NOT volatile stats (player_count, play_count, ratings).
+            // Those churn every ~5s on the periodic map sync; including them rebuilt the list widgets
+            // and reset the scroll position every few seconds. Live stats refresh on the next real
+            // rebuild (filter/tab/sort change, map added/removed, or reopening the screen).
             hash = 31 * hash + Objects.hash(
                     mapData.name,
-                    mapData.player_count,
                     mapData.arena,
                     mapData.hns,
                     mapData.surf,
                     mapData.kz,
-                    mapData.movement_override,
-                    mapData.movement_sv_friction,
-                    mapData.movement_sv_accelerate,
-                    mapData.movement_sv_airaccelerate,
-                    mapData.movement_sv_maxairspeed,
-                    mapData.movement_sv_jump_impulse,
-                    mapData.movement_speed_mul,
-                    mapData.movement_sv_gravity,
-                    mapData.movement_sv_stopspeed,
-                    mapData.movement_speed_coefficient,
-                    mapData.movement_auto_step_up,
-                    mapData.movement_css_crouch_jump,
-                    mapData.movement_fall_damage,
                     mapData.userMap,
                     mapData.ownerName,
                     mapData.description,
-                    mapData.difficulty,
-                    mapData.play_count,
-                    mapData.rating_count,
-                    mapData.rating_quality_total,
-                    mapData.rating_difficulty_total
+                    mapData.difficulty
             );
         }
         return hash;

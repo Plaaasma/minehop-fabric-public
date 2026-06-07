@@ -22,7 +22,7 @@ public class ReplayRenderer extends MobEntityRenderer<ReplayEntity, ReplayEntity
 
     @Override
     public boolean shouldRender(ReplayEntity mobEntity, Frustum frustum, double d, double e, double f) {
-        return !ConfigWrapper.config.hideOthers;
+        return !ConfigWrapper.config.hideReplay;
     }
 
     @Override

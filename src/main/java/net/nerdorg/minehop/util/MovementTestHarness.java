@@ -110,7 +110,7 @@ public final class MovementTestHarness {
         SURF_SCENARIOS.add(new SurfScenario("surf_vfast_1.00", RAMP_X + 8, feetOn, RAMP_Z + 2.0D, 1.00, 0.0, 0.04, 50));
         // B2: approach/getting-on from above, fast steep descent.
         SURF_SCENARIOS.add(new SurfScenario("geton_steep", RAMP_X + 12, RAMP_Y + 10.0D, RAMP_Z + 2.0D, 0.45, -0.9, 0.15, 30));
-        SURF_SCENARIOS.add(new SurfScenario("geton_fast_flat", RAMP_X + 6, RAMP_Y + 5.0D, RAMP_Z + 2.0D, 0.85, -0.4, 0.2, 30));
+        SURF_SCENARIOS.add(new SurfScenario("geton_fast_flat", RAMP_X + 6, RAMP_Y + 14.0D, RAMP_Z + 2.0D, 0.85, -0.4, 0.2, 30));
         // B1: surf toward the +X end endpoint and off it.
         SURF_SCENARIOS.add(new SurfScenario("flickoff_end", RAMP_X + RAMP_LENGTH - 12, feetOn, RAMP_Z + 2.0D, 0.75, 0.0, 0.04, 30));
         // B1b: ride up toward the high edge (toward Z=RAMP_Z) and off the top edge.

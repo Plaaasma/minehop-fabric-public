@@ -223,6 +223,21 @@ public abstract class LivingEntityMixin extends Entity {
     // rider is treated as ATTACHED (gravity clipped + foot glued every tick) even when not strictly
     // penetrating. Stops the float->snap vy sawtooth (periodic vertical bump) on a sliding ride.
     @Unique private static final double SURF_HULL_ATTACH_GAP = 0.12D;
+    // Coyote window (ticks) for the auto-bhop jump buffer: how long after losing ground contact a
+    // held jump still fires, so landing on / sliding off a block edge still bhops instead of dropping.
+    @Unique private static final int SURF_JUMP_COYOTE_TICKS = 5;
+    // Min ticks between jumps — shared by the vanilla jump() path and the coyote buffer so they can't
+    // both fire on close ticks (double jump). Well under the bhop air-time cycle (~28 ticks), so it
+    // never blocks a legit consecutive bhop.
+    @Unique private static final int SURF_JUMP_BUFFER_COOLDOWN = 6;
+    // Smooth on-ramping: ease the feet toward the surface each tick instead of snapping, so getting
+    // onto a ramp (and crossing seams between close ramps) glides instead of popping. LIFT_EASE =
+    // fraction of the gap closed per tick; MAX_EMBED guarantees you never stay embedded more than
+    // this (deep penetration / hard landings still catch quickly, so you never sink through);
+    // EASE_DOWN caps how fast a floating foot is pulled back down per tick.
+    @Unique private static final double SURF_HULL_LIFT_EASE = 0.30D;
+    @Unique private static final double SURF_HULL_MAX_EMBED = 0.05D;
+    @Unique private static final double SURF_HULL_EASE_DOWN = 0.08D;
     @Unique private static final double SURF_HULL_SAMPLE_BAND = 0.60D;
     @Unique private static final double SURF_CLIP_EPSILON = 1.0E-6D;
     @Unique private static final double SURF_SAMPLE_EDGE_INSET = 0.02D;
@@ -262,6 +277,12 @@ public abstract class LivingEntityMixin extends Entity {
     @Unique private boolean minehop$hasLastTravelYaw;
     @Unique private double minehop$substepRemainder;
     @Unique private int minehop$lastAirSteps = 6;
+    @Unique private int minehop$groundedCoyote = 999;
+    @Unique private int minehop$jumpCooldownTicks = 0;
+    // True once the player has genuinely descended (vy<-0.05) or is grounded since the last jump
+    // impulse. Gates the coyote buffer so it can't re-fire near apex while still RISING from a jump
+    // (on slopes/stairs hasRealGroundBelow stays true the whole rise, pinning groundedCoyote at 0).
+    @Unique private boolean minehop$descendedSinceJump = true;
     @Unique private int minehop$nearRampAcGraceTicks;
     @Unique private boolean minehop$sweepHit;
     @Unique private double minehop$sweepT;
@@ -298,6 +319,8 @@ public abstract class LivingEntityMixin extends Entity {
     public void onTeleport(double x, double y, double z, boolean particleEffects, CallbackInfoReturnable<Boolean> cir) {
         HNSManager.taggedMap.remove(this.getNameForScoreboard());
         this.minehop$hasLastTravelYaw = false;
+        this.minehop$descendedSinceJump = true; // don't carry a stale rising-state across a teleport
+        this.minehop$jumpCooldownTicks = 0;
     }
 
     @Inject(method = "damage", at = @At("HEAD"), cancellable = true)
@@ -453,6 +476,51 @@ public abstract class LivingEntityMixin extends Entity {
             }
         }
         boolean nearSurfRampPre = !this.isClimbing() && this.isNearSurfRamp();
+
+        // Jump buffer + coyote time: an edge (esp. thin blocks like carpet) can fail to register
+        // onGround on the landing tick, or you can lose ground contact for a tick while sliding off,
+        // so vanilla never calls jump() and you slide off ("edge bug"). Track how many ticks since
+        // we were last grounded-ish; if you're holding jump within a short window of that, aren't
+        // rising, and aren't on/near a surf ramp, apply the jump. Once consumed it won't re-fire mid
+        // air until grounded again. vy<=0.10 means a real vanilla jump (vy>>0.10) won't double.
+        if (this.minehop$jumpCooldownTicks > 0) {
+            this.minehop$jumpCooldownTicks--;
+        }
+        boolean groundedishForCoyote = this.isOnGround() || this.minehop$hasRealGroundBelow();
+        if (groundedishForCoyote) {
+            this.minehop$groundedCoyote = 0;
+        } else if (this.minehop$groundedCoyote < 999) {
+            this.minehop$groundedCoyote++;
+        }
+        // We've genuinely descended/landed (not rising from a jump) once we're truly on the ground
+        // or actually falling. Until then the buffer must not fire — otherwise on a slope/stairs,
+        // where hasRealGroundBelow keeps groundedCoyote pinned at 0 during the whole ascent, the
+        // buffer fires a SECOND impulse at apex (cooldown=6 expires right as vy drops <=0.10).
+        if (this.isOnGround() || this.getVelocity().y < -0.05D) {
+            this.minehop$descendedSinceJump = true;
+        }
+        if (this.jumping
+                && ((Object) this) instanceof PlayerEntity
+                && this.minehop$jumpCooldownTicks <= 0
+                && this.minehop$descendedSinceJump
+                && !this.isClimbing()
+                && !this.isTouchingWater() && !this.isInLava() && !this.isGliding()
+                && this.getVelocity().y <= 0.10D
+                && this.minehop$groundedCoyote <= SURF_JUMP_COYOTE_TICKS
+                && preMoveSurfContact == null
+                && !nearSurfRampPre) {
+            double bufferYVel = config.movement.sv_jump_impulse * SOURCE_UNIT_TO_BLOCKS_PER_TICK;
+            if (this.hasStatusEffect(StatusEffects.JUMP_BOOST)) {
+                bufferYVel += 0.1F * (this.getStatusEffect(StatusEffects.JUMP_BOOST).getAmplifier() + 1);
+            }
+            Vec3d bufferVel = this.getVelocity();
+            this.setVelocity(bufferVel.x, bufferYVel, bufferVel.z);
+            this.velocityDirty = true;
+            this.minehop$groundedCoyote = 999; // consume — one buffered jump per ground contact
+            this.minehop$jumpCooldownTicks = SURF_JUMP_BUFFER_COOLDOWN;
+            this.minehop$descendedSinceJump = false; // must descend/land again before next buffer fire
+        }
+
         SurfContact previousSurfContact = this.lastSurfContact;
         double seamContinuityHorizontalPre = this.getHorizontalSpeed(this.getVelocity());
         double seamContinuityMaxAscentPre = this.getSeamContinuityMaxAscent(seamContinuityHorizontalPre);
@@ -3152,23 +3220,16 @@ public abstract class LivingEntityMixin extends Entity {
             double bindSurfaceY = this.minehop$bindSurfaceY;
 
             if (bindNormal != null && maxLift > -SURF_HULL_ATTACH_GAP) {
-                // ATTACHED: the binding foot is on the surface or floating within the attach band.
-                // Clip EVERY tick (removes gravity's into-surface component so vy can't accumulate
-                // and trigger a periodic snap = the vertical bump) and glue the foot to the surface:
-                //  - penetrating (maxLift>0): snap up, capped so a near-vertical face blocks instead
-                //    of teleporting the player up it;
-                //  - floating but not leaving: pull the foot back down onto the surface;
-                //  - actively moving away (jump/flick): don't pull down — let it rise and detach.
-                double appliedLift;
-                if (maxLift > 0.0D) {
-                    appliedLift = Math.min(maxLift, SURF_MAX_SNAP_UP);
-                } else if (vel.dotProduct(bindNormal) <= SURF_SURFACE_SKIN) {
-                    appliedLift = maxLift;
-                } else {
-                    appliedLift = 0.0D;
-                }
-                newFeet = newFeet.add(0.0D, appliedLift, 0.0D);
+                // ATTACHED: clip EVERY substep (removes gravity's into-surface component so the
+                // velocity rides along the surface). Small gaps are left for the eased post-loop
+                // reconciliation (smooth on-ramp); but if the foot has penetrated DEEPER than the
+                // allowed embed, lift out the excess within the substep so a fast fall can't tunnel
+                // through the zero-thickness ramp surface.
                 vel = this.clipVelocityCore(vel, bindNormal);
+                if (maxLift > SURF_HULL_MAX_EMBED) {
+                    double antiTunnel = Math.min(maxLift - SURF_HULL_MAX_EMBED, SURF_MAX_SNAP_UP);
+                    newFeet = newFeet.add(0.0D, antiTunnel, 0.0D);
+                }
                 onRampNow = true;
                 this.minehop$hullNormal = bindNormal;
                 this.minehop$hullSurfaceY = bindSurfaceY;
@@ -3179,6 +3240,31 @@ public abstract class LivingEntityMixin extends Entity {
 
             disp = disp.add(newFeet.subtract(curFeet));
             curFeet = newFeet;
+        }
+
+        // Eased vertical reconciliation toward the surface: smoothly settle onto the ramp instead of
+        // snapping. A real/deep penetration still catches fast (gap - MAX_EMBED) so you never sink
+        // through; small approach/seam gaps ease over a few ticks; a floating foot is pulled down
+        // slowly. Only when actually moving into/along the surface (not jumping/flicking away).
+        if (onRampNow) {
+            this.minehop$computeBind(curFeet, pattern, edgeX, edgeZ, ramps);
+            if (this.minehop$bindNormal != null && this.minehop$bindLift > -SURF_HULL_ATTACH_GAP) {
+                double gap = this.minehop$bindLift; // >0 = penetrating (lift up), <=0 = above surface
+                double correction;
+                if (gap > 0.0D) {
+                    correction = Math.min(SURF_MAX_SNAP_UP, Math.max(gap * SURF_HULL_LIFT_EASE, gap - SURF_HULL_MAX_EMBED));
+                } else if (vel.dotProduct(this.minehop$bindNormal) <= SURF_SURFACE_SKIN) {
+                    correction = Math.max(gap * SURF_HULL_LIFT_EASE, -SURF_HULL_EASE_DOWN);
+                } else {
+                    correction = 0.0D;
+                }
+                if (correction != 0.0D) {
+                    curFeet = curFeet.add(0.0D, correction, 0.0D);
+                    disp = disp.add(0.0D, correction, 0.0D);
+                }
+                this.minehop$hullNormal = this.minehop$bindNormal;
+                this.minehop$hullSurfaceY = this.minehop$bindSurfaceY;
+            }
         }
 
         // End-of-move contact state drives the outer gravity clip: only treat as on-ramp if the
@@ -3876,6 +3962,15 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
 
+        // Shared cooldown with the coyote buffer in travel(): if we already jumped within the last
+        // few ticks, don't fire again (prevents the buffer + vanilla path double-jumping). Far below
+        // the bhop air cycle, so legit consecutive bhops are unaffected.
+        if (((Object) this) instanceof PlayerEntity && this.minehop$jumpCooldownTicks > 0) {
+            this.velocityDirty = true;
+            ci.cancel();
+            return;
+        }
+
         Vec3d vecFin = this.getVelocity();
         double yVel = config.movement.sv_jump_impulse * SOURCE_UNIT_TO_BLOCKS_PER_TICK;
         if (this.hasStatusEffect(StatusEffects.JUMP_BOOST)) {
@@ -3884,6 +3979,10 @@ public abstract class LivingEntityMixin extends Entity {
 
         this.setVelocity(vecFin.x, yVel, vecFin.z);
         this.velocityDirty = true;
+        if (((Object) this) instanceof PlayerEntity) {
+            this.minehop$jumpCooldownTicks = SURF_JUMP_BUFFER_COOLDOWN;
+            this.minehop$descendedSinceJump = false; // must descend/land again before the coyote buffer can fire
+        }
 
         ci.cancel();
     }

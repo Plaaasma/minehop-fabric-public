@@ -204,7 +204,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(OtherVTogglePayload.ID, (payload, ctx) -> {
+        ClientPlayNetworking.registerGlobalReceiver(ReplayVTogglePayload.ID, (payload, ctx) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             ctx.client().execute(() -> {
                 //MinehopClient.hideReplay = !MinehopClient.hideReplay;
