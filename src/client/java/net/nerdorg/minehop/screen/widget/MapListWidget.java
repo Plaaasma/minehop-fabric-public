@@ -34,7 +34,9 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
             int rowWidth,
             int scrollbarX
     ) {
-        super(client, width, bottom, top, itemHeight);
+        // EntryListWidget's 3rd arg is HEIGHT, not the bottom coordinate — convert so the list clips
+        // to [top, bottom] instead of overflowing past the panel's bottom edge.
+        super(client, width, Math.max(0, bottom - top), top, itemHeight);
         this.rowWidth = Math.max(220, rowWidth);
         this.scrollbarX = scrollbarX;
     }

@@ -334,6 +334,20 @@ public class MapUtilCommands {
                                 })
                         )
                 )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("preservespeed")
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                .suggests((context, builder) -> {
+                                    for (DataManager.MapData mapData : Minehop.mapList) {
+                                        builder.suggest(mapData.name, new LiteralMessage(mapData.name));
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .executes(context -> {
+                                    handleTogglePreserveSpeed(context);
+                                    return Command.SINGLE_SUCCESS;
+                                })
+                        )
+                )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("info")
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("search_name", StringArgumentType.string())
                         .executes(context -> {
@@ -982,6 +996,35 @@ public class MapUtilCommands {
             DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Toggled arena mode to " + toggleData.arena);
+        }
+        else {
+            Logger.logSuccess(serverPlayerEntity, "There is no map called " + name + ".");
+        }
+    }
+
+    private static void handleTogglePreserveSpeed(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+
+        String name = StringArgumentType.getString(context, "map_name");
+
+        DataManager.MapData toggleData = null;
+
+        for (Object object : Minehop.mapList) {
+            if (object instanceof DataManager.MapData mapData) {
+                if (mapData.name.equals(name)) {
+                    toggleData = mapData;
+                    Minehop.mapList.remove(mapData);
+                    break;
+                }
+            }
+        }
+
+        if (toggleData != null) {
+            toggleData.preserve_speed = !toggleData.preserve_speed;
+            Minehop.mapList.add(toggleData);
+            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+
+            Logger.logSuccess(serverPlayerEntity, "Toggled preserve speed on reset to " + toggleData.preserve_speed + " for " + name + ".");
         }
         else {
             Logger.logSuccess(serverPlayerEntity, "There is no map called " + name + ".");

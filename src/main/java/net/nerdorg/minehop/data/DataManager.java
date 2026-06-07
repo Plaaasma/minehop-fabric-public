@@ -47,6 +47,7 @@ public class DataManager {
         public boolean hns;
         public boolean surf;
         public boolean kz;
+        public boolean preserve_speed = false;
         public boolean movement_override;
         public double movement_sv_friction;
         public double movement_sv_accelerate;

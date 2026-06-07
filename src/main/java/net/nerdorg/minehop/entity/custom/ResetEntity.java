@@ -37,7 +37,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public class ResetEntity extends Zone {
-    private static final int PRESERVE_SPEED_CARRY_TICKS = 8;
+    private static final int PRESERVE_SPEED_CARRY_TICKS = 3;
     private static final Map<UUID, PendingVelocityCarry> PENDING_VELOCITY_CARRIES = new HashMap<>();
     private static final Map<UUID, ObservedVelocitySample> LAST_OBSERVED_VELOCITY = new HashMap<>();
     private static final Map<UUID, ObservedPositionSample> LAST_OBSERVED_POSITION = new HashMap<>();
@@ -122,6 +122,18 @@ public class ResetEntity extends Zone {
                 .add(EntityAttributes.MAX_HEALTH, 1000000);
     }
 
+    // Keep the preserved SPEED but point it along the spawn/checkpoint facing (what a bhop/surf
+    // reset expects), instead of the stale world-space direction the player entered the zone with.
+    // Vertical keeps only downward momentum (no upward launch).
+    private static Vec3d redirectToYaw(Vec3d preserved, float yawDeg) {
+        Vec3d safe = sanitizeVelocity(preserved);
+        double horizontalSpeed = Math.sqrt(safe.x * safe.x + safe.z * safe.z);
+        double yaw = Math.toRadians(yawDeg);
+        double forwardX = -Math.sin(yaw);
+        double forwardZ = Math.cos(yaw);
+        return new Vec3d(forwardX * horizontalSpeed, Math.min(safe.y, 0.0D), forwardZ * horizontalSpeed);
+    }
+
     private static Vec3d sanitizeVelocity(Vec3d velocity) {
         if (velocity == null) {
             return Vec3d.ZERO;
@@ -136,28 +148,25 @@ public class ResetEntity extends Zone {
         if (player == null) {
             return Vec3d.ZERO;
         }
-        Vec3d reportedVelocity = sanitizeVelocity(player.getVelocity());
+        // Use the player's REALIZED movement this tick (how far they actually went), not
+        // player.getVelocity() — on surf the solver stores a high pre-collision-clip velocity that
+        // overshoots the true speed and made resets feel way too fast. Fall back to the recent
+        // observed delta, then the reported velocity, only when the realized delta is missing
+        // (e.g. stale around a teleport).
         Vec3d tickDeltaVelocity = sanitizeVelocity(new Vec3d(
                 player.getX() - player.prevX,
                 player.getY() - player.prevY,
                 player.getZ() - player.prevZ
         ));
-
-        double reportedHorizontalSq = (reportedVelocity.x * reportedVelocity.x) + (reportedVelocity.z * reportedVelocity.z);
         double tickDeltaHorizontalSq = (tickDeltaVelocity.x * tickDeltaVelocity.x) + (tickDeltaVelocity.z * tickDeltaVelocity.z);
-        Vec3d observedVelocity = this.resolveObservedVelocity(player);
-        double observedHorizontalSq = (observedVelocity.x * observedVelocity.x) + (observedVelocity.z * observedVelocity.z);
 
-        // Server-side player velocity can be stale/zero around teleports.
-        // Use the strongest recent horizontal source.
-        Vec3d preferred = reportedVelocity;
-        double preferredHorizontalSq = reportedHorizontalSq;
-        if (tickDeltaHorizontalSq > preferredHorizontalSq + 1.0E-6D) {
+        Vec3d preferred;
+        if (tickDeltaHorizontalSq > 1.0E-6D) {
             preferred = tickDeltaVelocity;
-            preferredHorizontalSq = tickDeltaHorizontalSq;
-        }
-        if (observedHorizontalSq > preferredHorizontalSq + 1.0E-6D) {
-            preferred = observedVelocity;
+        } else {
+            Vec3d observedVelocity = this.resolveObservedVelocity(player);
+            double observedHorizontalSq = (observedVelocity.x * observedVelocity.x) + (observedVelocity.z * observedVelocity.z);
+            preferred = observedHorizontalSq > 1.0E-6D ? observedVelocity : sanitizeVelocity(player.getVelocity());
         }
         // Keep horizontal momentum and only preserve downward vertical velocity to avoid upward launch spikes.
         return new Vec3d(preferred.x, Math.min(preferred.y, 0.0D), preferred.z);
@@ -341,22 +350,29 @@ public class ResetEntity extends Zone {
                                 if (startZone != null){
                                     Minehop.playerMapLocation.put(player.getUuidAsString(), startZone);
                                 }
-                                Vec3d preservedVelocity = this.resolvePreservedVelocity(player);
-                                Vec3d teleportVelocity = this.preserveSpeed ? preservedVelocity : Vec3d.ZERO;
+                                // Preserve speed is a PER-MAP setting (default off; meant mainly for
+                                // surf). Preserve the magnitude of the player's speed but redirect it
+                                // to the spawn/checkpoint facing. ABSOLUTE velocity (empty flag set) —
+                                // the old DELTA_X/Y/Z flags made the passed velocity RELATIVE (added to
+                                // current), which roughly doubled the speed on reset.
+                                boolean preserve = pairedMap.preserve_speed;
+                                Vec3d preservedVelocity = preserve
+                                        ? redirectToYaw(this.resolvePreservedVelocity(player), targetRot.y)
+                                        : Vec3d.ZERO;
                                 player.teleportTo(new TeleportTarget(
                                         serverWorld,
                                         new Vec3d(targetLocation.getX(), targetLocation.getY(), targetLocation.getZ()),
-                                        teleportVelocity,
+                                        preservedVelocity,
                                         targetRot.y,
                                         targetRot.x,
-                                        Set.of(PositionFlag.DELTA_X, PositionFlag.DELTA_Y, PositionFlag.DELTA_Z),
+                                        Set.of(),
                                         (playerEntity) -> {
-                                            if (this.preserveSpeed && playerEntity instanceof ServerPlayerEntity serverPlayerEntity) {
+                                            if (preserve && playerEntity instanceof ServerPlayerEntity serverPlayerEntity) {
                                                 this.applyPreservedVelocity(serverPlayerEntity, preservedVelocity);
                                             }
                                         }
                                 ));
-                                if (this.preserveSpeed) {
+                                if (preserve) {
                                     // Explicitly restore and sync movement on the same tick as a fallback.
                                     // Some teleport paths still zero momentum after target application.
                                     this.applyPreservedVelocity(player, preservedVelocity);
