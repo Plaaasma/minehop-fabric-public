@@ -160,19 +160,39 @@ public class ResetEntity extends Zone {
         ));
         double tickDeltaHorizontalSq = (tickDeltaVelocity.x * tickDeltaVelocity.x) + (tickDeltaVelocity.z * tickDeltaVelocity.z);
 
-        // The realized movement this tick is the truth (how fast you were ACTUALLY going as you
-        // entered the zone). Only fall back to the CURRENT getVelocity if that delta is ~0
-        // (teleport-stale). Do NOT use the persisted observed sample — it lingers up to 10 ticks and
-        // can be a stale HIGH value (e.g. from fast surf right before falling), which rocketed a slow
-        // falling player on reset.
+        // The realized movement this tick is the truth when present. If the reset zone ticks before
+        // player movement, fall back to the very fresh observed movement sample, then current velocity.
+        Vec3d currentVelocity = sanitizeVelocity(player.getVelocity());
+        Vec3d observedVelocity = this.resolveObservedVelocity(player, 2L);
         Vec3d preferred = tickDeltaHorizontalSq > 1.0E-6D
                 ? tickDeltaVelocity
-                : sanitizeVelocity(player.getVelocity());
+                : chooseStrongerHorizontal(observedVelocity, currentVelocity);
         // Keep horizontal momentum and only preserve downward vertical velocity to avoid upward launch spikes.
         return new Vec3d(preferred.x, Math.min(preferred.y, 0.0D), preferred.z);
     }
 
-    private Vec3d resolveObservedVelocity(ServerPlayerEntity player) {
+    private static Vec3d chooseStrongerHorizontal(Vec3d first, Vec3d second) {
+        Vec3d safeFirst = sanitizeVelocity(first);
+        Vec3d safeSecond = sanitizeVelocity(second);
+        double firstHorizontalSq = horizontalLengthSquared(safeFirst);
+        double secondHorizontalSq = horizontalLengthSquared(safeSecond);
+        if (firstHorizontalSq <= 1.0E-8D) {
+            return safeSecond;
+        }
+        if (secondHorizontalSq <= 1.0E-8D) {
+            return safeFirst;
+        }
+        return firstHorizontalSq >= secondHorizontalSq ? safeFirst : safeSecond;
+    }
+
+    private static double horizontalLengthSquared(Vec3d velocity) {
+        if (velocity == null) {
+            return 0.0D;
+        }
+        return (velocity.x * velocity.x) + (velocity.z * velocity.z);
+    }
+
+    private Vec3d resolveObservedVelocity(ServerPlayerEntity player, long maxAgeTicks) {
         if (player == null) {
             return Vec3d.ZERO;
         }
@@ -186,7 +206,7 @@ public class ResetEntity extends Zone {
             return Vec3d.ZERO;
         }
         long currentTick = player.getServerWorld().getTime();
-        if (currentTick - sample.worldTick > 10L) {
+        if (currentTick - sample.worldTick > Math.max(0L, maxAgeTicks)) {
             LAST_OBSERVED_VELOCITY.remove(player.getUuid());
             return Vec3d.ZERO;
         }
@@ -355,7 +375,7 @@ public class ResetEntity extends Zone {
                                 // to the spawn/checkpoint facing. ABSOLUTE velocity (empty flag set) —
                                 // the old DELTA_X/Y/Z flags made the passed velocity RELATIVE (added to
                                 // current), which roughly doubled the speed on reset.
-                                boolean preserve = pairedMap.preserve_speed;
+                                boolean preserve = this.preserveSpeed || pairedMap.preserve_speed;
                                 Vec3d preservedVelocity = preserve
                                         ? redirectToYaw(this.resolvePreservedVelocity(player), targetRot.y)
                                         : Vec3d.ZERO;

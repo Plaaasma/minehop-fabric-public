@@ -24,6 +24,7 @@ public record MapCreatorActionPayload(
         double movementSvGravity,
         double movementSvStopspeed,
         double movementSpeedCoefficient,
+        double movementSpeedCap,
         boolean movementAutoStepUp,
         boolean movementCssCrouchJump,
         boolean movementDisableSprint,
@@ -60,6 +61,7 @@ public record MapCreatorActionPayload(
                 buf.writeDouble(value.movementSvGravity);
                 buf.writeDouble(value.movementSvStopspeed);
                 buf.writeDouble(value.movementSpeedCoefficient);
+                buf.writeDouble(value.movementSpeedCap);
                 buf.writeBoolean(value.movementAutoStepUp);
                 buf.writeBoolean(value.movementCssCrouchJump);
                 buf.writeBoolean(value.movementDisableSprint);
@@ -75,6 +77,7 @@ public record MapCreatorActionPayload(
                     buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readBoolean(),
+                    buf.readDouble(),
                     buf.readDouble(),
                     buf.readDouble(),
                     buf.readDouble(),

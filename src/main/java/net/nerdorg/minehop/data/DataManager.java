@@ -58,6 +58,7 @@ public class DataManager {
         public double movement_sv_gravity;
         public double movement_sv_stopspeed;
         public double movement_speed_coefficient;
+        public double movement_speed_cap;
         public boolean movement_auto_step_up;
         public boolean movement_css_crouch_jump;
         public boolean movement_disable_sprint;
@@ -246,6 +247,7 @@ public class DataManager {
             this.movement_sv_gravity = source.movement.sv_gravity;
             this.movement_sv_stopspeed = source.movement.sv_stopspeed;
             this.movement_speed_coefficient = source.movement.speed_coefficient;
+            this.movement_speed_cap = source.movement.speed_cap;
             this.movement_auto_step_up = source.movement.auto_step_up;
             this.movement_css_crouch_jump = source.movement.css_crouch_jump;
             this.movement_disable_sprint = source.movement.disable_sprint;
@@ -263,6 +265,7 @@ public class DataManager {
                 double svGravity,
                 double svStopspeed,
                 double speedCoefficient,
+                double speedCap,
                 boolean autoStepUp,
                 boolean cssCrouchJump,
                 boolean disableSprint,
@@ -278,6 +281,7 @@ public class DataManager {
             this.movement_sv_gravity = clampFinite(svGravity, 0.0D, 4000.0D, 800.0D);
             this.movement_sv_stopspeed = clampFinite(svStopspeed, 0.0D, 1000.0D, 75.0D);
             this.movement_speed_coefficient = clampFinite(speedCoefficient, 0.0D, 10.0D, 1.0D);
+            this.movement_speed_cap = clampFinite(speedCap, 0.0D, 100.0D, 0.0D);
             this.movement_auto_step_up = autoStepUp;
             this.movement_css_crouch_jump = cssCrouchJump;
             this.movement_disable_sprint = disableSprint;
@@ -820,6 +824,7 @@ public class DataManager {
         mapData.movement_sv_gravity = clampFinite(mapData.movement_sv_gravity, 0.0D, 4000.0D, defaults.movement.sv_gravity);
         mapData.movement_sv_stopspeed = clampFinite(mapData.movement_sv_stopspeed, 0.0D, 1000.0D, defaults.movement.sv_stopspeed);
         mapData.movement_speed_coefficient = clampFinite(mapData.movement_speed_coefficient, 0.0D, 10.0D, defaults.movement.speed_coefficient);
+        mapData.movement_speed_cap = clampFinite(mapData.movement_speed_cap, 0.0D, 100.0D, defaults.movement.speed_cap);
     }
 
     private static void folderCheck(Path path){

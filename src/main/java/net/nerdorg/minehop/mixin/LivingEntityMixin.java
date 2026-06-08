@@ -80,6 +80,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Unique private boolean cssWasSneaking;
     @Unique private boolean cssWasSprinting;
     @Unique private boolean cssAirCrouchSprintLock;
+    @Unique private double cssCrouchOffsetAmount;
     private long boostTime = 0;
     private long ladderReleaseTime = 0;
     @Unique private static final double SOURCE_FRAME_TIME = 1.0D / 20.0D;
@@ -369,7 +370,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     public void travel(Vec3d movementInput, CallbackInfo ci) {
         MinehopConfig config;
-        double speedCap = 1000000;
+        double speedCap = 0.0D;
         if (Minehop.override_config && Minehop.receivedConfig) {
             config = new MinehopConfig();
             config.movement.sv_friction = Minehop.o_sv_friction;
@@ -386,10 +387,11 @@ public abstract class LivingEntityMixin extends Entity {
             config.movement.disable_sprint = Minehop.o_disable_sprint;
             config.enabled = Minehop.o_enabled;
             config.fall_damage = Minehop.o_fall_damage;
-            speedCap = Minehop.o_speed_cap;
+            speedCap = ConfigWrapper.sanitizeSpeedCap(Minehop.o_speed_cap);
         }
         else {
             config = ConfigWrapper.getEffectiveConfig(this);
+            speedCap = ConfigWrapper.resolveSpeedCap(this);
         }
 
         if (this.getType() != EntityType.PLAYER) { return; }
@@ -745,7 +747,7 @@ public abstract class LivingEntityMixin extends Entity {
             this.setVelocity(applySourceFriction(this.getVelocity(), config.movement.sv_friction, config.movement.sv_stopspeed, 1.0D));
             Vec3d groundVelocity = this.getVelocity();
             double groundHorizontalSpeed = this.getHorizontalSpeed(groundVelocity);
-            if (groundHorizontalSpeed > speedCap) {
+            if (speedCap > 0.0D && groundHorizontalSpeed > speedCap) {
                 double groundScale = speedCap / groundHorizontalSpeed;
                 this.setVelocity(groundVelocity.x * groundScale, groundVelocity.y, groundVelocity.z * groundScale);
                 this.velocityDirty = true;
@@ -786,6 +788,7 @@ public abstract class LivingEntityMixin extends Entity {
                     newVelocity = clampedStartZoneVelocity;
                     newHorizontalVelocity = new Vec3d(clampedStartZoneVelocity.x, 0.0D, clampedStartZoneVelocity.z);
                 }
+                newHorizontalVelocity = this.minehop$applySpeedCap(newHorizontalVelocity, speedCap);
 
                 if (!useGroundMovement && this.getWorld().isClient && ((Object) this) instanceof PlayerEntity) {
                     // Faithful Source/bhop strafe stats, measured from the ACTUAL before/after
@@ -846,6 +849,15 @@ public abstract class LivingEntityMixin extends Entity {
             }
         }
 
+        if (speedCap > 0.0D) {
+            Vec3d velocityBeforeCap = this.getVelocity();
+            Vec3d cappedHorizontalVelocity = this.minehop$applySpeedCap(new Vec3d(velocityBeforeCap.x, 0.0D, velocityBeforeCap.z), speedCap);
+            if (cappedHorizontalVelocity.x != velocityBeforeCap.x || cappedHorizontalVelocity.z != velocityBeforeCap.z) {
+                this.setVelocity(cappedHorizontalVelocity.x, velocityBeforeCap.y, cappedHorizontalVelocity.z);
+                this.velocityDirty = true;
+            }
+        }
+
         if (Minehop.surfHullSolverEnabled && !this.isClimbing()) {
             Vec3d ladderNormalH = this.getLadderNormal();
             this.setVelocity(applySourceLadderMove(this.getVelocity(), fI, sI, ladderNormalH));
@@ -885,7 +897,7 @@ public abstract class LivingEntityMixin extends Entity {
                 afterGravH = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, afterGravH);
             }
             if (onRampH && this.minehop$hullNormal != null) {
-                afterGravH = this.clipVelocityCore(afterGravH, this.minehop$hullNormal);
+                afterGravH = this.clipVelocityAgainstSurfRamp(afterGravH, this.minehop$hullNormal);
                 if (inStartZone && startZonePlayer != null) {
                     afterGravH = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, afterGravH);
                 }
@@ -1298,7 +1310,7 @@ public abstract class LivingEntityMixin extends Entity {
                 );
                 preVel = new Vec3d(
                         restoreDir.x * targetHorizontal,
-                        Math.min(preVel.y, -0.06D),
+                        this.getRampRestoreY(preVel.y, velocityBeforeMove.y, -0.06D),
                         restoreDir.z * targetHorizontal
                 );
                 this.surfEntryNoFrictionTicks = Math.max(this.surfEntryNoFrictionTicks, 3);
@@ -1322,7 +1334,7 @@ public abstract class LivingEntityMixin extends Entity {
                 double targetHorizontal = incomingHorizontal * 0.985D;
                 preVel = new Vec3d(
                         incomingHorizontalDir.x * targetHorizontal,
-                        Math.min(preVel.y, -0.08D),
+                        this.getRampRestoreY(preVel.y, velocityBeforeMove.y, -0.08D),
                         incomingHorizontalDir.z * targetHorizontal
                 );
                 this.setOnGround(false);
@@ -1431,7 +1443,7 @@ public abstract class LivingEntityMixin extends Entity {
                     );
                     preVel = new Vec3d(
                             projectedHorizontalDir.x * targetHorizontal,
-                            Math.min(preVel.y, -0.08D),
+                            this.getRampRestoreY(preVel.y, velocityBeforeMove.y, -0.08D),
                             projectedHorizontalDir.z * targetHorizontal
                     );
                     this.surfEntryNoFrictionTicks = Math.max(this.surfEntryNoFrictionTicks, 3);
@@ -1457,7 +1469,7 @@ public abstract class LivingEntityMixin extends Entity {
                     );
                     preVel = new Vec3d(
                             restoreDir.x * targetHorizontal,
-                            Math.min(preVel.y, -0.08D),
+                            this.getRampRestoreY(preVel.y, velocityBeforeMove.y, -0.08D),
                             restoreDir.z * targetHorizontal
                     );
                     this.surfEntryNoFrictionTicks = Math.max(this.surfEntryNoFrictionTicks, 3);
@@ -1483,7 +1495,7 @@ public abstract class LivingEntityMixin extends Entity {
                     );
                     preVel = new Vec3d(
                             restoreDir.x * targetHorizontal,
-                            Math.min(preVel.y, -0.06D),
+                            this.getRampRestoreY(preVel.y, velocityBeforeMove.y, -0.06D),
                             restoreDir.z * targetHorizontal
                     );
                     this.surfEntryNoFrictionTicks = Math.max(this.surfEntryNoFrictionTicks, 3);
@@ -1690,7 +1702,7 @@ public abstract class LivingEntityMixin extends Entity {
                     );
                     velocityAfterGravity = new Vec3d(
                             projectedHorizontalDir.x * targetHorizontal,
-                            Math.min(velocityAfterGravity.y, -0.08D),
+                            this.getRampRestoreY(velocityAfterGravity.y, velocityBeforeMove.y, -0.08D),
                             projectedHorizontalDir.z * targetHorizontal
                     );
                     this.surfEntryNoFrictionTicks = Math.max(this.surfEntryNoFrictionTicks, 3);
@@ -1716,7 +1728,7 @@ public abstract class LivingEntityMixin extends Entity {
                     );
                     velocityAfterGravity = new Vec3d(
                             restoreDir.x * targetHorizontal,
-                            Math.min(velocityAfterGravity.y, -0.08D),
+                            this.getRampRestoreY(velocityAfterGravity.y, velocityBeforeMove.y, -0.08D),
                             restoreDir.z * targetHorizontal
                     );
                     this.surfEntryNoFrictionTicks = Math.max(this.surfEntryNoFrictionTicks, 3);
@@ -1742,7 +1754,7 @@ public abstract class LivingEntityMixin extends Entity {
                     );
                     velocityAfterGravity = new Vec3d(
                             restoreDir.x * targetHorizontal,
-                            Math.min(velocityAfterGravity.y, -0.06D),
+                            this.getRampRestoreY(velocityAfterGravity.y, velocityBeforeMove.y, -0.06D),
                             restoreDir.z * targetHorizontal
                     );
                     this.surfEntryNoFrictionTicks = Math.max(this.surfEntryNoFrictionTicks, 3);
@@ -1946,6 +1958,14 @@ public abstract class LivingEntityMixin extends Entity {
         }
         Vec3d normal = contact.normal();
         return normal != null && normal.y >= SURF_REUSE_MIN_NORMAL_Y && normal.y <= 0.999D;
+    }
+
+    @Unique
+    private double getRampRestoreY(double currentY, double incomingY, double downwardFallback) {
+        if (incomingY > 0.02D) {
+            return Math.max(currentY, incomingY * 0.985D);
+        }
+        return Math.min(currentY, downwardFallback);
     }
 
     public double findOptimalStrafeAngle(double sI, double fI, MinehopConfig config, boolean fullGrounded) {
@@ -3225,7 +3245,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (this.minehop$bindNormal != null
                 && this.minehop$bindLift > -SURF_HULL_ATTACH_GAP
                 && vel.dotProduct(this.minehop$bindNormal) < 0.0D) {
-            vel = this.clipVelocityCore(vel, this.minehop$bindNormal);
+            vel = this.clipVelocityAgainstSurfRamp(vel, this.minehop$bindNormal);
         }
 
         for (int s = 0; s < steps; s++) {
@@ -3242,7 +3262,7 @@ public abstract class LivingEntityMixin extends Entity {
                 // reconciliation (smooth on-ramp); but if the foot has penetrated DEEPER than the
                 // allowed embed, lift out the excess within the substep so a fast fall can't tunnel
                 // through the zero-thickness ramp surface.
-                vel = this.clipVelocityCore(vel, bindNormal);
+                vel = this.clipVelocityAgainstSurfRamp(vel, bindNormal);
                 if (maxLift > SURF_HULL_MAX_EMBED) {
                     double antiTunnel = Math.min(maxLift - SURF_HULL_MAX_EMBED, SURF_MAX_SNAP_UP);
                     newFeet = newFeet.add(0.0D, antiTunnel, 0.0D);
@@ -3423,6 +3443,19 @@ public abstract class LivingEntityMixin extends Entity {
     @Unique
     private double getHorizontalSpeed(Vec3d velocity) {
         return Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+    }
+
+    @Unique
+    private Vec3d minehop$applySpeedCap(Vec3d horizontalVelocity, double speedCap) {
+        if (speedCap <= 0.0D || !Double.isFinite(speedCap)) {
+            return horizontalVelocity;
+        }
+        double speed = horizontalVelocity.horizontalLength();
+        if (speed <= speedCap || speed < 1.0E-8D) {
+            return horizontalVelocity;
+        }
+        double scale = speedCap / speed;
+        return new Vec3d(horizontalVelocity.x * scale, horizontalVelocity.y, horizontalVelocity.z * scale);
     }
 
     @Unique
@@ -3784,6 +3817,7 @@ public abstract class LivingEntityMixin extends Entity {
             this.cssWasSneaking = sneakingNow;
             this.cssWasSprinting = sprintingNow;
             this.cssAirCrouchSprintLock = false;
+            this.cssCrouchOffsetAmount = 0.0D;
             return;
         }
 
@@ -3817,6 +3851,7 @@ public abstract class LivingEntityMixin extends Entity {
         double crouchDelta = this.minehop$getCssCrouchDelta();
         if (crouchDelta <= CSS_CROUCH_DELTA_EPSILON) {
             this.cssCrouchOffsetApplied = false;
+            this.cssCrouchOffsetAmount = 0.0D;
             this.cssWasSneaking = sneakingNow;
             this.cssWasSprinting = this.isSprinting();
             return;
@@ -3835,16 +3870,22 @@ public abstract class LivingEntityMixin extends Entity {
                 this.setPosition(this.getX(), this.getY() + crouchDelta, this.getZ());
                 this.velocityDirty = true;
                 this.cssCrouchOffsetApplied = true;
+                this.cssCrouchOffsetAmount = crouchDelta;
             }
         }
 
         if (!canApply && this.cssCrouchOffsetApplied) {
-            Box downBox = this.getBoundingBox().offset(0.0D, -crouchDelta, 0.0D);
-            if (this.getWorld().isSpaceEmpty(this, downBox)) {
-                this.setPosition(this.getX(), this.getY() - crouchDelta, this.getZ());
+            double restoreAmount = this.cssCrouchOffsetAmount > CSS_CROUCH_DELTA_EPSILON
+                    ? Math.min(this.cssCrouchOffsetAmount, crouchDelta)
+                    : crouchDelta;
+            double beforeY = this.getY();
+            this.move(MovementType.SELF, new Vec3d(0.0D, -restoreAmount, 0.0D));
+            double restored = beforeY - this.getY();
+            if (restored > CSS_CROUCH_DELTA_EPSILON) {
                 this.velocityDirty = true;
-                this.cssCrouchOffsetApplied = false;
             }
+            this.cssCrouchOffsetAmount = Math.max(0.0D, restoreAmount - Math.max(restored, 0.0D));
+            this.cssCrouchOffsetApplied = this.cssCrouchOffsetAmount > CSS_CROUCH_DELTA_EPSILON;
         }
 
         this.cssWasSneaking = sneakingNow;

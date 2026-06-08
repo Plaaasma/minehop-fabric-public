@@ -56,6 +56,7 @@ public class PacketHandler {
         PayloadTypeRegistry.playS2C().register(OtherVTogglePayload.ID, OtherVTogglePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(ResetVelocityCarryPayload.ID, ResetVelocityCarryPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(ReplayVTogglePayload.ID, ReplayVTogglePayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(ReplayPathPayload.ID, ReplayPathPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(RunTimerHudPayload.ID, RunTimerHudPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SelfVTogglePayload.ID, SelfVTogglePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SendEfficiencyPayload.ID, SendEfficiencyPayload.CODEC);
@@ -118,7 +119,7 @@ public class PacketHandler {
             effectiveConfig.movement.speed_mul,
             effectiveConfig.movement.sv_gravity,
             effectiveConfig.movement.speed_coefficient,
-            Minehop.speedCapMap.containsKey(player.getNameForScoreboard()) ? Minehop.speedCapMap.get(player.getNameForScoreboard()) : 1000000,
+            ConfigWrapper.resolveSpeedCap(player),
             effectiveConfig.movement.auto_step_up,
             effectiveConfig.movement.css_crouch_jump,
             currentMap != null && currentMap.hns,
@@ -163,6 +164,45 @@ public class PacketHandler {
 
     public static void sendReplayVToggle(ServerPlayerEntity player) {
         ServerPlayNetworking.send(player,  new ReplayVTogglePayload(true));
+    }
+
+    public static void clearReplayPath(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+        ServerPlayNetworking.send(player, new ReplayPathPayload(true, List.of()));
+    }
+
+    public static int sendReplayPath(ServerPlayerEntity player, List<ReplayManager.ReplayEntry> entries) {
+        if (player == null || entries == null || entries.size() < 2) {
+            clearReplayPath(player);
+            return 0;
+        }
+
+        List<Vector3f> chunk = new ArrayList<>(ReplayPathPayload.MAX_POINTS_PER_PACKET);
+        boolean firstPacket = true;
+        int sent = 0;
+        for (ReplayManager.ReplayEntry entry : entries) {
+            if (entry == null
+                    || !Double.isFinite(entry.x)
+                    || !Double.isFinite(entry.y)
+                    || !Double.isFinite(entry.z)) {
+                continue;
+            }
+            chunk.add(new Vector3f((float) entry.x, (float) entry.y, (float) entry.z));
+            if (chunk.size() >= ReplayPathPayload.MAX_POINTS_PER_PACKET) {
+                ServerPlayNetworking.send(player, new ReplayPathPayload(firstPacket, List.copyOf(chunk)));
+                firstPacket = false;
+                sent += chunk.size();
+                chunk.clear();
+            }
+        }
+
+        if (!chunk.isEmpty() || firstPacket) {
+            ServerPlayNetworking.send(player, new ReplayPathPayload(firstPacket, List.copyOf(chunk)));
+            sent += chunk.size();
+        }
+        return sent;
     }
 
     public static void sendEfficiency(ServerPlayerEntity player, double efficiency) {
@@ -465,6 +505,7 @@ public class PacketHandler {
             double movementSvGravity,
             double movementSvStopspeed,
             double movementSpeedCoefficient,
+            double movementSpeedCap,
             boolean movementAutoStepUp,
             boolean movementCssCrouchJump,
             boolean movementDisableSprint,
@@ -490,6 +531,7 @@ public class PacketHandler {
                         movementSvGravity,
                         movementSvStopspeed,
                         movementSpeedCoefficient,
+                        movementSpeedCap,
                         movementAutoStepUp,
                         movementCssCrouchJump,
                         movementDisableSprint,
@@ -546,6 +588,7 @@ public class PacketHandler {
             buff += mapData.movement_sv_gravity;buff += "~";
             buff += mapData.movement_sv_stopspeed;buff += "~";
             buff += mapData.movement_speed_coefficient;buff += "~";
+            buff += mapData.movement_speed_cap;buff += "~";
             buff += mapData.movement_auto_step_up;buff += "~";
             buff += mapData.movement_css_crouch_jump;buff += "~";
             buff += mapData.movement_fall_damage;buff += "~";
@@ -792,6 +835,7 @@ public class PacketHandler {
                     payload.movementSvGravity(),
                     payload.movementSvStopspeed(),
                     payload.movementSpeedCoefficient(),
+                    payload.movementSpeedCap(),
                     payload.movementAutoStepUp(),
                     payload.movementCssCrouchJump(),
                     payload.movementDisableSprint(),

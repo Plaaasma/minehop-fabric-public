@@ -50,6 +50,12 @@ public class SelectMapScreen extends Screen {
     private UserSortMode lastUserSortMode = UserSortMode.HIGHEST_RATED;
     private int lastMapListSize = -1;
     private int lastMapListHash = 0;
+    private double bhopScrollY;
+    private double surfScrollY;
+    private double kzScrollY;
+    private double arenaScrollY;
+    private double hnsScrollY;
+    private double userScrollY;
 
     private int panelX;
     private int panelY;
@@ -405,6 +411,13 @@ public class SelectMapScreen extends Screen {
         MapListWidget oldHnsList = this.hnsListWidget;
         MapListWidget oldUserList = this.userListWidget;
 
+        this.captureListScroll(oldBhopList, MapTab.BHOP);
+        this.captureListScroll(oldSurfList, MapTab.SURF);
+        this.captureListScroll(oldKzList, MapTab.KZ);
+        this.captureListScroll(oldArenaList, MapTab.ARENA);
+        this.captureListScroll(oldHnsList, MapTab.HNS);
+        this.captureListScroll(oldUserList, MapTab.USER);
+
         this.detachListWidget(oldBhopList);
         this.detachListWidget(oldSurfList);
         this.detachListWidget(oldKzList);
@@ -439,7 +452,6 @@ public class SelectMapScreen extends Screen {
                 if (this.matchesAuthorFilter(mapData, authorFilter)) {
                     userMaps.add(mapData);
                 }
-                this.addUserMapToGamemodeTab(mapData, recordData, avgTime);
                 continue;
             }
 
@@ -554,6 +566,13 @@ public class SelectMapScreen extends Screen {
                     userMap.rating_difficulty_total
             );
         }
+
+        this.restoreListScroll(this.bhopListWidget, MapTab.BHOP);
+        this.restoreListScroll(this.surfListWidget, MapTab.SURF);
+        this.restoreListScroll(this.kzListWidget, MapTab.KZ);
+        this.restoreListScroll(this.arenaListWidget, MapTab.ARENA);
+        this.restoreListScroll(this.hnsListWidget, MapTab.HNS);
+        this.restoreListScroll(this.userListWidget, MapTab.USER);
     }
 
     private void detachListWidget(MapListWidget listWidget) {
@@ -562,92 +581,36 @@ public class SelectMapScreen extends Screen {
         }
     }
 
-    private void addUserMapToGamemodeTab(DataManager.MapData mapData, DataManager.RecordData recordData, double avgTime) {
-        if (mapData == null) {
+    private void captureListScroll(MapListWidget listWidget, MapTab tab) {
+        if (listWidget == null || tab == null || listWidget.mapCount() <= 0) {
             return;
         }
-        if (mapData.arena) {
-            this.arenaListWidget.addEntry(
-                    new DataManager.RecordData("Arena", mapData.name, 0.0D),
-                    avgTime,
-                    true,
-                    mapData.player_count,
-                    mapData.difficulty,
-                    true,
-                    mapData.ownerName,
-                    mapData.description,
-                    mapData.play_count,
-                    mapData.rating_count,
-                    mapData.rating_quality_total,
-                    mapData.rating_difficulty_total
-            );
+        double scrollY = listWidget.getScrollY();
+        switch (tab) {
+            case BHOP -> this.bhopScrollY = scrollY;
+            case SURF -> this.surfScrollY = scrollY;
+            case KZ -> this.kzScrollY = scrollY;
+            case ARENA -> this.arenaScrollY = scrollY;
+            case HNS -> this.hnsScrollY = scrollY;
+            case USER -> this.userScrollY = scrollY;
+        }
+    }
+
+    private void restoreListScroll(MapListWidget listWidget, MapTab tab) {
+        if (listWidget == null || tab == null || listWidget.mapCount() <= 0) {
             return;
         }
-        if (mapData.hns) {
-            this.hnsListWidget.addEntry(
-                    new DataManager.RecordData("HNS", mapData.name, 0.0D),
-                    avgTime,
-                    true,
-                    mapData.player_count,
-                    mapData.difficulty,
-                    true,
-                    mapData.ownerName,
-                    mapData.description,
-                    mapData.play_count,
-                    mapData.rating_count,
-                    mapData.rating_quality_total,
-                    mapData.rating_difficulty_total
-            );
-            return;
+        double scrollY = switch (tab) {
+            case BHOP -> this.bhopScrollY;
+            case SURF -> this.surfScrollY;
+            case KZ -> this.kzScrollY;
+            case ARENA -> this.arenaScrollY;
+            case HNS -> this.hnsScrollY;
+            case USER -> this.userScrollY;
+        };
+        if (scrollY > 0.0D) {
+            listWidget.setScrollY(scrollY);
         }
-        if (mapData.kz) {
-            this.kzListWidget.addEntry(
-                    recordData,
-                    avgTime,
-                    false,
-                    mapData.player_count,
-                    mapData.difficulty,
-                    true,
-                    mapData.ownerName,
-                    mapData.description,
-                    mapData.play_count,
-                    mapData.rating_count,
-                    mapData.rating_quality_total,
-                    mapData.rating_difficulty_total
-            );
-            return;
-        }
-        if (mapData.surf) {
-            this.surfListWidget.addEntry(
-                    recordData,
-                    avgTime,
-                    false,
-                    mapData.player_count,
-                    mapData.difficulty,
-                    true,
-                    mapData.ownerName,
-                    mapData.description,
-                    mapData.play_count,
-                    mapData.rating_count,
-                    mapData.rating_quality_total,
-                    mapData.rating_difficulty_total
-            );
-            return;
-        }
-        this.bhopListWidget.addEntry(
-                recordData,
-                avgTime,
-                false,
-                mapData.player_count,
-                mapData.difficulty,
-                true,
-                mapData.ownerName,
-                mapData.description,
-                mapData.play_count,
-                mapData.rating_count,
-                mapData.rating_quality_total,
-                mapData.rating_difficulty_total
-        );
     }
 
     private void sortUserMaps(List<DataManager.MapData> userMaps) {

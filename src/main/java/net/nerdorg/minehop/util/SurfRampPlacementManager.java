@@ -151,16 +151,14 @@ public class SurfRampPlacementManager {
         Vec3d decisionPosition = state.playerDecisionPosition != null ? state.playerDecisionPosition : player.getPos();
 
         List<Vec3d> centerlinePoints = toCenterlinePoints(state.points);
-        centerlinePoints = softenCenterlineCorners(centerlinePoints);
-        centerlinePoints = densifyCenterlineForSegmentation(centerlinePoints);
         if (centerlinePoints.size() < 2) {
             Logger.logFailure(player, "No valid ramp path was created (points may be too close).");
             return 0;
         }
 
-        Vec3d start = centerlinePoints.get(0);
-        Vec3d end = centerlinePoints.get(centerlinePoints.size() - 1);
-        if (start.squaredDistanceTo(end) < 1.0E-4D) {
+        Vec3d referenceStart = centerlinePoints.get(0);
+        Vec3d referenceEnd = centerlinePoints.get(centerlinePoints.size() - 1);
+        if (referenceStart.squaredDistanceTo(referenceEnd) < 1.0E-4D) {
             Logger.logFailure(player, "Ramp start and end are too close.");
             return 0;
         }
@@ -170,8 +168,16 @@ public class SurfRampPlacementManager {
         if (!twoSided) {
             int insideCurveSign = hasCurvedPath(centerlinePoints)
                     ? resolvePathInsideCurveSideSign(centerlinePoints)
-                    : findPlayerSideSign(start, end, decisionPosition);
+                    : findPlayerSideSign(referenceStart, referenceEnd, decisionPosition);
             sideSign = options.outsideCurve ? -insideCurveSign : insideCurveSign;
+            centerlinePoints = snapOneSidedCenterlineToBlockFaces(centerlinePoints, sideSign);
+        }
+
+        centerlinePoints = softenCenterlineCorners(centerlinePoints);
+        centerlinePoints = densifyCenterlineForSegmentation(centerlinePoints);
+        if (centerlinePoints.size() < 2) {
+            Logger.logFailure(player, "No valid ramp path was created (points may be too close).");
+            return 0;
         }
 
         List<SegmentSlice> rampSegments = splitCenterlineForSpawn(centerlinePoints);
@@ -183,7 +189,7 @@ public class SurfRampPlacementManager {
         DataManager.MapData targetPlot = UserPlotManager.getPlotAt(serverWorld, centerlinePoints.get(0));
         if (targetPlot != null) {
             if (!player.hasPermissionLevel(4)
-                    && !rampFitsInPlot(targetPlot, centerlinePoints, options.width)) {
+                    && !rampFitsInPlot(targetPlot, centerlinePoints, options.width, twoSided, sideSign)) {
                 Logger.logFailure(player, "The ramp (including its width) must stay fully inside your plot.");
                 return 0;
             }
@@ -749,6 +755,48 @@ public class SurfRampPlacementManager {
         return centerline;
     }
 
+    private static List<Vec3d> snapOneSidedCenterlineToBlockFaces(List<Vec3d> points, int sideSign) {
+        if (points == null || points.size() < 2) {
+            return points == null ? List.of() : List.copyOf(points);
+        }
+
+        int normalizedSideSign = sideSign >= 0 ? 1 : -1;
+        List<Vec3d> snapped = new ArrayList<>();
+        for (int i = 0; i < points.size(); i++) {
+            Vec3d point = points.get(i);
+            Vec3d left = getPointLeft(points, i);
+            Vec3d snappedPoint = point.add(left.multiply(-0.5D * normalizedSideSign));
+            appendIfDistinct(snapped, snappedPoint);
+        }
+        return List.copyOf(snapped);
+    }
+
+    private static Vec3d getPointLeft(List<Vec3d> points, int index) {
+        if (points == null || points.size() < 2) {
+            return new Vec3d(1.0D, 0.0D, 0.0D);
+        }
+
+        Vec3d previous = points.get(Math.max(0, index - 1));
+        Vec3d next = points.get(Math.min(points.size() - 1, index + 1));
+        Vec3d tangent = new Vec3d(next.x - previous.x, 0.0D, next.z - previous.z);
+        if (tangent.lengthSquared() < 1.0E-8D && index > 0) {
+            Vec3d current = points.get(index);
+            previous = points.get(index - 1);
+            tangent = new Vec3d(current.x - previous.x, 0.0D, current.z - previous.z);
+        }
+        if (tangent.lengthSquared() < 1.0E-8D && index < points.size() - 1) {
+            Vec3d current = points.get(index);
+            next = points.get(index + 1);
+            tangent = new Vec3d(next.x - current.x, 0.0D, next.z - current.z);
+        }
+        if (tangent.lengthSquared() < 1.0E-8D) {
+            return new Vec3d(1.0D, 0.0D, 0.0D);
+        }
+
+        tangent = tangent.normalize();
+        return new Vec3d(-tangent.z, 0.0D, tangent.x).normalize();
+    }
+
     private static List<Vec3d> densifyCenterlineForSegmentation(List<Vec3d> points) {
         if (points == null || points.size() < 2) {
             return points == null ? List.of() : List.copyOf(points);
@@ -950,26 +998,39 @@ public class SurfRampPlacementManager {
         return segments;
     }
 
-    private static boolean rampFitsInPlot(DataManager.MapData plot, List<Vec3d> centerlinePoints, double rampWidth) {
+    private static boolean rampFitsInPlot(DataManager.MapData plot, List<Vec3d> centerlinePoints, double rampWidth, boolean twoSided, int sideSign) {
         if (plot == null || centerlinePoints == null || centerlinePoints.size() < 2) {
             return false;
         }
         double safeWidth = Math.max(rampWidth, 0.15D);
         double sampleCount = Math.max(64.0D, centerlinePoints.size() * 32.0D);
+        int normalizedSideSign = sideSign >= 0 ? 1 : -1;
         for (int i = 0; i <= sampleCount; i++) {
             double t = (double) i / sampleCount;
             Vec3d center = samplePath(centerlinePoints, t);
             Vec3d left = samplePathLeft(centerlinePoints, t);
-            for (int signSlot = -1; signSlot <= 1; signSlot += 2) {
-                double offsetX = center.x + left.x * safeWidth * signSlot;
-                double offsetZ = center.z + left.z * safeWidth * signSlot;
-                if (offsetX < plot.plotMinX || offsetX > plot.plotMaxX
-                        || offsetZ < plot.plotMinZ || offsetZ > plot.plotMaxZ) {
+            if (!fitsPlotAt(plot, center.x, center.z)) {
+                return false;
+            }
+            if (twoSided) {
+                if (!fitsPlotAt(plot, center.x + left.x * safeWidth, center.z + left.z * safeWidth)
+                        || !fitsPlotAt(plot, center.x - left.x * safeWidth, center.z - left.z * safeWidth)) {
+                    return false;
+                }
+            } else {
+                double offsetX = center.x + left.x * safeWidth * normalizedSideSign;
+                double offsetZ = center.z + left.z * safeWidth * normalizedSideSign;
+                if (!fitsPlotAt(plot, offsetX, offsetZ)) {
                     return false;
                 }
             }
         }
         return true;
+    }
+
+    private static boolean fitsPlotAt(DataManager.MapData plot, double x, double z) {
+        return !(x < plot.plotMinX || x > plot.plotMaxX
+                || z < plot.plotMinZ || z > plot.plotMaxZ);
     }
 
     private static Vec3d samplePath(List<Vec3d> points, double t) {

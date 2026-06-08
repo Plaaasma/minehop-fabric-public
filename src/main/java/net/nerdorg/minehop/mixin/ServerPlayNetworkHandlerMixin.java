@@ -9,6 +9,7 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -37,6 +38,9 @@ public abstract class ServerPlayNetworkHandlerMixin {
     private static final float SAFE_PLAYER_MOVE_THRESHOLD = 4096.0F;
     private static final float SAFE_ELYTRA_MOVE_THRESHOLD = 8192.0F;
     private static final double SAFE_VEHICLE_MOVE_THRESHOLD = 4096.0D;
+    private static final double MINEHOP_STEP_MOVED_WRONGLY_THRESHOLD = 1.44D;
+
+    @Shadow public ServerPlayerEntity player;
 
     @ModifyConstant(method = "onPlayerMove", constant = @Constant(floatValue = 100.0F))
     private float toofast_PlayerMaxSpeed(float speed) {
@@ -51,5 +55,23 @@ public abstract class ServerPlayNetworkHandlerMixin {
     @ModifyConstant(method = "onVehicleMove", constant = @Constant(doubleValue = 100.0))
     private double toofast_VehicleMaxSpeed(double speed) {
         return SAFE_VEHICLE_MOVE_THRESHOLD;
+    }
+
+    @ModifyConstant(method = "onPlayerMove", constant = @Constant(doubleValue = 0.0625D))
+    private double minehop$relaxMovedWronglyForCustomStep(double threshold) {
+        if (this.player == null || this.player.isCreative() || this.player.isSpectator()) {
+            return threshold;
+        }
+        MinehopConfig config = ConfigWrapper.getEffectiveConfig(this.player);
+        if (config == null || !config.enabled) {
+            return threshold;
+        }
+        if (!config.movement.auto_step_up && !config.movement.css_crouch_jump) {
+            return threshold;
+        }
+        if (!this.player.horizontalCollision) {
+            return threshold;
+        }
+        return MINEHOP_STEP_MOVED_WRONGLY_THRESHOLD;
     }
 }

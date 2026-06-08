@@ -108,6 +108,7 @@ public final class SurfStickPreviewRenderer {
         }
         if (oneSided) {
             int sideSign = resolvePreviewSideSign(centerline, outsideCurve);
+            centerline = snapOneSidedCenterlineToBlockFaces(centerline, sideSign);
             drawContinuousOneSided(centerline, clampedWidth, clampedDrop, sideSign, cameraPos, consumers, matrices, red, green, blue, alpha);
         } else {
             drawContinuousDoubleSided(centerline, clampedWidth, clampedDrop, cameraPos, consumers, matrices, red, green, blue, alpha);
@@ -271,6 +272,52 @@ public final class SurfStickPreviewRenderer {
             previous = centered;
         }
         return centerline;
+    }
+
+    private static List<Vec3d> snapOneSidedCenterlineToBlockFaces(List<Vec3d> points, int sideSign) {
+        if (points == null || points.size() < 2) {
+            return points == null ? List.of() : List.copyOf(points);
+        }
+
+        int normalizedSideSign = sideSign >= 0 ? 1 : -1;
+        List<Vec3d> snapped = new ArrayList<>();
+        Vec3d previousSnapped = null;
+        for (int i = 0; i < points.size(); i++) {
+            Vec3d point = points.get(i);
+            Vec3d left = getPointLeft(points, i);
+            Vec3d snappedPoint = point.add(left.multiply(-0.5D * normalizedSideSign));
+            if (previousSnapped == null || snappedPoint.squaredDistanceTo(previousSnapped) > 1.0E-4D) {
+                snapped.add(snappedPoint);
+                previousSnapped = snappedPoint;
+            }
+        }
+        return List.copyOf(snapped);
+    }
+
+    private static Vec3d getPointLeft(List<Vec3d> points, int index) {
+        if (points == null || points.size() < 2) {
+            return new Vec3d(1.0D, 0.0D, 0.0D);
+        }
+
+        Vec3d previous = points.get(Math.max(0, index - 1));
+        Vec3d next = points.get(Math.min(points.size() - 1, index + 1));
+        Vec3d tangent = new Vec3d(next.x - previous.x, 0.0D, next.z - previous.z);
+        if (tangent.lengthSquared() < 1.0E-8D && index > 0) {
+            Vec3d current = points.get(index);
+            previous = points.get(index - 1);
+            tangent = new Vec3d(current.x - previous.x, 0.0D, current.z - previous.z);
+        }
+        if (tangent.lengthSquared() < 1.0E-8D && index < points.size() - 1) {
+            Vec3d current = points.get(index);
+            next = points.get(index + 1);
+            tangent = new Vec3d(next.x - current.x, 0.0D, next.z - current.z);
+        }
+        if (tangent.lengthSquared() < 1.0E-8D) {
+            return new Vec3d(1.0D, 0.0D, 0.0D);
+        }
+
+        tangent = tangent.normalize();
+        return new Vec3d(-tangent.z, 0.0D, tangent.x).normalize();
     }
 
     private static double getHorizontalLength(List<Vec3d> points) {

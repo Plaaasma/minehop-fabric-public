@@ -42,13 +42,12 @@ public class ConfigWrapper {
                     newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), new ArrayList<>(Arrays.asList(playerEntity.getNameForScoreboard())));
                 }
 
-                if (currentMap != null) {
-                    if (currentMap.hns) {
-                        Minehop.speedCapMap.put(playerEntity.getNameForScoreboard(), 0.6);
-                    } else {
-                        playerEntity.setGlowing(false);
-                        Minehop.speedCapMap.remove(playerEntity.getNameForScoreboard());
-                    }
+                double speedCap = resolveSpeedCap(playerEntity);
+                if (speedCap > 0.0D) {
+                    Minehop.speedCapMap.put(playerEntity.getNameForScoreboard(), speedCap);
+                } else {
+                    playerEntity.setGlowing(false);
+                    Minehop.speedCapMap.remove(playerEntity.getNameForScoreboard());
                 }
                 PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
             }
@@ -101,11 +100,32 @@ public class ConfigWrapper {
         effective.movement.sv_gravity = mapData.movement_sv_gravity;
         effective.movement.sv_stopspeed = mapData.movement_sv_stopspeed;
         effective.movement.speed_coefficient = mapData.movement_speed_coefficient;
+        effective.movement.speed_cap = mapData.movement_speed_cap;
         effective.movement.auto_step_up = mapData.movement_auto_step_up;
         effective.movement.css_crouch_jump = mapData.movement_css_crouch_jump;
         effective.movement.disable_sprint = mapData.movement_disable_sprint;
         effective.fall_damage = mapData.movement_fall_damage;
         return effective;
+    }
+
+    public static double resolveSpeedCap(Entity entity) {
+        if (entity == null) {
+            return 0.0D;
+        }
+        DataManager.MapData mapData = resolveEffectiveMap(entity);
+        MinehopConfig effective = getEffectiveConfig(entity);
+        double speedCap = sanitizeSpeedCap(effective == null ? 0.0D : effective.movement.speed_cap);
+        if (mapData != null && mapData.hns && !mapData.movement_override && speedCap <= 0.0D) {
+            return 0.6D;
+        }
+        return speedCap;
+    }
+
+    public static double sanitizeSpeedCap(double speedCap) {
+        if (!Double.isFinite(speedCap) || speedCap < 0.0D) {
+            return 0.0D;
+        }
+        return speedCap;
     }
 
     public static DataManager.MapData resolveEffectiveMap(Entity entity) {
@@ -147,6 +167,7 @@ public class ConfigWrapper {
         copy.movement.sv_gravity = input.movement.sv_gravity;
         copy.movement.sv_stopspeed = input.movement.sv_stopspeed;
         copy.movement.speed_coefficient = input.movement.speed_coefficient;
+        copy.movement.speed_cap = input.movement.speed_cap;
         copy.movement.auto_step_up = input.movement.auto_step_up;
         copy.movement.css_crouch_jump = input.movement.css_crouch_jump;
         copy.movement.disable_sprint = input.movement.disable_sprint;
@@ -286,7 +307,7 @@ public class ConfigWrapper {
         }
 
         movement.source_units_migrated = true;
-        movement.source_movement_version = 12;
+        movement.source_movement_version = 13;
         return true;
     }
 }

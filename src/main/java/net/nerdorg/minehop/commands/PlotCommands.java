@@ -251,6 +251,7 @@ public final class PlotCommands {
                 mapData.movement_sv_gravity,
                 mapData.movement_sv_stopspeed,
                 mapData.movement_speed_coefficient,
+                mapData.movement_speed_cap,
                 mapData.movement_auto_step_up,
                 mapData.movement_css_crouch_jump,
                 mapData.movement_disable_sprint,

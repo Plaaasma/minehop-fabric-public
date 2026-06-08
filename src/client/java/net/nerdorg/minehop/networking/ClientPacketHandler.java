@@ -19,6 +19,7 @@ import net.nerdorg.minehop.anticheat.ProcessChecker;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.client.SurfStickPreviewState;
 import net.nerdorg.minehop.client.BoundsStickPreviewState;
+import net.nerdorg.minehop.client.ReplayPathState;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.data.DataManager;
@@ -102,6 +103,15 @@ public class ClientPacketHandler {
                 BlockPos first = payload.hasFirst() ? payload.first() : null;
                 BlockPos second = payload.hasSecond() ? payload.second() : null;
                 BoundsStickPreviewState.update(first, second);
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(ReplayPathPayload.ID, (payload, ctx) -> {
+            ctx.client().execute(() -> {
+                if (payload.clear()) {
+                    ReplayPathState.clear();
+                }
+                ReplayPathState.append(payload.points());
             });
         });
 
@@ -324,6 +334,7 @@ public class ClientPacketHandler {
                                     payload.movementSvGravity(),
                                     payload.movementSvStopspeed(),
                                     payload.movementSpeedCoefficient(),
+                                    payload.movementSpeedCap(),
                                     payload.movementAutoStepUp(),
                                     payload.movementCssCrouchJump(),
                                     payload.movementDisableSprint(),
@@ -440,10 +451,11 @@ public class ClientPacketHandler {
                 double movementSvGravity = parseDoubleSafe(buff, 35, 800.0D);
                 double movementSvStopspeed = parseDoubleSafe(buff, 36, 75.0D);
                 double movementSpeedCoefficient = parseDoubleSafe(buff, 37, 1.0D);
-                boolean movementAutoStepUp = parseBooleanSafe(buff, 38, true);
-                boolean movementCssCrouchJump = parseBooleanSafe(buff, 39, true);
-                boolean movementFallDamage = parseBooleanSafe(buff, 40, false);
-                boolean movementDisableSprint = parseBooleanSafe(buff, 41, false);
+                double movementSpeedCap = parseDoubleSafe(buff, 38, 0.0D);
+                boolean movementAutoStepUp = parseBooleanSafe(buff, 39, true);
+                boolean movementCssCrouchJump = parseBooleanSafe(buff, 40, true);
+                boolean movementFallDamage = parseBooleanSafe(buff, 41, false);
+                boolean movementDisableSprint = parseBooleanSafe(buff, 42, false);
 
                 DataManager.MapData mapData = new DataManager.MapData(
                         name,
@@ -486,6 +498,7 @@ public class ClientPacketHandler {
                         movementSvGravity,
                         movementSvStopspeed,
                         movementSpeedCoefficient,
+                        movementSpeedCap,
                         movementAutoStepUp,
                         movementCssCrouchJump,
                         movementDisableSprint,
@@ -683,6 +696,7 @@ public class ClientPacketHandler {
             double movementSvGravity,
             double movementSvStopspeed,
             double movementSpeedCoefficient,
+            double movementSpeedCap,
             boolean movementAutoStepUp,
             boolean movementCssCrouchJump,
             boolean movementDisableSprint,
@@ -708,6 +722,7 @@ public class ClientPacketHandler {
                         movementSvGravity,
                         movementSvStopspeed,
                         movementSpeedCoefficient,
+                        movementSpeedCap,
                         movementAutoStepUp,
                         movementCssCrouchJump,
                         movementDisableSprint,

@@ -10,8 +10,10 @@ import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.networking.payloads.HandshakeIDPayload;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -25,6 +27,11 @@ public class HandshakeHandler {
             MinehopConfig config = ConfigWrapper.config;
             if (config != null) {
                 if (config.client_validation) {
+                    // Collect players to disconnect and do it AFTER the loop. disconnect() fires the
+                    // DISCONNECT event synchronously, whose handler removes from waitingForShake —
+                    // mutating the map mid-iteration would throw ConcurrentModificationException and
+                    // crash the server tick. Remove via the iterator here; disconnect outside.
+                    List<ServerPlayerEntity> toDisconnect = null;
                     Iterator<Map.Entry<UUID, Integer>> iterator = waitingForShake.entrySet().iterator();
                     while (iterator.hasNext()) {
                         Map.Entry<UUID, Integer> entry = iterator.next();
@@ -40,8 +47,16 @@ public class HandshakeHandler {
                             continue;
                         }
                         if (joinTick != null && server.getTicks() > joinTick + 60) {
-                            serverPlayerEntity.networkHandler.disconnect(Text.of("Please install/update to at least version " + Minehop.MOD_VERSION_STRING + " of the Minehop mod before joining this server."));
                             iterator.remove();
+                            if (toDisconnect == null) {
+                                toDisconnect = new ArrayList<>();
+                            }
+                            toDisconnect.add(serverPlayerEntity);
+                        }
+                    }
+                    if (toDisconnect != null) {
+                        for (ServerPlayerEntity serverPlayerEntity : toDisconnect) {
+                            serverPlayerEntity.networkHandler.disconnect(Text.of("Please install/update to at least version " + Minehop.MOD_VERSION_STRING + " of the Minehop mod before joining this server."));
                         }
                     }
                 }

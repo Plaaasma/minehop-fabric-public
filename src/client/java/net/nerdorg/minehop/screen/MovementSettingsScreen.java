@@ -25,6 +25,7 @@ public class MovementSettingsScreen extends Screen {
     private TextFieldWidget svGravityField;
     private TextFieldWidget svStopspeedField;
     private TextFieldWidget speedCoefficientField;
+    private TextFieldWidget speedCapField;
     private ButtonWidget overrideButton;
     private ButtonWidget autoStepButton;
     private ButtonWidget cssCrouchButton;
@@ -50,7 +51,7 @@ public class MovementSettingsScreen extends Screen {
     protected void init() {
         super.init();
         int panelWidth = 460;
-        int panelHeight = 384;
+        int panelHeight = 406;
         int panelX = (this.width - panelWidth) / 2;
         int panelY = (this.height - panelHeight) / 2;
         int labelX = panelX + 18;
@@ -81,6 +82,8 @@ public class MovementSettingsScreen extends Screen {
         this.svStopspeedField = this.addField(fieldX, y, fieldWidth, this.values.svStopspeed());
         y += 22;
         this.speedCoefficientField = this.addField(fieldX, y, fieldWidth, this.values.speedCoefficient());
+        y += 22;
+        this.speedCapField = this.addField(fieldX, y, fieldWidth, this.values.speedCap());
         y += 24;
 
         this.autoStepButton = this.addDrawableChild(ButtonWidget.builder(Text.empty(), button -> {
@@ -130,7 +133,7 @@ public class MovementSettingsScreen extends Screen {
         this.renderBackground(context, mouseX, mouseY, delta);
 
         int panelWidth = 460;
-        int panelHeight = 384;
+        int panelHeight = 406;
         int panelX = (this.width - panelWidth) / 2;
         int panelY = (this.height - panelHeight) / 2;
         int labelX = panelX + 18;
@@ -159,6 +162,8 @@ public class MovementSettingsScreen extends Screen {
         this.drawLabel(context, "sv_stopspeed", labelX, y);
         y += 22;
         this.drawLabel(context, "speed_coefficient", labelX, y);
+        y += 22;
+        this.drawLabel(context, "speed_cap", labelX, y);
         y += 24;
         this.drawLabel(context, "auto_step_up", labelX, y);
         y += 24;
@@ -215,6 +220,7 @@ public class MovementSettingsScreen extends Screen {
                 this.parse(this.svGravityField, this.values.svGravity()),
                 this.parse(this.svStopspeedField, this.values.svStopspeed()),
                 this.parse(this.speedCoefficientField, this.values.speedCoefficient()),
+                this.parse(this.speedCapField, this.values.speedCap()),
                 this.values.autoStepUp(),
                 this.values.cssCrouchJump(),
                 this.values.disableSprint(),
@@ -256,33 +262,34 @@ public class MovementSettingsScreen extends Screen {
             double svGravity,
             double svStopspeed,
             double speedCoefficient,
+            double speedCap,
             boolean autoStepUp,
             boolean cssCrouchJump,
             boolean disableSprint,
             boolean fallDamage
     ) {
         public static Values defaults() {
-            return new Values(false, 4.0D, 10.0D, 100.0D, 30.0D, 300.0D, 3.25D, 800.0D, 75.0D, 1.0D, false, true, false, false);
+            return new Values(false, 4.0D, 10.0D, 100.0D, 30.0D, 300.0D, 3.25D, 800.0D, 75.0D, 1.0D, 0.0D, false, true, false, false);
         }
 
         public Values withOverride(boolean value) {
-            return new Values(value, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, cssCrouchJump, disableSprint, fallDamage);
+            return new Values(value, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, speedCap, autoStepUp, cssCrouchJump, disableSprint, fallDamage);
         }
 
         public Values withAutoStepUp(boolean value) {
-            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, value, cssCrouchJump, disableSprint, fallDamage);
+            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, speedCap, value, cssCrouchJump, disableSprint, fallDamage);
         }
 
         public Values withCssCrouchJump(boolean value) {
-            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, value, disableSprint, fallDamage);
+            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, speedCap, autoStepUp, value, disableSprint, fallDamage);
         }
 
         public Values withDisableSprint(boolean value) {
-            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, cssCrouchJump, value, fallDamage);
+            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, speedCap, autoStepUp, cssCrouchJump, value, fallDamage);
         }
 
         public Values withFallDamage(boolean value) {
-            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, autoStepUp, cssCrouchJump, disableSprint, value);
+            return new Values(overrideEnabled, svFriction, svAccelerate, svAiraccelerate, svMaxairspeed, svJumpImpulse, speedMul, svGravity, svStopspeed, speedCoefficient, speedCap, autoStepUp, cssCrouchJump, disableSprint, value);
         }
     }
 }

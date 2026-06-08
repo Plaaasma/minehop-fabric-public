@@ -21,6 +21,7 @@ import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ReplayEntity;
+import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.replays.ReplayManager;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.ZoneUtil;
@@ -208,6 +209,7 @@ public class ReplayCommands {
             return;
         }
         removeViewerFromPreviousSpectate(viewer);
+        PacketHandler.clearReplayPath(viewer);
         viewer.setCameraEntity(viewer);
         viewer.changeGameMode(GameMode.SPECTATOR);
         if (!viewer.isCreative()) {

@@ -21,6 +21,8 @@ import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.client.SqueedometerHud;
 import net.nerdorg.minehop.client.BoundsStickPreviewRenderer;
 import net.nerdorg.minehop.client.BoundsStickPreviewState;
+import net.nerdorg.minehop.client.ReplayPathRenderer;
+import net.nerdorg.minehop.client.ReplayPathState;
 import net.nerdorg.minehop.client.SurfStickPreviewRenderer;
 import net.nerdorg.minehop.client.SurfStickPreviewState;
 import net.nerdorg.minehop.config.ConfigWrapper;
@@ -92,6 +94,7 @@ public class MinehopClient implements ClientModInitializer {
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			SurfStickPreviewState.clear();
 			BoundsStickPreviewState.clear();
+			ReplayPathState.clear();
 			runTimerHudVisible = false;
 			runTimerHudTime = 0.0F;
 			runTimerHudPb = 0.0F;
@@ -113,6 +116,7 @@ public class MinehopClient implements ClientModInitializer {
 		KeyInputHandler.register();
 		JoinEvent.register();
 		BoundsStickPreviewRenderer.register();
+		ReplayPathRenderer.register();
 		SurfStickPreviewRenderer.register();
 		EntityRendererRegistry.register(ModEntities.GAMEMODE_ENTITY, GamemodeRenderer::new);
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.GAMEMODE_ENTITY, GamemodeModel::getTexturedModelData);

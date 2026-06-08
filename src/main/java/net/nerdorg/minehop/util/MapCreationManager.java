@@ -102,6 +102,7 @@ public final class MapCreationManager {
                 movementConfig.movement.sv_gravity,
                 movementConfig.movement.sv_stopspeed,
                 movementConfig.movement.speed_coefficient,
+                movementConfig.movement.speed_cap,
                 movementConfig.movement.auto_step_up,
                 movementConfig.movement.css_crouch_jump,
                 movementConfig.movement.disable_sprint,
@@ -129,6 +130,7 @@ public final class MapCreationManager {
             double movementSvGravity,
             double movementSvStopspeed,
             double movementSpeedCoefficient,
+            double movementSpeedCap,
             boolean movementAutoStepUp,
             boolean movementCssCrouchJump,
             boolean movementDisableSprint,
@@ -185,6 +187,7 @@ public final class MapCreationManager {
                             movementSvGravity,
                             movementSvStopspeed,
                             movementSpeedCoefficient,
+                            movementSpeedCap,
                             movementAutoStepUp,
                             movementCssCrouchJump,
                             movementDisableSprint,
@@ -222,6 +225,7 @@ public final class MapCreationManager {
             double movementSvGravity,
             double movementSvStopspeed,
             double movementSpeedCoefficient,
+            double movementSpeedCap,
             boolean movementAutoStepUp,
             boolean movementCssCrouchJump,
             boolean movementDisableSprint,
@@ -257,6 +261,7 @@ public final class MapCreationManager {
                     movementSvGravity,
                     movementSvStopspeed,
                     movementSpeedCoefficient,
+                    movementSpeedCap,
                     movementAutoStepUp,
                     movementCssCrouchJump,
                     movementDisableSprint,
@@ -287,6 +292,7 @@ public final class MapCreationManager {
                     movementSvGravity,
                     movementSvStopspeed,
                     movementSpeedCoefficient,
+                    movementSpeedCap,
                     movementAutoStepUp,
                     movementCssCrouchJump,
                     movementDisableSprint,
@@ -510,6 +516,7 @@ public final class MapCreationManager {
         config.movement.sv_gravity = mapData.movement_sv_gravity;
         config.movement.sv_stopspeed = mapData.movement_sv_stopspeed;
         config.movement.speed_coefficient = mapData.movement_speed_coefficient;
+        config.movement.speed_cap = mapData.movement_speed_cap;
         config.movement.auto_step_up = mapData.movement_auto_step_up;
         config.movement.css_crouch_jump = mapData.movement_css_crouch_jump;
         config.movement.disable_sprint = mapData.movement_disable_sprint;
