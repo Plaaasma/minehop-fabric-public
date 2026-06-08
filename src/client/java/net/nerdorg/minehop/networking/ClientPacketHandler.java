@@ -13,6 +13,7 @@ import net.minecraft.network.PacketByteBuf;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.anticheat.ProcessChecker;
@@ -631,8 +632,9 @@ public class ClientPacketHandler {
         ClientPlayNetworking.send(new AntiCheatPayload(checkResults));
     }
 
-    public static void sendEndMapEvent(String map_name, float time) {
-        ClientPlayNetworking.send(new MapFinishPayload(map_name, time));
+    public static void sendEndMapEvent(String map_name, double time, Vec3d finishPosition) {
+        Vec3d safePosition = finishPosition == null ? Vec3d.ZERO : finishPosition;
+        ClientPlayNetworking.send(new MapFinishPayload(map_name, time, safePosition.x, safePosition.y, safePosition.z));
     }
 
     public static void sendCurrentTime(float time) {

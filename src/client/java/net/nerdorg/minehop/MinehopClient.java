@@ -65,6 +65,10 @@ public class MinehopClient implements ClientModInitializer {
 	private static boolean startZoneArmed = false;
 	private static boolean wasInsideStartZone = false;
 	private static boolean wasInsideEndZone = false;
+	private static String activeRunMapName = "";
+	private static Vec3d lastFinishSamplePos = null;
+	private static long lastFinishSampleNanos = 0L;
+	private static long lastFinishSampleStartNanos = 0L;
 
 	//public static boolean hideSelf = false;
 	//public static boolean hideReplay = false;
@@ -104,6 +108,10 @@ public class MinehopClient implements ClientModInitializer {
 			wasInsideStartZone = false;
 			wasInsideEndZone = false;
 			startZoneArmed = false;
+			activeRunMapName = "";
+			lastFinishSamplePos = null;
+			lastFinishSampleNanos = 0L;
+			lastFinishSampleStartNanos = 0L;
 			resetCarryTicks = 0;
 			resetCarryX = 0.0D;
 			resetCarryY = 0.0D;
@@ -187,7 +195,7 @@ public class MinehopClient implements ClientModInitializer {
 					}
 				}
 
-				updateRunTimerZones(client);
+				updateRunTimerStartZones(client);
 			}
 		});
 
@@ -205,47 +213,38 @@ public class MinehopClient implements ClientModInitializer {
 				}
 			}
 			lastRenderFrameNanos[0] = now;
+			updateRunTimerFinishZones(MinecraftClient.getInstance(), now);
 		});
 
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.BOOSTER_BLOCK, RenderLayer.getTranslucent());
 	}
 
-	private static void updateRunTimerZones(MinecraftClient client) {
+	private static void updateRunTimerStartZones(MinecraftClient client) {
 		if (client == null || client.player == null || client.world == null) {
 			return;
 		}
 		if (client.player.isCreative() || client.player.isSpectator()) {
-			wasInsideStartZone = false;
-			wasInsideEndZone = false;
+			clearClientRunState();
 			return;
 		}
 
 		Vec3d playerPos = client.player.getPos();
-		float tickDelta = client.getRenderTickCounter().getTickDelta(true);
-		Vec3d predictedPos = playerPos.add(client.player.getVelocity().multiply(tickDelta));
 		boolean grounded = client.player.isOnGround();
 
 		boolean insideStartZone = false;
-		boolean insideEndZone = false;
-		String endMapName = null;
+		String startMapName = null;
 
 		List<Entity> nearbyZones = client.world.getOtherEntities(
 				client.player,
 				client.player.getBoundingBox().expand(256.0D),
-				entity -> entity instanceof StartEntity || entity instanceof EndEntity
+				entity -> entity instanceof StartEntity
 		);
 		for (Entity entity : nearbyZones) {
 			if (entity instanceof StartEntity startEntity) {
 				if (isInsideZoneBounds(playerPos, startEntity.getCorner1(), startEntity.getCorner2())) {
 					insideStartZone = true;
-				}
-				continue;
-			}
-			if (entity instanceof EndEntity endEntity) {
-				if (isInsideZoneBounds(predictedPos, endEntity.getCorner1(), endEntity.getCorner2())) {
-					insideEndZone = true;
-					if (endMapName == null || endMapName.isBlank()) {
-						endMapName = endEntity.getPairedMap();
+					if (startMapName == null || startMapName.isBlank()) {
+						startMapName = startEntity.getPairedMap();
 					}
 				}
 			}
@@ -264,25 +263,117 @@ public class MinehopClient implements ClientModInitializer {
 			if (insideStartZone && grounded) {
 				startTime = System.nanoTime();
 				lastSendTime = 0.0F;
+				activeRunMapName = startMapName == null ? "" : startMapName;
+				lastFinishSamplePos = null;
+				lastFinishSampleNanos = 0L;
+				lastFinishSampleStartNanos = startTime;
 			} else {
 				// became airborne (or left the zone) -> run starts; freeze startTime, disarm
 				startZoneArmed = false;
 			}
 		}
 
-		if (startTime != 0L && insideEndZone && !wasInsideEndZone) {
-			float elapsedTime = (float) (((double) (System.nanoTime() - startTime)) / 1_000_000_000.0D);
-			if (Float.isFinite(elapsedTime) && elapsedTime >= 0.0F && endMapName != null && !endMapName.isBlank()) {
-				ClientPacketHandler.sendEndMapEvent(endMapName, elapsedTime);
-			}
-			startTime = 0L;
-			lastSendTime = 0.0F;
-			runTimerHudVisible = false;
-			startZoneArmed = false;
+		wasInsideStartZone = insideStartZone;
+	}
+
+	private static void updateRunTimerFinishZones(MinecraftClient client, long nowNanos) {
+		if (client == null || client.player == null || client.world == null) {
+			return;
+		}
+		if (client.player.isCreative() || client.player.isSpectator() || startTime == 0L) {
+			resetFinishSampling();
+			wasInsideEndZone = false;
+			return;
+		}
+		if (lastFinishSampleStartNanos != startTime) {
+			resetFinishSampling();
+			lastFinishSampleStartNanos = startTime;
 		}
 
-		wasInsideStartZone = insideStartZone;
+		Vec3d samplePos = getInterpolatedPlayerPosition(client);
+		if (samplePos == null) {
+			return;
+		}
+
+		FinishZoneHit finishHit = findFinishZoneHit(client, lastFinishSamplePos, samplePos);
+		boolean insideEndZone = finishHit != null && finishHit.insideAtSample;
+		if (finishHit != null && (!wasInsideEndZone || finishHit.fraction > 0.0D)) {
+			long finishNanos = nowNanos;
+			if (lastFinishSampleNanos > 0L && nowNanos > lastFinishSampleNanos) {
+				double fraction = MathHelper.clamp(finishHit.fraction, 0.0D, 1.0D);
+				finishNanos = lastFinishSampleNanos + Math.round((nowNanos - lastFinishSampleNanos) * fraction);
+			}
+			double elapsedTime = ((double) (finishNanos - startTime)) / 1_000_000_000.0D;
+			if (Double.isFinite(elapsedTime) && elapsedTime >= 0.0D && finishHit.mapName != null && !finishHit.mapName.isBlank()) {
+				ClientPacketHandler.sendEndMapEvent(finishHit.mapName, elapsedTime, finishHit.position);
+			}
+			clearClientRunState();
+			return;
+		}
+
+		lastFinishSamplePos = samplePos;
+		lastFinishSampleNanos = nowNanos;
 		wasInsideEndZone = insideEndZone;
+	}
+
+	private static FinishZoneHit findFinishZoneHit(MinecraftClient client, Vec3d previousPos, Vec3d samplePos) {
+		FinishZoneHit bestHit = null;
+		List<Entity> nearbyZones = client.world.getOtherEntities(
+				client.player,
+				client.player.getBoundingBox().expand(256.0D),
+				entity -> entity instanceof EndEntity
+		);
+		for (Entity entity : nearbyZones) {
+			if (!(entity instanceof EndEntity endEntity)) {
+				continue;
+			}
+			String mapName = endEntity.getPairedMap();
+			if (activeRunMapName != null && !activeRunMapName.isBlank() && !activeRunMapName.equals(mapName)) {
+				continue;
+			}
+			Box box = getZoneBoundsBox(endEntity.getCorner1(), endEntity.getCorner2());
+			if (box == null) {
+				continue;
+			}
+			double fraction = previousPos == null ? (box.contains(samplePos) ? 1.0D : Double.NaN) : segmentEntryFraction(box, previousPos, samplePos);
+			if (!Double.isFinite(fraction)) {
+				continue;
+			}
+			if (bestHit == null || fraction < bestHit.fraction) {
+				Vec3d hitPosition = previousPos == null ? samplePos : previousPos.lerp(samplePos, MathHelper.clamp(fraction, 0.0D, 1.0D));
+				bestHit = new FinishZoneHit(mapName, fraction, hitPosition, box.contains(samplePos));
+			}
+		}
+		return bestHit;
+	}
+
+	private static Vec3d getInterpolatedPlayerPosition(MinecraftClient client) {
+		if (client == null || client.player == null) {
+			return null;
+		}
+		float tickDelta = client.getRenderTickCounter().getTickDelta(true);
+		return new Vec3d(
+				MathHelper.lerp((double) tickDelta, client.player.prevX, client.player.getX()),
+				MathHelper.lerp((double) tickDelta, client.player.prevY, client.player.getY()),
+				MathHelper.lerp((double) tickDelta, client.player.prevZ, client.player.getZ())
+		);
+	}
+
+	private static void clearClientRunState() {
+		startTime = 0L;
+		lastSendTime = 0.0F;
+		runTimerHudVisible = false;
+		startZoneArmed = false;
+		wasInsideStartZone = false;
+		wasInsideEndZone = false;
+		activeRunMapName = "";
+		resetFinishSampling();
+	}
+
+	private static void resetFinishSampling() {
+		lastFinishSamplePos = null;
+		lastFinishSampleNanos = 0L;
+		lastFinishSampleStartNanos = startTime;
 	}
 
 	private static boolean isInsideZoneBounds(Vec3d pos, BlockPos corner1, BlockPos corner2) {
@@ -306,6 +397,78 @@ public class MinehopClient implements ClientModInitializer {
 			maxZ = minZ + 1.0D;
 		}
 		return new Box(minX, minY, minZ, maxX, maxY, maxZ).contains(pos);
+	}
+
+	private static Box getZoneBoundsBox(BlockPos corner1, BlockPos corner2) {
+		if (corner1 == null || corner2 == null) {
+			return null;
+		}
+		double minX = Math.min(corner1.getX(), corner2.getX());
+		double minY = Math.min(corner1.getY(), corner2.getY());
+		double minZ = Math.min(corner1.getZ(), corner2.getZ());
+		double maxX = Math.max(corner1.getX(), corner2.getX());
+		double maxY = Math.max(corner1.getY(), corner2.getY());
+		double maxZ = Math.max(corner1.getZ(), corner2.getZ());
+		if (maxX <= minX) {
+			maxX = minX + 1.0D;
+		}
+		if (maxY <= minY) {
+			maxY = minY + 1.0D;
+		}
+		if (maxZ <= minZ) {
+			maxZ = minZ + 1.0D;
+		}
+		return new Box(minX, minY, minZ, maxX, maxY, maxZ);
+	}
+
+	private static double segmentEntryFraction(Box box, Vec3d start, Vec3d end) {
+		if (box == null || start == null || end == null) {
+			return Double.NaN;
+		}
+		if (box.contains(start)) {
+			return 0.0D;
+		}
+
+		double tMin = 0.0D;
+		double tMax = 1.0D;
+		double dx = end.x - start.x;
+		double dy = end.y - start.y;
+		double dz = end.z - start.z;
+
+		double[] startValues = {start.x, start.y, start.z};
+		double[] deltas = {dx, dy, dz};
+		double[] mins = {box.minX, box.minY, box.minZ};
+		double[] maxs = {box.maxX, box.maxY, box.maxZ};
+
+		for (int i = 0; i < 3; i++) {
+			double delta = deltas[i];
+			if (Math.abs(delta) < 1.0E-12D) {
+				if (startValues[i] < mins[i] || startValues[i] >= maxs[i]) {
+					return Double.NaN;
+				}
+				continue;
+			}
+			double invDelta = 1.0D / delta;
+			double t1 = (mins[i] - startValues[i]) * invDelta;
+			double t2 = (maxs[i] - startValues[i]) * invDelta;
+			if (t1 > t2) {
+				double swap = t1;
+				t1 = t2;
+				t2 = swap;
+			}
+			tMin = Math.max(tMin, t1);
+			tMax = Math.min(tMax, t2);
+			if (tMin > tMax) {
+				return Double.NaN;
+			}
+		}
+		if (tMin < 0.0D || tMin > 1.0D) {
+			return Double.NaN;
+		}
+		return tMin;
+	}
+
+	private record FinishZoneHit(String mapName, double fraction, Vec3d position, boolean insideAtSample) {
 	}
 
 	private boolean isServerInList(ServerList serverList, String ip) {

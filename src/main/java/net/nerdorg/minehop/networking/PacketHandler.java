@@ -10,6 +10,8 @@ import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.ReplayCommands;
@@ -239,8 +241,16 @@ public class PacketHandler {
     }
 
     private static boolean isInsideZoneBounds(Vec3d playerPos, BlockPos corner1, BlockPos corner2) {
-        if (playerPos == null || corner1 == null || corner2 == null) {
+        Box box = getZoneBoundsBox(corner1, corner2);
+        if (playerPos == null || box == null) {
             return false;
+        }
+        return box.contains(playerPos);
+    }
+
+    private static Box getZoneBoundsBox(BlockPos corner1, BlockPos corner2) {
+        if (corner1 == null || corner2 == null) {
+            return null;
         }
         double minX = Math.min(corner1.getX(), corner2.getX());
         double minY = Math.min(corner1.getY(), corner2.getY());
@@ -257,19 +267,20 @@ public class PacketHandler {
         if (maxZ <= minZ) {
             maxZ = minZ + 1.0D;
         }
-        return playerPos.x >= minX
-                && playerPos.x < maxX
-                && playerPos.y >= minY
-                && playerPos.y < maxY
-                && playerPos.z >= minZ
-                && playerPos.z < maxZ;
+        return new Box(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     private static boolean isPlayerInsideMatchingEndZone(ServerPlayerEntity player, String mapName) {
         if (player == null || mapName == null || mapName.isBlank()) {
             return false;
         }
-        Vec3d playerPos = player.getPos();
+        return isPositionInsideMatchingEndZone(player, mapName, player.getPos());
+    }
+
+    private static boolean isPositionInsideMatchingEndZone(ServerPlayerEntity player, String mapName, Vec3d pos) {
+        if (player == null || mapName == null || mapName.isBlank() || pos == null) {
+            return false;
+        }
         for (net.minecraft.entity.Entity entity : player.getServerWorld().iterateEntities()) {
             if (!(entity instanceof EndEntity endEntity)) {
                 continue;
@@ -277,11 +288,106 @@ public class PacketHandler {
             if (!mapName.equals(endEntity.getPairedMap())) {
                 continue;
             }
-            if (isInsideZoneBounds(playerPos, endEntity.getCorner1(), endEntity.getCorner2())) {
+            if (isInsideZoneBounds(pos, endEntity.getCorner1(), endEntity.getCorner2())) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static boolean didServerMovementIntersectMatchingEndZone(ServerPlayerEntity player, String mapName) {
+        if (player == null || mapName == null || mapName.isBlank()) {
+            return false;
+        }
+        Vec3d previousPos = new Vec3d(player.prevX, player.prevY, player.prevZ);
+        Vec3d currentPos = player.getPos();
+        for (net.minecraft.entity.Entity entity : player.getServerWorld().iterateEntities()) {
+            if (!(entity instanceof EndEntity endEntity)) {
+                continue;
+            }
+            if (!mapName.equals(endEntity.getPairedMap())) {
+                continue;
+            }
+            Box box = getZoneBoundsBox(endEntity.getCorner1(), endEntity.getCorner2());
+            if (box != null && segmentIntersectsBox(box, previousPos, currentPos)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isPlausibleClientFinishPosition(ServerPlayerEntity player, Vec3d clientFinishPos) {
+        if (player == null || clientFinishPos == null) {
+            return false;
+        }
+        if (!Double.isFinite(clientFinishPos.x) || !Double.isFinite(clientFinishPos.y) || !Double.isFinite(clientFinishPos.z)) {
+            return false;
+        }
+        Vec3d serverPos = player.getPos();
+        Vec3d previousPos = new Vec3d(player.prevX, player.prevY, player.prevZ);
+        double allowedDistance = allowedClientFinishDistance(player);
+        double allowedDistanceSq = allowedDistance * allowedDistance;
+        return clientFinishPos.squaredDistanceTo(serverPos) <= allowedDistanceSq
+                || clientFinishPos.squaredDistanceTo(previousPos) <= allowedDistanceSq;
+    }
+
+    private static double allowedClientFinishDistance(ServerPlayerEntity player) {
+        int latencyMs = player == null || player.networkHandler == null ? 0 : Math.max(0, player.networkHandler.getLatency());
+        double latencyTicks = Math.min(20.0D, (latencyMs / 50.0D) + 3.0D);
+        Vec3d velocity = player == null ? Vec3d.ZERO : player.getVelocity();
+        double speedPerTick = velocity == null ? 0.0D : Math.sqrt((velocity.x * velocity.x) + (velocity.y * velocity.y) + (velocity.z * velocity.z));
+        if (!Double.isFinite(speedPerTick)) {
+            speedPerTick = 0.0D;
+        }
+        return MathHelper.clamp(Math.max(2.0D, speedPerTick * latencyTicks) + 2.0D, 2.0D, 64.0D);
+    }
+
+    private static boolean segmentIntersectsBox(Box box, Vec3d start, Vec3d end) {
+        return Double.isFinite(segmentEntryFraction(box, start, end));
+    }
+
+    private static double segmentEntryFraction(Box box, Vec3d start, Vec3d end) {
+        if (box == null || start == null || end == null) {
+            return Double.NaN;
+        }
+        if (box.contains(start) || box.contains(end)) {
+            return 0.0D;
+        }
+        double tMin = 0.0D;
+        double tMax = 1.0D;
+        double[] startValues = {start.x, start.y, start.z};
+        double[] deltas = {end.x - start.x, end.y - start.y, end.z - start.z};
+        double[] mins = {box.minX, box.minY, box.minZ};
+        double[] maxs = {box.maxX, box.maxY, box.maxZ};
+
+        for (int i = 0; i < 3; i++) {
+            double delta = deltas[i];
+            if (Math.abs(delta) < 1.0E-12D) {
+                if (startValues[i] < mins[i] || startValues[i] >= maxs[i]) {
+                    return Double.NaN;
+                }
+                continue;
+            }
+            double invDelta = 1.0D / delta;
+            double t1 = (mins[i] - startValues[i]) * invDelta;
+            double t2 = (maxs[i] - startValues[i]) * invDelta;
+            if (t1 > t2) {
+                double swap = t1;
+                t1 = t2;
+                t2 = swap;
+            }
+            tMin = Math.max(tMin, t1);
+            tMax = Math.min(tMax, t2);
+            if (tMin > tMax) {
+                return Double.NaN;
+            }
+        }
+        return tMin >= 0.0D && tMin <= 1.0D ? tMin : Double.NaN;
+    }
+
+    private static boolean isValidClientFinishAtMatchingEndZone(ServerPlayerEntity player, String mapName, Vec3d clientFinishPos) {
+        return isPositionInsideMatchingEndZone(player, mapName, clientFinishPos)
+                && isPlausibleClientFinishPosition(player, clientFinishPos);
     }
 
     private static void clearRunTimerHudForRunnerAndSpectators(ServerPlayerEntity runner, MinecraftServer server) {
@@ -316,8 +422,8 @@ public class PacketHandler {
         clearRunTimerHudForRunnerAndSpectators(player, server);
     }
 
-    private static void handleMapCompletion(ServerPlayerEntity player, MinecraftServer server, String mapName, float time) {
-        float ping_limit = 300; // ping limit in ms
+    private static void handleMapCompletion(ServerPlayerEntity player, MinecraftServer server, String mapName, double time, Vec3d clientFinishPos) {
+        double pingLimitSeconds = 0.3D;
         if (player == null || server == null) {
             return;
         }
@@ -352,7 +458,7 @@ public class PacketHandler {
             clearFinishedRunState(player, server);
             return;
         }
-        if (!Float.isFinite(time) || time <= 0.0F) {
+        if (!Double.isFinite(time) || time <= 0.0D) {
             Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " due to invalid time value.");
             clearFinishedRunState(player, server);
             return;
@@ -363,7 +469,11 @@ public class PacketHandler {
         // the "currently inside" check falsely reject legit runs.
         HashMap<String, Long> finishMap = Minehop.finishTimeManager.get(player.getNameForScoreboard());
         Long finishStamp = finishMap == null ? null : finishMap.get(activeMapName);
-        if (finishStamp == null && !isPlayerInsideMatchingEndZone(player, activeMapName)) {
+        boolean validFinishPosition = finishStamp != null
+                || isPlayerInsideMatchingEndZone(player, activeMapName)
+                || didServerMovementIntersectMatchingEndZone(player, activeMapName)
+                || isValidClientFinishAtMatchingEndZone(player, activeMapName, clientFinishPos);
+        if (!validFinishPosition) {
             Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " because they were not inside an end zone for " + activeMapName + ".");
             clearFinishedRunState(player, server);
             return;
@@ -374,7 +484,7 @@ public class PacketHandler {
         // legit run.
         long finishNanos = finishStamp != null ? finishStamp : System.nanoTime();
         double rawTime = (double) (finishNanos - timerStart) / 1000000000;
-        if (time < rawTime + (ping_limit / 1000f) && time > rawTime - (ping_limit / 1000f)) {
+        if (Math.abs(time - rawTime) <= pingLimitSeconds) {
             String formattedNumber = String.format("%.5f", time);
             String playerName = player.getNameForScoreboard();
             List<ReplayManager.ReplayEntry> replayEntries = ReplayEvents.replayEntryMap.get(playerName);
@@ -811,8 +921,9 @@ public class PacketHandler {
             ServerPlayerEntity player = ctx.player();
             MinecraftServer server = ctx.server();
             String mapName = payload.map_name();
-            float time = payload.time();
-            ctx.server().execute(() -> handleMapCompletion(player, server, mapName, time));
+            double time = payload.time();
+            Vec3d finishPos = new Vec3d(payload.x(), payload.y(), payload.z());
+            ctx.server().execute(() -> handleMapCompletion(player, server, mapName, time, finishPos));
         });
         ServerPlayNetworking.registerGlobalReceiver(MapCreatorActionPayload.ID, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
