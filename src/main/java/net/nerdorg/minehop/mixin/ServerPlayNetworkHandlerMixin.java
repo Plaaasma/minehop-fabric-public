@@ -38,7 +38,8 @@ public abstract class ServerPlayNetworkHandlerMixin {
     private static final float SAFE_PLAYER_MOVE_THRESHOLD = 4096.0F;
     private static final float SAFE_ELYTRA_MOVE_THRESHOLD = 8192.0F;
     private static final double SAFE_VEHICLE_MOVE_THRESHOLD = 4096.0D;
-    private static final double MINEHOP_STEP_MOVED_WRONGLY_THRESHOLD = 1.44D;
+    private static final double MINEHOP_STEP_MOVED_WRONGLY_THRESHOLD = 4.0D;
+    private static final long MINEHOP_CUSTOM_CROUCH_STEP_GRACE_TICKS = 5L;
 
     @Shadow public ServerPlayerEntity player;
 
@@ -69,7 +70,15 @@ public abstract class ServerPlayNetworkHandlerMixin {
         if (!config.movement.auto_step_up && !config.movement.css_crouch_jump) {
             return threshold;
         }
-        if (!this.player.horizontalCollision) {
+        Long lastCustomMoveTick = Minehop.recentCustomCrouchStepMovementTicks.get(this.player.getUuid());
+        long worldTick = this.player.getServerWorld().getTime();
+        boolean recentCustomCrouchStep = lastCustomMoveTick != null
+                && lastCustomMoveTick <= worldTick
+                && worldTick - lastCustomMoveTick <= MINEHOP_CUSTOM_CROUCH_STEP_GRACE_TICKS;
+        if (lastCustomMoveTick != null && !recentCustomCrouchStep && worldTick - lastCustomMoveTick > MINEHOP_CUSTOM_CROUCH_STEP_GRACE_TICKS) {
+            Minehop.recentCustomCrouchStepMovementTicks.remove(this.player.getUuid(), lastCustomMoveTick);
+        }
+        if (!recentCustomCrouchStep && !this.player.horizontalCollision) {
             return threshold;
         }
         return MINEHOP_STEP_MOVED_WRONGLY_THRESHOLD;

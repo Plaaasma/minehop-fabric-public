@@ -94,6 +94,7 @@ public class Minehop implements ModInitializer {
 	public static HashMap<String, List<Double>> gaugeListMap = new HashMap<>();
 	public static java.util.Map<String, net.nerdorg.minehop.util.StrafeStats> strafeStatsMap = new ConcurrentHashMap<>();
 	public static HashMap<String, Zone> playerMapLocation = new HashMap<>();
+	public static final java.util.Map<UUID, Long> recentCustomCrouchStepMovementTicks = new ConcurrentHashMap<>();
 
 	public static List<PlayerEntity> currentCheaters = new ArrayList<>();
 

@@ -3869,6 +3869,7 @@ public abstract class LivingEntityMixin extends Entity {
             if (this.getWorld().isSpaceEmpty(this, upBox)) {
                 this.setPosition(this.getX(), this.getY() + crouchDelta, this.getZ());
                 this.velocityDirty = true;
+                this.minehop$markCustomCrouchStepMovement();
                 this.cssCrouchOffsetApplied = true;
                 this.cssCrouchOffsetAmount = crouchDelta;
             }
@@ -3883,6 +3884,7 @@ public abstract class LivingEntityMixin extends Entity {
             double restored = beforeY - this.getY();
             if (restored > CSS_CROUCH_DELTA_EPSILON) {
                 this.velocityDirty = true;
+                this.minehop$markCustomCrouchStepMovement();
             }
             this.cssCrouchOffsetAmount = Math.max(0.0D, restoreAmount - Math.max(restored, 0.0D));
             this.cssCrouchOffsetApplied = this.cssCrouchOffsetAmount > CSS_CROUCH_DELTA_EPSILON;
@@ -4189,12 +4191,20 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         this.setPosition(this.getX() + horizontalOffset.x, supportY, this.getZ() + horizontalOffset.z);
+        this.minehop$markCustomCrouchStepMovement();
 
         Vec3d currentVelocity = this.getVelocity();
         this.setVelocity(attemptedMove.x, Math.max(currentVelocity.y, 0.0D), attemptedMove.z);
         this.horizontalCollision = false;
         this.velocityDirty = true;
         return true;
+    }
+
+    @Unique
+    private void minehop$markCustomCrouchStepMovement() {
+        if (!this.getWorld().isClient && ((Object) this) instanceof ServerPlayerEntity serverPlayer && this.getWorld() instanceof ServerWorld serverWorld) {
+            Minehop.recentCustomCrouchStepMovementTicks.put(serverPlayer.getUuid(), serverWorld.getTime());
+        }
     }
 
     @Unique
