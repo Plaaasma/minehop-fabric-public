@@ -81,6 +81,10 @@ public final class MapCreationManager {
             movementOverride = initialMap.movement_override;
             if (movementOverride) {
                 movementConfig = movementConfigFromMap(initialMap);
+            } else {
+                DataManager.sanitizeMapMovementFields(initialMap);
+                movementConfig = copyMovementConfig(movementConfig);
+                movementConfig.movement.speed_cap = initialMap.movement_speed_cap;
             }
         }
 
@@ -522,6 +526,27 @@ public final class MapCreationManager {
         config.movement.disable_sprint = mapData.movement_disable_sprint;
         config.fall_damage = mapData.movement_fall_damage;
         return config;
+    }
+
+    private static MinehopConfig copyMovementConfig(MinehopConfig source) {
+        MinehopConfig input = source == null ? new MinehopConfig() : source;
+        MinehopConfig copy = new MinehopConfig();
+        copy.enabled = input.enabled;
+        copy.fall_damage = input.fall_damage;
+        copy.movement.sv_friction = input.movement.sv_friction;
+        copy.movement.sv_accelerate = input.movement.sv_accelerate;
+        copy.movement.sv_airaccelerate = input.movement.sv_airaccelerate;
+        copy.movement.sv_maxairspeed = input.movement.sv_maxairspeed;
+        copy.movement.sv_jump_impulse = input.movement.sv_jump_impulse;
+        copy.movement.speed_mul = input.movement.speed_mul;
+        copy.movement.sv_gravity = input.movement.sv_gravity;
+        copy.movement.sv_stopspeed = input.movement.sv_stopspeed;
+        copy.movement.speed_coefficient = input.movement.speed_coefficient;
+        copy.movement.speed_cap = input.movement.speed_cap;
+        copy.movement.auto_step_up = input.movement.auto_step_up;
+        copy.movement.css_crouch_jump = input.movement.css_crouch_jump;
+        copy.movement.disable_sprint = input.movement.disable_sprint;
+        return copy;
     }
 
     private static boolean validateResetCheckpointTarget(ServerPlayerEntity player, DataManager.MapData mapData, int checkpointIndex) {

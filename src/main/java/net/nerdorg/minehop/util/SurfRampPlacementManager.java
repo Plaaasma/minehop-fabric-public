@@ -32,6 +32,8 @@ public class SurfRampPlacementManager {
     private static final double AUTO_SPLIT_MAX_SEGMENT_DIRECTION_DELTA_DEGREES = 10.0D;
     private static final int AUTO_SPLIT_SHARED_POINTS = 1;
     private static final double AUTO_SPLIT_RESAMPLE_MIN_STEP = 0.25D;
+    private static final double ONE_SIDED_BLOCK_FACE_CLEARANCE = 1.0D / 32.0D;
+    private static final double HALF_BLOCK_EDGE_LENGTH = 0.5D;
     private static final double AUTO_SPLIT_CORNER_BLEND_MIN_TURN_DEGREES = 2.0D;
     private static final double AUTO_SPLIT_CORNER_BLEND_RATIO = 0.50D;
     private static final double AUTO_SPLIT_CORNER_BLEND_MIN_DISTANCE = 0.08D;
@@ -162,6 +164,7 @@ public class SurfRampPlacementManager {
             Logger.logFailure(player, "Ramp start and end are too close.");
             return 0;
         }
+        centerlinePoints = extendCenterlineToSelectedBlockEdges(centerlinePoints);
 
         boolean twoSided = !options.oneSided;
         int sideSign = 1;
@@ -755,6 +758,47 @@ public class SurfRampPlacementManager {
         return centerline;
     }
 
+    private static List<Vec3d> extendCenterlineToSelectedBlockEdges(List<Vec3d> points) {
+        if (points == null || points.size() < 2) {
+            return points == null ? List.of() : List.copyOf(points);
+        }
+
+        List<Vec3d> extended = new ArrayList<>(points);
+        Vec3d startDirection = horizontalDirection(extended.get(0), extended.get(1));
+        if (startDirection.lengthSquared() > 1.0E-8D) {
+            extended.set(0, extended.get(0).subtract(startDirection.multiply(distanceToBlockEdge(startDirection))));
+        }
+
+        int lastIndex = extended.size() - 1;
+        Vec3d endDirection = horizontalDirection(extended.get(lastIndex - 1), extended.get(lastIndex));
+        if (endDirection.lengthSquared() > 1.0E-8D) {
+            extended.set(lastIndex, extended.get(lastIndex).add(endDirection.multiply(distanceToBlockEdge(endDirection))));
+        }
+        return List.copyOf(extended);
+    }
+
+    private static double distanceToBlockEdge(Vec3d direction) {
+        if (direction == null) {
+            return 0.0D;
+        }
+        double dominantAxis = Math.max(Math.abs(direction.x), Math.abs(direction.z));
+        if (dominantAxis < 1.0E-8D) {
+            return 0.0D;
+        }
+        return HALF_BLOCK_EDGE_LENGTH / dominantAxis;
+    }
+
+    private static Vec3d horizontalDirection(Vec3d from, Vec3d to) {
+        if (from == null || to == null) {
+            return Vec3d.ZERO;
+        }
+        Vec3d delta = new Vec3d(to.x - from.x, 0.0D, to.z - from.z);
+        if (delta.lengthSquared() < 1.0E-8D) {
+            return Vec3d.ZERO;
+        }
+        return delta.normalize();
+    }
+
     private static List<Vec3d> snapOneSidedCenterlineToBlockFaces(List<Vec3d> points, int sideSign) {
         if (points == null || points.size() < 2) {
             return points == null ? List.of() : List.copyOf(points);
@@ -765,7 +809,7 @@ public class SurfRampPlacementManager {
         for (int i = 0; i < points.size(); i++) {
             Vec3d point = points.get(i);
             Vec3d left = getPointLeft(points, i);
-            Vec3d snappedPoint = point.add(left.multiply(-0.5D * normalizedSideSign));
+            Vec3d snappedPoint = point.add(left.multiply((-0.5D + ONE_SIDED_BLOCK_FACE_CLEARANCE) * normalizedSideSign));
             appendIfDistinct(snapped, snappedPoint);
         }
         return List.copyOf(snapped);

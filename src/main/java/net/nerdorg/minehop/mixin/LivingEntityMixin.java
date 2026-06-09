@@ -88,6 +88,11 @@ public abstract class LivingEntityMixin extends Entity {
     @Unique private static final double SOURCE_SIM_TICKRATE = 128.0D;
     @Unique private static final double SOURCE_MAX_AIR_YAW_DELTA = 90.0D;
     @Unique private static final double CSS_CROUCH_DELTA_EPSILON = 1.0E-5D;
+    @Unique private static final int CSS_UNCROUCH_LANDING_JUMP_GRACE_TICKS = 3;
+    @Unique private static final double HNS_KZ_SPEED_CAP_SURF_MAX_BELOW_GAP = 0.22D;
+    @Unique private static final double HNS_KZ_SPEED_CAP_SURF_MAX_ABOVE_FEET = 0.18D;
+    @Unique private static final double HNS_KZ_SOFT_CAP_EXCESS_KEEP_RATIO = 0.15D;
+    @Unique private static final int HNS_KZ_SOFT_CAP_GROUND_TICKS = 3;
     @Unique private static final double SURF_CONTACT_BELOW_TOLERANCE = 0.20D;
     @Unique private static final double SURF_CONTACT_ABOVE_TOLERANCE = 0.20D;
     @Unique private static final double SURF_GROUNDED_NEAR_RAMP_MIN_BELOW_TOLERANCE = 0.88D;
@@ -112,6 +117,9 @@ public abstract class LivingEntityMixin extends Entity {
     @Unique private static final double SURF_MAX_SNAP_UP = 0.35D;
     @Unique private static final double SURF_MAX_SNAP_DOWN = 0.65D;
     @Unique private static final double SURF_SNAP_DOWN_MAX_UPWARD = 0.10D;
+    @Unique private static final double SURF_SURFACE_SNAP_EASE = 0.35D;
+    @Unique private static final double SURF_SURFACE_SNAP_MAX_UP_PER_TICK = 0.12D;
+    @Unique private static final double SURF_SURFACE_SNAP_MAX_DOWN_PER_TICK = 0.10D;
     @Unique private static final double SURF_SPEED_BYPASS_MIN_HORIZONTAL = 0.18D;
     @Unique private static final double SURF_PRECONTACT_DESCENT_BYPASS_MIN_FALL = -0.18D;
     @Unique private static final double SURF_NEAR_RAMP_GROUND_FRICTION_SPEED_THRESHOLD = 0.45D;
@@ -288,6 +296,7 @@ public abstract class LivingEntityMixin extends Entity {
     // buffer so walking off a ledge (not holding jump) then tapping jump in the air can't trigger an
     // air jump, while an edge skim during a bhop (jump held the whole time) still fires.
     @Unique private boolean minehop$jumpHeldFromGround = false;
+    @Unique private int minehop$uncrouchLandingJumpGraceTicks = 0;
     @Unique private int minehop$nearRampAcGraceTicks;
     @Unique private boolean minehop$sweepHit;
     @Unique private double minehop$sweepT;
@@ -305,6 +314,8 @@ public abstract class LivingEntityMixin extends Entity {
     @Unique private int surfEntryNoFrictionTicks;
     @Unique private int surfGroundSuppressTicks;
     @Unique private int surfJumpSuppressTicks;
+    @Unique private boolean minehop$hnsKzSpeedCapSuspended;
+    @Unique private int minehop$hnsKzSoftCapTicks;
     @Unique private long surfStopLogTick = Long.MIN_VALUE;
     @Unique private long surfRampQueryCacheTick = Long.MIN_VALUE;
     @Unique private final HashMap<Long, Object> surfRampQueryCache = new HashMap<>();
@@ -327,6 +338,9 @@ public abstract class LivingEntityMixin extends Entity {
         this.minehop$descendedSinceJump = true; // don't carry a stale rising-state across a teleport
         this.minehop$jumpHeldFromGround = false;
         this.minehop$jumpCooldownTicks = 0;
+        this.minehop$uncrouchLandingJumpGraceTicks = 0;
+        this.minehop$hnsKzSpeedCapSuspended = false;
+        this.minehop$hnsKzSoftCapTicks = 0;
     }
 
     @Inject(method = "damage", at = @At("HEAD"), cancellable = true)
@@ -395,6 +409,7 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         if (this.getType() != EntityType.PLAYER) { return; }
+        boolean hnsKzSpeedCapMode = speedCap > 0.0D && this.minehop$isHnsKzSpeedCapMap();
 
         // Fully disable sprinting when configured (global or per-map). Runs on both client and
         // server every tick so the sprint state can never stick.
@@ -432,17 +447,6 @@ public abstract class LivingEntityMixin extends Entity {
         boolean catastrophicRestoreApplied = false;
         boolean forceRestorePreApplied = false;
         boolean forceRestorePostApplied = false;
-        boolean resetVelocityCarryActive = false;
-        if (!this.getWorld().isClient && self instanceof ServerPlayerEntity serverPlayerEntity) {
-            Vec3d resetCarryVelocity = ResetEntity.applyScheduledVelocityCarry(serverPlayerEntity);
-            if (resetCarryVelocity != null && resetCarryVelocity.lengthSquared() > 1.0E-8D) {
-                Vec3d currentVelocity = this.getVelocity();
-                this.setVelocity(resetCarryVelocity.x, currentVelocity.y, resetCarryVelocity.z);
-                this.velocityDirty = true;
-                resetVelocityCarryActive = true;
-            }
-        }
-
         if (this.getType() == EntityType.PLAYER && isFlying((PlayerEntity) self)) { return; }
 
         this.sidewaysSpeed /= 0.98F;
@@ -495,18 +499,21 @@ public abstract class LivingEntityMixin extends Entity {
         if (this.minehop$jumpCooldownTicks > 0) {
             this.minehop$jumpCooldownTicks--;
         }
+        boolean jumpIntentForBuffer = this.jumping || this.minehop$uncrouchLandingJumpGraceTicks > 0;
         boolean groundedishForCoyote = this.isOnGround() || this.minehop$hasRealGroundBelow();
         if (groundedishForCoyote) {
             this.minehop$groundedCoyote = 0;
             // Seed the continuous-hold flag from whether jump is held at this ground contact.
-            this.minehop$jumpHeldFromGround = this.jumping;
+            if (jumpIntentForBuffer) {
+                this.minehop$jumpHeldFromGround = true;
+            }
         } else {
             if (this.minehop$groundedCoyote < 999) {
                 this.minehop$groundedCoyote++;
             }
             // Released in the air -> the hold is no longer continuous from the ground, so a later
             // re-press can't fire the buffer (kills the walk-off-then-jump-in-air exploit).
-            if (!this.jumping) {
+            if (!jumpIntentForBuffer) {
                 this.minehop$jumpHeldFromGround = false;
             }
         }
@@ -517,7 +524,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (this.isOnGround() || this.getVelocity().y < -0.05D) {
             this.minehop$descendedSinceJump = true;
         }
-        if (this.jumping
+        if (jumpIntentForBuffer
                 && ((Object) this) instanceof PlayerEntity
                 && this.minehop$jumpCooldownTicks <= 0
                 && this.minehop$descendedSinceJump
@@ -538,6 +545,9 @@ public abstract class LivingEntityMixin extends Entity {
             this.minehop$groundedCoyote = 999; // consume — one buffered jump per ground contact
             this.minehop$jumpCooldownTicks = SURF_JUMP_BUFFER_COOLDOWN;
             this.minehop$descendedSinceJump = false; // must descend/land again before next buffer fire
+            this.minehop$uncrouchLandingJumpGraceTicks = 0;
+        } else if (this.minehop$uncrouchLandingJumpGraceTicks > 0) {
+            this.minehop$uncrouchLandingJumpGraceTicks--;
         }
 
         SurfContact previousSurfContact = this.lastSurfContact;
@@ -733,8 +743,39 @@ public abstract class LivingEntityMixin extends Entity {
                 && !pseudoSurfing
                 && !surfGroundSuppressed
                 && !bypassRampCollision
-                && !suppressGroundFrictionNearRamp
-                && !resetVelocityCarryActive;
+                && !suppressGroundFrictionNearRamp;
+        boolean speedCapSurfContactPre = this.minehop$isSpeedCapSurfContact(preMoveSurfContact);
+        if (hnsKzSpeedCapMode) {
+            if (speedCapSurfContactPre) {
+                this.minehop$hnsKzSpeedCapSuspended = true;
+                this.minehop$hnsKzSoftCapTicks = 0;
+            }
+            boolean normalGroundAfterSurf = this.minehop$hnsKzSpeedCapSuspended
+                    && realGroundBelow
+                    && !surfing
+                    && !pseudoSurfing
+                    && !surfGroundSuppressed
+                    && !speedCapSurfContactPre
+                    && !bypassRampCollision;
+            if (normalGroundAfterSurf) {
+                this.minehop$hnsKzSpeedCapSuspended = false;
+                this.minehop$hnsKzSoftCapTicks = HNS_KZ_SOFT_CAP_GROUND_TICKS;
+            }
+        } else {
+            this.minehop$hnsKzSpeedCapSuspended = false;
+            this.minehop$hnsKzSoftCapTicks = 0;
+        }
+        boolean hnsKzSoftCapActive = hnsKzSpeedCapMode
+                && this.minehop$hnsKzSoftCapTicks > 0
+                && realGroundBelow
+                && !surfing
+                && !pseudoSurfing
+                && !surfGroundSuppressed
+                && !speedCapSurfContactPre;
+        double activeHardSpeedCap = hnsKzSpeedCapMode
+                && (this.minehop$hnsKzSpeedCapSuspended || hnsKzSoftCapActive)
+                ? 0.0D
+                : speedCap;
         if (useGroundMovement) {
             if (!Minehop.groundedList.contains(this.getNameForScoreboard())) {
                 Minehop.groundedList.add(this.getNameForScoreboard());
@@ -747,8 +788,8 @@ public abstract class LivingEntityMixin extends Entity {
             this.setVelocity(applySourceFriction(this.getVelocity(), config.movement.sv_friction, config.movement.sv_stopspeed, 1.0D));
             Vec3d groundVelocity = this.getVelocity();
             double groundHorizontalSpeed = this.getHorizontalSpeed(groundVelocity);
-            if (speedCap > 0.0D && groundHorizontalSpeed > speedCap) {
-                double groundScale = speedCap / groundHorizontalSpeed;
+            if (activeHardSpeedCap > 0.0D && groundHorizontalSpeed > activeHardSpeedCap) {
+                double groundScale = activeHardSpeedCap / groundHorizontalSpeed;
                 this.setVelocity(groundVelocity.x * groundScale, groundVelocity.y, groundVelocity.z * groundScale);
                 this.velocityDirty = true;
             }
@@ -788,7 +829,7 @@ public abstract class LivingEntityMixin extends Entity {
                     newVelocity = clampedStartZoneVelocity;
                     newHorizontalVelocity = new Vec3d(clampedStartZoneVelocity.x, 0.0D, clampedStartZoneVelocity.z);
                 }
-                newHorizontalVelocity = this.minehop$applySpeedCap(newHorizontalVelocity, speedCap);
+                newHorizontalVelocity = this.minehop$applySpeedCap(newHorizontalVelocity, activeHardSpeedCap);
 
                 if (!useGroundMovement && this.getWorld().isClient && ((Object) this) instanceof PlayerEntity) {
                     // Faithful Source/bhop strafe stats, measured from the ACTUAL before/after
@@ -849,13 +890,18 @@ public abstract class LivingEntityMixin extends Entity {
             }
         }
 
-        if (speedCap > 0.0D) {
+        if (activeHardSpeedCap > 0.0D || hnsKzSoftCapActive) {
             Vec3d velocityBeforeCap = this.getVelocity();
-            Vec3d cappedHorizontalVelocity = this.minehop$applySpeedCap(new Vec3d(velocityBeforeCap.x, 0.0D, velocityBeforeCap.z), speedCap);
+            Vec3d cappedHorizontalVelocity = hnsKzSoftCapActive
+                    ? this.minehop$applySoftSpeedCap(new Vec3d(velocityBeforeCap.x, 0.0D, velocityBeforeCap.z), speedCap)
+                    : this.minehop$applySpeedCap(new Vec3d(velocityBeforeCap.x, 0.0D, velocityBeforeCap.z), activeHardSpeedCap);
             if (cappedHorizontalVelocity.x != velocityBeforeCap.x || cappedHorizontalVelocity.z != velocityBeforeCap.z) {
                 this.setVelocity(cappedHorizontalVelocity.x, velocityBeforeCap.y, cappedHorizontalVelocity.z);
                 this.velocityDirty = true;
             }
+        }
+        if (hnsKzSoftCapActive && this.minehop$hnsKzSoftCapTicks > 0) {
+            this.minehop$hnsKzSoftCapTicks--;
         }
 
         if (Minehop.surfHullSolverEnabled && !this.isClimbing()) {
@@ -876,6 +922,10 @@ public abstract class LivingEntityMixin extends Entity {
             boolean onRampH = handledH && this.minehop$hullOnRamp;
             if (onRampH && !this.minehop$hasRealGroundBelow()) {
                 this.setOnGround(false);
+            }
+            if (hnsKzSpeedCapMode && onRampH && this.minehop$isSpeedCapHullSurfContact()) {
+                this.minehop$hnsKzSpeedCapSuspended = true;
+                this.minehop$hnsKzSoftCapTicks = 0;
             }
             Vec3d preVelH = this.getVelocity();
             double yVelH = preVelH.y;
@@ -922,6 +972,10 @@ public abstract class LivingEntityMixin extends Entity {
             }
             if (!this.getWorld().isClient && self instanceof ServerPlayerEntity acPlayerH) {
                 boolean surfingForAcH = onRampH || nearSurfRampPre || this.minehop$nearRampAcGraceTicks > 0;
+                double antiCheatSpeedCapH = hnsKzSpeedCapMode
+                        && (this.minehop$hnsKzSpeedCapSuspended || hnsKzSoftCapActive || surfingForAcH)
+                        ? 0.0D
+                        : speedCap;
                 AntiCheatManager.onMovementTick(
                         acPlayerH,
                         posBeforeMoveH,
@@ -934,7 +988,7 @@ public abstract class LivingEntityMixin extends Entity {
                         this.isTouchingWater() || this.isInLava(),
                         surfingForAcH,
                         this.jumping && (this.isOnGround() || this.wasOnGround),
-                        speedCap
+                        antiCheatSpeedCapH
                 );
             }
             if (surfDebug) {
@@ -1783,6 +1837,10 @@ public abstract class LivingEntityMixin extends Entity {
         if ((inStartZone || inStartZoneAfterMove) && startZonePlayer != null) {
             velocityAfterGravity = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, velocityAfterGravity);
         }
+        if (hnsKzSpeedCapMode && this.minehop$isSpeedCapSurfContact(postMoveSurfContact)) {
+            this.minehop$hnsKzSpeedCapSuspended = true;
+            this.minehop$hnsKzSoftCapTicks = 0;
+        }
         double incomingHorizontalFinal = this.getHorizontalSpeed(velocityBeforeMove);
         double preGravityHorizontalFinal = this.getHorizontalSpeed(preVel);
         double postGravityHorizontalFinal = this.getHorizontalSpeed(velocityAfterGravity);
@@ -1878,6 +1936,10 @@ public abstract class LivingEntityMixin extends Entity {
                     || nearSurfRampPre || nearSurfRampPost
                     || this.surfGroundSuppressTicks > 0 || this.surfJumpSuppressTicks > 0
                     || this.minehop$nearRampAcGraceTicks > 0;
+            double antiCheatSpeedCap = hnsKzSpeedCapMode
+                    && (this.minehop$hnsKzSpeedCapSuspended || hnsKzSoftCapActive || surfingForAc)
+                    ? 0.0D
+                    : speedCap;
             AntiCheatManager.onMovementTick(
                     acPlayer,
                     posBeforeMove,
@@ -1890,7 +1952,7 @@ public abstract class LivingEntityMixin extends Entity {
                     this.isTouchingWater() || this.isInLava(),
                     surfingForAc,
                     this.jumping && (this.isOnGround() || this.wasOnGround),
-                    speedCap
+                    antiCheatSpeedCap
             );
         }
 
@@ -2485,7 +2547,11 @@ public abstract class LivingEntityMixin extends Entity {
         if (penetration > 0.0D
                 && penetration <= SURF_MAX_SNAP_UP
                 && !this.isOnGround()) {
-            this.setPosition(this.getX(), this.getY() + penetration + 1.0E-3D, this.getZ());
+            double correction = Math.min(
+                    SURF_SURFACE_SNAP_MAX_UP_PER_TICK,
+                    Math.max(penetration * SURF_SURFACE_SNAP_EASE, penetration - SURF_HULL_MAX_EMBED)
+            );
+            this.setPosition(this.getX(), this.getY() + correction + SURF_SURFACE_SKIN, this.getZ());
             SurfContact refreshed = this.findSurfContact();
             if (this.isReusableSurfContact(refreshed)) {
                 return refreshed;
@@ -2513,7 +2579,11 @@ public abstract class LivingEntityMixin extends Entity {
         if (deltaY < 0.0D) {
             if (-deltaY <= SURF_MAX_SNAP_DOWN && this.getVelocity().y <= SURF_SNAP_DOWN_MAX_UPWARD) {
                 if (Math.abs(deltaY) > 1.0E-4D) {
-                    this.setPosition(this.getX(), this.getY() + deltaY, this.getZ());
+                    double correction = Math.max(
+                            deltaY * SURF_SURFACE_SNAP_EASE,
+                            -SURF_SURFACE_SNAP_MAX_DOWN_PER_TICK
+                    );
+                    this.setPosition(this.getX(), this.getY() + correction, this.getZ());
                 }
                 SurfContact refreshed = this.findSurfContact();
                 if (this.isReusableSurfContact(refreshed)) {
@@ -2526,7 +2596,11 @@ public abstract class LivingEntityMixin extends Entity {
 
         if (deltaY > 0.0D && deltaY <= SURF_MAX_SNAP_UP) {
             if (Math.abs(deltaY) > 1.0E-4D) {
-                this.setPosition(this.getX(), this.getY() + deltaY + 1.0E-3D, this.getZ());
+                double correction = Math.min(
+                        SURF_SURFACE_SNAP_MAX_UP_PER_TICK,
+                        Math.max(deltaY * SURF_SURFACE_SNAP_EASE, deltaY - SURF_HULL_MAX_EMBED)
+                );
+                this.setPosition(this.getX(), this.getY() + correction + SURF_SURFACE_SKIN, this.getZ());
             }
             SurfContact refreshed = this.findSurfContact();
             if (this.isReusableSurfContact(refreshed)) {
@@ -3459,6 +3533,61 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
+    private Vec3d minehop$applySoftSpeedCap(Vec3d horizontalVelocity, double speedCap) {
+        if (speedCap <= 0.0D || !Double.isFinite(speedCap)) {
+            return horizontalVelocity;
+        }
+        double speed = horizontalVelocity.horizontalLength();
+        if (speed <= speedCap || speed < 1.0E-8D) {
+            return horizontalVelocity;
+        }
+        double targetSpeed = speedCap + (speed - speedCap) * HNS_KZ_SOFT_CAP_EXCESS_KEEP_RATIO;
+        double scale = targetSpeed / speed;
+        return new Vec3d(horizontalVelocity.x * scale, horizontalVelocity.y, horizontalVelocity.z * scale);
+    }
+
+    @Unique
+    private boolean minehop$isSpeedCapSurfContact(SurfContact contact) {
+        if (contact == null || contact.normal() == null || !Double.isFinite(contact.surfaceY())) {
+            return false;
+        }
+        Vec3d normal = contact.normal();
+        if (normal.y < SURF_REUSE_MIN_NORMAL_Y || normal.y > 0.999D) {
+            return false;
+        }
+        return this.minehop$isSpeedCapSurfaceDistanceValid(contact.surfaceY());
+    }
+
+    @Unique
+    private boolean minehop$isSpeedCapHullSurfContact() {
+        if (!this.minehop$hullOnRamp || this.minehop$hullNormal == null || !Double.isFinite(this.minehop$hullSurfaceY)) {
+            return false;
+        }
+        if (this.minehop$hullNormal.y < SURF_REUSE_MIN_NORMAL_Y || this.minehop$hullNormal.y > 0.999D) {
+            return false;
+        }
+        return this.minehop$isSpeedCapSurfaceDistanceValid(this.minehop$hullSurfaceY);
+    }
+
+    @Unique
+    private boolean minehop$isSpeedCapSurfaceDistanceValid(double surfaceY) {
+        double feetY = this.getBoundingBox().minY;
+        double aboveFeet = surfaceY - feetY;
+        double belowSurface = feetY - surfaceY;
+        return aboveFeet <= HNS_KZ_SPEED_CAP_SURF_MAX_ABOVE_FEET
+                && belowSurface <= HNS_KZ_SPEED_CAP_SURF_MAX_BELOW_GAP;
+    }
+
+    @Unique
+    private boolean minehop$isHnsKzSpeedCapMap() {
+        if (Minehop.override_config && Minehop.receivedConfig) {
+            return Minehop.o_hns || Minehop.o_kz;
+        }
+        DataManager.MapData mapData = ConfigWrapper.resolveEffectiveMap(this);
+        return mapData != null && (mapData.hns || mapData.kz);
+    }
+
+    @Unique
     private boolean minehop$hasRealGroundBelow() {
         Box box = this.getBoundingBox();
         if (box.maxX - box.minX < 1.0E-4D || box.maxZ - box.minZ < 1.0E-4D) {
@@ -3869,13 +3998,18 @@ public abstract class LivingEntityMixin extends Entity {
             if (this.getWorld().isSpaceEmpty(this, upBox)) {
                 this.setPosition(this.getX(), this.getY() + crouchDelta, this.getZ());
                 this.velocityDirty = true;
-                this.minehop$markCustomCrouchStepMovement();
                 this.cssCrouchOffsetApplied = true;
                 this.cssCrouchOffsetAmount = crouchDelta;
             }
         }
 
         if (!canApply && this.cssCrouchOffsetApplied) {
+            boolean uncrouchLandingJumpGrace = cssCrouchEnabled
+                    && this.cssWasSneaking
+                    && !sneakingNow
+                    && airborneForSprintCarry
+                    && this.getVelocity().y <= 0.15D
+                    && this.minehop$jumpHeldFromGround;
             double restoreAmount = this.cssCrouchOffsetAmount > CSS_CROUCH_DELTA_EPSILON
                     ? Math.min(this.cssCrouchOffsetAmount, crouchDelta)
                     : crouchDelta;
@@ -3884,10 +4018,12 @@ public abstract class LivingEntityMixin extends Entity {
             double restored = beforeY - this.getY();
             if (restored > CSS_CROUCH_DELTA_EPSILON) {
                 this.velocityDirty = true;
-                this.minehop$markCustomCrouchStepMovement();
             }
             this.cssCrouchOffsetAmount = Math.max(0.0D, restoreAmount - Math.max(restored, 0.0D));
             this.cssCrouchOffsetApplied = this.cssCrouchOffsetAmount > CSS_CROUCH_DELTA_EPSILON;
+            if (uncrouchLandingJumpGrace) {
+                this.minehop$uncrouchLandingJumpGraceTicks = CSS_UNCROUCH_LANDING_JUMP_GRACE_TICKS;
+            }
         }
 
         this.cssWasSneaking = sneakingNow;
@@ -4191,20 +4327,12 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         this.setPosition(this.getX() + horizontalOffset.x, supportY, this.getZ() + horizontalOffset.z);
-        this.minehop$markCustomCrouchStepMovement();
 
         Vec3d currentVelocity = this.getVelocity();
         this.setVelocity(attemptedMove.x, Math.max(currentVelocity.y, 0.0D), attemptedMove.z);
         this.horizontalCollision = false;
         this.velocityDirty = true;
         return true;
-    }
-
-    @Unique
-    private void minehop$markCustomCrouchStepMovement() {
-        if (!this.getWorld().isClient && ((Object) this) instanceof ServerPlayerEntity serverPlayer && this.getWorld() instanceof ServerWorld serverWorld) {
-            Minehop.recentCustomCrouchStepMovementTicks.put(serverPlayer.getUuid(), serverWorld.getTime());
-        }
     }
 
     @Unique

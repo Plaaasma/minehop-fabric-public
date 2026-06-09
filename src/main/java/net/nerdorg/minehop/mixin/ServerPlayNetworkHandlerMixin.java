@@ -2,34 +2,10 @@
 
 package net.nerdorg.minehop.mixin;
 
-import net.minecraft.entity.*;
-import net.minecraft.entity.effect.StatusEffect;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
-import net.nerdorg.minehop.Minehop;
-import net.nerdorg.minehop.block.ModBlocks;
-import net.nerdorg.minehop.config.ConfigWrapper;
-import net.nerdorg.minehop.config.MinehopConfig;
-import net.nerdorg.minehop.util.MovementUtil;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Constant;
-import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Mixin(ServerPlayNetworkHandler.class)
 public abstract class ServerPlayNetworkHandlerMixin {
@@ -38,10 +14,7 @@ public abstract class ServerPlayNetworkHandlerMixin {
     private static final float SAFE_PLAYER_MOVE_THRESHOLD = 4096.0F;
     private static final float SAFE_ELYTRA_MOVE_THRESHOLD = 8192.0F;
     private static final double SAFE_VEHICLE_MOVE_THRESHOLD = 4096.0D;
-    private static final double MINEHOP_STEP_MOVED_WRONGLY_THRESHOLD = 4.0D;
-    private static final long MINEHOP_CUSTOM_CROUCH_STEP_GRACE_TICKS = 5L;
-
-    @Shadow public ServerPlayerEntity player;
+    private static final double DISABLED_MOVED_WRONGLY_THRESHOLD = Double.MAX_VALUE;
 
     @ModifyConstant(method = "onPlayerMove", constant = @Constant(floatValue = 100.0F))
     private float toofast_PlayerMaxSpeed(float speed) {
@@ -59,28 +32,7 @@ public abstract class ServerPlayNetworkHandlerMixin {
     }
 
     @ModifyConstant(method = "onPlayerMove", constant = @Constant(doubleValue = 0.0625D))
-    private double minehop$relaxMovedWronglyForCustomStep(double threshold) {
-        if (this.player == null || this.player.isCreative() || this.player.isSpectator()) {
-            return threshold;
-        }
-        MinehopConfig config = ConfigWrapper.getEffectiveConfig(this.player);
-        if (config == null || !config.enabled) {
-            return threshold;
-        }
-        if (!config.movement.auto_step_up && !config.movement.css_crouch_jump) {
-            return threshold;
-        }
-        Long lastCustomMoveTick = Minehop.recentCustomCrouchStepMovementTicks.get(this.player.getUuid());
-        long worldTick = this.player.getServerWorld().getTime();
-        boolean recentCustomCrouchStep = lastCustomMoveTick != null
-                && lastCustomMoveTick <= worldTick
-                && worldTick - lastCustomMoveTick <= MINEHOP_CUSTOM_CROUCH_STEP_GRACE_TICKS;
-        if (lastCustomMoveTick != null && !recentCustomCrouchStep && worldTick - lastCustomMoveTick > MINEHOP_CUSTOM_CROUCH_STEP_GRACE_TICKS) {
-            Minehop.recentCustomCrouchStepMovementTicks.remove(this.player.getUuid(), lastCustomMoveTick);
-        }
-        if (!recentCustomCrouchStep && !this.player.horizontalCollision) {
-            return threshold;
-        }
-        return MINEHOP_STEP_MOVED_WRONGLY_THRESHOLD;
+    private double minehop$disableMovedWrongly(double threshold) {
+        return DISABLED_MOVED_WRONGLY_THRESHOLD;
     }
 }

@@ -125,6 +125,7 @@ public class PacketHandler {
             effectiveConfig.movement.auto_step_up,
             effectiveConfig.movement.css_crouch_jump,
             currentMap != null && currentMap.hns,
+            currentMap != null && currentMap.kz,
             effectiveConfig.enabled,
             effectiveConfig.fall_damage,
             effectiveConfig.movement.sv_stopspeed,
@@ -423,7 +424,6 @@ public class PacketHandler {
     }
 
     private static void handleMapCompletion(ServerPlayerEntity player, MinecraftServer server, String mapName, double time, Vec3d clientFinishPos) {
-        double pingLimitSeconds = 0.3D;
         if (player == null || server == null) {
             return;
         }
@@ -453,8 +453,7 @@ public class PacketHandler {
             return;
         }
 
-        Long timerStart = timerMap.get(activeMapName);
-        if (timerStart == null) {
+        if (!timerMap.containsKey(activeMapName)) {
             clearFinishedRunState(player, server);
             return;
         }
@@ -479,77 +478,68 @@ public class PacketHandler {
             return;
         }
 
-        // Prefer the server-stamped end-zone entry time (measured at the real crossing) over `now`
-        // (packet-processing time), so a server-thread stall can't inflate rawTime and reject a
-        // legit run.
-        long finishNanos = finishStamp != null ? finishStamp : System.nanoTime();
-        double rawTime = (double) (finishNanos - timerStart) / 1000000000;
-        if (Math.abs(time - rawTime) <= pingLimitSeconds) {
-            String formattedNumber = String.format("%.5f", time);
-            String playerName = player.getNameForScoreboard();
-            List<ReplayManager.ReplayEntry> replayEntries = ReplayEvents.replayEntryMap.get(playerName);
-            if (replayEntries != null && !replayEntries.isEmpty()) {
-                ReplayManager.saveReplay(
-                        player.getServerWorld(),
-                        new ReplayManager.Replay(
-                                activeMapName,
-                                playerName,
-                                time,
-                                ReplayManager.copyReplayEntries(replayEntries)
-                        )
+        String formattedNumber = String.format("%.5f", time);
+        String playerName = player.getNameForScoreboard();
+        List<ReplayManager.ReplayEntry> replayEntries = ReplayEvents.replayEntryMap.get(playerName);
+        if (replayEntries != null && !replayEntries.isEmpty()) {
+            ReplayManager.saveReplay(
+                    player.getServerWorld(),
+                    new ReplayManager.Replay(
+                            activeMapName,
+                            playerName,
+                            time,
+                            ReplayManager.copyReplayEntries(replayEntries)
+                    )
+            );
+        }
+
+        DataManager.RecordData existingPersonalRecord = DataManager.getPersonalRecord(playerName, activeMapName);
+        boolean isNewPersonalRecord = existingPersonalRecord == null || time < existingPersonalRecord.time;
+        if (isNewPersonalRecord) {
+            if (existingPersonalRecord != null) {
+                Logger.logSuccess(player, "You just beat your time (" + String.format("%.5f", existingPersonalRecord.time) + ") on " + existingPersonalRecord.map_name + ", your new record is " + formattedNumber + "!");
+            } else {
+                Logger.logSuccess(player, "You just claimed a personal record of " + formattedNumber + "!");
+            }
+
+            DataManager.upsertPersonalRecord(playerName, activeMapName, time);
+            DataManager.saveData(player.getServerWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
+        }
+
+        DataManager.RecordData existingRecord = DataManager.getRecord(activeMapName);
+        boolean newWorldRecord = existingRecord == null || time < existingRecord.time;
+        if (newWorldRecord) {
+            String previousHolder = existingRecord == null ? "" : existingRecord.name;
+            double previousTime = existingRecord == null ? 0.0D : existingRecord.time;
+            boolean firstWorldRecord = existingRecord == null;
+
+            DataManager.upsertRecord(playerName, activeMapName, time);
+            DataManager.saveData(player.getServerWorld(), DataManager.recordsListLocation, Minehop.recordList);
+
+            if (!previousHolder.isBlank() && !previousHolder.equals(playerName) && DataManager.getAnyRecordFromName(previousHolder) == null && isSafeMinecraftPlayerName(previousHolder)) {
+                server.getCommandManager().execute(
+                        server.getCommandManager().getDispatcher().parse("lp user " + previousHolder + " parent remove record_holder", server.getCommandSource()),
+                        "lp user " + previousHolder + " parent remove record_holder"
+                );
+            }
+            if (isSafeMinecraftPlayerName(playerName)) {
+                server.getCommandManager().execute(
+                        server.getCommandManager().getDispatcher().parse("lp user " + playerName + " parent add record_holder", server.getCommandSource()),
+                        "lp user " + playerName + " parent add record_holder"
                 );
             }
 
-            DataManager.RecordData existingPersonalRecord = DataManager.getPersonalRecord(playerName, activeMapName);
-            boolean isNewPersonalRecord = existingPersonalRecord == null || time < existingPersonalRecord.time;
-            if (isNewPersonalRecord) {
-                if (existingPersonalRecord != null) {
-                    Logger.logSuccess(player, "You just beat your time (" + String.format("%.5f", existingPersonalRecord.time) + ") on " + existingPersonalRecord.map_name + ", your new record is " + formattedNumber + "!");
-                } else {
-                    Logger.logSuccess(player, "You just claimed a personal record of " + formattedNumber + "!");
-                }
-
-                DataManager.upsertPersonalRecord(playerName, activeMapName, time);
-                DataManager.saveData(player.getServerWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
+            String recordMessage;
+            if (!previousHolder.isBlank()) {
+                recordMessage = playerName + " just beat " + previousHolder + "'s time (" + String.format("%.5f", previousTime) + ") on " + activeMapName + " and now hold the world record with a time of " + formattedNumber + "!";
+            } else {
+                recordMessage = playerName + " just claimed the world record on " + activeMapName + " with a time of " + formattedNumber + "!";
             }
-
-            DataManager.RecordData existingRecord = DataManager.getRecord(activeMapName);
-            boolean newWorldRecord = existingRecord == null || time < existingRecord.time;
-            if (newWorldRecord) {
-                String previousHolder = existingRecord == null ? "" : existingRecord.name;
-                double previousTime = existingRecord == null ? 0.0D : existingRecord.time;
-                boolean firstWorldRecord = existingRecord == null;
-
-                DataManager.upsertRecord(playerName, activeMapName, time);
-                DataManager.saveData(player.getServerWorld(), DataManager.recordsListLocation, Minehop.recordList);
-
-                if (!previousHolder.isBlank() && !previousHolder.equals(playerName) && DataManager.getAnyRecordFromName(previousHolder) == null && isSafeMinecraftPlayerName(previousHolder)) {
-                    server.getCommandManager().execute(
-                            server.getCommandManager().getDispatcher().parse("lp user " + previousHolder + " parent remove record_holder", server.getCommandSource()),
-                            "lp user " + previousHolder + " parent remove record_holder"
-                    );
-                }
-                if (isSafeMinecraftPlayerName(playerName)) {
-                    server.getCommandManager().execute(
-                            server.getCommandManager().getDispatcher().parse("lp user " + playerName + " parent add record_holder", server.getCommandSource()),
-                            "lp user " + playerName + " parent add record_holder"
-                    );
-                }
-
-                String recordMessage;
-                if (!previousHolder.isBlank()) {
-                    recordMessage = playerName + " just beat " + previousHolder + "'s time (" + String.format("%.5f", previousTime) + ") on " + activeMapName + " and now hold the world record with a time of " + formattedNumber + "!";
-                } else {
-                    recordMessage = playerName + " just claimed the world record on " + activeMapName + " with a time of " + formattedNumber + "!";
-                }
-                Logger.logGlobal(server, recordMessage);
-                DiscordIntegration.sendRecordToDiscord(recordMessage);
-                ReplayCommands.ensureWorldRecordReplayEntity(server, activeMapName);
-            }
-            Logger.logSuccess(player, "Completed " + activeMapName + " in " + formattedNumber + " seconds.");
-        } else {
-            Logger.logServer(server, "Invalid time for " + player.getNameForScoreboard() + ".");
+            Logger.logGlobal(server, recordMessage);
+            DiscordIntegration.sendRecordToDiscord(recordMessage);
+            ReplayCommands.ensureWorldRecordReplayEntity(server, activeMapName);
         }
+        Logger.logSuccess(player, "Completed " + activeMapName + " in " + formattedNumber + " seconds.");
         clearFinishedRunState(player, server);
     }
 

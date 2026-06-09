@@ -62,6 +62,7 @@ public class Minehop implements ModInitializer {
 	public static boolean o_css_crouch_jump = true;
 	public static boolean o_disable_sprint = false;
 	public static boolean o_hns = false;
+	public static boolean o_kz = false;
 	public static boolean o_enabled = true;
 	public static boolean o_fall_damage = true;
 
@@ -94,7 +95,6 @@ public class Minehop implements ModInitializer {
 	public static HashMap<String, List<Double>> gaugeListMap = new HashMap<>();
 	public static java.util.Map<String, net.nerdorg.minehop.util.StrafeStats> strafeStatsMap = new ConcurrentHashMap<>();
 	public static HashMap<String, Zone> playerMapLocation = new HashMap<>();
-	public static final java.util.Map<UUID, Long> recentCustomCrouchStepMovementTicks = new ConcurrentHashMap<>();
 
 	public static List<PlayerEntity> currentCheaters = new ArrayList<>();
 

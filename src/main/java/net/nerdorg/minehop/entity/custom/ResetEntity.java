@@ -37,8 +37,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public class ResetEntity extends Zone {
-    private static final int PRESERVE_SPEED_CARRY_TICKS = 3;
-    private static final Map<UUID, PendingVelocityCarry> PENDING_VELOCITY_CARRIES = new HashMap<>();
+    private static final int PRESERVE_SPEED_SYNC_TICKS = 1;
     private static final Map<UUID, ObservedVelocitySample> LAST_OBSERVED_VELOCITY = new HashMap<>();
     private static final Map<UUID, ObservedPositionSample> LAST_OBSERVED_POSITION = new HashMap<>();
 
@@ -267,60 +266,6 @@ public class ResetEntity extends Zone {
         player.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(player));
     }
 
-    private static void scheduleVelocityCarry(ServerPlayerEntity player, Vec3d velocity) {
-        if (player == null) {
-            return;
-        }
-        Vec3d sanitized = sanitizeVelocity(velocity);
-        if (sanitized.lengthSquared() <= 1.0E-8D) {
-            return;
-        }
-        String worldKey = player.getServerWorld().getRegistryKey().getValue().toString();
-        long createdWorldTick = player.getServerWorld().getTime();
-        PENDING_VELOCITY_CARRIES.put(
-                player.getUuid(),
-                new PendingVelocityCarry(worldKey, sanitized, PRESERVE_SPEED_CARRY_TICKS, createdWorldTick)
-        );
-    }
-
-    public static Vec3d applyScheduledVelocityCarry(ServerPlayerEntity player) {
-        if (player == null || PENDING_VELOCITY_CARRIES.isEmpty()) {
-            return null;
-        }
-        PendingVelocityCarry carry = PENDING_VELOCITY_CARRIES.get(player.getUuid());
-        if (carry == null) {
-            return null;
-        }
-        String worldKey = player.getServerWorld().getRegistryKey().getValue().toString();
-        long worldTick = player.getServerWorld().getTime();
-        if (!worldKey.equals(carry.worldKey)) {
-            PENDING_VELOCITY_CARRIES.remove(player.getUuid());
-            return null;
-        }
-        if (carry.ticksRemaining <= 0 || worldTick - carry.createdWorldTick > 40L) {
-            PENDING_VELOCITY_CARRIES.remove(player.getUuid());
-            return null;
-        }
-
-        Vec3d velocity = sanitizeVelocity(carry.velocity);
-        if (velocity.lengthSquared() <= 1.0E-8D) {
-            PENDING_VELOCITY_CARRIES.remove(player.getUuid());
-            return null;
-        }
-        if (carry.lastAppliedWorldTick != worldTick) {
-            player.setVelocity(velocity.x, velocity.y, velocity.z);
-            player.setOnGround(false);
-            player.fallDistance = 0.0F;
-            player.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(player));
-            carry.lastAppliedWorldTick = worldTick;
-            carry.ticksRemaining--;
-            if (carry.ticksRemaining <= 0) {
-                PENDING_VELOCITY_CARRIES.remove(player.getUuid());
-            }
-        }
-        return velocity;
-    }
-
     @Override
     public void tick() {
         this.updateInteractionBounds(this.corner1, this.corner2);
@@ -393,11 +338,7 @@ public class ResetEntity extends Zone {
                                         }
                                 ));
                                 if (preserve) {
-                                    // Explicitly restore and sync movement on the same tick as a fallback.
-                                    // Some teleport paths still zero momentum after target application.
-                                    this.applyPreservedVelocity(player, preservedVelocity);
-                                    scheduleVelocityCarry(player, preservedVelocity);
-                                    PacketHandler.sendResetVelocityCarry(player, preservedVelocity, PRESERVE_SPEED_CARRY_TICKS);
+                                    PacketHandler.sendResetVelocityCarry(player, preservedVelocity, PRESERVE_SPEED_SYNC_TICKS);
                                 }
                             }
                         }
@@ -409,22 +350,6 @@ public class ResetEntity extends Zone {
             }
         }
         super.tick();
-    }
-
-    private static final class PendingVelocityCarry {
-        private final String worldKey;
-        private final Vec3d velocity;
-        private final long createdWorldTick;
-        private int ticksRemaining;
-        private long lastAppliedWorldTick;
-
-        private PendingVelocityCarry(String worldKey, Vec3d velocity, int ticksRemaining, long createdWorldTick) {
-            this.worldKey = worldKey == null ? "" : worldKey;
-            this.velocity = velocity == null ? Vec3d.ZERO : velocity;
-            this.ticksRemaining = Math.max(0, ticksRemaining);
-            this.createdWorldTick = Math.max(0L, createdWorldTick);
-            this.lastAppliedWorldTick = Long.MIN_VALUE;
-        }
     }
 
     private static final class ObservedVelocitySample {

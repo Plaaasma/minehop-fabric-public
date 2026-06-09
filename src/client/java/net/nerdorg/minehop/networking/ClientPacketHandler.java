@@ -75,6 +75,7 @@ public class ClientPacketHandler {
                 Minehop.o_css_crouch_jump = payload.cssCrouchJump();
                 Minehop.o_disable_sprint = payload.disableSprint();
                 Minehop.o_hns = payload.isHNS();
+                Minehop.o_kz = payload.isKZ();
                 Minehop.o_enabled = payload.isEnabled();
                 Minehop.o_fall_damage = payload.fallDamage();
                 Minehop.o_sv_stopspeed = payload.sv_stopspeed();
@@ -284,7 +285,7 @@ public class ClientPacketHandler {
                 MinehopClient.resetCarryX = payload.x();
                 MinehopClient.resetCarryY = payload.y();
                 MinehopClient.resetCarryZ = payload.z();
-                MinehopClient.resetCarryTicks = Math.max(1, payload.ticks());
+                MinehopClient.resetCarryTicks = Math.max(0, payload.ticks() - 1);
                 if (client.player != null) {
                     client.player.setVelocity(MinehopClient.resetCarryX, MinehopClient.resetCarryY, MinehopClient.resetCarryZ);
                     client.player.setOnGround(false);

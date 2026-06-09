@@ -142,6 +142,7 @@
   "text.autoconfig.minehop.option.movement.sv_gravity": "Gravity (sv_gravity, Source u/s^2)",
   "text.autoconfig.minehop.option.movement.sv_stopspeed": "Stop Speed (sv_stopspeed, Source u/s)",
   "text.autoconfig.minehop.option.movement.speed_coefficient": "Speed Coefficient",
+  "text.autoconfig.minehop.option.movement.speed_cap": "Speed Cap (0 = infinite, displayed speed)",
   "text.autoconfig.minehop.option.movement.auto_step_up": "Auto Step Up (1-block step while grounded)",
   "text.autoconfig.minehop.option.movement.css_crouch_jump": "Source-Style Crouch Jump (sneak to clear higher obstacles)",
   "text.autoconfig.minehop.option.movement.disable_sprint": "Disable Sprinting",

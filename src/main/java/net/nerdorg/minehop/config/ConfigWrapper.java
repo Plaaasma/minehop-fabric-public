@@ -114,11 +114,31 @@ public class ConfigWrapper {
         }
         DataManager.MapData mapData = resolveEffectiveMap(entity);
         MinehopConfig effective = getEffectiveConfig(entity);
-        double speedCap = sanitizeSpeedCap(effective == null ? 0.0D : effective.movement.speed_cap);
-        if (mapData != null && mapData.hns && !mapData.movement_override && speedCap <= 0.0D) {
-            return 0.6D;
+        double speedCap = normalizeSpeedCap(sanitizeSpeedCap(effective == null ? 0.0D : effective.movement.speed_cap));
+        if (mapData != null) {
+            DataManager.sanitizeMapMovementFields(mapData);
+            double mapSpeedCap = normalizeSpeedCap(sanitizeSpeedCap(mapData.movement_speed_cap));
+            if (mapSpeedCap > 0.0D) {
+                return mapSpeedCap;
+            }
+            if ((mapData.hns || mapData.kz) && !mapData.movement_override && speedCap <= 0.0D) {
+                return 0.6D;
+            }
         }
         return speedCap;
+    }
+
+    public static double normalizeSpeedCap(double speedCap) {
+        double sanitized = sanitizeSpeedCap(speedCap);
+        if (sanitized <= 0.0D) {
+            return 0.0D;
+        }
+        // Movement runs in blocks/tick, but map editors/server admins naturally enter displayed
+        // speed values like 12. Preserve existing small internal caps such as 0.6.
+        if (sanitized > 2.0D) {
+            return sanitized / 20.0D;
+        }
+        return sanitized;
     }
 
     public static double sanitizeSpeedCap(double speedCap) {
