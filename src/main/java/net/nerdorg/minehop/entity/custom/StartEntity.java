@@ -149,6 +149,13 @@ public class StartEntity extends Zone {
                                     }
                                     Minehop.timerManager.put(playerName, informationMap);
                                     Minehop.finishTimeManager.remove(playerName);
+                                    Minehop.runStartClientTicks.put(playerName,
+                                            net.nerdorg.minehop.anticheat.stream.MovementValidator.clientTicks(player));
+                                    Minehop.runFinishClientTicks.remove(playerName);
+                                    // L6: capture the map's physics+geometry signature for this run.
+                                    Minehop.runSignatureManager.put(playerName, DataManager.computeRunSignature(pairedMap));
+                                    // Anticheat flags from here on are attached to this run.
+                                    net.nerdorg.minehop.anticheat.AntiCheatManager.onRunArmed(player);
                                 }
                             } else {
                                 // Airborne in the start zone -> the run has begun; stop re-stamping

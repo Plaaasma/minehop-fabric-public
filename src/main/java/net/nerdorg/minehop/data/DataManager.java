@@ -13,6 +13,7 @@ import net.minecraft.util.math.Vec3d;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.networking.PacketHandler;
+import net.nerdorg.minehop.util.JsonStorage;
 import net.nerdorg.minehop.util.Logger;
 
 import javax.xml.crypto.Data;
@@ -27,6 +28,9 @@ public class DataManager {
     private static final Type mapListType = new TypeToken<List<MapData>>(){}.getType();
     private static final Type recordListType = new TypeToken<List<RecordData>>(){}.getType();
     private static final Type mapRatingListType = new TypeToken<List<MapRatingData>>(){}.getType();
+
+    // Bump when the on-disk shape of maps/records/PBs/ratings changes; migrate in loadData/register.
+    private static final int SCHEMA_VERSION = 1;
 
     private static final String folderName = "MineHop_Data";
     public static final String mapListLocation = folderName+"/minehop_maps.json";
@@ -308,22 +312,37 @@ public class DataManager {
 
     public static class RecordData {
         public String name;
+        // L3: stable player identity. Legacy records load with uuid == null/"" and fall back to name.
+        public String uuid = "";
         public String map_name;
         public double time;
+        // Anticheat flags raised during the run that set this time ("" = clean), e.g. "Speed x2".
+        public String ac_flags = "";
 
         public RecordData() {
 
         }
 
         public RecordData(String name, String map_name, double time) {
+            this(name, "", map_name, time);
+        }
+
+        public RecordData(String name, String uuid, String map_name, double time) {
             this.name = name;
+            this.uuid = uuid == null ? "" : uuid;
             this.map_name = map_name;
             this.time = time;
         }
     }
 
     public static void register() {
+        // LOAD/UNLOAD fire once PER DIMENSION, but these files live at the server root. Without the
+        // overworld gate every dimension reloaded (and on shutdown rewrote) the same files, so the
+        // one-generation .bak was always overwritten with the file it was meant to protect.
         ServerWorldEvents.LOAD.register(((server, world) -> {
+            if (world.getRegistryKey() != net.minecraft.world.World.OVERWORLD) {
+                return;
+            }
             Minehop.mapList = new ArrayList<>();
             Minehop.mapRatingList = new ArrayList<>();
             Minehop.recordList = new ArrayList<>();
@@ -345,9 +364,17 @@ public class DataManager {
                 Minehop.recordList = newRecordList;
             }
             recalculateMapRatings();
+            // L3: backfill UUIDs onto legacy records via the user cache, then persist if changed.
+            if (backfillRecordUuids(server)) {
+                saveData(world, pbListLocation, Minehop.personalRecordList);
+                saveData(world, recordsListLocation, Minehop.recordList);
+            }
         }));
 
         ServerWorldEvents.UNLOAD.register(((server, world) -> {
+            if (world.getRegistryKey() != net.minecraft.world.World.OVERWORLD) {
+                return;
+            }
             DataManager.saveData(world, mapListLocation, Minehop.mapList);
             DataManager.saveData(world, mapRatingsLocation, Minehop.mapRatingList);
             DataManager.saveData(world, pbListLocation, Minehop.personalRecordList);
@@ -430,6 +457,51 @@ public class DataManager {
         return Math.max(1, Math.min(5, raw));
     }
 
+    /**
+     * L6: deterministic signature of the run-relevant parts of a map — physics overrides, spawn,
+     * checkpoint count and plot bounds/flags. Captured at run start and re-checked at finish so a
+     * map edited (or deleted) mid-run can't validate a record. Cosmetic fields (description, ratings,
+     * play_count) are intentionally excluded so they can change without invalidating active runs.
+     */
+    public static long computeRunSignature(MapData map) {
+        if (map == null) {
+            return 0L;
+        }
+        long h = 1125899906842597L;
+        h = 31L * h + Boolean.hashCode(map.movement_override);
+        h = 31L * h + Double.hashCode(map.movement_sv_friction);
+        h = 31L * h + Double.hashCode(map.movement_sv_accelerate);
+        h = 31L * h + Double.hashCode(map.movement_sv_airaccelerate);
+        h = 31L * h + Double.hashCode(map.movement_sv_maxairspeed);
+        h = 31L * h + Double.hashCode(map.movement_sv_jump_impulse);
+        h = 31L * h + Double.hashCode(map.movement_speed_mul);
+        h = 31L * h + Double.hashCode(map.movement_sv_gravity);
+        h = 31L * h + Double.hashCode(map.movement_sv_stopspeed);
+        h = 31L * h + Double.hashCode(map.movement_speed_coefficient);
+        h = 31L * h + Double.hashCode(map.movement_speed_cap);
+        h = 31L * h + Boolean.hashCode(map.movement_auto_step_up);
+        h = 31L * h + Boolean.hashCode(map.movement_css_crouch_jump);
+        h = 31L * h + Boolean.hashCode(map.movement_disable_sprint);
+        h = 31L * h + Boolean.hashCode(map.movement_fall_damage);
+        h = 31L * h + Double.hashCode(map.x);
+        h = 31L * h + Double.hashCode(map.y);
+        h = 31L * h + Double.hashCode(map.z);
+        h = 31L * h + Double.hashCode(map.xrot);
+        h = 31L * h + Double.hashCode(map.yrot);
+        h = 31L * h + Boolean.hashCode(map.arena);
+        h = 31L * h + Boolean.hashCode(map.hns);
+        h = 31L * h + Boolean.hashCode(map.surf);
+        h = 31L * h + Boolean.hashCode(map.kz);
+        h = 31L * h + (map.checkpointPositions == null ? 0 : map.checkpointPositions.size());
+        h = 31L * h + map.plotMinX;
+        h = 31L * h + map.plotMinY;
+        h = 31L * h + map.plotMinZ;
+        h = 31L * h + map.plotMaxX;
+        h = 31L * h + map.plotMaxY;
+        h = 31L * h + map.plotMaxZ;
+        return h;
+    }
+
     public static double clampFinite(double raw, double min, double max, double fallback) {
         if (!Double.isFinite(raw)) {
             return fallback;
@@ -437,8 +509,31 @@ public class DataManager {
         return Math.max(min, Math.min(max, raw));
     }
 
+    /**
+     * L3 identity match. When a UUID is supplied, a record belongs to the player if its UUID matches,
+     * OR it is a legacy (no-UUID) record whose name matches (pre-migration data). Without a UUID it
+     * falls back to name. This avoids nuking a different current player who took the old name.
+     */
+    public static boolean recordBelongsTo(RecordData recordData, String playerName, String playerUuid) {
+        if (recordData == null) {
+            return false;
+        }
+        if (playerUuid != null && !playerUuid.isBlank()) {
+            if (playerUuid.equals(recordData.uuid)) {
+                return true;
+            }
+            boolean legacy = recordData.uuid == null || recordData.uuid.isBlank();
+            return legacy && playerName != null && playerName.equals(recordData.name);
+        }
+        return playerName != null && playerName.equals(recordData.name);
+    }
+
     public static RecordData removePersonalRecordsForPlayer(String mapName, String playerName) {
-        if (mapName == null || playerName == null || Minehop.personalRecordList == null) {
+        return removePersonalRecordsForPlayer(mapName, playerName, "");
+    }
+
+    public static RecordData removePersonalRecordsForPlayer(String mapName, String playerName, String playerUuid) {
+        if (mapName == null || Minehop.personalRecordList == null) {
             return null;
         }
         RecordData removed = null;
@@ -448,7 +543,7 @@ public class DataManager {
             if (recordData == null) {
                 continue;
             }
-            if (mapName.equals(recordData.map_name) && playerName.equals(recordData.name)) {
+            if (mapName.equals(recordData.map_name) && recordBelongsTo(recordData, playerName, playerUuid)) {
                 if (removed == null) {
                     removed = recordData;
                 }
@@ -459,7 +554,11 @@ public class DataManager {
     }
 
     public static RecordData removeRecordsForPlayer(String mapName, String playerName) {
-        if (mapName == null || playerName == null || Minehop.recordList == null) {
+        return removeRecordsForPlayer(mapName, playerName, "");
+    }
+
+    public static RecordData removeRecordsForPlayer(String mapName, String playerName, String playerUuid) {
+        if (mapName == null || Minehop.recordList == null) {
             return null;
         }
         RecordData removed = null;
@@ -469,7 +568,7 @@ public class DataManager {
             if (recordData == null) {
                 continue;
             }
-            if (mapName.equals(recordData.map_name) && playerName.equals(recordData.name)) {
+            if (mapName.equals(recordData.map_name) && recordBelongsTo(recordData, playerName, playerUuid)) {
                 if (removed == null) {
                     removed = recordData;
                 }
@@ -522,26 +621,52 @@ public class DataManager {
     }
 
     public static void upsertPersonalRecord(String playerName, String mapName, double time) {
+        upsertPersonalRecord(playerName, "", mapName, time);
+    }
+
+    public static void upsertPersonalRecord(String playerName, String playerUuid, String mapName, double time) {
+        upsertPersonalRecord(playerName, playerUuid, mapName, time, "");
+    }
+
+    public static void upsertPersonalRecord(String playerName, String playerUuid, String mapName, double time, String acFlags) {
         if (playerName == null || mapName == null) {
             return;
         }
         if (Minehop.personalRecordList == null) {
             Minehop.personalRecordList = new ArrayList<>();
         }
+        boolean haveUuid = playerUuid != null && !playerUuid.isBlank();
         Iterator<RecordData> iterator = Minehop.personalRecordList.iterator();
         while (iterator.hasNext()) {
             RecordData recordData = iterator.next();
             if (recordData == null) {
                 continue;
             }
-            if (playerName.equals(recordData.name) && mapName.equals(recordData.map_name)) {
+            if (!mapName.equals(recordData.map_name)) {
+                continue;
+            }
+            // Match the same player by UUID when both have one (survives name changes), else by name.
+            boolean samePlayer = haveUuid && recordData.uuid != null && !recordData.uuid.isBlank()
+                    ? playerUuid.equals(recordData.uuid)
+                    : playerName.equals(recordData.name);
+            if (samePlayer) {
                 iterator.remove();
             }
         }
-        Minehop.personalRecordList.add(new RecordData(playerName, mapName, time));
+        RecordData row = new RecordData(playerName, playerUuid, mapName, time);
+        row.ac_flags = acFlags == null ? "" : acFlags;
+        Minehop.personalRecordList.add(row);
     }
 
     public static void upsertRecord(String playerName, String mapName, double time) {
+        upsertRecord(playerName, "", mapName, time);
+    }
+
+    public static void upsertRecord(String playerName, String playerUuid, String mapName, double time) {
+        upsertRecord(playerName, playerUuid, mapName, time, "");
+    }
+
+    public static void upsertRecord(String playerName, String playerUuid, String mapName, double time, String acFlags) {
         if (playerName == null || mapName == null) {
             return;
         }
@@ -558,7 +683,9 @@ public class DataManager {
                 iterator.remove();
             }
         }
-        Minehop.recordList.add(new RecordData(playerName, mapName, time));
+        RecordData row = new RecordData(playerName, playerUuid, mapName, time);
+        row.ac_flags = acFlags == null ? "" : acFlags;
+        Minehop.recordList.add(row);
     }
 
     public static RecordData rebuildRecordForMap(String mapName) {
@@ -583,7 +710,9 @@ public class DataManager {
         }
 
         if (bestPersonal != null) {
-            upsertRecord(bestPersonal.name, bestPersonal.map_name, bestPersonal.time);
+            // Keep the holder's UUID: dropping it broke record_holder reconciliation and let a later
+            // name-based backfill guess a different player.
+            upsertRecord(bestPersonal.name, bestPersonal.uuid, bestPersonal.map_name, bestPersonal.time, bestPersonal.ac_flags);
             return getRecord(mapName);
         }
         return null;
@@ -605,6 +734,65 @@ public class DataManager {
             }
         }
         return best;
+    }
+
+    /** UUID-aware PB lookup: matches by UUID (survives name changes) with legacy-name fallback. */
+    public static RecordData getPersonalRecord(String playerName, String playerUuid, String mapName) {
+        if (mapName == null || Minehop.personalRecordList == null) {
+            return null;
+        }
+        RecordData best = null;
+        for (RecordData recordData : Minehop.personalRecordList) {
+            if (recordData == null || !mapName.equals(recordData.map_name)) {
+                continue;
+            }
+            if (recordBelongsTo(recordData, playerName, playerUuid)) {
+                if (best == null || recordData.time < best.time) {
+                    best = recordData;
+                }
+            }
+        }
+        return best;
+    }
+
+    /**
+     * L3 offline backfill: resolve missing UUIDs on legacy records via the server user cache so
+     * UUID-keyed matching works for players who set times before the migration. Best-effort (only
+     * names the server has seen are resolvable). Returns true if anything changed.
+     */
+    public static boolean backfillRecordUuids(MinecraftServer server) {
+        if (server == null) {
+            return false;
+        }
+        net.minecraft.util.UserCache cache = server.getUserCache();
+        if (cache == null) {
+            return false;
+        }
+        boolean changed = false;
+        changed |= backfillRecordList(Minehop.personalRecordList, cache);
+        changed |= backfillRecordList(Minehop.recordList, cache);
+        return changed;
+    }
+
+    private static boolean backfillRecordList(List<RecordData> list, net.minecraft.util.UserCache cache) {
+        if (list == null) {
+            return false;
+        }
+        boolean changed = false;
+        for (RecordData recordData : list) {
+            if (recordData == null || recordData.name == null || recordData.name.isBlank()) {
+                continue;
+            }
+            if (recordData.uuid != null && !recordData.uuid.isBlank()) {
+                continue;
+            }
+            java.util.Optional<com.mojang.authlib.GameProfile> profile = cache.findByName(recordData.name);
+            if (profile.isPresent() && profile.get().getId() != null) {
+                recordData.uuid = profile.get().getId().toString();
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     public static RecordData getRecord(String mapName) {
@@ -652,6 +840,21 @@ public class DataManager {
                 continue;
             }
             if (playerName.equals(recordData.name)) {
+                return recordData;
+            }
+        }
+        return null;
+    }
+
+    public static RecordData getAnyRecordFromUuid(String playerUuid) {
+        if (playerUuid == null || playerUuid.isBlank() || Minehop.recordList == null) {
+            return null;
+        }
+        for (RecordData recordData : Minehop.recordList) {
+            if (recordData == null) {
+                continue;
+            }
+            if (playerUuid.equals(recordData.uuid)) {
                 return recordData;
             }
         }
@@ -706,39 +909,19 @@ public class DataManager {
         }
     }
 
-    public static <T> void saveData(ServerWorld world, String location, List<T> data) {
-
-
-        Gson gson = new Gson();
-        String jsonData = gson.toJson(data);
-
+    /** Atomic, backed-up, version-enveloped write (see JsonStorage). Returns false if it failed. */
+    public static <T> boolean saveData(ServerWorld world, String location, List<T> data) {
         MinecraftServer server = world.getServer();
         Path worldDir = server.getSavePath(WorldSavePath.ROOT);
-
         folderCheck(worldDir);
-
-        try {
-            Files.write(worldDir.resolve(location), jsonData.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        return JsonStorage.writeAtomic(worldDir.resolve(location), SCHEMA_VERSION, data == null ? new ArrayList<>() : data);
     }
 
     public static <T> List<T> loadData(ServerWorld world, String location, Type recordListType) {
-
-
-
         Path worldDir = world.getServer().getSavePath(WorldSavePath.ROOT);
         folderCheck(worldDir);
-
-        try {
-            String jsonData = new String(Files.readAllBytes(worldDir.resolve(location)));
-            Gson gson = new Gson();
-            return gson.fromJson(jsonData, recordListType); // Replace Object.class with your data type
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null; // Handle the case where the data doesn't exist yet
-        }
+        // Crash-proof read with .corrupt quarantine + .bak fallback; null = no data yet.
+        return JsonStorage.readData(worldDir.resolve(location), recordListType);
     }
 
     private static List<MapData> deduplicateMapListByName(List<MapData> maps) {

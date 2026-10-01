@@ -8,10 +8,9 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.WorldSavePath;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.util.JsonStorage;
 
-import java.io.IOException;
 import java.lang.reflect.Type;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +18,9 @@ import java.util.UUID;
 
 public class ReplayManager {
     private static final Type replayListType = new TypeToken<List<Replay>>(){}.getType();
+    private static final String REPLAYS_FILE = "minehop_replays.json";
+    // Bump when the on-disk Replay shape changes; migrate in loadRecordReplays/register.
+    private static final int SCHEMA_VERSION = 1;
 
     public static class SSJEntry {
         public double jump_count;
@@ -58,21 +60,34 @@ public class ReplayManager {
         public String replay_id;
         public String map_name;
         public String player_name;
+        // L3: stable player identity. Legacy replays load with player_uuid == null/"" (name fallback).
+        public String player_uuid = "";
         public double time;
         public long saved_at;
+        // Anticheat flags raised during this run ("" = clean), e.g. "Speed x2, Fly x1".
+        public String ac_flags = "";
         public List<ReplayEntry> replayEntries;
 
         public Replay() {
         }
 
         public Replay(String map_name, String player_name, double time, List<ReplayEntry> replayEntries) {
-            this(UUID.randomUUID().toString(), map_name, player_name, time, System.currentTimeMillis(), replayEntries);
+            this(map_name, player_name, "", time, replayEntries);
+        }
+
+        public Replay(String map_name, String player_name, String player_uuid, double time, List<ReplayEntry> replayEntries) {
+            this(UUID.randomUUID().toString(), map_name, player_name, player_uuid, time, System.currentTimeMillis(), replayEntries);
         }
 
         public Replay(String replay_id, String map_name, String player_name, double time, long saved_at, List<ReplayEntry> replayEntries) {
+            this(replay_id, map_name, player_name, "", time, saved_at, replayEntries);
+        }
+
+        public Replay(String replay_id, String map_name, String player_name, String player_uuid, double time, long saved_at, List<ReplayEntry> replayEntries) {
             this.replay_id = replay_id;
             this.map_name = map_name;
             this.player_name = player_name;
+            this.player_uuid = player_uuid == null ? "" : player_uuid;
             this.time = time;
             this.saved_at = saved_at;
             this.replayEntries = replayEntries;
@@ -95,8 +110,27 @@ public class ReplayManager {
         return 0;
     }
 
+    /** L3 identity match for replays: UUID when both have one, with legacy-name fallback. */
+    public static boolean replayBelongsTo(Replay replay, String playerName, String playerUuid) {
+        if (replay == null) {
+            return false;
+        }
+        if (playerUuid != null && !playerUuid.isBlank()) {
+            if (playerUuid.equals(replay.player_uuid)) {
+                return true;
+            }
+            boolean legacy = replay.player_uuid == null || replay.player_uuid.isBlank();
+            return legacy && playerName != null && playerName.equals(normalizePlayerName(replay.player_name));
+        }
+        return playerName != null && playerName.equals(normalizePlayerName(replay.player_name));
+    }
+
     public static int deleteReplayForPlayer(String mapName, String playerName) {
-        if (mapName == null || mapName.isBlank() || playerName == null || playerName.isBlank()) {
+        return deleteReplayForPlayer(mapName, playerName, "");
+    }
+
+    public static int deleteReplayForPlayer(String mapName, String playerName, String playerUuid) {
+        if (mapName == null || mapName.isBlank()) {
             return 0;
         }
         if (Minehop.replayList != null) {
@@ -104,7 +138,7 @@ public class ReplayManager {
             Minehop.replayList.removeIf(replay ->
                     replay != null
                             && mapName.equals(replay.map_name)
-                            && playerName.equals(normalizePlayerName(replay.player_name))
+                            && replayBelongsTo(replay, playerName, playerUuid)
             );
             return originalSize - Minehop.replayList.size();
         }
@@ -112,14 +146,15 @@ public class ReplayManager {
     }
 
     public static int deleteReplaysForPlayer(String playerName) {
-        if (playerName == null || playerName.isBlank()) {
-            return 0;
-        }
+        return deleteReplaysForPlayer(playerName, "");
+    }
+
+    public static int deleteReplaysForPlayer(String playerName, String playerUuid) {
         if (Minehop.replayList != null) {
             int originalSize = Minehop.replayList.size();
             Minehop.replayList.removeIf(replay ->
                     replay != null
-                            && playerName.equals(normalizePlayerName(replay.player_name))
+                            && replayBelongsTo(replay, playerName, playerUuid)
             );
             return originalSize - Minehop.replayList.size();
         }
@@ -168,7 +203,15 @@ public class ReplayManager {
                 if (replay == null || replay.map_name == null || replay.player_name == null || replay.replayEntries == null || replay.replayEntries.isEmpty()) {
                     continue;
                 }
-                if (!recordData.map_name.equals(replay.map_name) || !recordData.name.equals(normalizePlayerName(replay.player_name))) {
+                if (!recordData.map_name.equals(replay.map_name)) {
+                    continue;
+                }
+                // Prefer UUID identity (survives name changes) with legacy-name fallback.
+                boolean samePlayer = recordData.uuid != null && !recordData.uuid.isBlank()
+                        && replay.player_uuid != null && !replay.player_uuid.isBlank()
+                        ? recordData.uuid.equals(replay.player_uuid)
+                        : recordData.name.equals(normalizePlayerName(replay.player_name));
+                if (!samePlayer) {
                     continue;
                 }
                 if (timesMatch(replay.time, recordData.time)) {
@@ -208,52 +251,44 @@ public class ReplayManager {
             Minehop.replayList = new ArrayList<>();
         }
 
-        Minehop.replayList.add(new Replay(
+        Replay stored = new Replay(
                 replay.replay_id == null || replay.replay_id.isBlank() ? UUID.randomUUID().toString() : replay.replay_id,
                 replay.map_name,
                 replay.player_name,
+                replay.player_uuid,
                 replay.time,
                 replay.saved_at > 0L ? replay.saved_at : System.currentTimeMillis(),
                 copyReplayEntries(replay.replayEntries)
-        ));
+        );
+        stored.ac_flags = replay.ac_flags == null ? "" : replay.ac_flags;
+        Minehop.replayList.add(stored);
 
         saveRecordReplays(world, Minehop.replayList);
     }
 
-    public static void saveRecordReplays(ServerWorld world, List<Replay> replays) {
+    /** Atomic, backed-up, version-enveloped write (see JsonStorage). Returns false if it failed. */
+    public static boolean saveRecordReplays(ServerWorld world, List<Replay> replays) {
         if (world == null) {
-            return;
+            return false;
         }
-        Gson gson = new Gson();
         List<Replay> safeReplays = replays == null ? new ArrayList<>() : replays;
-        String jsonData = gson.toJson(safeReplays);
-
         MinecraftServer server = world.getServer();
         Path worldDir = server.getSavePath(WorldSavePath.ROOT);
-
-        try {
-            Files.write(worldDir.resolve("minehop_replays.json"), jsonData.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        return JsonStorage.writeAtomic(worldDir.resolve(REPLAYS_FILE), SCHEMA_VERSION, safeReplays);
     }
 
     public static List<Replay> loadRecordReplays(ServerWorld world) {
         Path worldDir = world.getServer().getSavePath(WorldSavePath.ROOT);
-        Path filePath = worldDir.resolve("minehop_replays.json");
-
-        try {
-            String jsonData = new String(Files.readAllBytes(filePath));
-            Gson gson = new Gson();
-            return gson.fromJson(jsonData, replayListType); // Replace Object.class with your data type
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null; // Handle the case where the data doesn't exist yet
-        }
+        // Crash-proof read with .corrupt quarantine + .bak fallback; null = no data yet.
+        return JsonStorage.readData(worldDir.resolve(REPLAYS_FILE), replayListType);
     }
 
     public static void register() {
+        // Once per server, not per dimension: the replay file lives at the server root (see DataManager).
         ServerWorldEvents.LOAD.register(((server, world) -> {
+            if (world.getRegistryKey() != net.minecraft.world.World.OVERWORLD) {
+                return;
+            }
             Minehop.replayList = new ArrayList<>();
             List<Replay> newReplayList = loadRecordReplays(world);
             if (newReplayList != null) {
@@ -274,12 +309,22 @@ public class ReplayManager {
                         replay.saved_at = System.currentTimeMillis();
                     }
                     replay.player_name = normalizePlayerName(replay.player_name);
+                    if (replay.player_uuid == null) {
+                        replay.player_uuid = "";
+                    }
                     Minehop.replayList.add(replay);
                 }
+            }
+            // L3: backfill UUIDs onto legacy replays via the user cache, then persist if changed.
+            if (backfillReplayUuids(server)) {
+                saveRecordReplays(world, Minehop.replayList);
             }
         }));
 
         ServerWorldEvents.UNLOAD.register(((server, world) -> {
+            if (world.getRegistryKey() != net.minecraft.world.World.OVERWORLD) {
+                return;
+            }
             saveRecordReplays(world, Minehop.replayList);
         }));
     }
@@ -305,6 +350,31 @@ public class ReplayManager {
             ));
         }
         return copied;
+    }
+
+    private static boolean backfillReplayUuids(MinecraftServer server) {
+        if (server == null || Minehop.replayList == null) {
+            return false;
+        }
+        net.minecraft.util.UserCache cache = server.getUserCache();
+        if (cache == null) {
+            return false;
+        }
+        boolean changed = false;
+        for (Replay replay : Minehop.replayList) {
+            if (replay == null || replay.player_name == null || replay.player_name.isBlank()) {
+                continue;
+            }
+            if (replay.player_uuid != null && !replay.player_uuid.isBlank()) {
+                continue;
+            }
+            java.util.Optional<com.mojang.authlib.GameProfile> profile = cache.findByName(replay.player_name);
+            if (profile.isPresent() && profile.get().getId() != null) {
+                replay.player_uuid = profile.get().getId().toString();
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     private static String normalizePlayerName(String rawName) {

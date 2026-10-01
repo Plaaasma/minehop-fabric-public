@@ -10,9 +10,10 @@ import net.nerdorg.minehop.Minehop;
 public record AntiCheatActionPayload(String action, String targetUuid) implements CustomPayload {
     public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "anticheat_action");
     public static final Id<AntiCheatActionPayload> ID = new Id<>(HANDSHAKE_ID);
+    // Bound strings: action is a short keyword, targetUuid is a 36-char UUID.
     public static final PacketCodec<PacketByteBuf, AntiCheatActionPayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.STRING, AntiCheatActionPayload::action,
-            PacketCodecs.STRING, AntiCheatActionPayload::targetUuid,
+            PacketCodecs.string(32), AntiCheatActionPayload::action,
+            PacketCodecs.string(40), AntiCheatActionPayload::targetUuid,
             AntiCheatActionPayload::new
     );
 

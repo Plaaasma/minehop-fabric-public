@@ -32,6 +32,17 @@ loom {
 		}
 	}
 
+	// `gradlew runServer -Ptestserver`: local copy of the real test server (world + MineHop_Data) in
+	// its own run dir, so it never shares logs/latest.log or config with runClient / the movement
+	// harness, which keep using run/.
+	if (project.hasProperty("testserver")) {
+		runs {
+			server {
+				runDir "run-testserver"
+			}
+		}
+	}
+
 }
 
 fabricApi {

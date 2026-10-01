@@ -49,24 +49,39 @@ public class TestCommands {
             LiteralArgumentBuilder.<ServerCommandSource>literal("mdebug")
                 .requires(source -> source.hasPermissionLevel(4))
                     .executes(context -> {
-                        handleDebugToggle(context);
+                        handleDebugToggle(context, context.getSource().getPlayer());
                         return Command.SINGLE_SUCCESS;
                     })
+                    // Targeted form so the server console (or another admin) can enable debug logging
+                    // for a NON-op player — an op-4 player is anticheat-exempt, so self-toggling then
+                    // testing as that same op captures nothing.
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, net.minecraft.command.EntitySelector>argument(
+                                    "player", net.minecraft.command.argument.EntityArgumentType.player())
+                            .executes(context -> {
+                                handleDebugToggle(context,
+                                        net.minecraft.command.argument.EntityArgumentType.getPlayer(context, "player"));
+                                return Command.SINGLE_SUCCESS;
+                            }))
             ));
     }
 
-    private static void handleDebugToggle(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity player = context.getSource().getPlayer();
-        if (player == null) {
+    private static void handleDebugToggle(CommandContext<ServerCommandSource> context, ServerPlayerEntity target) {
+        if (target == null) {
+            context.getSource().sendFeedback(() -> net.minecraft.text.Text.literal("Usage from console: mdebug <player>"), false);
             return;
         }
-        UUID uuid = player.getUuid();
+        UUID uuid = target.getUuid();
+        boolean enabled;
         if (net.nerdorg.minehop.Minehop.surfDebugPlayers.remove(uuid)) {
-            Logger.logSuccess(player, "Movement debug logging OFF.");
+            enabled = false;
         } else {
             net.nerdorg.minehop.Minehop.surfDebugPlayers.add(uuid);
-            Logger.logSuccess(player, "Movement debug logging ON. Check latest.log for [ACDBG] lines.");
+            enabled = true;
         }
+        String name = target.getNameForScoreboard();
+        context.getSource().sendFeedback(() -> net.minecraft.text.Text.literal(
+                "Movement debug logging " + (enabled ? "ON" : "OFF") + " for " + name
+                        + (enabled ? ". Check latest.log for [ACDBG]/[M1PROBE] lines." : ".")), true);
     }
 
     private static void handleTest(CommandContext<ServerCommandSource> context) {

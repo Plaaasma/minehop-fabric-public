@@ -115,7 +115,10 @@ public class EndEntity extends Zone {
                         }
                         HashMap<String, Long> finishMap = Minehop.finishTimeManager.computeIfAbsent(playerName, k -> new HashMap<>());
                         // first crossing only — keep the earliest entry time for this run
-                        finishMap.putIfAbsent(mapName, System.nanoTime());
+                        if (finishMap.putIfAbsent(mapName, System.nanoTime()) == null) {
+                            Minehop.runFinishClientTicks.put(playerName,
+                                    net.nerdorg.minehop.anticheat.stream.MovementValidator.clientTicks(player));
+                        }
                     }
                 }
             }

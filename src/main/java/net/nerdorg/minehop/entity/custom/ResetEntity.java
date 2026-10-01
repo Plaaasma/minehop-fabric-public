@@ -332,8 +332,13 @@ public class ResetEntity extends Zone {
                                         targetRot.x,
                                         Set.of(),
                                         (playerEntity) -> {
-                                            if (preserve && playerEntity instanceof ServerPlayerEntity serverPlayerEntity) {
-                                                this.applyPreservedVelocity(serverPlayerEntity, preservedVelocity);
+                                            if (playerEntity instanceof ServerPlayerEntity serverPlayerEntity) {
+                                                // Authorized server teleport: grants the anticheat
+                                                // teleport/reconciliation grace (like ZoneUtil targets).
+                                                net.nerdorg.minehop.anticheat.AntiCheatManager.markAuthorizedTeleport(serverPlayerEntity);
+                                                if (preserve) {
+                                                    this.applyPreservedVelocity(serverPlayerEntity, preservedVelocity);
+                                                }
                                             }
                                         }
                                 ));

@@ -53,6 +53,13 @@ public final class AntiCheatCommands {
                                         .requires(source -> source.hasPermissionLevel(4))
                                         .executes(context -> handleSetEnabled(context, false))
                                 )
+                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("lagback")
+                                        .requires(source -> source.hasPermissionLevel(4))
+                                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("on")
+                                                .executes(context -> handleSetLagbacks(context, true)))
+                                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("off")
+                                                .executes(context -> handleSetLagbacks(context, false)))
+                                )
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("list")
                                         .executes(AntiCheatCommands::handleList)
                                 )
@@ -65,13 +72,16 @@ public final class AntiCheatCommands {
                                                 .executes(AntiCheatCommands::handleInfo)
                                         )
                                 )
+                                // Wiping evidence and exempting players defeat the anticheat: admins only.
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("clear")
+                                        .requires(source -> source.hasPermissionLevel(4))
                                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
                                                 .suggests((ctx, builder) -> suggestKnownPlayers(ctx, builder))
                                                 .executes(AntiCheatCommands::handleClear)
                                         )
                                 )
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("exempt")
+                                        .requires(source -> source.hasPermissionLevel(4))
                                         .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
                                                 .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
                                                         .suggests((ctx, builder) -> suggestOnlinePlayers(ctx, builder))
@@ -156,6 +166,16 @@ public final class AntiCheatCommands {
         AntiCheatManager.setEnabled(enabled);
         context.getSource().sendFeedback(
                 () -> Text.literal("AntiCheat " + (enabled ? "enabled" : "disabled") + ".").formatted(enabled ? Formatting.GREEN : Formatting.RED),
+                true
+        );
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int handleSetLagbacks(CommandContext<ServerCommandSource> context, boolean enabled) {
+        AntiCheatManager.setLagbacksEnabled(enabled);
+        context.getSource().sendFeedback(
+                () -> Text.literal("AntiCheat lagbacks " + (enabled ? "ON" : "OFF (checks still flag)") + ".")
+                        .formatted(enabled ? Formatting.GREEN : Formatting.YELLOW),
                 true
         );
         return Command.SINGLE_SUCCESS;
@@ -404,6 +424,10 @@ public final class AntiCheatCommands {
 
     public static void wireServerHandlers() {
         ServerPlayNetworking.registerGlobalReceiver(net.nerdorg.minehop.networking.payloads.AntiCheatActionPayload.ID, (payload, ctx) -> {
+            // Throttle: ACTION_REFRESH rebuilds a full admin snapshot; don't let it be spammed.
+            if (!net.nerdorg.minehop.util.PacketRateLimiter.allow(ctx.player(), net.nerdorg.minehop.networking.payloads.AntiCheatActionPayload.ID.id().toString(), 100)) {
+                return;
+            }
             ServerPlayerEntity player = ctx.player();
             String action = payload.action() == null ? "" : payload.action();
             String targetUuidString = payload.targetUuid() == null ? "" : payload.targetUuid();

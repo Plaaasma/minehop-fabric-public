@@ -5,6 +5,7 @@ import net.minecraft.util.math.Vec3d;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -30,6 +31,8 @@ public final class AntiCheatPlayerState {
     private final Map<String, Double> violationLevels = new HashMap<>();
     private final Deque<AntiCheatFlag> recentFlags = new ArrayDeque<>();
     private int totalFlagCount;
+    // Flags raised since the current run was armed in a start zone (attached to the finished run).
+    private final Map<String, Integer> runFlagCounts = new LinkedHashMap<>();
 
     public AntiCheatPlayerState(UUID playerUuid) {
         this.playerUuid = playerUuid;
@@ -214,6 +217,23 @@ public final class AntiCheatPlayerState {
             this.recentFlags.pollFirst();
         }
         this.totalFlagCount++;
+        this.runFlagCounts.merge(flag.checkName, 1, Integer::sum);
+    }
+
+    public void resetRunFlags() {
+        this.runFlagCounts.clear();
+    }
+
+    /** e.g. "Speed x3, Fly x1"; empty when the run raised no flags. */
+    public String runFlagSummary() {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, Integer> entry : this.runFlagCounts.entrySet()) {
+            if (!sb.isEmpty()) {
+                sb.append(", ");
+            }
+            sb.append(entry.getKey()).append(" x").append(entry.getValue());
+        }
+        return sb.toString();
     }
 
     public void clearRecentFlags() {

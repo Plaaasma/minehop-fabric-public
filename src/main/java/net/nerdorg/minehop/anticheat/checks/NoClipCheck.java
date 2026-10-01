@@ -16,8 +16,10 @@ public final class NoClipCheck extends AntiCheatCheck {
     private static final double BODY_CONTRACT = 0.05D;
     private static final double SNEAK_SHALLOW_CONTACT_GRACE = 0.10D;
 
+    // Flag-only: vanilla already refuses moves into blocks (it teleports the client back), so this
+    // only records evidence. Lagging back here once looped a player who was legitimately stuck.
     public NoClipCheck() {
-        super("NoClip", 4.0D, 8.0D, 0.05D);
+        super("NoClip", 4.0D, Double.MAX_VALUE, 0.05D);
     }
 
     @Override
@@ -51,7 +53,7 @@ public final class NoClipCheck extends AntiCheatCheck {
                     "feetInSolid pos=(%.2f,%.2f,%.2f)",
                     pos.x, pos.y, pos.z
             );
-            return CheckResult.flagAndLagback(3.0D, details);
+            return CheckResult.flag(3.0D, details);
         }
         return CheckResult.OK;
     }

@@ -26,6 +26,7 @@ import net.nerdorg.minehop.replays.ReplayEvents;
 import net.nerdorg.minehop.replays.ReplayManager;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.MapCreationManager;
+import net.nerdorg.minehop.util.PacketRateLimiter;
 import net.nerdorg.minehop.util.SurfRampPlacementManager;
 import net.nerdorg.minehop.util.ZoneUtil;
 import net.nerdorg.minehop.util.ZonePlacementManager;
@@ -39,6 +40,11 @@ public class PacketHandler {
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private static boolean registered = false;
     public static final int MAX_BUFF_CHARS = 24_000;
+    // L1 anti-cheat: max allowed divergence (seconds) between the client's sub-tick wall-clock run
+    // time and the server's own nano-stamp span (finishTimeManager - timerManager). The client keeps
+    // its framerate-precise time as the RECORDED value; the server only rejects times that drift
+    // beyond this (covers tick-phase + network; a fake low time is off by whole seconds).
+    public static final double TIMER_VALIDATION_TOLERANCE_SECONDS = 0.30D;
 
     public static void register() {
         registerC2S();
@@ -78,24 +84,15 @@ public class PacketHandler {
     }
 
     private static void registerC2S() {
-        // client to server
+        // client to server — ONLY payloads the client actually sends. S2C-only payloads were
+        // previously also registered C2S, so a malicious client could send those (some with
+        // unbounded strings) and have netty decode then drop them. Keep this list = what the client
+        // genuinely sends (see ClientPacketHandler / AntiCheatScreen).
         PayloadTypeRegistry.playC2S().register(AntiCheatPayload.ID, AntiCheatPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ConfigSyncPayload.ID, ConfigSyncPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(CSpecEfficiencyPayload.ID, CSpecEfficiencyPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(HandshakeIDPayload.ID, HandshakeIDPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(MapCreatorActionPayload.ID, MapCreatorActionPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(MapFinishPayload.ID, MapFinishPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(OpenMapScreenPayload.ID, OpenMapScreenPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(OtherVTogglePayload.ID, OtherVTogglePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ReplayVTogglePayload.ID, ReplayVTogglePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SelfVTogglePayload.ID, SelfVTogglePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SendEfficiencyPayload.ID, SendEfficiencyPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SendMapPayload.ID, SendMapPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SendPersonalRecordPayload.ID, SendPersonalRecordPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SendRecordPayload.ID, SendRecordPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SendSpectatorsPayload.ID, SendSpectatorsPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SendTimePayload.ID, SendTimePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SetCheaterPayload.ID, SetCheaterPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SSpecEfficiencyPayload.ID, SSpecEfficiencyPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SurfStickCancelPayload.ID, SurfStickCancelPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SurfStickDeletePayload.ID, SurfStickDeletePayload.CODEC);
@@ -103,9 +100,6 @@ public class PacketHandler {
         PayloadTypeRegistry.playC2S().register(ZoneStickCancelPayload.ID, ZoneStickCancelPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ZoneStickDeletePayload.ID, ZoneStickDeletePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ZoneStickSettingsPayload.ID, ZoneStickSettingsPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SurfStickPreviewPayload.ID, SurfStickPreviewPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(UpdatePowerPayload.ID, UpdatePowerPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ZoneSyncIDPayload.ID, ZoneSyncIDPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(AntiCheatActionPayload.ID, AntiCheatActionPayload.CODEC);
     }
 
@@ -419,6 +413,9 @@ public class PacketHandler {
         String playerName = player.getNameForScoreboard();
         Minehop.timerManager.remove(playerName);
         Minehop.finishTimeManager.remove(playerName);
+        Minehop.runSignatureManager.remove(playerName);
+        Minehop.runStartClientTicks.remove(playerName);
+        Minehop.runFinishClientTicks.remove(playerName);
         ReplayEvents.replayEntryMap.remove(playerName);
         clearRunTimerHudForRunnerAndSpectators(player, server);
     }
@@ -427,7 +424,12 @@ public class PacketHandler {
         if (player == null || server == null) {
             return;
         }
-        if (player.isCreative() || player.isSpectator() || Minehop.currentCheaters.contains(player)) {
+        if (player.isCreative() || player.isSpectator()) {
+            clearFinishedRunState(player, server);
+            return;
+        }
+        if (net.nerdorg.minehop.data.LeaderboardIntegrity.isBanned(player)) {
+            Logger.logFailure(player, "You are banned from the leaderboards; this run was not recorded.");
             clearFinishedRunState(player, server);
             return;
         }
@@ -478,22 +480,89 @@ public class PacketHandler {
             return;
         }
 
-        String formattedNumber = String.format("%.5f", time);
-        String playerName = player.getNameForScoreboard();
-        List<ReplayManager.ReplayEntry> replayEntries = ReplayEvents.replayEntryMap.get(playerName);
-        if (replayEntries != null && !replayEntries.isEmpty()) {
-            ReplayManager.saveReplay(
-                    player.getServerWorld(),
-                    new ReplayManager.Replay(
-                            activeMapName,
-                            playerName,
-                            time,
-                            ReplayManager.copyReplayEntries(replayEntries)
-                    )
-            );
+        // L1: validate the client-reported time against the server's own nano-stamp span. We KEEP the
+        // client time (it samples the finish crossing at framerate via interpolation -> sub-tick
+        // precision the 20Hz server can't match) but reject it if it diverges beyond tolerance.
+        // timerManager[map] = launch nanoTime (StartEntity), finishTimeManager[map] = first end-zone
+        // crossing nanoTime (EndEntity); their difference is continuous nanoseconds, not 0.05-quantized.
+        Long startStamp = timerMap.get(activeMapName);
+        if (startStamp != null) {
+            boolean haveServerFinish = finishStamp != null;
+            long endNanos = haveServerFinish ? finishStamp : System.nanoTime();
+            double serverSpan = (endNanos - startStamp) / 1_000_000_000.0D;
+            // Without a precise server finish stamp (ultra-fast pass-through caught by movement-
+            // intersect / client-pos fallback), endNanos = now includes packet latency, so widen.
+            double tolerance = haveServerFinish
+                    ? TIMER_VALIDATION_TOLERANCE_SECONDS
+                    : TIMER_VALIDATION_TOLERANCE_SECONDS + 0.25D;
+            if (!Double.isFinite(serverSpan) || serverSpan <= 0.0D || Math.abs(time - serverSpan) > tolerance) {
+                Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard()
+                        + " on " + activeMapName + ": client time " + String.format("%.5f", time)
+                        + "s diverges from server-measured " + String.format("%.5f", serverSpan)
+                        + "s (tolerance " + String.format("%.2f", tolerance) + "s).");
+                clearFinishedRunState(player, server);
+                return;
+            }
+            // The run can't contain more client ticks than the real time it took allows. Catches a
+            // timer cheat that banked lag credit before launch and spent it during the run (the
+            // timer check alone can't see that, and the client simply reports the server span).
+            Long startTicks = Minehop.runStartClientTicks.get(player.getNameForScoreboard());
+            Long endTicks = haveServerFinish
+                    ? Minehop.runFinishClientTicks.get(player.getNameForScoreboard())
+                    : Long.valueOf(net.nerdorg.minehop.anticheat.stream.MovementValidator.clientTicks(player));
+            if (startTicks != null && endTicks != null && startTicks >= 0L && endTicks >= startTicks) {
+                double secondsPerTick = server.getTickManager().getMillisPerTick() / 1000.0D;
+                long runTicks = endTicks - startTicks;
+                double maxTicks = (serverSpan + tolerance) / secondsPerTick + 2.0D;
+                if (runTicks > maxTicks) {
+                    Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard()
+                            + " on " + activeMapName + ": " + runTicks + " client ticks in "
+                            + String.format("%.3f", serverSpan) + "s of real time (max "
+                            + String.format("%.0f", maxTicks) + ") — client ran faster than real time.");
+                    net.nerdorg.minehop.anticheat.AntiCheatManager.reportMovementViolation(player,
+                            net.nerdorg.minehop.anticheat.stream.MovementValidator.CHECK_TIMER, 2.0D,
+                            "runTicks=" + runTicks + " maxForRealTime=" + String.format("%.0f", maxTicks), false, null);
+                    clearFinishedRunState(player, server);
+                    return;
+                }
+            }
         }
 
-        DataManager.RecordData existingPersonalRecord = DataManager.getPersonalRecord(playerName, activeMapName);
+        // L6: reject if the map's physics/geometry changed (or it was edited) after this run started.
+        Long runSignature = Minehop.runSignatureManager.get(player.getNameForScoreboard());
+        if (runSignature != null) {
+            long currentSignature = DataManager.computeRunSignature(DataManager.getMap(activeMapName));
+            if (currentSignature != runSignature) {
+                Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard()
+                        + " on " + activeMapName + ": map was modified mid-run.");
+                clearFinishedRunState(player, server);
+                return;
+            }
+        }
+
+        String formattedNumber = String.format("%.5f", time);
+        String playerName = player.getNameForScoreboard();
+        String playerUuid = player.getUuidAsString();
+        // Evidence for later review: anticheat flags raised during this run travel with its replay,
+        // PB and WR rows (see /map manage history and /map manage flagged).
+        String acFlags = net.nerdorg.minehop.anticheat.AntiCheatManager.runFlagSummary(player);
+        if (!acFlags.isEmpty()) {
+            net.nerdorg.minehop.anticheat.AntiCheatManager.announceFlaggedRun(player, activeMapName, time, acFlags);
+        }
+        List<ReplayManager.ReplayEntry> replayEntries = ReplayEvents.replayEntryMap.get(playerName);
+        if (replayEntries != null && !replayEntries.isEmpty()) {
+            ReplayManager.Replay replay = new ReplayManager.Replay(
+                    activeMapName,
+                    playerName,
+                    playerUuid,
+                    time,
+                    ReplayManager.copyReplayEntries(replayEntries)
+            );
+            replay.ac_flags = acFlags;
+            ReplayManager.saveReplay(player.getServerWorld(), replay);
+        }
+
+        DataManager.RecordData existingPersonalRecord = DataManager.getPersonalRecord(playerName, playerUuid, activeMapName);
         boolean isNewPersonalRecord = existingPersonalRecord == null || time < existingPersonalRecord.time;
         if (isNewPersonalRecord) {
             if (existingPersonalRecord != null) {
@@ -502,32 +571,24 @@ public class PacketHandler {
                 Logger.logSuccess(player, "You just claimed a personal record of " + formattedNumber + "!");
             }
 
-            DataManager.upsertPersonalRecord(playerName, activeMapName, time);
-            DataManager.saveData(player.getServerWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
+            DataManager.upsertPersonalRecord(playerName, playerUuid, activeMapName, time, acFlags);
         }
+
+        // L4: plot (user) maps must NOT feed the global competitive pipeline. Their owner can tune
+        // physics freely, so their times stay local to that map — never a global broadcast, Discord
+        // post, or LuckPerms record_holder grant. Only real server maps do those.
+        DataManager.MapData finishedMap = DataManager.getMap(activeMapName);
+        boolean isPlotMap = finishedMap != null && finishedMap.userMap;
 
         DataManager.RecordData existingRecord = DataManager.getRecord(activeMapName);
         boolean newWorldRecord = existingRecord == null || time < existingRecord.time;
         if (newWorldRecord) {
             String previousHolder = existingRecord == null ? "" : existingRecord.name;
+            String previousHolderUuid = existingRecord == null || existingRecord.uuid == null ? "" : existingRecord.uuid;
             double previousTime = existingRecord == null ? 0.0D : existingRecord.time;
             boolean firstWorldRecord = existingRecord == null;
 
-            DataManager.upsertRecord(playerName, activeMapName, time);
-            DataManager.saveData(player.getServerWorld(), DataManager.recordsListLocation, Minehop.recordList);
-
-            if (!previousHolder.isBlank() && !previousHolder.equals(playerName) && DataManager.getAnyRecordFromName(previousHolder) == null && isSafeMinecraftPlayerName(previousHolder)) {
-                server.getCommandManager().execute(
-                        server.getCommandManager().getDispatcher().parse("lp user " + previousHolder + " parent remove record_holder", server.getCommandSource()),
-                        "lp user " + previousHolder + " parent remove record_holder"
-                );
-            }
-            if (isSafeMinecraftPlayerName(playerName)) {
-                server.getCommandManager().execute(
-                        server.getCommandManager().getDispatcher().parse("lp user " + playerName + " parent add record_holder", server.getCommandSource()),
-                        "lp user " + playerName + " parent add record_holder"
-                );
-            }
+            DataManager.upsertRecord(playerName, playerUuid, activeMapName, time, acFlags);
 
             String recordMessage;
             if (!previousHolder.isBlank()) {
@@ -535,16 +596,65 @@ public class PacketHandler {
             } else {
                 recordMessage = playerName + " just claimed the world record on " + activeMapName + " with a time of " + formattedNumber + "!";
             }
-            Logger.logGlobal(server, recordMessage);
-            DiscordIntegration.sendRecordToDiscord(recordMessage);
+
+            if (isPlotMap) {
+                // Local-only acknowledgement; no global broadcast / Discord / LuckPerms rank.
+                Logger.logSuccess(player, "New record on plot map " + activeMapName + ": " + formattedNumber + "!");
+            } else {
+                // L3: grant/revoke record_holder by UUID (survives name changes); legacy records
+                // without a stored UUID fall back to the old safe name-based path.
+                boolean previousIsDifferent = !previousHolderUuid.isBlank()
+                        ? !previousHolderUuid.equals(playerUuid)
+                        : (!previousHolder.isBlank() && !previousHolder.equals(playerName));
+                if (previousIsDifferent) {
+                    // Only WRs on real (existing, non-plot) maps keep the rank.
+                    boolean stillHolds = net.nerdorg.minehop.data.LeaderboardIntegrity.holdsCompetitiveRecord(
+                            new net.nerdorg.minehop.data.LeaderboardIntegrity.Target(previousHolderUuid, previousHolder));
+                    if (!stillHolds) {
+                        if (!previousHolderUuid.isBlank() && isUuid(previousHolderUuid)) {
+                            runConsoleCommand(server, "lp user " + previousHolderUuid + " parent remove record_holder");
+                        } else if (previousHolderUuid.isBlank() && isSafeMinecraftPlayerName(previousHolder)) {
+                            runConsoleCommand(server, "lp user " + previousHolder + " parent remove record_holder");
+                        }
+                    }
+                }
+                if (isUuid(playerUuid)) {
+                    runConsoleCommand(server, "lp user " + playerUuid + " parent add record_holder");
+                }
+                Logger.logGlobal(server, recordMessage);
+                DiscordIntegration.sendRecordToDiscord(recordMessage);
+            }
             ReplayCommands.ensureWorldRecordReplayEntity(server, activeMapName);
         }
+
+        // L5: commit as a unit. All in-memory mutations (replay add, PB/WR upserts, rank) are done
+        // above; persist the affected files together at the end so the on-disk state transitions in
+        // one batch. Each save is atomic (JsonStorage), and the in-memory lists remain the consistent
+        // source of truth, so a single failed write self-heals on the next autosave/shutdown.
+        if (isNewPersonalRecord) {
+            DataManager.saveData(player.getServerWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
+        }
+        if (newWorldRecord) {
+            DataManager.saveData(player.getServerWorld(), DataManager.recordsListLocation, Minehop.recordList);
+        }
+
         Logger.logSuccess(player, "Completed " + activeMapName + " in " + formattedNumber + " seconds.");
         clearFinishedRunState(player, server);
     }
 
     private static boolean isSafeMinecraftPlayerName(String playerName) {
         return playerName != null && playerName.matches("[A-Za-z0-9_]{1,16}");
+    }
+
+    private static boolean isUuid(String value) {
+        return value != null && value.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+    }
+
+    private static void runConsoleCommand(MinecraftServer server, String command) {
+        server.getCommandManager().execute(
+                server.getCommandManager().getDispatcher().parse(command, server.getCommandSource()),
+                command
+        );
     }
 
     public static void sendSpecEfficiency(ServerPlayerEntity player, double last_jump_speed, int jump_count, double last_efficiency) {
@@ -860,13 +970,29 @@ public class PacketHandler {
     }
 
 
+    // Per-channel minimum intervals (ms) for C2S throttling. FAST = once-per-client-tick streams,
+    // GUI = occasional GUI actions, FINISH = rare run finishes.
+    private static final int RL_FAST = 40;
+    private static final int RL_GUI = 100;
+    private static final int RL_FINISH = 200;
+
+    /** Register a C2S receiver that drops packets exceeding the per-player rate for its channel. */
+    private static <T extends CustomPayload> void registerLimited(CustomPayload.Id<T> id, int minIntervalMs, ServerPlayNetworking.PlayPayloadHandler<T> handler) {
+        ServerPlayNetworking.registerGlobalReceiver(id, (payload, ctx) -> {
+            if (!PacketRateLimiter.allow(ctx.player(), id.id().toString(), minIntervalMs)) {
+                return;
+            }
+            handler.receive(payload, ctx);
+        });
+    }
+
     public static void registerReceivers() {
         if (registered) {return;}
         registered = true;
 
         net.nerdorg.minehop.commands.AntiCheatCommands.wireServerHandlers();
 
-        ServerPlayNetworking.registerGlobalReceiver(SendTimePayload.ID, (payload, ctx) -> {
+        registerLimited(SendTimePayload.ID, RL_FAST, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
             MinecraftServer server = ctx.server();
             float time = payload.time();
@@ -880,7 +1006,7 @@ public class PacketHandler {
                     clearRunTimerHudForRunnerAndSpectators(player, server);
                     return;
                 }
-                DataManager.RecordData personalRecordData = DataManager.getPersonalRecord(player.getNameForScoreboard(), mapName);
+                DataManager.RecordData personalRecordData = DataManager.getPersonalRecord(player.getNameForScoreboard(), player.getUuidAsString(), mapName);
                 double personalRecord = 0;
                 if (personalRecordData != null) {
                     personalRecord = personalRecordData.time;
@@ -907,7 +1033,7 @@ public class PacketHandler {
                 sendRunTimerHud(player, safeTime, safePb);
             });
         });
-        ServerPlayNetworking.registerGlobalReceiver(MapFinishPayload.ID, (payload, ctx) -> {
+        registerLimited(MapFinishPayload.ID, RL_FINISH, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
             MinecraftServer server = ctx.server();
             String mapName = payload.map_name();
@@ -915,7 +1041,7 @@ public class PacketHandler {
             Vec3d finishPos = new Vec3d(payload.x(), payload.y(), payload.z());
             ctx.server().execute(() -> handleMapCompletion(player, server, mapName, time, finishPos));
         });
-        ServerPlayNetworking.registerGlobalReceiver(MapCreatorActionPayload.ID, (payload, ctx) -> {
+        registerLimited(MapCreatorActionPayload.ID, RL_GUI, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
             ctx.server().execute(() -> MapCreationManager.handleAction(
                     player,
@@ -944,7 +1070,7 @@ public class PacketHandler {
                     payload.checkpointIndex()
             ));
         });
-        ServerPlayNetworking.registerGlobalReceiver(SurfStickSettingsPayload.ID, (payload, ctx) -> {
+        registerLimited(SurfStickSettingsPayload.ID, RL_GUI, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
             ctx.server().execute(() -> SurfRampPlacementManager.applyOptionsFromGui(
                     player,
@@ -960,7 +1086,7 @@ public class PacketHandler {
                     payload.wireframeFillAlpha()
             ));
         });
-        ServerPlayNetworking.registerGlobalReceiver(ZoneStickSettingsPayload.ID, (payload, ctx) -> {
+        registerLimited(ZoneStickSettingsPayload.ID, RL_GUI, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
             ctx.server().execute(() -> ZonePlacementManager.applyOptionsFromGui(
                     player,
@@ -970,35 +1096,35 @@ public class PacketHandler {
                     payload.preserveSpeed()
             ));
         });
-        ServerPlayNetworking.registerGlobalReceiver(SurfStickCancelPayload.ID, (payload, ctx) -> {
+        registerLimited(SurfStickCancelPayload.ID, RL_GUI, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
             if (!payload.cancel()) {
                 return;
             }
             ctx.server().execute(() -> SurfRampPlacementManager.cancelSelectionFromGui(player));
         });
-        ServerPlayNetworking.registerGlobalReceiver(ZoneStickCancelPayload.ID, (payload, ctx) -> {
+        registerLimited(ZoneStickCancelPayload.ID, RL_GUI, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
             if (!payload.cancel()) {
                 return;
             }
             ctx.server().execute(() -> ZonePlacementManager.cancelEditing(player));
         });
-        ServerPlayNetworking.registerGlobalReceiver(SurfStickDeletePayload.ID, (payload, ctx) -> {
+        registerLimited(SurfStickDeletePayload.ID, RL_GUI, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
             if (!payload.delete()) {
                 return;
             }
             ctx.server().execute(() -> SurfRampPlacementManager.deleteEditedRamp(player));
         });
-        ServerPlayNetworking.registerGlobalReceiver(ZoneStickDeletePayload.ID, (payload, ctx) -> {
+        registerLimited(ZoneStickDeletePayload.ID, RL_GUI, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
             if (!payload.delete()) {
                 return;
             }
             ctx.server().execute(() -> ZonePlacementManager.deleteEditedZone(player));
         });
-        ServerPlayNetworking.registerGlobalReceiver(SSpecEfficiencyPayload.ID, (payload, ctx) -> {
+        registerLimited(SSpecEfficiencyPayload.ID, RL_FAST, (payload, ctx) -> {
             ServerPlayerEntity player = ctx.player();
             MinecraftServer server = ctx.server();
             double last_jump_speed =  payload.last_jump_speed();

@@ -87,6 +87,13 @@ public class Minehop implements ModInitializer {
 	// latency (e.g. a plot fill/clear stall) like `now - timerStart` was — which wrongly rejected
 	// legit runs as "Invalid time".
 	public static HashMap<String, HashMap<String, Long>> finishTimeManager = new HashMap<>();
+	// L6: signature of the map's physics+geometry captured at run start (per player name). A finish is
+	// rejected if the live map signature differs, i.e. the map was edited/deleted mid-run.
+	public static HashMap<String, Long> runSignatureManager = new HashMap<>();
+	// Client ticks validated at the run's launch and at its first end-zone crossing (per player name).
+	// A run can't contain more client ticks than the server-measured time allows (timer/credit banking).
+	public static HashMap<String, Long> runStartClientTicks = new HashMap<>();
+	public static HashMap<String, Long> runFinishClientTicks = new HashMap<>();
 	public static HashMap<String, Double> efficiencyMap = new HashMap<>();
 	public static HashMap<String, List<Double>> efficiencyListMap = new HashMap<>();
 	public static HashMap<String, ReplayManager.SSJEntry> lastEfficiencyMap = new HashMap<>();
@@ -112,6 +119,7 @@ public class Minehop implements ModInitializer {
 
 		ConfigWrapper.register();
 		DataManager.register();
+		net.nerdorg.minehop.data.LeaderboardIntegrity.register();
 		JoinLeaveManager.register();
 		MobManager.register();
 		AntiCheatManager.register();

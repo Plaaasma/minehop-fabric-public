@@ -34,6 +34,7 @@ public class JoinLeaveManager {
                 }
                 SurfRampPlacementManager.onPlayerDisconnect(networkHandler.player.getUuid());
                 UserPlotManager.onPlayerDisconnect(networkHandler.player);
+                net.nerdorg.minehop.util.PacketRateLimiter.clear(networkHandler.player.getUuid());
             }
         }));
 

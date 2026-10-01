@@ -6,6 +6,7 @@ import com.google.gson.reflect.TypeToken;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.WorldSavePath;
 import net.nerdorg.minehop.Minehop;
+import net.nerdorg.minehop.util.JsonStorage;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -23,7 +24,8 @@ public final class AntiCheatStorage {
     private static final String FOLDER = "MineHop_Data";
     private static final String FLAGS_PATH = FOLDER + "/anticheat_flags.json";
     private static final String EXEMPT_PATH = FOLDER + "/anticheat_exempt.json";
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    // Bump when the persisted anticheat shape changes; migrate in load().
+    private static final int SCHEMA_VERSION = 1;
 
     private AntiCheatStorage() {
     }
@@ -58,11 +60,7 @@ public final class AntiCheatStorage {
             }
         }
 
-        try {
-            Files.writeString(savePath.resolve(FLAGS_PATH), GSON.toJson(persisted));
-        } catch (IOException e) {
-            Minehop.LOGGER.warn("Failed to save anticheat flag data", e);
-        }
+        JsonStorage.writeAtomic(savePath.resolve(FLAGS_PATH), SCHEMA_VERSION, persisted);
 
         List<String> exemptStrings = new ArrayList<>();
         if (exemptList != null) {
@@ -72,11 +70,7 @@ public final class AntiCheatStorage {
                 }
             }
         }
-        try {
-            Files.writeString(savePath.resolve(EXEMPT_PATH), GSON.toJson(exemptStrings));
-        } catch (IOException e) {
-            Minehop.LOGGER.warn("Failed to save anticheat exempt list", e);
-        }
+        JsonStorage.writeAtomic(savePath.resolve(EXEMPT_PATH), SCHEMA_VERSION, exemptStrings);
     }
 
     public static void load(MinecraftServer server, Map<UUID, AntiCheatPlayerState> states, Set<UUID> exemptList) {
@@ -89,60 +83,52 @@ public final class AntiCheatStorage {
         } catch (IOException ignored) {
         }
 
-        Path flagsFile = savePath.resolve(FLAGS_PATH);
-        if (Files.exists(flagsFile)) {
-            try {
-                String contents = Files.readString(flagsFile);
-                Type type = new TypeToken<Map<String, PersistedPlayerState>>(){}.getType();
-                Map<String, PersistedPlayerState> persisted = GSON.fromJson(contents, type);
-                if (persisted != null) {
-                    for (Map.Entry<String, PersistedPlayerState> entry : persisted.entrySet()) {
-                        if (entry.getKey() == null || entry.getValue() == null) {
-                            continue;
-                        }
-                        UUID uuid;
-                        try {
-                            uuid = UUID.fromString(entry.getKey());
-                        } catch (IllegalArgumentException e) {
-                            continue;
-                        }
-                        AntiCheatPlayerState state = new AntiCheatPlayerState(uuid);
-                        state.setLastKnownName(entry.getValue().lastKnownName);
-                        if (entry.getValue().recentFlags != null) {
-                            for (AntiCheatFlag flag : entry.getValue().recentFlags) {
-                                if (flag != null) {
-                                    state.addFlag(flag);
-                                }
+        try {
+            Type type = new TypeToken<Map<String, PersistedPlayerState>>(){}.getType();
+            Map<String, PersistedPlayerState> persisted = JsonStorage.readData(savePath.resolve(FLAGS_PATH), type);
+            if (persisted != null) {
+                for (Map.Entry<String, PersistedPlayerState> entry : persisted.entrySet()) {
+                    if (entry.getKey() == null || entry.getValue() == null) {
+                        continue;
+                    }
+                    UUID uuid;
+                    try {
+                        uuid = UUID.fromString(entry.getKey());
+                    } catch (IllegalArgumentException e) {
+                        continue;
+                    }
+                    AntiCheatPlayerState state = new AntiCheatPlayerState(uuid);
+                    state.setLastKnownName(entry.getValue().lastKnownName);
+                    if (entry.getValue().recentFlags != null) {
+                        for (AntiCheatFlag flag : entry.getValue().recentFlags) {
+                            if (flag != null) {
+                                state.addFlag(flag);
                             }
                         }
-                        states.put(uuid, state);
                     }
+                    states.put(uuid, state);
                 }
-            } catch (Exception e) {
-                Minehop.LOGGER.warn("Failed to load anticheat flag data", e);
             }
+        } catch (Exception e) {
+            Minehop.LOGGER.warn("Failed to load anticheat flag data", e);
         }
 
-        Path exemptFile = savePath.resolve(EXEMPT_PATH);
-        if (Files.exists(exemptFile)) {
-            try {
-                String contents = Files.readString(exemptFile);
-                Type type = new TypeToken<List<String>>(){}.getType();
-                List<String> raw = GSON.fromJson(contents, type);
-                if (raw != null) {
-                    for (String s : raw) {
-                        if (s == null) {
-                            continue;
-                        }
-                        try {
-                            exemptList.add(UUID.fromString(s));
-                        } catch (IllegalArgumentException ignored) {
-                        }
+        try {
+            Type type = new TypeToken<List<String>>(){}.getType();
+            List<String> raw = JsonStorage.readData(savePath.resolve(EXEMPT_PATH), type);
+            if (raw != null) {
+                for (String s : raw) {
+                    if (s == null) {
+                        continue;
+                    }
+                    try {
+                        exemptList.add(UUID.fromString(s));
+                    } catch (IllegalArgumentException ignored) {
                     }
                 }
-            } catch (Exception e) {
-                Minehop.LOGGER.warn("Failed to load anticheat exempt list", e);
             }
+        } catch (Exception e) {
+            Minehop.LOGGER.warn("Failed to load anticheat exempt list", e);
         }
     }
 

@@ -210,6 +210,11 @@ public class MapUtilCommands {
                             )
                         )
                     )
+                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("run")
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("replay_id", StringArgumentType.string())
+                            .executes(context -> LeaderboardCommands.invalidateRun(context, StringArgumentType.getString(context, "replay_id")))
+                        )
+                    )
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
                         .suggests((context, builder) -> {
                             for (DataManager.MapData mapData : Minehop.mapList) {
@@ -222,6 +227,57 @@ public class MapUtilCommands {
                             return Command.SINGLE_SUCCESS;
                         })
                     )
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("history")
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
+                        .suggests((context, builder) -> {
+                            suggestKnownPlayerNames(context.getSource(), builder);
+                            return builder.buildFuture();
+                        })
+                        .executes(context -> LeaderboardCommands.history(context, StringArgumentType.getString(context, "player"), null))
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                            .suggests((context, builder) -> {
+                                suggestMapNames(builder);
+                                return builder.buildFuture();
+                            })
+                            .executes(context -> LeaderboardCommands.history(context, StringArgumentType.getString(context, "player"),
+                                    canonicalMapName(StringArgumentType.getString(context, "map_name"))))
+                        )
+                    )
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("flagged")
+                    .executes(context -> LeaderboardCommands.flagged(context, null))
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                        .suggests((context, builder) -> {
+                            suggestMapNames(builder);
+                            return builder.buildFuture();
+                        })
+                        .executes(context -> LeaderboardCommands.flagged(context, canonicalMapName(StringArgumentType.getString(context, "map_name"))))
+                    )
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("ban")
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
+                        .suggests((context, builder) -> {
+                            suggestKnownPlayerNames(context.getSource(), builder);
+                            return builder.buildFuture();
+                        })
+                        .executes(context -> LeaderboardCommands.ban(context, StringArgumentType.getString(context, "player"), ""))
+                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("reason", StringArgumentType.greedyString())
+                            .executes(context -> LeaderboardCommands.ban(context, StringArgumentType.getString(context, "player"),
+                                    StringArgumentType.getString(context, "reason")))
+                        )
+                    )
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("unban")
+                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
+                        .executes(context -> LeaderboardCommands.unban(context, StringArgumentType.getString(context, "player")))
+                    )
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("bans")
+                    .executes(LeaderboardCommands::listBans)
+                )
+                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reconcile_ranks")
+                    .executes(LeaderboardCommands::reconcileRanks)
                 )
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("invalidate_player")
                     .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
@@ -699,181 +755,36 @@ public class MapUtilCommands {
 
     }
 
+    private static String canonicalMapName(String requested) {
+        DataManager.MapData mapData = DataManager.getMap(requested);
+        return mapData != null ? mapData.name : requested;
+    }
+
+    // All invalidation goes through LeaderboardIntegrity (UUID-safe identity, WR promotion, replays,
+    // record_holder rank, WR replay entity, client sync, audit log).
     private static void handleInvalidatePlayer(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
-        String playerName = StringArgumentType.getString(context, "player_name");
-
-        String name = StringArgumentType.getString(context, "map_name");
-        DataManager.MapData invalidateData = DataManager.getMap(name);
-
-        if (invalidateData != null) {
-            String mapName = invalidateData.name;
-            DataManager.RecordData oldWorldRecord = DataManager.getRecord(mapName);
-            String oldRecordHolder = oldWorldRecord == null ? "" : oldWorldRecord.name;
-            DataManager.RecordData removedPersonal = DataManager.removePersonalRecordsForPlayer(mapName, playerName);
-            DataManager.RecordData removedRecord = DataManager.removeRecordsForPlayer(mapName, playerName);
-            ReplayManager.deleteReplayForPlayer(mapName, playerName);
-
-            if (removedPersonal != null || removedRecord != null) {
-                DataManager.saveData(context.getSource().getWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
-                DataManager.rebuildRecordForMap(mapName);
-                DataManager.saveData(context.getSource().getWorld(), DataManager.recordsListLocation, Minehop.recordList);
-                ReplayManager.saveRecordReplays(context.getSource().getWorld(), Minehop.replayList);
-                updateRecordHolderGroup(context.getSource(), mapName, oldRecordHolder);
-                ReplayCommands.ensureWorldRecordReplayEntity(context.getSource().getServer(), mapName);
-                syncRecordDataForAll(context.getSource().getServer());
-                Logger.logSuccess(senderEntity, "Invalidated times for player " + playerName + " on map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));
-            }
-            else {
-                Logger.logFailure(senderEntity, playerName + " does not have a time on " + invalidateData.name);
-            }
-        }
-        else {
-            Logger.logFailure(senderEntity, "The map " + name + " does not exist.");
-        }
+        LeaderboardCommands.invalidatePlayer(context, StringArgumentType.getString(context, "player_name"),
+                canonicalMapName(StringArgumentType.getString(context, "map_name")), true, true);
     }
 
     private static void handleInvalidate(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
-
-        String name = StringArgumentType.getString(context, "map_name");
-
-        DataManager.MapData invalidateData = DataManager.getMap(name);
-
-        if (invalidateData != null) {
-            String mapName = invalidateData.name;
-            DataManager.RecordData oldWorldRecord = DataManager.getRecord(mapName);
-            String oldRecordHolder = oldWorldRecord == null ? "" : oldWorldRecord.name;
-
-            DataManager.removePersonalRecords(mapName);
-            DataManager.saveData(context.getSource().getWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
-
-            DataManager.removeRecords(mapName);
-            DataManager.saveData(context.getSource().getWorld(), DataManager.recordsListLocation, Minehop.recordList);
-
-            ReplayManager.deleteReplaysForMap(mapName);
-            ReplayManager.saveRecordReplays(context.getSource().getWorld(), Minehop.replayList);
-
-            updateRecordHolderGroup(context.getSource(), mapName, oldRecordHolder);
-            ReplayCommands.ensureWorldRecordReplayEntity(context.getSource().getServer(), mapName);
-            syncRecordDataForAll(context.getSource().getServer());
-            Logger.logSuccess(serverPlayerEntity, "Invalidated times for map \\/\n" + StringFormatting.limitDecimals(gson.toJson(invalidateData)));
-        }
-        else {
-            Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
-        }
+        LeaderboardCommands.invalidateMap(context, canonicalMapName(StringArgumentType.getString(context, "map_name")), true, true);
     }
 
     private static void handleInvalidateAllTimesForPlayer(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
-        String playerName = StringArgumentType.getString(context, "player_name").trim();
-        if (playerName.isBlank()) {
-            Logger.logFailure(senderEntity, "Player name cannot be blank.");
-            return;
-        }
-
-        Set<String> affectedMaps = collectMapsWithTimesForPlayer(playerName);
-        if (affectedMaps.isEmpty()) {
-            Logger.logFailure(senderEntity, playerName + " does not have any saved times.");
-            return;
-        }
-
-        int personalRecords = countPersonalRecordsForPlayer(playerName);
-        int worldRecords = countWorldRecordsForPlayer(playerName);
-        Map<String, String> oldRecordHolders = collectOldRecordHolders(affectedMaps);
-
-        for (String mapName : affectedMaps) {
-            DataManager.removePersonalRecordsForPlayer(mapName, playerName);
-            DataManager.removeRecordsForPlayer(mapName, playerName);
-        }
-        for (String mapName : affectedMaps) {
-            DataManager.rebuildRecordForMap(mapName);
-        }
-
-        DataManager.saveData(context.getSource().getWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
-        DataManager.saveData(context.getSource().getWorld(), DataManager.recordsListLocation, Minehop.recordList);
-
-        for (String mapName : affectedMaps) {
-            updateRecordHolderGroup(context.getSource(), mapName, oldRecordHolders.get(mapName));
-            ReplayCommands.ensureWorldRecordReplayEntity(context.getSource().getServer(), mapName);
-        }
-        syncRecordDataForAll(context.getSource().getServer());
-
-        Logger.logSuccess(senderEntity, "Invalidated " + personalRecords + " personal time(s) and " + worldRecords + " world record row(s) for " + playerName + " across " + affectedMaps.size() + " map(s).");
+        LeaderboardCommands.invalidatePlayer(context, StringArgumentType.getString(context, "player_name"), null, true, true);
     }
 
     private static void handleInvalidateTimesForMap(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
-        String requestedName = StringArgumentType.getString(context, "map_name");
-        DataManager.MapData mapData = DataManager.getMap(requestedName);
-        if (mapData == null) {
-            Logger.logFailure(senderEntity, "The map " + requestedName + " does not exist.");
-            return;
-        }
-
-        String mapName = mapData.name;
-        int personalRecords = countPersonalRecordsForMap(mapName);
-        int worldRecords = countWorldRecordsForMap(mapName);
-        if (personalRecords <= 0 && worldRecords <= 0) {
-            Logger.logFailure(senderEntity, "There are no saved times on " + mapName + ".");
-            return;
-        }
-
-        DataManager.RecordData oldWorldRecord = DataManager.getRecord(mapName);
-        String oldRecordHolder = oldWorldRecord == null ? "" : oldWorldRecord.name;
-        DataManager.removePersonalRecords(mapName);
-        DataManager.removeRecords(mapName);
-
-        DataManager.saveData(context.getSource().getWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
-        DataManager.saveData(context.getSource().getWorld(), DataManager.recordsListLocation, Minehop.recordList);
-
-        updateRecordHolderGroup(context.getSource(), mapName, oldRecordHolder);
-        ReplayCommands.ensureWorldRecordReplayEntity(context.getSource().getServer(), mapName);
-        syncRecordDataForAll(context.getSource().getServer());
-
-        Logger.logSuccess(senderEntity, "Invalidated " + personalRecords + " personal time(s) and " + worldRecords + " world record row(s) on " + mapName + ".");
+        LeaderboardCommands.invalidateMap(context, canonicalMapName(StringArgumentType.getString(context, "map_name")), true, true);
     }
 
     private static void handleInvalidateReplaysForPlayer(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
-        String playerName = StringArgumentType.getString(context, "player_name").trim();
-        if (playerName.isBlank()) {
-            Logger.logFailure(senderEntity, "Player name cannot be blank.");
-            return;
-        }
-
-        Set<String> affectedMaps = collectMapsWithReplaysForPlayer(playerName);
-        int removed = ReplayManager.deleteReplaysForPlayer(playerName);
-        if (removed <= 0) {
-            Logger.logFailure(senderEntity, "No saved replays were found for " + playerName + ".");
-            return;
-        }
-
-        ReplayManager.saveRecordReplays(context.getSource().getWorld(), Minehop.replayList);
-        for (String mapName : affectedMaps) {
-            ReplayCommands.ensureWorldRecordReplayEntity(context.getSource().getServer(), mapName);
-        }
-        Logger.logSuccess(senderEntity, "Invalidated " + removed + " replay(s) for " + playerName + ".");
+        LeaderboardCommands.invalidatePlayer(context, StringArgumentType.getString(context, "player_name"), null, false, true);
     }
 
     private static void handleInvalidateReplaysForMap(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
-        String requestedName = StringArgumentType.getString(context, "map_name");
-        DataManager.MapData mapData = DataManager.getMap(requestedName);
-        if (mapData == null) {
-            Logger.logFailure(senderEntity, "The map " + requestedName + " does not exist.");
-            return;
-        }
-
-        int removed = ReplayManager.deleteReplaysForMap(mapData.name);
-        if (removed <= 0) {
-            Logger.logFailure(senderEntity, "No saved replays were found on " + mapData.name + ".");
-            return;
-        }
-
-        ReplayManager.saveRecordReplays(context.getSource().getWorld(), Minehop.replayList);
-        ReplayCommands.ensureWorldRecordReplayEntity(context.getSource().getServer(), mapData.name);
-        Logger.logSuccess(senderEntity, "Invalidated " + removed + " replay(s) on " + mapData.name + ".");
+        LeaderboardCommands.invalidateMap(context, canonicalMapName(StringArgumentType.getString(context, "map_name")), false, true);
     }
 
     private static void handleRemove(CommandContext<ServerCommandSource> context) {
@@ -897,7 +808,11 @@ public class MapUtilCommands {
         }
 
         if (removedData != null) {
-            Logger.logSuccess(serverPlayerEntity, "Removed map \\/\n" + StringFormatting.limitDecimals(gson.toJson(removedData)));
+            // Cascade: a removed map keeps no times, WR, replays or WR replay entity (and its holder
+            // loses record_holder unless they hold another WR). Re-adding the name starts clean.
+            net.nerdorg.minehop.data.LeaderboardIntegrity.Report cascade = net.nerdorg.minehop.data.LeaderboardIntegrity.purgeMap(
+                    context.getSource().getServer(), name, true, true, context.getSource().getName(), "map removed");
+            Logger.logSuccess(serverPlayerEntity, "Removed map (and " + cascade.summary() + ") \\/\n" + StringFormatting.limitDecimals(gson.toJson(removedData)));
         }
         else {
             Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
@@ -1206,108 +1121,6 @@ public class MapUtilCommands {
         return playerNames;
     }
 
-    private static Set<String> collectMapsWithTimesForPlayer(String playerName) {
-        Set<String> mapNames = new LinkedHashSet<>();
-        if (Minehop.personalRecordList != null) {
-            for (DataManager.RecordData recordData : Minehop.personalRecordList) {
-                if (recordData == null || recordData.map_name == null || recordData.name == null) {
-                    continue;
-                }
-                if (playerName.equals(recordData.name)) {
-                    mapNames.add(recordData.map_name);
-                }
-            }
-        }
-        if (Minehop.recordList != null) {
-            for (DataManager.RecordData recordData : Minehop.recordList) {
-                if (recordData == null || recordData.map_name == null || recordData.name == null) {
-                    continue;
-                }
-                if (playerName.equals(recordData.name)) {
-                    mapNames.add(recordData.map_name);
-                }
-            }
-        }
-        return mapNames;
-    }
-
-    private static Set<String> collectMapsWithReplaysForPlayer(String playerName) {
-        Set<String> mapNames = new LinkedHashSet<>();
-        if (Minehop.replayList == null) {
-            return mapNames;
-        }
-        for (ReplayManager.Replay replay : Minehop.replayList) {
-            if (replay == null || replay.map_name == null || replay.player_name == null) {
-                continue;
-            }
-            if (playerName.equals(replay.player_name)) {
-                mapNames.add(replay.map_name);
-            }
-        }
-        return mapNames;
-    }
-
-    private static Map<String, String> collectOldRecordHolders(Set<String> mapNames) {
-        Map<String, String> oldRecordHolders = new LinkedHashMap<>();
-        for (String mapName : mapNames) {
-            DataManager.RecordData oldWorldRecord = DataManager.getRecord(mapName);
-            oldRecordHolders.put(mapName, oldWorldRecord == null ? "" : oldWorldRecord.name);
-        }
-        return oldRecordHolders;
-    }
-
-    private static int countPersonalRecordsForPlayer(String playerName) {
-        int count = 0;
-        if (Minehop.personalRecordList == null) {
-            return count;
-        }
-        for (DataManager.RecordData recordData : Minehop.personalRecordList) {
-            if (recordData != null && playerName.equals(recordData.name)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private static int countWorldRecordsForPlayer(String playerName) {
-        int count = 0;
-        if (Minehop.recordList == null) {
-            return count;
-        }
-        for (DataManager.RecordData recordData : Minehop.recordList) {
-            if (recordData != null && playerName.equals(recordData.name)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private static int countPersonalRecordsForMap(String mapName) {
-        int count = 0;
-        if (Minehop.personalRecordList == null) {
-            return count;
-        }
-        for (DataManager.RecordData recordData : Minehop.personalRecordList) {
-            if (recordData != null && mapName.equals(recordData.map_name)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private static int countWorldRecordsForMap(String mapName) {
-        int count = 0;
-        if (Minehop.recordList == null) {
-            return count;
-        }
-        for (DataManager.RecordData recordData : Minehop.recordList) {
-            if (recordData != null && mapName.equals(recordData.map_name)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
     private static void syncMapsForAll(net.minecraft.server.MinecraftServer server) {
         if (server == null) {
             return;
@@ -1317,39 +1130,4 @@ public class MapUtilCommands {
         }
     }
 
-    private static void syncRecordDataForAll(net.minecraft.server.MinecraftServer server) {
-        if (server == null) {
-            return;
-        }
-        for (ServerPlayerEntity worldPlayer : server.getPlayerManager().getPlayerList()) {
-            PacketHandler.sendRecords(worldPlayer);
-            PacketHandler.sendPersonalRecords(worldPlayer);
-        }
-    }
-
-    private static void updateRecordHolderGroup(ServerCommandSource source, String mapName, String oldRecordHolder) {
-        if (source == null) {
-            return;
-        }
-        DataManager.RecordData newRecord = DataManager.getRecord(mapName);
-        String newRecordHolder = newRecord == null ? "" : newRecord.name;
-
-        if (oldRecordHolder != null && !oldRecordHolder.isBlank() && !oldRecordHolder.equals(newRecordHolder) && DataManager.getAnyRecordFromName(oldRecordHolder) == null && isSafeMinecraftPlayerName(oldRecordHolder)) {
-            source.getServer().getCommandManager().execute(
-                    source.getServer().getCommandManager().getDispatcher().parse("lp user " + oldRecordHolder + " parent remove record_holder", source.getServer().getCommandSource()),
-                    "lp user " + oldRecordHolder + " parent remove record_holder"
-            );
-        }
-
-        if (newRecordHolder != null && !newRecordHolder.isBlank() && isSafeMinecraftPlayerName(newRecordHolder)) {
-            source.getServer().getCommandManager().execute(
-                    source.getServer().getCommandManager().getDispatcher().parse("lp user " + newRecordHolder + " parent add record_holder", source.getServer().getCommandSource()),
-                    "lp user " + newRecordHolder + " parent add record_holder"
-            );
-        }
-    }
-
-    private static boolean isSafeMinecraftPlayerName(String playerName) {
-        return playerName != null && playerName.matches("[A-Za-z0-9_]{1,16}");
-    }
 }

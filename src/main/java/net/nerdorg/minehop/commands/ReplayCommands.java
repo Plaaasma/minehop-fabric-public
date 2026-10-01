@@ -270,6 +270,10 @@ public class ReplayCommands {
             if (!(entity instanceof ReplayEntity replayEntity)) {
                 continue;
             }
+            // A killed entity lingers while dying; reusing it would leave the map without a replay.
+            if (!replayEntity.isAlive() || replayEntity.isRemoved()) {
+                continue;
+            }
             if (!mapName.equals(replayEntity.getMapName())) {
                 continue;
             }
@@ -303,6 +307,36 @@ public class ReplayCommands {
             replayEntity.kill(world);
         }
         return toRemove.size();
+    }
+
+    /**
+     * Removes the in-world world-record replay for a map (used when the map no longer has a WR replay)
+     * and returns the names of the players who were spectating it, so they can be sent back.
+     */
+    public static List<String> removeWorldRecordReplayEntities(MinecraftServer server, String mapName) {
+        List<String> spectators = new ArrayList<>();
+        if (server == null || mapName == null || mapName.isBlank()) {
+            return spectators;
+        }
+        for (ServerWorld world : server.getWorlds()) {
+            List<ReplayEntity> toRemove = new ArrayList<>();
+            for (Entity entity : world.iterateEntities()) {
+                if (entity instanceof ReplayEntity replayEntity
+                        && replayEntity.isAlive() && !replayEntity.isRemoved()
+                        && mapName.equals(replayEntity.getMapName())
+                        && replayEntity.getReplayPlayerName().isBlank()) {
+                    toRemove.add(replayEntity);
+                }
+            }
+            for (ReplayEntity replayEntity : toRemove) {
+                List<String> watching = SpectateCommands.spectatorList.remove(replayEntity.getNameForScoreboard());
+                if (watching != null) {
+                    spectators.addAll(watching);
+                }
+                replayEntity.kill(world);
+            }
+        }
+        return spectators;
     }
 
     private static Set<String> collectReplayPlayerNames(String mapName) {

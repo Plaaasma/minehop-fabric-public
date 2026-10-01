@@ -83,6 +83,28 @@ public abstract class LivingEntityMixin extends Entity {
     @Unique private double cssCrouchOffsetAmount;
     private long boostTime = 0;
     private long ladderReleaseTime = 0;
+    // M8: sanity ceilings on boost-pad impulse (prevents absurd/NaN pad values launching a player
+    // impossibly high or hiding horizontal speed) + a short anticheat grace so a legit pad launch
+    // isn't lagbacked. Generous so real jump pads still work; only clamps clearly-broken values.
+    @Unique private static final double MAX_BOOST_HORIZONTAL_PER_TICK = 12.0D;
+    @Unique private static final double MAX_BOOST_VERTICAL_PER_TICK = 6.0D;
+    @Unique private static final int BOOST_AC_GRACE_TICKS = 3;
+    @Unique private int minehop$boostGraceTicks = 0;
+    // M6: short anticheat grace after externally-applied velocity (knockback) so a legit knock isn't
+    // lagbacked and doesn't get baked into the speed baseline as a flag.
+    @Unique private static final int EXTERNAL_VELOCITY_GRACE_TICKS = 6;
+    @Unique private int minehop$externalVelocityGraceTicks = 0;
+    // M9: a forced auto-step-up teleports the player up onto a ledge (up to ~step height) while keeping
+    // momentum — intended movement tech. It's server-computed (a client can't fake it), so the only AC
+    // need is to NOT lagback the legit vertical/horizontal jump it produces. Grace covers the step tick
+    // (+1 settle tick); chained steps re-arm it each tick.
+    @Unique private static final int STEP_UP_AC_GRACE_TICKS = 2;
+    @Unique private int minehop$stepUpGraceTicks = 0;
+    // M5: server-side "was grounded last tick" (from hasRealGroundBelow, not the client-spoofable
+    // isOnGround). Drives the ground-friction decision so a client can't lie about being airborne to
+    // dodge ground friction (perpetual no-friction speed). The 2-tick logic is preserved so a 1-tick
+    // bhop landing still doesn't get slowed.
+    @Unique private boolean minehop$wasServerGrounded;
     @Unique private static final double SOURCE_FRAME_TIME = 1.0D / 20.0D;
     @Unique private static final double SOURCE_UNIT_TO_BLOCKS_PER_TICK = 1.0D / 800.0D;
     @Unique private static final double SOURCE_SIM_TICKRATE = 128.0D;
@@ -338,9 +360,23 @@ public abstract class LivingEntityMixin extends Entity {
         this.minehop$descendedSinceJump = true; // don't carry a stale rising-state across a teleport
         this.minehop$jumpHeldFromGround = false;
         this.minehop$jumpCooldownTicks = 0;
+        this.minehop$boostGraceTicks = 0;
+        this.minehop$externalVelocityGraceTicks = 0;
+        this.minehop$stepUpGraceTicks = 0;
+        this.minehop$wasServerGrounded = false;
         this.minehop$uncrouchLandingJumpGraceTicks = 0;
         this.minehop$hnsKzSpeedCapSuspended = false;
         this.minehop$hnsKzSoftCapTicks = 0;
+    }
+
+    // M6: any externally-applied knockback (melee, projectiles, wind charge, some explosions route
+    // through here) arms a short anticheat grace so the legit velocity isn't lagbacked as a speed
+    // violation. Server-authoritative — a client cannot call this on itself.
+    @Inject(method = "takeKnockback", at = @At("TAIL"))
+    private void minehop$onTakeKnockback(double strength, double x, double z, CallbackInfo ci) {
+        if (((Object) this) instanceof PlayerEntity && strength > 0.0D) {
+            this.minehop$externalVelocityGraceTicks = EXTERNAL_VELOCITY_GRACE_TICKS;
+        }
     }
 
     @Inject(method = "damage", at = @At("HEAD"), cancellable = true)
@@ -498,6 +534,15 @@ public abstract class LivingEntityMixin extends Entity {
         // only for telemetry; it no longer gates the buffer.)
         if (this.minehop$jumpCooldownTicks > 0) {
             this.minehop$jumpCooldownTicks--;
+        }
+        if (this.minehop$boostGraceTicks > 0) {
+            this.minehop$boostGraceTicks--;
+        }
+        if (this.minehop$externalVelocityGraceTicks > 0) {
+            this.minehop$externalVelocityGraceTicks--;
+        }
+        if (this.minehop$stepUpGraceTicks > 0) {
+            this.minehop$stepUpGraceTicks--;
         }
         boolean jumpIntentForBuffer = this.jumping || this.minehop$uncrouchLandingJumpGraceTicks > 0;
         boolean groundedishForCoyote = this.isOnGround() || this.minehop$hasRealGroundBelow();
@@ -713,7 +758,11 @@ public abstract class LivingEntityMixin extends Entity {
         } else {
             Minehop.surfCollisionBypassEntities.remove(this.getId());
         }
-        boolean fullGrounded = this.wasOnGround && this.isOnGround();
+        // M5: ground-friction is decided by SERVER ground truth (hasRealGroundBelow over two ticks),
+        // not the client-reported isOnGround() — otherwise a client spoofing "airborne" never gets
+        // ground friction and keeps speed forever. Two consecutive server-grounded ticks (matching the
+        // old wasOnGround && isOnGround() two-tick gate) so a 1-tick bhop landing still isn't slowed.
+        boolean fullGrounded = this.minehop$wasServerGrounded && realGroundBelow;
         boolean surfing = preMoveSurfContact != null && !this.isClimbing() && !realGroundBelow;
         boolean surfGroundSuppressed = this.surfGroundSuppressTicks > 0
                 && !this.isClimbing()
@@ -795,6 +844,8 @@ public abstract class LivingEntityMixin extends Entity {
             }
         }
         this.wasOnGround = (surfing || pseudoSurfing || surfGroundSuppressed) ? false : this.isOnGround();
+        // M5: mirror the wasOnGround update with server ground truth for next tick's friction decision.
+        this.minehop$wasServerGrounded = (surfing || pseudoSurfing || surfGroundSuppressed) ? false : realGroundBelow;
 
         if (this.isOnGround() && !surfing && this.getWorld().isClient && ((Object) this) instanceof PlayerEntity) {
             // Jump arc ended: latch the per-jump strafe summary (sync/efficiency/strafes) and reset
@@ -956,9 +1007,7 @@ public abstract class LivingEntityMixin extends Entity {
             if (belowStateH.isOf(ModBlocks.BOOSTER_BLOCK) && (this.getWorld().getTime() > this.boostTime + 5 || this.getWorld().getTime() < this.boostTime)) {
                 this.boostTime = this.getWorld().getTime();
                 BoostBlockEntity boostBlockEntityH = (BoostBlockEntity) this.getWorld().getBlockEntity(this.getBlockPos());
-                if (boostBlockEntityH != null) {
-                    afterGravH = afterGravH.add(boostBlockEntityH.getXPower(), boostBlockEntityH.getYPower(), boostBlockEntityH.getZPower());
-                }
+                afterGravH = this.minehop$applyBoostPad(afterGravH, boostBlockEntityH);
             }
             if (inStartZone && startZonePlayer != null) {
                 afterGravH = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, afterGravH);
@@ -971,7 +1020,10 @@ public abstract class LivingEntityMixin extends Entity {
                 this.minehop$nearRampAcGraceTicks--;
             }
             if (!this.getWorld().isClient && self instanceof ServerPlayerEntity acPlayerH) {
-                boolean surfingForAcH = onRampH || nearSurfRampPre || this.minehop$nearRampAcGraceTicks > 0;
+                boolean surfingForAcH = onRampH || nearSurfRampPre || this.minehop$nearRampAcGraceTicks > 0
+                        || this.minehop$boostGraceTicks > 0 // M8: don't lagback a legit boost-pad launch
+                        || this.minehop$externalVelocityGraceTicks > 0 // M6: nor a legit knockback
+                        || this.minehop$stepUpGraceTicks > 0; // M9: nor a legit auto-step-up
                 double antiCheatSpeedCapH = hnsKzSpeedCapMode
                         && (this.minehop$hnsKzSpeedCapSuspended || hnsKzSoftCapActive || surfingForAcH)
                         ? 0.0D
@@ -987,7 +1039,7 @@ public abstract class LivingEntityMixin extends Entity {
                         this.isClimbing(),
                         this.isTouchingWater() || this.isInLava(),
                         surfingForAcH,
-                        this.jumping && (this.isOnGround() || this.wasOnGround),
+                        this.minehop$serverJumpTakeoff(config, velBeforeMoveH.y, afterGravH.y),
                         antiCheatSpeedCapH
                 );
             }
@@ -1830,9 +1882,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (belowState.isOf(ModBlocks.BOOSTER_BLOCK) && (this.getWorld().getTime() > this.boostTime + 5 || this.getWorld().getTime() < this.boostTime)) {
             this.boostTime = this.getWorld().getTime();
             BoostBlockEntity boostBlockEntity = (BoostBlockEntity) this.getWorld().getBlockEntity(this.getBlockPos());
-            if (boostBlockEntity != null) {
-                velocityAfterGravity = velocityAfterGravity.add(boostBlockEntity.getXPower(), boostBlockEntity.getYPower(), boostBlockEntity.getZPower());
-            }
+            velocityAfterGravity = this.minehop$applyBoostPad(velocityAfterGravity, boostBlockEntity);
         }
         if ((inStartZone || inStartZoneAfterMove) && startZonePlayer != null) {
             velocityAfterGravity = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, velocityAfterGravity);
@@ -1935,7 +1985,10 @@ public abstract class LivingEntityMixin extends Entity {
                     || this.surfContactGraceTicks > 0 || this.surfCollisionBypassGraceTicks > 0
                     || nearSurfRampPre || nearSurfRampPost
                     || this.surfGroundSuppressTicks > 0 || this.surfJumpSuppressTicks > 0
-                    || this.minehop$nearRampAcGraceTicks > 0;
+                    || this.minehop$nearRampAcGraceTicks > 0
+                    || this.minehop$boostGraceTicks > 0 // M8: don't lagback a legit boost-pad launch
+                    || this.minehop$externalVelocityGraceTicks > 0 // M6: nor a legit knockback
+                    || this.minehop$stepUpGraceTicks > 0; // M9: nor a legit auto-step-up
             double antiCheatSpeedCap = hnsKzSpeedCapMode
                     && (this.minehop$hnsKzSpeedCapSuspended || hnsKzSoftCapActive || surfingForAc)
                     ? 0.0D
@@ -1951,7 +2004,7 @@ public abstract class LivingEntityMixin extends Entity {
                     this.isClimbing(),
                     this.isTouchingWater() || this.isInLava(),
                     surfingForAc,
-                    this.jumping && (this.isOnGround() || this.wasOnGround),
+                    this.minehop$serverJumpTakeoff(config, velocityBeforeMove.y, velocityAfterGravity.y),
                     antiCheatSpeedCap
             );
         }
@@ -3587,6 +3640,40 @@ public abstract class LivingEntityMixin extends Entity {
         return mapData != null && (mapData.hns || mapData.kz);
     }
 
+    // M8: apply a boost pad's impulse, clamped to finite sanity ceilings, and arm a short anticheat
+    // grace so the legit launch isn't flagged/lagbacked. Boost is server-authoritative (read from the
+    // real block stood on), so a cheater can't fake the grace.
+    @Unique
+    private Vec3d minehop$applyBoostPad(Vec3d velocity, BoostBlockEntity boost) {
+        if (boost == null) {
+            return velocity;
+        }
+        double bx = minehop$clampBoostComponent(boost.getXPower(), MAX_BOOST_HORIZONTAL_PER_TICK);
+        double by = minehop$clampBoostComponent(boost.getYPower(), MAX_BOOST_VERTICAL_PER_TICK);
+        double bz = minehop$clampBoostComponent(boost.getZPower(), MAX_BOOST_HORIZONTAL_PER_TICK);
+        this.minehop$boostGraceTicks = BOOST_AC_GRACE_TICKS;
+        return velocity.add(bx, by, bz);
+    }
+
+    @Unique
+    private static double minehop$clampBoostComponent(double power, double max) {
+        if (!Double.isFinite(power)) {
+            return 0.0D;
+        }
+        return Math.max(-max, Math.min(max, power));
+    }
+
+    // M10: server-derived "jumped this tick" signal for the anticheat — a takeoff is the vertical
+    // velocity going from ~flat/falling to ~jump-impulse in one tick. Replaces the client `jumping`
+    // flag (which a hacked client controls) and makes InvalidJumpCheck coherent. Legit mid-air upward
+    // impulses (boost/knockback) are already AC-graced, and the jump() guard blocks air-jumps, so this
+    // never fires for legitimate play.
+    @Unique
+    private boolean minehop$serverJumpTakeoff(MinehopConfig config, double velBeforeY, double velAfterY) {
+        double impulseBpt = config.movement.sv_jump_impulse * SOURCE_UNIT_TO_BLOCKS_PER_TICK;
+        return velBeforeY <= 0.10D && velAfterY >= 0.6D * impulseBpt;
+    }
+
     @Unique
     private boolean minehop$hasRealGroundBelow() {
         Box box = this.getBoundingBox();
@@ -4332,6 +4419,8 @@ public abstract class LivingEntityMixin extends Entity {
         this.setVelocity(attemptedMove.x, Math.max(currentVelocity.y, 0.0D), attemptedMove.z);
         this.horizontalCollision = false;
         this.velocityDirty = true;
+        // M9: tell the anticheat this tick's displacement includes an authorized step-up.
+        this.minehop$stepUpGraceTicks = STEP_UP_AC_GRACE_TICKS;
         return true;
     }
 

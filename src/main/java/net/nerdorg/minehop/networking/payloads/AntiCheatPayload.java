@@ -10,8 +10,9 @@ import net.nerdorg.minehop.Minehop;
 public record AntiCheatPayload(String buff) implements CustomPayload {
     public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "anti_cheat_check");
     public static final Id<AntiCheatPayload> ID = new Id<>(HANDSHAKE_ID);
+    // Bound the buff to the server's MAX_BUFF_CHARS instead of the protocol default (32767).
     public static final PacketCodec<PacketByteBuf, AntiCheatPayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.STRING, AntiCheatPayload::buff,
+            PacketCodecs.string(net.nerdorg.minehop.networking.PacketHandler.MAX_BUFF_CHARS), AntiCheatPayload::buff,
             AntiCheatPayload::new);
 
     @Override

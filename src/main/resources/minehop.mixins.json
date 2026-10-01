@@ -5,7 +5,9 @@
 	"mixins": [
 		"EntityCollisionMixin",
 		"LivingEntityMixin",
-		"ServerPlayNetworkHandlerMixin"
+		"ServerCommonNetworkHandlerStreamMixin",
+		"ServerPlayNetworkHandlerMixin",
+		"ServerPlayNetworkHandlerStreamMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
