@@ -1,27 +1,29 @@
 package net.nerdorg.minehop.entity.client;
 
-import net.minecraft.client.render.Frustum;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.entity.EntityRendererFactory;
-import net.minecraft.client.render.entity.MobEntityRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.client.renderer.entity.MobRenderer;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.entity.custom.StartEntity;
+import net.nerdorg.minehop.render.ModRenderLayer;
 import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Vector3f;
 
-public class StartRenderer extends MobEntityRenderer<StartEntity, StartEntityRenderState, StartModel> {
-    private static final Identifier TEXTURE = Identifier.of(Minehop.MOD_ID, "textures/entity/zone.png");
+public class StartRenderer extends MobRenderer<StartEntity, StartEntityRenderState, StartModel> {
+    private static final Identifier TEXTURE = Identifier.fromNamespaceAndPath(Minehop.MOD_ID, "textures/entity/zone.png");
 
-    public StartRenderer(EntityRendererFactory.Context context) {
-        super(context, new StartModel(context.getPart(ModModelLayers.START_ENTITY)), 0.001f);
+    public StartRenderer(EntityRendererProvider.Context context) {
+        super(context, new StartModel(context.bakeLayer(ModModelLayers.START_ENTITY)), 0.001f);
     }
 
     @Override
-    public Identifier getTexture(StartEntityRenderState state) {
+    public Identifier getTextureLocation(StartEntityRenderState state) {
         return TEXTURE;
     }
 
@@ -36,28 +38,30 @@ public class StartRenderer extends MobEntityRenderer<StartEntity, StartEntityRen
     }
 
     @Override
-    public void updateRenderState(StartEntity startEntity, StartEntityRenderState state, float tickDelta) {
+    public void extractRenderState(StartEntity startEntity, StartEntityRenderState state, float tickDelta) {
+        // 1.21.9+: entity position/light are taken from the render state.
+        super.extractRenderState(startEntity, state, tickDelta);
         state.startEntity = startEntity;
     }
 
     @Override
-    public void render(StartEntityRenderState renderState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
+    public void submit(StartEntityRenderState renderState, PoseStack matrixStack, SubmitNodeCollector queue, CameraRenderState cameraState) {
         BlockPos corner1 = renderState.startEntity.getCorner1();
         BlockPos corner2 = renderState.startEntity.getCorner2();
         if (corner1 != null && corner2 != null) {
-            Vec3d corner1Offset = new Vec3d(corner1.getX(), corner1.getY(), corner1.getZ()).subtract(renderState.startEntity.getPos());
-            Vec3d corner2Offset = new Vec3d(corner2.getX(), corner2.getY(), corner2.getZ()).subtract(renderState.startEntity.getPos());
-            RenderUtil.drawCuboid(
-                    vertexConsumerProvider,
-                    matrixStack,
-                    new Vector3f((float) corner1Offset.getX(),
-                            (float) corner1Offset.getY(),
-                            (float) corner1Offset.getZ()),
-                    new Vector3f((float) corner2Offset.getX(),
-                            (float) corner2Offset.getY(),
-                            (float) corner2Offset.getZ()),
-                    1, 255, 0, 255, 0);
+            Vec3 corner1Offset = new Vec3(corner1.getX(), corner1.getY(), corner1.getZ()).subtract(renderState.startEntity.position());
+            Vec3 corner2Offset = new Vec3(corner2.getX(), corner2.getY(), corner2.getZ()).subtract(renderState.startEntity.position());
+            queue.submitCustomGeometry(matrixStack, ModRenderLayer.getLineOfWidth(1), (entry, consumer) -> RenderUtil.drawCuboid(
+                    consumer,
+                    entry,
+                    new Vector3f((float) corner1Offset.x(),
+                            (float) corner1Offset.y(),
+                            (float) corner1Offset.z()),
+                    new Vector3f((float) corner2Offset.x(),
+                            (float) corner2Offset.y(),
+                            (float) corner2Offset.z()),
+                    1, 255, 0, 255, 0));
         }
-        super.render(renderState, matrixStack, vertexConsumerProvider, i);
+        super.submit(renderState, matrixStack, queue, cameraState);
     }
 }

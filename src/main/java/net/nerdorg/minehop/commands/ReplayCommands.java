@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.LiteralMessage;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -8,15 +10,15 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.SpawnReason;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.ModEntities;
@@ -34,9 +36,9 @@ import java.util.Set;
 public class ReplayCommands {
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-                LiteralArgumentBuilder.<ServerCommandSource>literal("replay")
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("watch")
-                                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                LiteralArgumentBuilder.<CommandSourceStack>literal("replay")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("watch")
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                         .suggests((context, builder) -> {
                                             for (DataManager.MapData mapData : Minehop.mapList) {
                                                 if (mapData != null && mapData.name != null) {
@@ -49,7 +51,7 @@ public class ReplayCommands {
                                             handleWatchReplay(context, null);
                                             return Command.SINGLE_SUCCESS;
                                         })
-                                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player_name", StringArgumentType.string())
+                                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player_name", StringArgumentType.string())
                                                 .suggests((context, builder) -> {
                                                     String mapName = StringArgumentType.getString(context, "map_name");
                                                     Set<String> playerNames = collectReplayPlayerNames(mapName);
@@ -65,9 +67,9 @@ public class ReplayCommands {
                                         )
                                 )
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("remove")
-                                .requires(source -> source.hasPermissionLevel(4))
-                                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("remove")
+                                .requires(source -> PermissionUtil.hasLevel(source, 4))
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                         .suggests((context, builder) -> {
                                             for (DataManager.MapData mapData : Minehop.mapList) {
                                                 if (mapData != null && mapData.name != null) {
@@ -82,8 +84,8 @@ public class ReplayCommands {
                                         })
                                 )
                         )
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                                .requires(source -> source.hasPermissionLevel(4))
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
+                                .requires(source -> PermissionUtil.hasLevel(source, 4))
                                 .suggests((context, builder) -> {
                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                         if (mapData != null && mapData.name != null) {
@@ -100,8 +102,8 @@ public class ReplayCommands {
         ));
     }
 
-    private static void handleAddReplay(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity sender = context.getSource().getPlayer();
+    private static void handleAddReplay(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer sender = context.getSource().getPlayer();
         String mapName = StringArgumentType.getString(context, "map_name");
 
         ReplayManager.Replay replay = ReplayManager.getReplay(mapName);
@@ -116,7 +118,7 @@ public class ReplayCommands {
             return;
         }
 
-        ServerWorld foundWorld = resolveMapWorld(context.getSource(), mapData);
+        ServerLevel foundWorld = resolveMapWorld(context.getSource(), mapData);
         if (foundWorld == null) {
             Logger.logFailure(sender, "Could not resolve world for map " + mapName + ".");
             return;
@@ -126,7 +128,7 @@ public class ReplayCommands {
         ReplayEntity replayEntity = ModEntities.REPLAY_ENTITY.spawn(
                 foundWorld,
                 new BlockPos((int) mapData.x, (int) mapData.y, (int) mapData.z),
-                SpawnReason.NATURAL
+                EntitySpawnReason.NATURAL
         );
         if (replayEntity == null) {
             Logger.logFailure(sender, "Failed to spawn replay entity.");
@@ -136,8 +138,8 @@ public class ReplayCommands {
         Logger.logSuccess(sender, "Spawned WR replay entity for " + mapName + ".");
     }
 
-    private static void handleRemoveReplay(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity sender = context.getSource().getPlayer();
+    private static void handleRemoveReplay(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer sender = context.getSource().getPlayer();
         String mapName = StringArgumentType.getString(context, "map_name");
 
         DataManager.MapData mapData = DataManager.getMap(mapName);
@@ -146,7 +148,7 @@ public class ReplayCommands {
             return;
         }
 
-        ServerWorld foundWorld = resolveMapWorld(context.getSource(), mapData);
+        ServerLevel foundWorld = resolveMapWorld(context.getSource(), mapData);
         if (foundWorld == null) {
             Logger.logFailure(sender, "Could not resolve world for map " + mapName + ".");
             return;
@@ -160,8 +162,8 @@ public class ReplayCommands {
         Logger.logSuccess(sender, "Removed WR replay entity for " + mapName + ".");
     }
 
-    private static void handleWatchReplay(CommandContext<ServerCommandSource> context, String explicitTargetPlayer) throws CommandSyntaxException {
-        ServerPlayerEntity viewer = context.getSource().getPlayer();
+    private static void handleWatchReplay(CommandContext<CommandSourceStack> context, String explicitTargetPlayer) throws CommandSyntaxException {
+        ServerPlayer viewer = context.getSource().getPlayer();
         String requestedMapName = StringArgumentType.getString(context, "map_name");
         DataManager.MapData mapData = DataManager.getMap(requestedMapName);
         if (mapData == null) {
@@ -171,7 +173,7 @@ public class ReplayCommands {
         String mapName = mapData.name;
         String targetPlayer = explicitTargetPlayer;
         if (targetPlayer == null || targetPlayer.isBlank()) {
-            targetPlayer = viewer.getNameForScoreboard();
+            targetPlayer = viewer.getScoreboardName();
         }
 
         ReplayManager.Replay replay = ReplayManager.getReplay(mapName, targetPlayer);
@@ -180,7 +182,7 @@ public class ReplayCommands {
             return;
         }
 
-        ServerWorld foundWorld = resolveMapWorld(context.getSource(), mapData);
+        ServerLevel foundWorld = resolveMapWorld(context.getSource(), mapData);
         if (foundWorld == null) {
             Logger.logFailure(viewer, "Could not resolve world for map " + mapName + ".");
             return;
@@ -191,7 +193,7 @@ public class ReplayCommands {
             replayEntity = ModEntities.REPLAY_ENTITY.spawn(
                     foundWorld,
                     new BlockPos((int) mapData.x, (int) mapData.y, (int) mapData.z),
-                    SpawnReason.NATURAL
+                    EntitySpawnReason.NATURAL
             );
             if (replayEntity == null) {
                 Logger.logFailure(viewer, "Failed to spawn replay viewer entity.");
@@ -204,47 +206,47 @@ public class ReplayCommands {
         Logger.logSuccess(viewer, "Now watching " + targetPlayer + "'s fastest replay on " + mapName + " (" + String.format("%.5f", replay.time) + ").");
     }
 
-    private static void beginSpectatingReplay(ServerPlayerEntity viewer, ReplayEntity replayEntity) {
+    private static void beginSpectatingReplay(ServerPlayer viewer, ReplayEntity replayEntity) {
         if (viewer == null || replayEntity == null) {
             return;
         }
         removeViewerFromPreviousSpectate(viewer);
         PacketHandler.clearReplayPath(viewer);
-        viewer.setCameraEntity(viewer);
-        viewer.changeGameMode(GameMode.SPECTATOR);
+        viewer.setCamera(viewer);
+        viewer.setGameMode(GameType.SPECTATOR);
         if (!viewer.isCreative()) {
-            viewer.getInventory().clear();
+            viewer.getInventory().clearContent();
         }
-        viewer.teleportTo(ZoneUtil.makeTeleportTarget(
-                (ServerWorld) replayEntity.getWorld(),
-                new Vec3d(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ()),
-                replayEntity.getYaw(),
-                replayEntity.getPitch()
+        viewer.teleport(ZoneUtil.makeTeleportTarget(
+                (ServerLevel) replayEntity.level(),
+                new Vec3(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ()),
+                replayEntity.getYRot(),
+                replayEntity.getXRot()
         ));
-        viewer.setCameraEntity(replayEntity);
-        SpectateCommands.addSpectator(replayEntity.getNameForScoreboard(), viewer.getNameForScoreboard());
+        viewer.setCamera(replayEntity);
+        SpectateCommands.addSpectator(replayEntity.getScoreboardName(), viewer.getScoreboardName());
     }
 
-    private static void removeViewerFromPreviousSpectate(ServerPlayerEntity viewer) {
-        if (viewer == null || viewer.getCameraEntity() == null) {
+    private static void removeViewerFromPreviousSpectate(ServerPlayer viewer) {
+        if (viewer == null || viewer.getCamera() == null) {
             return;
         }
-        String oldTargetName = viewer.getCameraEntity().getNameForScoreboard();
+        String oldTargetName = viewer.getCamera().getScoreboardName();
         List<String> oldSpectators = SpectateCommands.spectatorList.get(oldTargetName);
         if (oldSpectators == null) {
             return;
         }
-        oldSpectators.remove(viewer.getNameForScoreboard());
+        oldSpectators.remove(viewer.getScoreboardName());
         if (oldSpectators.size() <= 1) {
             SpectateCommands.spectatorList.remove(oldTargetName);
         }
     }
 
-    private static ReplayEntity findReplayEntity(ServerWorld world, String mapName, String replayPlayerName) {
+    private static ReplayEntity findReplayEntity(ServerLevel world, String mapName, String replayPlayerName) {
         if (world == null || mapName == null || mapName.isBlank() || replayPlayerName == null || replayPlayerName.isBlank()) {
             return null;
         }
-        for (Entity entity : world.iterateEntities()) {
+        for (Entity entity : world.getAllEntities()) {
             if (!(entity instanceof ReplayEntity replayEntity)) {
                 continue;
             }
@@ -262,11 +264,11 @@ public class ReplayCommands {
         return null;
     }
 
-    private static ReplayEntity findWorldRecordReplayEntity(ServerWorld world, String mapName) {
+    private static ReplayEntity findWorldRecordReplayEntity(ServerLevel world, String mapName) {
         if (world == null || mapName == null || mapName.isBlank()) {
             return null;
         }
-        for (Entity entity : world.iterateEntities()) {
+        for (Entity entity : world.getAllEntities()) {
             if (!(entity instanceof ReplayEntity replayEntity)) {
                 continue;
             }
@@ -285,12 +287,12 @@ public class ReplayCommands {
         return null;
     }
 
-    private static int removeReplayEntities(ServerWorld world, String mapName, String replayPlayerName) {
+    private static int removeReplayEntities(ServerLevel world, String mapName, String replayPlayerName) {
         if (world == null || mapName == null || mapName.isBlank()) {
             return 0;
         }
         List<ReplayEntity> toRemove = new ArrayList<>();
-        for (Entity entity : world.iterateEntities()) {
+        for (Entity entity : world.getAllEntities()) {
             if (!(entity instanceof ReplayEntity replayEntity)) {
                 continue;
             }
@@ -303,7 +305,7 @@ public class ReplayCommands {
             toRemove.add(replayEntity);
         }
         for (ReplayEntity replayEntity : toRemove) {
-            SpectateCommands.spectatorList.remove(replayEntity.getNameForScoreboard());
+            SpectateCommands.spectatorList.remove(replayEntity.getScoreboardName());
             replayEntity.kill(world);
         }
         return toRemove.size();
@@ -318,9 +320,9 @@ public class ReplayCommands {
         if (server == null || mapName == null || mapName.isBlank()) {
             return spectators;
         }
-        for (ServerWorld world : server.getWorlds()) {
+        for (ServerLevel world : server.getAllLevels()) {
             List<ReplayEntity> toRemove = new ArrayList<>();
-            for (Entity entity : world.iterateEntities()) {
+            for (Entity entity : world.getAllEntities()) {
                 if (entity instanceof ReplayEntity replayEntity
                         && replayEntity.isAlive() && !replayEntity.isRemoved()
                         && mapName.equals(replayEntity.getMapName())
@@ -329,7 +331,7 @@ public class ReplayCommands {
                 }
             }
             for (ReplayEntity replayEntity : toRemove) {
-                List<String> watching = SpectateCommands.spectatorList.remove(replayEntity.getNameForScoreboard());
+                List<String> watching = SpectateCommands.spectatorList.remove(replayEntity.getScoreboardName());
                 if (watching != null) {
                     spectators.addAll(watching);
                 }
@@ -366,24 +368,24 @@ public class ReplayCommands {
         return playerNames;
     }
 
-    private static ServerWorld resolveMapWorld(ServerCommandSource source, DataManager.MapData mapData) {
+    private static ServerLevel resolveMapWorld(CommandSourceStack source, DataManager.MapData mapData) {
         if (source == null || mapData == null) {
             return null;
         }
         return resolveMapWorld(source.getServer(), mapData);
     }
 
-    private static ServerWorld resolveMapWorld(MinecraftServer server, DataManager.MapData mapData) {
+    private static ServerLevel resolveMapWorld(MinecraftServer server, DataManager.MapData mapData) {
         if (server == null || mapData == null) {
             return null;
         }
         String worldKey = mapData.worldKey;
-        for (ServerWorld serverWorld : server.getWorlds()) {
-            if (serverWorld.getRegistryKey().toString().equals(worldKey)) {
+        for (ServerLevel serverWorld : server.getAllLevels()) {
+            if (serverWorld.dimension().toString().equals(worldKey)) {
                 return serverWorld;
             }
         }
-        return server.getOverworld();
+        return server.overworld();
     }
 
     public static boolean ensureWorldRecordReplayEntity(MinecraftServer server, String mapName) {
@@ -400,7 +402,7 @@ public class ReplayCommands {
             return false;
         }
 
-        ServerWorld world = resolveMapWorld(server, mapData);
+        ServerLevel world = resolveMapWorld(server, mapData);
         if (world == null) {
             return false;
         }
@@ -414,7 +416,7 @@ public class ReplayCommands {
         ReplayEntity replayEntity = ModEntities.REPLAY_ENTITY.spawn(
                 world,
                 new BlockPos((int) mapData.x, (int) mapData.y, (int) mapData.z),
-                SpawnReason.NATURAL
+                EntitySpawnReason.NATURAL
         );
         if (replayEntity == null) {
             return false;

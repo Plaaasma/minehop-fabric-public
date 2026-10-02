@@ -1,12 +1,14 @@
 package net.nerdorg.minehop.screen;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.ClientPacketHandler;
@@ -21,11 +23,11 @@ public class ZoneStickSettingsScreen extends Screen {
     private final boolean initialPreserveSpeed;
     private final boolean initialResetToStart;
 
-    private TextFieldWidget mapNameField;
-    private TextFieldWidget checkpointIndexField;
-    private ButtonWidget applyBoundsButton;
-    private ButtonWidget preserveSpeedButton;
-    private ButtonWidget resetTargetButton;
+    private EditBox mapNameField;
+    private EditBox checkpointIndexField;
+    private Button applyBoundsButton;
+    private Button preserveSpeedButton;
+    private Button resetTargetButton;
     private boolean applyBounds;
     private boolean preserveSpeed;
     private boolean resetToStart;
@@ -38,7 +40,7 @@ public class ZoneStickSettingsScreen extends Screen {
             boolean preserveSpeed,
             boolean preserveSpeedEditable
     ) {
-        super(Text.translatable("screen.minehop.zone_stick_settings.title"));
+        super(Component.translatable("screen.minehop.zone_stick_settings.title"));
         this.zoneType = (zoneType == null || zoneType.isBlank()) ? "zone" : zoneType;
         this.initialMapName = mapName == null ? "" : mapName;
         this.initialCheckpointIndex = Math.max(0, checkpointIndex);
@@ -52,11 +54,11 @@ public class ZoneStickSettingsScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void extractBlurredBackground(GuiGraphicsExtractor context) {
     }
 
     @Override
-    public void blur() {
+    public void clearFocus() {
     }
 
     @Override
@@ -69,46 +71,46 @@ public class ZoneStickSettingsScreen extends Screen {
         int fieldX = panelX + 196;
         int fieldWidth = panelWidth - 212;
 
-        this.mapNameField = new TextFieldWidget(
-                this.textRenderer,
+        this.mapNameField = new EditBox(
+                this.font,
                 fieldX,
                 panelY + 52,
                 fieldWidth,
                 18,
-                Text.translatable("screen.minehop.zone_stick_settings.map_name")
+                Component.translatable("screen.minehop.zone_stick_settings.map_name")
         );
-        this.mapNameField.setText(this.initialMapName);
+        this.mapNameField.setValue(this.initialMapName);
         this.mapNameField.setMaxLength(128);
-        this.addDrawableChild(this.mapNameField);
+        this.addRenderableWidget(this.mapNameField);
 
-        this.resetTargetButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.toggleResetTarget())
-                        .dimensions(fieldX, panelY + 78, fieldWidth, 20)
+        this.resetTargetButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.toggleResetTarget())
+                        .bounds(fieldX, panelY + 78, fieldWidth, 20)
                         .build()
         );
         this.resetTargetButton.active = this.checkpointEditable;
 
-        this.checkpointIndexField = new TextFieldWidget(
-                this.textRenderer,
+        this.checkpointIndexField = new EditBox(
+                this.font,
                 fieldX,
                 panelY + 104,
                 fieldWidth,
                 18,
-                Text.translatable("screen.minehop.zone_stick_settings.checkpoint_index")
+                Component.translatable("screen.minehop.zone_stick_settings.checkpoint_index")
         );
-        this.checkpointIndexField.setText(Integer.toString(this.initialCheckpointIndex));
+        this.checkpointIndexField.setValue(Integer.toString(this.initialCheckpointIndex));
         this.checkpointIndexField.setMaxLength(6);
-        this.addDrawableChild(this.checkpointIndexField);
+        this.addRenderableWidget(this.checkpointIndexField);
 
-        this.applyBoundsButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.toggleApplyBounds())
-                        .dimensions(panelX + 16, panelY + 158, panelWidth - 32, 20)
+        this.applyBoundsButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.toggleApplyBounds())
+                        .bounds(panelX + 16, panelY + 158, panelWidth - 32, 20)
                         .build()
         );
 
-        this.preserveSpeedButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.togglePreserveSpeed())
-                        .dimensions(panelX + 16, panelY + 194, panelWidth - 32, 20)
+        this.preserveSpeedButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.togglePreserveSpeed())
+                        .bounds(panelX + 16, panelY + 194, panelWidth - 32, 20)
                         .build()
         );
         this.preserveSpeedButton.active = this.preserveSpeedEditable;
@@ -118,19 +120,19 @@ public class ZoneStickSettingsScreen extends Screen {
         int actionButtonsStartX = panelX + (panelWidth - (actionButtonWidth * 3 + actionButtonGap * 2)) / 2;
         int actionButtonsY = panelY + panelHeight - 24;
 
-        this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("gui.done"), button -> this.applyAndClose())
-                        .dimensions(actionButtonsStartX, actionButtonsY, actionButtonWidth, 20)
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("gui.done"), button -> this.applyAndClose())
+                        .bounds(actionButtonsStartX, actionButtonsY, actionButtonWidth, 20)
                         .build()
         );
-        this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("screen.minehop.zone_stick_settings.delete"), button -> this.deleteAndClose())
-                        .dimensions(actionButtonsStartX + actionButtonWidth + actionButtonGap, actionButtonsY, actionButtonWidth, 20)
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("screen.minehop.zone_stick_settings.delete"), button -> this.deleteAndClose())
+                        .bounds(actionButtonsStartX + actionButtonWidth + actionButtonGap, actionButtonsY, actionButtonWidth, 20)
                         .build()
         );
-        this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("gui.cancel"), button -> this.cancelAndClose())
-                        .dimensions(actionButtonsStartX + (actionButtonWidth + actionButtonGap) * 2, actionButtonsY, actionButtonWidth, 20)
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("gui.cancel"), button -> this.cancelAndClose())
+                        .bounds(actionButtonsStartX + (actionButtonWidth + actionButtonGap) * 2, actionButtonsY, actionButtonWidth, 20)
                         .build()
         );
 
@@ -141,13 +143,13 @@ public class ZoneStickSettingsScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        this.extractBackground(context, mouseX, mouseY, delta);
 
         int panelWidth = 360;
         int panelHeight = 338;
@@ -158,74 +160,74 @@ public class ZoneStickSettingsScreen extends Screen {
         int disabledColor = 0x808080;
 
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xD0101010);
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, 0xFFFFFF);
+        context.outline(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
+        context.centeredText(this.font, this.title, this.width / 2, panelY + 10, GuiColors.text(0xFFFFFF));
 
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.zone_stick_settings.zone_type"),
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.zone_stick_settings.zone_type"),
                 labelX,
                 panelY + 31,
-                0xE0E0E0
+                GuiColors.text(0xE0E0E0)
         );
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.literal(this.zoneType.toUpperCase()),
+        context.text(
+                this.font,
+                Component.literal(this.zoneType.toUpperCase()),
                 valueX,
                 panelY + 31,
-                0xFFFFFF
+                GuiColors.text(0xFFFFFF)
         );
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.zone_stick_settings.map_name"),
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.zone_stick_settings.map_name"),
                 labelX,
                 panelY + 56,
-                0xE0E0E0
+                GuiColors.text(0xE0E0E0)
         );
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.zone_stick_settings.reset_target"),
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.zone_stick_settings.reset_target"),
                 labelX,
                 panelY + 82,
-                this.checkpointEditable ? 0xE0E0E0 : disabledColor
+                GuiColors.text(this.checkpointEditable ? 0xE0E0E0 : disabledColor)
         );
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.zone_stick_settings.checkpoint_index"),
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.zone_stick_settings.checkpoint_index"),
                 labelX,
                 panelY + 108,
-                this.checkpointEditable && !this.resetToStart ? 0xE0E0E0 : disabledColor
+                GuiColors.text(this.checkpointEditable && !this.resetToStart ? 0xE0E0E0 : disabledColor)
         );
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.literal(this.getCheckpointCountHint()),
+        context.text(
+                this.font,
+                Component.literal(this.getCheckpointCountHint()),
                 labelX,
                 panelY + 126,
-                0xB0B0B0
+                GuiColors.text(0xB0B0B0)
         );
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.zone_stick_settings.apply_bounds"),
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.zone_stick_settings.apply_bounds"),
                 labelX,
                 panelY + 147,
-                0xE0E0E0
+                GuiColors.text(0xE0E0E0)
         );
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.zone_stick_settings.preserve_speed"),
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.zone_stick_settings.preserve_speed"),
                 labelX,
                 panelY + 183,
-                this.preserveSpeedEditable ? 0xE0E0E0 : disabledColor
+                GuiColors.text(this.preserveSpeedEditable ? 0xE0E0E0 : disabledColor)
         );
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.zone_stick_settings.help"),
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.zone_stick_settings.help"),
                 labelX,
                 panelY + 228,
-                0xC8C8C8
+                GuiColors.text(0xC8C8C8)
         );
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     private void toggleApplyBounds() {
@@ -239,8 +241,8 @@ public class ZoneStickSettingsScreen extends Screen {
         }
         this.applyBoundsButton.setMessage(
                 this.applyBounds
-                        ? Text.translatable("screen.minehop.zone_stick_settings.toggle.on")
-                        : Text.translatable("screen.minehop.zone_stick_settings.toggle.off")
+                        ? Component.translatable("screen.minehop.zone_stick_settings.toggle.on")
+                        : Component.translatable("screen.minehop.zone_stick_settings.toggle.off")
         );
     }
 
@@ -258,13 +260,13 @@ public class ZoneStickSettingsScreen extends Screen {
             return;
         }
         if (!this.checkpointEditable) {
-            this.resetTargetButton.setMessage(Text.literal("-"));
+            this.resetTargetButton.setMessage(Component.literal("-"));
             return;
         }
         this.resetTargetButton.setMessage(
                 this.resetToStart
-                        ? Text.translatable("screen.minehop.zone_stick_settings.reset_target.start")
-                        : Text.translatable("screen.minehop.zone_stick_settings.reset_target.checkpoint")
+                        ? Component.translatable("screen.minehop.zone_stick_settings.reset_target.start")
+                        : Component.translatable("screen.minehop.zone_stick_settings.reset_target.checkpoint")
         );
     }
 
@@ -276,23 +278,23 @@ public class ZoneStickSettingsScreen extends Screen {
         this.checkpointIndexField.active = active;
         this.checkpointIndexField.setEditable(active);
         if (active) {
-            String raw = this.checkpointIndexField.getText();
+            String raw = this.checkpointIndexField.getValue();
             if (raw == null || raw.isBlank() || "0".equals(raw.trim())) {
-                this.checkpointIndexField.setText("1");
+                this.checkpointIndexField.setValue("1");
             }
         }
     }
 
     private String getCheckpointCountHint() {
         int count = this.resolveCheckpointCount();
-        return Text.translatable("screen.minehop.zone_stick_settings.checkpoint_count", count).getString();
+        return Component.translatable("screen.minehop.zone_stick_settings.checkpoint_count", count).getString();
     }
 
     private int resolveCheckpointCount() {
         if (this.mapNameField == null) {
             return 0;
         }
-        String mapName = this.mapNameField.getText();
+        String mapName = this.mapNameField.getValue();
         if (mapName == null || mapName.isBlank()) {
             return 0;
         }
@@ -324,34 +326,34 @@ public class ZoneStickSettingsScreen extends Screen {
             return;
         }
         if (!this.preserveSpeedEditable) {
-            this.preserveSpeedButton.setMessage(Text.literal("-"));
+            this.preserveSpeedButton.setMessage(Component.literal("-"));
             return;
         }
         this.preserveSpeedButton.setMessage(
                 this.preserveSpeed
-                        ? Text.translatable("screen.minehop.zone_stick_settings.toggle.on")
-                        : Text.translatable("screen.minehop.zone_stick_settings.toggle.off")
+                        ? Component.translatable("screen.minehop.zone_stick_settings.toggle.on")
+                        : Component.translatable("screen.minehop.zone_stick_settings.toggle.off")
         );
     }
 
     private void applyAndClose() {
         ClientPacketHandler.sendZoneStickSettings(
-                this.mapNameField == null ? "" : this.mapNameField.getText(),
+                this.mapNameField == null ? "" : this.mapNameField.getValue(),
                 this.parseCheckpointIndex(),
                 this.applyBounds,
                 this.preserveSpeedEditable ? this.preserveSpeed : this.initialPreserveSpeed
         );
-        this.close();
+        this.onClose();
     }
 
     private void deleteAndClose() {
         ClientPacketHandler.sendZoneStickDelete();
-        this.close();
+        this.onClose();
     }
 
     private void cancelAndClose() {
         ClientPacketHandler.sendZoneStickCancel();
-        this.close();
+        this.onClose();
     }
 
     private int parseCheckpointIndex() {
@@ -361,7 +363,7 @@ public class ZoneStickSettingsScreen extends Screen {
         if (this.checkpointIndexField == null) {
             return Math.max(1, this.initialCheckpointIndex);
         }
-        String raw = this.checkpointIndexField.getText();
+        String raw = this.checkpointIndexField.getValue();
         if (raw == null || raw.isBlank()) {
             return Math.max(1, this.initialCheckpointIndex);
         }

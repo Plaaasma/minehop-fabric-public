@@ -5,14 +5,13 @@ import com.google.gson.GsonBuilder;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.ReplayCommands;
 import net.nerdorg.minehop.commands.SpectateCommands;
@@ -53,34 +52,34 @@ public class PacketHandler {
 
     private static void registerS2C() {
         // server to client
-        PayloadTypeRegistry.playS2C().register(AntiCheatPayload.ID, AntiCheatPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(BoundsStickSelectionPayload.ID, BoundsStickSelectionPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(ConfigSyncPayload.ID, ConfigSyncPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(CSpecEfficiencyPayload.ID, CSpecEfficiencyPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(HandshakeIDPayload.ID, HandshakeIDPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(MapFinishPayload.ID, MapFinishPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenMapCreatorScreenPayload.ID, OpenMapCreatorScreenPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenMapScreenPayload.ID, OpenMapScreenPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OtherVTogglePayload.ID, OtherVTogglePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(ResetVelocityCarryPayload.ID, ResetVelocityCarryPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(ReplayVTogglePayload.ID, ReplayVTogglePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(ReplayPathPayload.ID, ReplayPathPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(RunTimerHudPayload.ID, RunTimerHudPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SelfVTogglePayload.ID, SelfVTogglePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendEfficiencyPayload.ID, SendEfficiencyPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendMapPayload.ID, SendMapPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendPersonalRecordPayload.ID, SendPersonalRecordPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendRecordPayload.ID, SendRecordPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendSpectatorsPayload.ID, SendSpectatorsPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendTimePayload.ID, SendTimePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SetCheaterPayload.ID, SetCheaterPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SSpecEfficiencyPayload.ID, SSpecEfficiencyPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenSurfStickSettingsPayload.ID, OpenSurfStickSettingsPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenZoneStickSettingsPayload.ID, OpenZoneStickSettingsPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SurfStickPreviewPayload.ID, SurfStickPreviewPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(UpdatePowerPayload.ID, UpdatePowerPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(ZoneSyncIDPayload.ID, ZoneSyncIDPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenAntiCheatScreenPayload.ID, OpenAntiCheatScreenPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(AntiCheatPayload.ID, AntiCheatPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(BoundsStickSelectionPayload.ID, BoundsStickSelectionPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ConfigSyncPayload.ID, ConfigSyncPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(CSpecEfficiencyPayload.ID, CSpecEfficiencyPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(HandshakeIDPayload.ID, HandshakeIDPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(MapFinishPayload.ID, MapFinishPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(OpenMapCreatorScreenPayload.ID, OpenMapCreatorScreenPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(OpenMapScreenPayload.ID, OpenMapScreenPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(OtherVTogglePayload.ID, OtherVTogglePayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ResetVelocityCarryPayload.ID, ResetVelocityCarryPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ReplayVTogglePayload.ID, ReplayVTogglePayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ReplayPathPayload.ID, ReplayPathPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(RunTimerHudPayload.ID, RunTimerHudPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SelfVTogglePayload.ID, SelfVTogglePayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SendEfficiencyPayload.ID, SendEfficiencyPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SendMapPayload.ID, SendMapPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SendPersonalRecordPayload.ID, SendPersonalRecordPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SendRecordPayload.ID, SendRecordPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SendSpectatorsPayload.ID, SendSpectatorsPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SendTimePayload.ID, SendTimePayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SetCheaterPayload.ID, SetCheaterPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SSpecEfficiencyPayload.ID, SSpecEfficiencyPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(OpenSurfStickSettingsPayload.ID, OpenSurfStickSettingsPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(OpenZoneStickSettingsPayload.ID, OpenZoneStickSettingsPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SurfStickPreviewPayload.ID, SurfStickPreviewPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(UpdatePowerPayload.ID, UpdatePowerPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ZoneSyncIDPayload.ID, ZoneSyncIDPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(OpenAntiCheatScreenPayload.ID, OpenAntiCheatScreenPayload.CODEC);
     }
 
     private static void registerC2S() {
@@ -88,22 +87,22 @@ public class PacketHandler {
         // previously also registered C2S, so a malicious client could send those (some with
         // unbounded strings) and have netty decode then drop them. Keep this list = what the client
         // genuinely sends (see ClientPacketHandler / AntiCheatScreen).
-        PayloadTypeRegistry.playC2S().register(AntiCheatPayload.ID, AntiCheatPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(HandshakeIDPayload.ID, HandshakeIDPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(MapCreatorActionPayload.ID, MapCreatorActionPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(MapFinishPayload.ID, MapFinishPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SendTimePayload.ID, SendTimePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SSpecEfficiencyPayload.ID, SSpecEfficiencyPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SurfStickCancelPayload.ID, SurfStickCancelPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SurfStickDeletePayload.ID, SurfStickDeletePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SurfStickSettingsPayload.ID, SurfStickSettingsPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ZoneStickCancelPayload.ID, ZoneStickCancelPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ZoneStickDeletePayload.ID, ZoneStickDeletePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ZoneStickSettingsPayload.ID, ZoneStickSettingsPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(AntiCheatActionPayload.ID, AntiCheatActionPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(AntiCheatPayload.ID, AntiCheatPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(HandshakeIDPayload.ID, HandshakeIDPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(MapCreatorActionPayload.ID, MapCreatorActionPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(MapFinishPayload.ID, MapFinishPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SendTimePayload.ID, SendTimePayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SSpecEfficiencyPayload.ID, SSpecEfficiencyPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SurfStickCancelPayload.ID, SurfStickCancelPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SurfStickDeletePayload.ID, SurfStickDeletePayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SurfStickSettingsPayload.ID, SurfStickSettingsPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ZoneStickCancelPayload.ID, ZoneStickCancelPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ZoneStickDeletePayload.ID, ZoneStickDeletePayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ZoneStickSettingsPayload.ID, ZoneStickSettingsPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(AntiCheatActionPayload.ID, AntiCheatActionPayload.CODEC);
     }
 
-    public static void sendConfigToClient(ServerPlayerEntity player, MinehopConfig config) {
+    public static void sendConfigToClient(ServerPlayer player, MinehopConfig config) {
         MinehopConfig effectiveConfig = ConfigWrapper.getEffectiveConfig(player);
         DataManager.MapData currentMap = ConfigWrapper.resolveEffectiveMap(player);
         ServerPlayNetworking.send(player,  new ConfigSyncPayload(
@@ -126,7 +125,7 @@ public class PacketHandler {
             effectiveConfig.movement.disable_sprint
         ));
     }
-    public static void updateZone(ServerPlayerEntity player, int entityId, BlockPos pos1, BlockPos pos2, String name, int check_index) {
+    public static void updateZone(ServerPlayer player, int entityId, BlockPos pos1, BlockPos pos2, String name, int check_index) {
         ServerPlayNetworking.send(player,  new ZoneSyncIDPayload(
                 entityId,
                 new Vector3f(pos1.getX(), pos1.getY(), pos1.getZ()),
@@ -136,11 +135,11 @@ public class PacketHandler {
         ));
     }
 
-    public static void sendSelfVToggle(ServerPlayerEntity player) {
+    public static void sendSelfVToggle(ServerPlayer player) {
         ServerPlayNetworking.send(player, new SelfVTogglePayload(true));
     }
 
-    public static void sendBoundsStickSelection(ServerPlayerEntity player, BlockPos first, BlockPos second) {
+    public static void sendBoundsStickSelection(ServerPlayer player, BlockPos first, BlockPos second) {
         if (player == null) {
             return;
         }
@@ -148,29 +147,29 @@ public class PacketHandler {
                 player,
                 new BoundsStickSelectionPayload(
                         first != null,
-                        first == null ? BlockPos.ORIGIN : first,
+                        first == null ? BlockPos.ZERO : first,
                         second != null,
-                        second == null ? BlockPos.ORIGIN : second
+                        second == null ? BlockPos.ZERO : second
                 )
         );
     }
 
-    public static void sendOtherVToggle(ServerPlayerEntity player) {
+    public static void sendOtherVToggle(ServerPlayer player) {
         ServerPlayNetworking.send(player,  new OtherVTogglePayload(true));
     }
 
-    public static void sendReplayVToggle(ServerPlayerEntity player) {
+    public static void sendReplayVToggle(ServerPlayer player) {
         ServerPlayNetworking.send(player,  new ReplayVTogglePayload(true));
     }
 
-    public static void clearReplayPath(ServerPlayerEntity player) {
+    public static void clearReplayPath(ServerPlayer player) {
         if (player == null) {
             return;
         }
         ServerPlayNetworking.send(player, new ReplayPathPayload(true, List.of()));
     }
 
-    public static int sendReplayPath(ServerPlayerEntity player, List<ReplayManager.ReplayEntry> entries) {
+    public static int sendReplayPath(ServerPlayer player, List<ReplayManager.ReplayEntry> entries) {
         if (player == null || entries == null || entries.size() < 2) {
             clearReplayPath(player);
             return 0;
@@ -202,18 +201,18 @@ public class PacketHandler {
         return sent;
     }
 
-    public static void sendEfficiency(ServerPlayerEntity player, double efficiency) {
+    public static void sendEfficiency(ServerPlayer player, double efficiency) {
         ServerPlayNetworking.send(player,  new SendEfficiencyPayload(efficiency));
     }
 
-    public static void sendSpectators(ServerPlayerEntity player) {
-        if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
-            List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
+    public static void sendSpectators(ServerPlayer player) {
+        if (SpectateCommands.spectatorList.containsKey(player.getScoreboardName())) {
+            List<String> spectators = SpectateCommands.spectatorList.get(player.getScoreboardName());
             if (spectators.size() > 1) {
                 String buff = "";
                 buff += (spectators.size() - 1);
                 for (String spectator : spectators) {
-                    if (!spectator.equals(player.getNameForScoreboard())) {
+                    if (!spectator.equals(player.getScoreboardName())) {
                         buff += ("~" + spectator);
                     }
                 }
@@ -235,15 +234,15 @@ public class PacketHandler {
         return null;
     }
 
-    private static boolean isInsideZoneBounds(Vec3d playerPos, BlockPos corner1, BlockPos corner2) {
-        Box box = getZoneBoundsBox(corner1, corner2);
+    private static boolean isInsideZoneBounds(Vec3 playerPos, BlockPos corner1, BlockPos corner2) {
+        AABB box = getZoneBoundsBox(corner1, corner2);
         if (playerPos == null || box == null) {
             return false;
         }
         return box.contains(playerPos);
     }
 
-    private static Box getZoneBoundsBox(BlockPos corner1, BlockPos corner2) {
+    private static AABB getZoneBoundsBox(BlockPos corner1, BlockPos corner2) {
         if (corner1 == null || corner2 == null) {
             return null;
         }
@@ -262,21 +261,21 @@ public class PacketHandler {
         if (maxZ <= minZ) {
             maxZ = minZ + 1.0D;
         }
-        return new Box(minX, minY, minZ, maxX, maxY, maxZ);
+        return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
-    private static boolean isPlayerInsideMatchingEndZone(ServerPlayerEntity player, String mapName) {
+    private static boolean isPlayerInsideMatchingEndZone(ServerPlayer player, String mapName) {
         if (player == null || mapName == null || mapName.isBlank()) {
             return false;
         }
-        return isPositionInsideMatchingEndZone(player, mapName, player.getPos());
+        return isPositionInsideMatchingEndZone(player, mapName, player.position());
     }
 
-    private static boolean isPositionInsideMatchingEndZone(ServerPlayerEntity player, String mapName, Vec3d pos) {
+    private static boolean isPositionInsideMatchingEndZone(ServerPlayer player, String mapName, Vec3 pos) {
         if (player == null || mapName == null || mapName.isBlank() || pos == null) {
             return false;
         }
-        for (net.minecraft.entity.Entity entity : player.getServerWorld().iterateEntities()) {
+        for (net.minecraft.world.entity.Entity entity : player.level().getAllEntities()) {
             if (!(entity instanceof EndEntity endEntity)) {
                 continue;
             }
@@ -290,20 +289,20 @@ public class PacketHandler {
         return false;
     }
 
-    private static boolean didServerMovementIntersectMatchingEndZone(ServerPlayerEntity player, String mapName) {
+    private static boolean didServerMovementIntersectMatchingEndZone(ServerPlayer player, String mapName) {
         if (player == null || mapName == null || mapName.isBlank()) {
             return false;
         }
-        Vec3d previousPos = new Vec3d(player.prevX, player.prevY, player.prevZ);
-        Vec3d currentPos = player.getPos();
-        for (net.minecraft.entity.Entity entity : player.getServerWorld().iterateEntities()) {
+        Vec3 previousPos = new Vec3(player.xo, player.yo, player.zo);
+        Vec3 currentPos = player.position();
+        for (net.minecraft.world.entity.Entity entity : player.level().getAllEntities()) {
             if (!(entity instanceof EndEntity endEntity)) {
                 continue;
             }
             if (!mapName.equals(endEntity.getPairedMap())) {
                 continue;
             }
-            Box box = getZoneBoundsBox(endEntity.getCorner1(), endEntity.getCorner2());
+            AABB box = getZoneBoundsBox(endEntity.getCorner1(), endEntity.getCorner2());
             if (box != null && segmentIntersectsBox(box, previousPos, currentPos)) {
                 return true;
             }
@@ -311,37 +310,37 @@ public class PacketHandler {
         return false;
     }
 
-    private static boolean isPlausibleClientFinishPosition(ServerPlayerEntity player, Vec3d clientFinishPos) {
+    private static boolean isPlausibleClientFinishPosition(ServerPlayer player, Vec3 clientFinishPos) {
         if (player == null || clientFinishPos == null) {
             return false;
         }
         if (!Double.isFinite(clientFinishPos.x) || !Double.isFinite(clientFinishPos.y) || !Double.isFinite(clientFinishPos.z)) {
             return false;
         }
-        Vec3d serverPos = player.getPos();
-        Vec3d previousPos = new Vec3d(player.prevX, player.prevY, player.prevZ);
+        Vec3 serverPos = player.position();
+        Vec3 previousPos = new Vec3(player.xo, player.yo, player.zo);
         double allowedDistance = allowedClientFinishDistance(player);
         double allowedDistanceSq = allowedDistance * allowedDistance;
-        return clientFinishPos.squaredDistanceTo(serverPos) <= allowedDistanceSq
-                || clientFinishPos.squaredDistanceTo(previousPos) <= allowedDistanceSq;
+        return clientFinishPos.distanceToSqr(serverPos) <= allowedDistanceSq
+                || clientFinishPos.distanceToSqr(previousPos) <= allowedDistanceSq;
     }
 
-    private static double allowedClientFinishDistance(ServerPlayerEntity player) {
-        int latencyMs = player == null || player.networkHandler == null ? 0 : Math.max(0, player.networkHandler.getLatency());
+    private static double allowedClientFinishDistance(ServerPlayer player) {
+        int latencyMs = player == null || player.connection == null ? 0 : Math.max(0, player.connection.latency());
         double latencyTicks = Math.min(20.0D, (latencyMs / 50.0D) + 3.0D);
-        Vec3d velocity = player == null ? Vec3d.ZERO : player.getVelocity();
+        Vec3 velocity = player == null ? Vec3.ZERO : player.getDeltaMovement();
         double speedPerTick = velocity == null ? 0.0D : Math.sqrt((velocity.x * velocity.x) + (velocity.y * velocity.y) + (velocity.z * velocity.z));
         if (!Double.isFinite(speedPerTick)) {
             speedPerTick = 0.0D;
         }
-        return MathHelper.clamp(Math.max(2.0D, speedPerTick * latencyTicks) + 2.0D, 2.0D, 64.0D);
+        return Mth.clamp(Math.max(2.0D, speedPerTick * latencyTicks) + 2.0D, 2.0D, 64.0D);
     }
 
-    private static boolean segmentIntersectsBox(Box box, Vec3d start, Vec3d end) {
+    private static boolean segmentIntersectsBox(AABB box, Vec3 start, Vec3 end) {
         return Double.isFinite(segmentEntryFraction(box, start, end));
     }
 
-    private static double segmentEntryFraction(Box box, Vec3d start, Vec3d end) {
+    private static double segmentEntryFraction(AABB box, Vec3 start, Vec3 end) {
         if (box == null || start == null || end == null) {
             return Double.NaN;
         }
@@ -380,12 +379,12 @@ public class PacketHandler {
         return tMin >= 0.0D && tMin <= 1.0D ? tMin : Double.NaN;
     }
 
-    private static boolean isValidClientFinishAtMatchingEndZone(ServerPlayerEntity player, String mapName, Vec3d clientFinishPos) {
+    private static boolean isValidClientFinishAtMatchingEndZone(ServerPlayer player, String mapName, Vec3 clientFinishPos) {
         return isPositionInsideMatchingEndZone(player, mapName, clientFinishPos)
                 && isPlausibleClientFinishPosition(player, clientFinishPos);
     }
 
-    private static void clearRunTimerHudForRunnerAndSpectators(ServerPlayerEntity runner, MinecraftServer server) {
+    private static void clearRunTimerHudForRunnerAndSpectators(ServerPlayer runner, MinecraftServer server) {
         if (runner == null) {
             return;
         }
@@ -393,24 +392,24 @@ public class PacketHandler {
         if (server == null) {
             return;
         }
-        List<String> spectators = SpectateCommands.spectatorList.get(runner.getNameForScoreboard());
+        List<String> spectators = SpectateCommands.spectatorList.get(runner.getScoreboardName());
         if (spectators == null || spectators.isEmpty()) {
             return;
         }
         for (String spectatorName : spectators) {
-            if (spectatorName == null || spectatorName.equals(runner.getNameForScoreboard())) {
+            if (spectatorName == null || spectatorName.equals(runner.getScoreboardName())) {
                 continue;
             }
-            ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
+            ServerPlayer spectatorPlayer = server.getPlayerList().getPlayerByName(spectatorName);
             clearRunTimerHud(spectatorPlayer);
         }
     }
 
-    private static void clearFinishedRunState(ServerPlayerEntity player, MinecraftServer server) {
+    private static void clearFinishedRunState(ServerPlayer player, MinecraftServer server) {
         if (player == null) {
             return;
         }
-        String playerName = player.getNameForScoreboard();
+        String playerName = player.getScoreboardName();
         Minehop.timerManager.remove(playerName);
         Minehop.finishTimeManager.remove(playerName);
         Minehop.runSignatureManager.remove(playerName);
@@ -420,7 +419,7 @@ public class PacketHandler {
         clearRunTimerHudForRunnerAndSpectators(player, server);
     }
 
-    private static void handleMapCompletion(ServerPlayerEntity player, MinecraftServer server, String mapName, double time, Vec3d clientFinishPos) {
+    private static void handleMapCompletion(ServerPlayer player, MinecraftServer server, String mapName, double time, Vec3 clientFinishPos) {
         if (player == null || server == null) {
             return;
         }
@@ -433,7 +432,7 @@ public class PacketHandler {
             clearFinishedRunState(player, server);
             return;
         }
-        HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
+        HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getScoreboardName());
         if (timerMap == null || timerMap.isEmpty()) {
             clearFinishedRunState(player, server);
             return;
@@ -445,12 +444,12 @@ public class PacketHandler {
             return;
         }
         if (mapName != null && !mapName.isBlank() && !activeMapName.equals(mapName)) {
-            Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " due to map mismatch (" + mapName + " vs " + activeMapName + ").");
+            Logger.logServer(server, "Rejected map finish from " + player.getScoreboardName() + " due to map mismatch (" + mapName + " vs " + activeMapName + ").");
             clearFinishedRunState(player, server);
             return;
         }
         if (DataManager.getMap(activeMapName) == null) {
-            Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " because active map " + activeMapName + " no longer exists.");
+            Logger.logServer(server, "Rejected map finish from " + player.getScoreboardName() + " because active map " + activeMapName + " no longer exists.");
             clearFinishedRunState(player, server);
             return;
         }
@@ -460,7 +459,7 @@ public class PacketHandler {
             return;
         }
         if (!Double.isFinite(time) || time <= 0.0D) {
-            Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " due to invalid time value.");
+            Logger.logServer(server, "Rejected map finish from " + player.getScoreboardName() + " due to invalid time value.");
             clearFinishedRunState(player, server);
             return;
         }
@@ -468,14 +467,14 @@ public class PacketHandler {
         // if that stamp exists OR the player is still inside the zone now — a fast bhop/surf finish
         // can carry the player THROUGH the thin end zone before this packet is processed, which made
         // the "currently inside" check falsely reject legit runs.
-        HashMap<String, Long> finishMap = Minehop.finishTimeManager.get(player.getNameForScoreboard());
+        HashMap<String, Long> finishMap = Minehop.finishTimeManager.get(player.getScoreboardName());
         Long finishStamp = finishMap == null ? null : finishMap.get(activeMapName);
         boolean validFinishPosition = finishStamp != null
                 || isPlayerInsideMatchingEndZone(player, activeMapName)
                 || didServerMovementIntersectMatchingEndZone(player, activeMapName)
                 || isValidClientFinishAtMatchingEndZone(player, activeMapName, clientFinishPos);
         if (!validFinishPosition) {
-            Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " because they were not inside an end zone for " + activeMapName + ".");
+            Logger.logServer(server, "Rejected map finish from " + player.getScoreboardName() + " because they were not inside an end zone for " + activeMapName + ".");
             clearFinishedRunState(player, server);
             return;
         }
@@ -496,7 +495,7 @@ public class PacketHandler {
                     ? TIMER_VALIDATION_TOLERANCE_SECONDS
                     : TIMER_VALIDATION_TOLERANCE_SECONDS + 0.25D;
             if (!Double.isFinite(serverSpan) || serverSpan <= 0.0D || Math.abs(time - serverSpan) > tolerance) {
-                Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard()
+                Logger.logServer(server, "Rejected map finish from " + player.getScoreboardName()
                         + " on " + activeMapName + ": client time " + String.format("%.5f", time)
                         + "s diverges from server-measured " + String.format("%.5f", serverSpan)
                         + "s (tolerance " + String.format("%.2f", tolerance) + "s).");
@@ -506,16 +505,16 @@ public class PacketHandler {
             // The run can't contain more client ticks than the real time it took allows. Catches a
             // timer cheat that banked lag credit before launch and spent it during the run (the
             // timer check alone can't see that, and the client simply reports the server span).
-            Long startTicks = Minehop.runStartClientTicks.get(player.getNameForScoreboard());
+            Long startTicks = Minehop.runStartClientTicks.get(player.getScoreboardName());
             Long endTicks = haveServerFinish
-                    ? Minehop.runFinishClientTicks.get(player.getNameForScoreboard())
+                    ? Minehop.runFinishClientTicks.get(player.getScoreboardName())
                     : Long.valueOf(net.nerdorg.minehop.anticheat.stream.MovementValidator.clientTicks(player));
             if (startTicks != null && endTicks != null && startTicks >= 0L && endTicks >= startTicks) {
-                double secondsPerTick = server.getTickManager().getMillisPerTick() / 1000.0D;
+                double secondsPerTick = server.tickRateManager().millisecondsPerTick() / 1000.0D;
                 long runTicks = endTicks - startTicks;
                 double maxTicks = (serverSpan + tolerance) / secondsPerTick + 2.0D;
                 if (runTicks > maxTicks) {
-                    Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard()
+                    Logger.logServer(server, "Rejected map finish from " + player.getScoreboardName()
                             + " on " + activeMapName + ": " + runTicks + " client ticks in "
                             + String.format("%.3f", serverSpan) + "s of real time (max "
                             + String.format("%.0f", maxTicks) + ") — client ran faster than real time.");
@@ -529,11 +528,11 @@ public class PacketHandler {
         }
 
         // L6: reject if the map's physics/geometry changed (or it was edited) after this run started.
-        Long runSignature = Minehop.runSignatureManager.get(player.getNameForScoreboard());
+        Long runSignature = Minehop.runSignatureManager.get(player.getScoreboardName());
         if (runSignature != null) {
             long currentSignature = DataManager.computeRunSignature(DataManager.getMap(activeMapName));
             if (currentSignature != runSignature) {
-                Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard()
+                Logger.logServer(server, "Rejected map finish from " + player.getScoreboardName()
                         + " on " + activeMapName + ": map was modified mid-run.");
                 clearFinishedRunState(player, server);
                 return;
@@ -541,8 +540,8 @@ public class PacketHandler {
         }
 
         String formattedNumber = String.format("%.5f", time);
-        String playerName = player.getNameForScoreboard();
-        String playerUuid = player.getUuidAsString();
+        String playerName = player.getScoreboardName();
+        String playerUuid = player.getStringUUID();
         // Evidence for later review: anticheat flags raised during this run travel with its replay,
         // PB and WR rows (see /map manage history and /map manage flagged).
         String acFlags = net.nerdorg.minehop.anticheat.AntiCheatManager.runFlagSummary(player);
@@ -559,7 +558,7 @@ public class PacketHandler {
                     ReplayManager.copyReplayEntries(replayEntries)
             );
             replay.ac_flags = acFlags;
-            ReplayManager.saveReplay(player.getServerWorld(), replay);
+            ReplayManager.saveReplay(player.level(), replay);
         }
 
         DataManager.RecordData existingPersonalRecord = DataManager.getPersonalRecord(playerName, playerUuid, activeMapName);
@@ -632,10 +631,10 @@ public class PacketHandler {
         // one batch. Each save is atomic (JsonStorage), and the in-memory lists remain the consistent
         // source of truth, so a single failed write self-heals on the next autosave/shutdown.
         if (isNewPersonalRecord) {
-            DataManager.saveData(player.getServerWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
+            DataManager.saveData(player.level(), DataManager.pbListLocation, Minehop.personalRecordList);
         }
         if (newWorldRecord) {
-            DataManager.saveData(player.getServerWorld(), DataManager.recordsListLocation, Minehop.recordList);
+            DataManager.saveData(player.level(), DataManager.recordsListLocation, Minehop.recordList);
         }
 
         Logger.logSuccess(player, "Completed " + activeMapName + " in " + formattedNumber + " seconds.");
@@ -651,31 +650,31 @@ public class PacketHandler {
     }
 
     private static void runConsoleCommand(MinecraftServer server, String command) {
-        server.getCommandManager().execute(
-                server.getCommandManager().getDispatcher().parse(command, server.getCommandSource()),
+        server.getCommands().performCommand(
+                server.getCommands().getDispatcher().parse(command, server.createCommandSourceStack()),
                 command
         );
     }
 
-    public static void sendSpecEfficiency(ServerPlayerEntity player, double last_jump_speed, int jump_count, double last_efficiency) {
+    public static void sendSpecEfficiency(ServerPlayer player, double last_jump_speed, int jump_count, double last_efficiency) {
         ServerPlayNetworking.send(player,  new CSpecEfficiencyPayload(last_jump_speed, jump_count, last_efficiency));
     }
 
-    public static void sendRunTimerHud(ServerPlayerEntity player, float time, float personalBest) {
+    public static void sendRunTimerHud(ServerPlayer player, float time, float personalBest) {
         if (player == null) {
             return;
         }
         ServerPlayNetworking.send(player, new RunTimerHudPayload(true, time, personalBest));
     }
 
-    public static void clearRunTimerHud(ServerPlayerEntity player) {
+    public static void clearRunTimerHud(ServerPlayer player) {
         if (player == null) {
             return;
         }
         ServerPlayNetworking.send(player, new RunTimerHudPayload(false, 0.0F, 0.0F));
     }
 
-    public static void sendResetVelocityCarry(ServerPlayerEntity player, Vec3d velocity, int ticks) {
+    public static void sendResetVelocityCarry(ServerPlayer player, Vec3 velocity, int ticks) {
         if (player == null || velocity == null || ticks <= 0) {
             return;
         }
@@ -693,12 +692,12 @@ public class PacketHandler {
         );
     }
 
-    public static void sendOpenMapScreen(ServerPlayerEntity player, String title) {
+    public static void sendOpenMapScreen(ServerPlayer player, String title) {
         ServerPlayNetworking.send(player,  new OpenMapScreenPayload(title));
     }
 
     public static void sendOpenMapCreatorScreen(
-            ServerPlayerEntity player,
+            ServerPlayer player,
             String mapName,
             int difficulty,
             boolean arena,
@@ -751,7 +750,7 @@ public class PacketHandler {
         );
     }
 
-    public static void sendMaps(ServerPlayerEntity player) {
+    public static void sendMaps(ServerPlayer player) {
         ServerPlayNetworking.send(player, new SendMapPayload("#RESET"));
 
         for (DataManager.MapData mapData : Minehop.mapList) {
@@ -819,7 +818,7 @@ public class PacketHandler {
                 .replace('\t', ' ');
     }
 
-    public static void sendRecords(ServerPlayerEntity player) {
+    public static void sendRecords(ServerPlayer player) {
         ServerPlayNetworking.send(player, new SendRecordPayload("#RESET"));
 
         StringBuilder sb = new StringBuilder(8192);
@@ -853,7 +852,7 @@ public class PacketHandler {
         }
     }
 
-    public static void sendPersonalRecords(ServerPlayerEntity player) {
+    public static void sendPersonalRecords(ServerPlayer player) {
         ServerPlayNetworking.send(player, new SendPersonalRecordPayload("#RESET"));
 
         StringBuilder sb = new StringBuilder(8192);
@@ -873,12 +872,12 @@ public class PacketHandler {
         }
     }
 
-    public static void sendPower(ServerPlayerEntity player, double x_power, double y_power, double z_power, BlockPos boosterPos) {
+    public static void sendPower(ServerPlayer player, double x_power, double y_power, double z_power, BlockPos boosterPos) {
         ServerPlayNetworking.send(player,  new UpdatePowerPayload(x_power, y_power, z_power, boosterPos.getX(), boosterPos.getY(), boosterPos.getZ()));
     }
 
     public static void sendSurfStickPreview(
-            ServerPlayerEntity player,
+            ServerPlayer player,
             List<BlockPos> points,
             double width,
             double drop,
@@ -892,7 +891,7 @@ public class PacketHandler {
         if (points != null) {
             for (BlockPos point : points) {
                 if (point != null) {
-                    immutablePoints.add(point.toImmutable());
+                    immutablePoints.add(point.immutable());
                 }
             }
         }
@@ -902,7 +901,7 @@ public class PacketHandler {
         );
     }
 
-    public static void clearSurfStickPreview(ServerPlayerEntity player) {
+    public static void clearSurfStickPreview(ServerPlayer player) {
         if (player == null) {
             return;
         }
@@ -910,7 +909,7 @@ public class PacketHandler {
     }
 
     public static void openSurfStickSettings(
-            ServerPlayerEntity player,
+            ServerPlayer player,
             double width,
             double drop,
             String textureBlockId,
@@ -945,7 +944,7 @@ public class PacketHandler {
     }
 
     public static void openZoneStickSettings(
-            ServerPlayerEntity player,
+            ServerPlayer player,
             String zoneType,
             String mapName,
             int checkpointIndex,
@@ -977,7 +976,7 @@ public class PacketHandler {
     private static final int RL_FINISH = 200;
 
     /** Register a C2S receiver that drops packets exceeding the per-player rate for its channel. */
-    private static <T extends CustomPayload> void registerLimited(CustomPayload.Id<T> id, int minIntervalMs, ServerPlayNetworking.PlayPayloadHandler<T> handler) {
+    private static <T extends CustomPacketPayload> void registerLimited(CustomPacketPayload.Type<T> id, int minIntervalMs, ServerPlayNetworking.PlayPayloadHandler<T> handler) {
         ServerPlayNetworking.registerGlobalReceiver(id, (payload, ctx) -> {
             if (!PacketRateLimiter.allow(ctx.player(), id.id().toString(), minIntervalMs)) {
                 return;
@@ -993,39 +992,39 @@ public class PacketHandler {
         net.nerdorg.minehop.commands.AntiCheatCommands.wireServerHandlers();
 
         registerLimited(SendTimePayload.ID, RL_FAST, (payload, ctx) -> {
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             MinecraftServer server = ctx.server();
             float time = payload.time();
             ctx.server().execute(() -> {
                 if (player == null || player.isSpectator() || !Float.isFinite(time)) {
                     return;
                 }
-                HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
+                HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getScoreboardName());
                 String mapName = resolveActiveMapName(timerMap);
                 if (mapName == null) {
                     clearRunTimerHudForRunnerAndSpectators(player, server);
                     return;
                 }
-                DataManager.RecordData personalRecordData = DataManager.getPersonalRecord(player.getNameForScoreboard(), player.getUuidAsString(), mapName);
+                DataManager.RecordData personalRecordData = DataManager.getPersonalRecord(player.getScoreboardName(), player.getStringUUID(), mapName);
                 double personalRecord = 0;
                 if (personalRecordData != null) {
                     personalRecord = personalRecordData.time;
                 }
                 float safeTime = Math.max(0.0F, time);
                 float safePb = (float) Math.max(0.0D, personalRecord);
-                if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
+                if (SpectateCommands.spectatorList.containsKey(player.getScoreboardName())) {
+                    List<String> spectators = SpectateCommands.spectatorList.get(player.getScoreboardName());
                     for (String spectatorName : spectators) {
-                        if (!spectatorName.equals(player.getNameForScoreboard())) {
-                            ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
+                        if (!spectatorName.equals(player.getScoreboardName())) {
+                            ServerPlayer spectatorPlayer = server.getPlayerList().getPlayerByName(spectatorName);
                             if (spectatorPlayer == null) {
                                 continue;
                             }
                             if (!spectatorPlayer.isCreative()) {
-                                spectatorPlayer.getInventory().clear();
+                                spectatorPlayer.getInventory().clearContent();
                             }
-                            spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(player.getServerWorld(), new Vec3d(player.getX(), player.getY(), player.getZ()), player.getYaw(), player.getPitch()));
-                            spectatorPlayer.setCameraEntity(player);
+                            spectatorPlayer.teleport(ZoneUtil.makeTeleportTarget(player.level(), new Vec3(player.getX(), player.getY(), player.getZ()), player.getYRot(), player.getXRot()));
+                            spectatorPlayer.setCamera(player);
                             sendRunTimerHud(spectatorPlayer, safeTime, safePb);
                         }
                     }
@@ -1034,15 +1033,15 @@ public class PacketHandler {
             });
         });
         registerLimited(MapFinishPayload.ID, RL_FINISH, (payload, ctx) -> {
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             MinecraftServer server = ctx.server();
             String mapName = payload.map_name();
             double time = payload.time();
-            Vec3d finishPos = new Vec3d(payload.x(), payload.y(), payload.z());
+            Vec3 finishPos = new Vec3(payload.x(), payload.y(), payload.z());
             ctx.server().execute(() -> handleMapCompletion(player, server, mapName, time, finishPos));
         });
         registerLimited(MapCreatorActionPayload.ID, RL_GUI, (payload, ctx) -> {
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             ctx.server().execute(() -> MapCreationManager.handleAction(
                     player,
                     payload.action(),
@@ -1071,7 +1070,7 @@ public class PacketHandler {
             ));
         });
         registerLimited(SurfStickSettingsPayload.ID, RL_GUI, (payload, ctx) -> {
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             ctx.server().execute(() -> SurfRampPlacementManager.applyOptionsFromGui(
                     player,
                     payload.width(),
@@ -1087,7 +1086,7 @@ public class PacketHandler {
             ));
         });
         registerLimited(ZoneStickSettingsPayload.ID, RL_GUI, (payload, ctx) -> {
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             ctx.server().execute(() -> ZonePlacementManager.applyOptionsFromGui(
                     player,
                     payload.mapName(),
@@ -1097,35 +1096,35 @@ public class PacketHandler {
             ));
         });
         registerLimited(SurfStickCancelPayload.ID, RL_GUI, (payload, ctx) -> {
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             if (!payload.cancel()) {
                 return;
             }
             ctx.server().execute(() -> SurfRampPlacementManager.cancelSelectionFromGui(player));
         });
         registerLimited(ZoneStickCancelPayload.ID, RL_GUI, (payload, ctx) -> {
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             if (!payload.cancel()) {
                 return;
             }
             ctx.server().execute(() -> ZonePlacementManager.cancelEditing(player));
         });
         registerLimited(SurfStickDeletePayload.ID, RL_GUI, (payload, ctx) -> {
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             if (!payload.delete()) {
                 return;
             }
             ctx.server().execute(() -> SurfRampPlacementManager.deleteEditedRamp(player));
         });
         registerLimited(ZoneStickDeletePayload.ID, RL_GUI, (payload, ctx) -> {
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             if (!payload.delete()) {
                 return;
             }
             ctx.server().execute(() -> ZonePlacementManager.deleteEditedZone(player));
         });
         registerLimited(SSpecEfficiencyPayload.ID, RL_FAST, (payload, ctx) -> {
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             MinecraftServer server = ctx.server();
             double last_jump_speed =  payload.last_jump_speed();
             int jump_count = (int) payload.jump_count();
@@ -1134,14 +1133,14 @@ public class PacketHandler {
                 if (player == null || !Double.isFinite(last_jump_speed) || !Double.isFinite(last_efficiency)) {
                     return;
                 }
-                Minehop.lastEfficiencyMap.put(player.getNameForScoreboard(), new ReplayManager.SSJEntry(jump_count, last_jump_speed, last_efficiency));
+                Minehop.lastEfficiencyMap.put(player.getScoreboardName(), new ReplayManager.SSJEntry(jump_count, last_jump_speed, last_efficiency));
 
-                if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
+                if (SpectateCommands.spectatorList.containsKey(player.getScoreboardName())) {
+                    List<String> spectators = SpectateCommands.spectatorList.get(player.getScoreboardName());
                     for (String spectator : spectators) {
-                        ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectator);
+                        ServerPlayer spectatorPlayer = server.getPlayerList().getPlayerByName(spectator);
                         if (spectatorPlayer != null) {
-                            if (!spectatorPlayer.getNameForScoreboard().equals(player.getNameForScoreboard())) {
+                            if (!spectatorPlayer.getScoreboardName().equals(player.getScoreboardName())) {
                                 sendSpecEfficiency(spectatorPlayer, last_jump_speed, jump_count, last_efficiency);
                             }
                         }

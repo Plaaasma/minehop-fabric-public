@@ -1,5 +1,5 @@
 plugins {
-	id 'fabric-loom' version '1.10-SNAPSHOT'
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
 	id 'java'
 }
@@ -18,8 +18,8 @@ repositories {
 	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
 	// for more information about repositories.
 	mavenCentral()
-	maven { url "https://maven.shedaniel.me/" }
-	maven {	url "https://maven.terraformersmc.com/releases/"}
+	maven { url = "https://maven.shedaniel.me/" }
+	maven {	url = "https://maven.terraformersmc.com/releases/"}
 }
 
 loom {
@@ -52,20 +52,19 @@ fabricApi {
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 	
 	// Uncomment the following line to enable the deprecated Fabric API modules. 
 	// These are included in the Fabric API production distribution and allow you to update your mod to the latest modules at a later more convenient time.
 
-	// modImplementation "net.fabricmc.fabric-api:fabric-api-deprecated:${project.fabric_version}"
+	// implementation "net.fabricmc.fabric-api:fabric-api-deprecated:${project.fabric_version}"
 
-	modImplementation "com.terraformersmc:modmenu:${project.modmenu_version}"
+	implementation "com.terraformersmc:modmenu:${project.modmenu_version}"
 
-	modApi("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_version}") {
+	api("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_version}") {
 		exclude(group: "net.fabricmc.fabric-api")
 	}
 
@@ -81,7 +80,7 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+	it.options.release = 25
 }
 
 tasks.named("runClient") {
@@ -97,11 +96,11 @@ tasks.named("runServer") {
 	}
 }
 
-task jarWithType(type: Jar) {
+def jarWithType = tasks.register("jarWithType", Jar) {
 	archiveClassifier = 'all'
 	from sourceSets.main.output
 	dependsOn configurations.runtimeClasspath
-	duplicatesStrategy = 'exclude'  // Handling duplicate entries strategy
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE  // Handling duplicate entries strategy
 	doFirst {
 		from(configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) })
 	}
@@ -113,8 +112,8 @@ java {
 	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
 }
 
 jar {
@@ -126,7 +125,7 @@ jar {
 // configure the maven publication
 publishing {
 	publications {
-		mavenJava(MavenPublication) {
+		create("mavenJava", MavenPublication) {
 			from components.java
 
 			artifact jarWithType
@@ -135,7 +134,7 @@ publishing {
 
 	repositories {
 		maven {
-			url = uri("file://${System.getProperty('user.home')}/.m2/repository")
+			url = new File(System.getProperty('user.home'), ".m2/repository").toURI()
 		}
 	}
 }

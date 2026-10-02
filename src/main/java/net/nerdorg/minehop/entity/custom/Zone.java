@@ -1,27 +1,28 @@
 package net.nerdorg.minehop.entity.custom;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.damage.DamageTypes;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.util.ZonePlacementManager;
 
-public class Zone extends MobEntity {
+public class Zone extends Mob {
     private String paired_map = "";
 
-    public Zone(EntityType<? extends MobEntity> entityType, World world) {
+    public Zone(EntityType<? extends Mob> entityType, Level world) {
         super(entityType, world);
     }
 
@@ -31,17 +32,17 @@ public class Zone extends MobEntity {
     }
 
     @Override
-    public boolean cannotDespawn() {
+    public boolean requiresCustomPersistence() {
         return true;
     }
 
     @Override
-    public boolean hasNoGravity() {
+    public boolean isNoGravity() {
         return true;
     }
 
     @Override
-    public boolean isPersistent() {
+    public boolean isPersistenceRequired() {
         return true;
     }
 
@@ -51,14 +52,14 @@ public class Zone extends MobEntity {
     }
 
     @Override
-    public boolean collidesWith(Entity other) {
+    public boolean canCollideWith(Entity other) {
         return false;
     }
 
     @Override
-    public boolean damage(ServerWorld world, DamageSource source, float amount) {
-        if (source.isOf(DamageTypes.GENERIC_KILL)) {
-            return super.damage(world, source, amount);
+    public boolean hurtServer(ServerLevel world, DamageSource source, float amount) {
+        if (source.is(DamageTypes.GENERIC_KILL)) {
+            return super.hurtServer(world, source, amount);
         }
         else {
             return false;
@@ -66,15 +67,15 @@ public class Zone extends MobEntity {
     }
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
+    public void addAdditionalSaveData(ValueOutput nbt) {
+        super.addAdditionalSaveData(nbt);
         nbt.putString("map", paired_map);
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
-        paired_map = nbt.getString("map");
+    public void readAdditionalSaveData(ValueInput nbt) {
+        super.readAdditionalSaveData(nbt);
+        paired_map = nbt.getStringOr("map", "");
     }
 
     public String getPairedMap() {
@@ -107,12 +108,12 @@ public class Zone extends MobEntity {
             maxZ = minZ + 1.0D;
         }
 
-        this.setBoundingBox(new Box(minX, minY, minZ, maxX, maxY, maxZ));
+        this.setBoundingBox(new AABB(minX, minY, minZ, maxX, maxY, maxZ));
     }
 
-    protected Vec3d getBoundsCenter(BlockPos corner1, BlockPos corner2) {
+    protected Vec3 getBoundsCenter(BlockPos corner1, BlockPos corner2) {
         if (corner1 == null || corner2 == null) {
-            return this.getPos();
+            return this.position();
         }
         double minX = Math.min(corner1.getX(), corner2.getX());
         double minY = Math.min(corner1.getY(), corner2.getY());
@@ -120,7 +121,7 @@ public class Zone extends MobEntity {
         double maxX = Math.max(corner1.getX(), corner2.getX());
         double maxY = Math.max(corner1.getY(), corner2.getY());
         double maxZ = Math.max(corner1.getZ(), corner2.getZ());
-        return new Vec3d(
+        return new Vec3(
                 (minX + maxX) * 0.5D,
                 (minY + maxY) * 0.5D,
                 (minZ + maxZ) * 0.5D
@@ -128,34 +129,34 @@ public class Zone extends MobEntity {
     }
 
     @Override
-    public boolean isPushedByFluids() {
+    public boolean isPushedByFluid() {
         return false;
     }
 
     @Override
-    protected void pushAway(Entity entity) {
+    protected void doPush(Entity entity) {
     }
 
     @Override
-    public boolean doesNotCollide(double offsetX, double offsetY, double offsetZ) {
+    public boolean isFree(double offsetX, double offsetY, double offsetZ) {
         return true;
     }
 
     @Override
-    public void onPlayerCollision(PlayerEntity player) { }
+    public void playerTouch(Player player) { }
 
     @Override
-    public ActionResult interactMob(PlayerEntity player, Hand hand) {
-        if (this.getWorld().isClient) {
-            return player.getStackInHand(hand).isOf(ModItems.BOUNDS_STICK) ? ActionResult.SUCCESS : ActionResult.PASS;
+    public InteractionResult mobInteract(Player player, InteractionHand hand) {
+        if (this.level().isClientSide()) {
+            return player.getItemInHand(hand).is(ModItems.BOUNDS_STICK) ? InteractionResult.SUCCESS : InteractionResult.PASS;
         }
-        if (!(player instanceof ServerPlayerEntity serverPlayer)) {
-            return ActionResult.PASS;
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return InteractionResult.PASS;
         }
-        if (!player.getStackInHand(hand).isOf(ModItems.BOUNDS_STICK)) {
-            return ActionResult.PASS;
+        if (!player.getItemInHand(hand).is(ModItems.BOUNDS_STICK)) {
+            return InteractionResult.PASS;
         }
         ZonePlacementManager.openEditor(serverPlayer, this);
-        return ActionResult.SUCCESS;
+        return InteractionResult.SUCCESS;
     }
 }

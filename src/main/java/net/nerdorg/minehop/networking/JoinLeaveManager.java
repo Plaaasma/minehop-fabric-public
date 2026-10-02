@@ -1,12 +1,11 @@
 package net.nerdorg.minehop.networking;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
+import net.nerdorg.minehop.util.PermissionUtil;
+
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.network.packet.s2c.play.PositionFlag;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.world.World;
-import net.minecraft.world.dimension.DimensionOptions;
+import net.minecraft.server.level.ServerLevel;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.data.DataManager;
@@ -24,40 +23,40 @@ public class JoinLeaveManager {
 
         ServerPlayConnectionEvents.DISCONNECT.register(((networkHandler, server) -> {
             if (networkHandler.player != null) {
-                if (networkHandler.player.getCameraEntity() != null) {
-                    if (SpectateCommands.spectatorList.containsKey(networkHandler.player.getCameraEntity().getNameForScoreboard())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(networkHandler.player.getCameraEntity().getNameForScoreboard());
-                        if (spectators.contains(networkHandler.player.getNameForScoreboard())) {
-                            spectators.remove(networkHandler.player.getNameForScoreboard());
+                if (networkHandler.player.getCamera() != null) {
+                    if (SpectateCommands.spectatorList.containsKey(networkHandler.player.getCamera().getScoreboardName())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(networkHandler.player.getCamera().getScoreboardName());
+                        if (spectators.contains(networkHandler.player.getScoreboardName())) {
+                            spectators.remove(networkHandler.player.getScoreboardName());
                         }
                     }
                 }
-                SurfRampPlacementManager.onPlayerDisconnect(networkHandler.player.getUuid());
+                SurfRampPlacementManager.onPlayerDisconnect(networkHandler.player.getUUID());
                 UserPlotManager.onPlayerDisconnect(networkHandler.player);
-                net.nerdorg.minehop.util.PacketRateLimiter.clear(networkHandler.player.getUuid());
+                net.nerdorg.minehop.util.PacketRateLimiter.clear(networkHandler.player.getUUID());
             }
         }));
 
         ServerPlayConnectionEvents.JOIN.register(((networkHandler, sender, server) -> {
-            if (!networkHandler.player.hasPermissionLevel(4)) {
+            if (!PermissionUtil.hasLevel(networkHandler.player, 4)) {
                 DataManager.MapData mapData = DataManager.getMap("spawn");
                 if (mapData != null) {
                     if (mapData.worldKey == null || mapData.worldKey.equals("")) {
                         Minehop.mapList.remove(mapData);
-                        mapData.worldKey = server.getOverworld().getRegistryKey().toString();
+                        mapData.worldKey = server.overworld().dimension().toString();
                         Minehop.mapList.add(mapData);
-                        DataManager.saveData(networkHandler.player.getServerWorld(), DataManager.mapListLocation, Minehop.mapList);
+                        DataManager.saveData(networkHandler.player.level(), DataManager.mapListLocation, Minehop.mapList);
                     }
-                    ServerWorld foundWorld = null;
-                    for (ServerWorld serverWorld : server.getWorlds()) {
-                        if (serverWorld.getRegistryKey().toString().equals(mapData.worldKey)) {
+                    ServerLevel foundWorld = null;
+                    for (ServerLevel serverWorld : server.getAllLevels()) {
+                        if (serverWorld.dimension().toString().equals(mapData.worldKey)) {
                             foundWorld = serverWorld;
                             break;
                         }
                     }
                     if (foundWorld != null) {
-                        networkHandler.player.getInventory().clear();
-                        networkHandler.player.requestTeleport(
+                        networkHandler.player.getInventory().clearContent();
+                        networkHandler.player.teleportTo(
                                 mapData.x,
                                 mapData.y,
                                 mapData.z

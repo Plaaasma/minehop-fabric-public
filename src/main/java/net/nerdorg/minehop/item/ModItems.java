@@ -1,18 +1,18 @@
 package net.nerdorg.minehop.item;
 
-import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
-import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroupEntries;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemGroup;
-import net.minecraft.item.ItemGroups;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
+import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTabOutput;
+import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.item.custom.BoundsStickItem;
@@ -22,39 +22,39 @@ import net.nerdorg.minehop.item.custom.SurfStickItem;
 import java.util.function.Function;
 
 public class ModItems {
-    public static final Item BOUNDS_STICK = registerItem("bounds_stick", BoundsStickItem::new, new Item.Settings());
-    public static final Item SURF_STICK = registerItem("surf_stick", SurfStickItem::new, new Item.Settings().maxCount(1));
-    public static final Item INSTAGIB_GUN = registerItem("instagib_gun", InstagibItem::new, new Item.Settings());
-    public static final RegistryKey<ItemGroup> MINEHOP_ITEM_GROUP_KEY = RegistryKey.of(
-            RegistryKeys.ITEM_GROUP,
-            Identifier.of(Minehop.MOD_ID, "minehop")
+    public static final Item BOUNDS_STICK = registerItem("bounds_stick", BoundsStickItem::new, new Item.Properties());
+    public static final Item SURF_STICK = registerItem("surf_stick", SurfStickItem::new, new Item.Properties().stacksTo(1));
+    public static final Item INSTAGIB_GUN = registerItem("instagib_gun", InstagibItem::new, new Item.Properties());
+    public static final ResourceKey<CreativeModeTab> MINEHOP_ITEM_GROUP_KEY = ResourceKey.create(
+            Registries.CREATIVE_MODE_TAB,
+            Identifier.fromNamespaceAndPath(Minehop.MOD_ID, "minehop")
     );
-    public static final ItemGroup MINEHOP_ITEM_GROUP = FabricItemGroup.builder()
+    public static final CreativeModeTab MINEHOP_ITEM_GROUP = FabricCreativeModeTab.builder()
             .icon(() -> new ItemStack(SURF_STICK))
-            .displayName(Text.translatable("itemGroup.minehop.minehop"))
-            .entries((displayContext, entries) -> {
-                entries.add(SURF_STICK);
-                entries.add(BOUNDS_STICK);
-                entries.add(INSTAGIB_GUN);
-                entries.add(ModBlocks.BOOSTER_BLOCK);
+            .title(Component.translatable("itemGroup.minehop.minehop"))
+            .displayItems((displayContext, entries) -> {
+                entries.accept(SURF_STICK);
+                entries.accept(BOUNDS_STICK);
+                entries.accept(INSTAGIB_GUN);
+                entries.accept(ModBlocks.BOOSTER_BLOCK);
             })
             .build();
 
-    private static void addItemsToOperatorTabItemGroup(FabricItemGroupEntries entries) {
-        entries.add(BOUNDS_STICK);
-        entries.add(SURF_STICK);
-        entries.add(ModBlocks.BOOSTER_BLOCK);
+    private static void addItemsToOperatorTabItemGroup(FabricCreativeModeTabOutput entries) {
+        entries.accept(BOUNDS_STICK);
+        entries.accept(SURF_STICK);
+        entries.accept(ModBlocks.BOOSTER_BLOCK);
     }
 
-    private static void addItemsToCombatTabItemGroup(FabricItemGroupEntries entries) {
-        entries.add(INSTAGIB_GUN);
+    private static void addItemsToCombatTabItemGroup(FabricCreativeModeTabOutput entries) {
+        entries.accept(INSTAGIB_GUN);
     }
 
-    public static Item registerItem(String path, Function<Item.Settings, Item> factory, Item.Settings settings) {
-        final RegistryKey<Item> registryKey = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(Minehop.MOD_ID, path));
-        Item item = factory.apply(settings.registryKey(registryKey));
+    public static Item registerItem(String path, Function<Item.Properties, Item> factory, Item.Properties settings) {
+        final ResourceKey<Item> registryKey = ResourceKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(Minehop.MOD_ID, path));
+        Item item = factory.apply(settings.setId(registryKey));
 
-        Registry.register(Registries.ITEM, registryKey, item);
+        Registry.register(BuiltInRegistries.ITEM, registryKey, item);
 
         return item;
     }
@@ -65,8 +65,8 @@ public class ModItems {
     public static void registerModItems() {
         Minehop.LOGGER.info("Registering Mod Items for " + Minehop.MOD_ID);
 
-        Registry.register(Registries.ITEM_GROUP, MINEHOP_ITEM_GROUP_KEY, MINEHOP_ITEM_GROUP);
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.OPERATOR).register(ModItems::addItemsToOperatorTabItemGroup);
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(ModItems::addItemsToCombatTabItemGroup);
+        Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, MINEHOP_ITEM_GROUP_KEY, MINEHOP_ITEM_GROUP);
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.OP_BLOCKS).register(ModItems::addItemsToOperatorTabItemGroup);
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.COMBAT).register(ModItems::addItemsToCombatTabItemGroup);
     }
 }

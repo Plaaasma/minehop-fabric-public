@@ -1,6 +1,6 @@
 package net.nerdorg.minehop.util;
 
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 
-public record SurfContact(Vec3d normal, double surfaceY, boolean hardEndpoint) {
+public record SurfContact(Vec3 normal, double surfaceY, boolean hardEndpoint) {
 }

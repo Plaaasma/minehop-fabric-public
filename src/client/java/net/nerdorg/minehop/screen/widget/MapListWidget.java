@@ -1,16 +1,19 @@
 package net.nerdorg.minehop.screen.widget;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import com.mojang.brigadier.arguments.StringArgumentType;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.Selectable;
-import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
-import net.minecraft.client.gui.widget.ElementListWidget;
-import net.minecraft.client.gui.widget.EntryListWidget;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.AbstractSelectionList;
+import net.minecraft.client.gui.components.ContainerObjectSelectionList;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.narration.NarratableEntry;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
 import net.nerdorg.minehop.data.DataManager;
 
 import java.util.ArrayList;
@@ -20,13 +23,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
+public class MapListWidget extends AbstractSelectionList<MapListWidget.MapEntry> {
     private final int rowWidth;
     private final int scrollbarX;
     private static final Map<String, PendingRating> PENDING_RATINGS = new HashMap<>();
 
     public MapListWidget(
-            MinecraftClient client,
+            Minecraft client,
             int width,
             int bottom,
             int top,
@@ -72,7 +75,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
     }
 
     @Override
-    protected int getScrollbarX() {
+    protected int scrollBarX() {
         return this.scrollbarX;
     }
 
@@ -82,29 +85,29 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
     }
 
     @Override
-    protected void appendNarrations(NarrationMessageBuilder builder, MapEntry entry) {
-        super.appendNarrations(builder, entry);
+    protected void narrateListElementPosition(NarrationElementOutput builder, MapEntry entry) {
+        super.narrateListElementPosition(builder, entry);
     }
 
     @Override
-    protected void drawMenuListBackground(DrawContext context) {
+    protected void extractListBackground(GuiGraphicsExtractor context) {
         // SelectMapScreen draws the list panel background itself.
     }
 
     @Override
-    protected void drawHeaderAndFooterSeparators(DrawContext context) {
+    protected void extractListSeparators(GuiGraphicsExtractor context) {
         // Suppress default separators to avoid dark overlays outside our custom panel.
     }
 
     @Override
-    protected void appendClickableNarrations(NarrationMessageBuilder builder) {
+    protected void updateWidgetNarration(NarrationElementOutput builder) {
     }
 
     public int mapCount() {
-        return this.getEntryCount();
+        return this.getItemCount();
     }
 
-    public List<Text> getTooltipAt(double mouseX, double mouseY) {
+    public List<Component> getTooltipAt(double mouseX, double mouseY) {
         for (MapEntry entry : this.children()) {
             if (entry != null && entry.isMouseOverCard(mouseX, mouseY)) {
                 return entry.buildTooltip(mouseX, mouseY);
@@ -113,7 +116,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
         return Collections.emptyList();
     }
 
-    public static class MapEntry extends ElementListWidget.Entry<MapEntry> {
+    public static class MapEntry extends ContainerObjectSelectionList.Entry<MapEntry> {
         private final String mapName;
         private final String recordHolder;
         private final double recordTime;
@@ -172,42 +175,43 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
         }
 
         @Override
-        public void render(
-                DrawContext context,
-                int index,
-                int y,
-                int x,
-                int entryWidth,
-                int entryHeight,
+        public void extractContent(
+                GuiGraphicsExtractor context,
                 int mouseX,
                 int mouseY,
                 boolean hovered,
                 float tickDelta
         ) {
+            // 1.21.9+: entries carry their own bounds. Same card geometry as the 1.21.4 renderEntry args
+            // (x = row left, y = row top + 4, width = row width, height = itemHeight - 4).
+            int x = this.getX();
+            int y = this.getContentY();
+            int entryWidth = this.getWidth();
+            int entryHeight = this.getContentHeight();
             this.lastX = x;
             this.lastY = y;
             this.lastWidth = entryWidth;
             this.lastHeight = entryHeight;
 
-            TextRenderer textRenderer = MinecraftClient.getInstance().textRenderer;
+            Font textRenderer = Minecraft.getInstance().font;
             int cardHeight = Math.max(48, entryHeight - 2);
             int background = hovered ? 0xD02A3445 : 0xC0141A24;
             int border = hovered ? 0xFF78B8FF : 0xFF344156;
 
             context.fill(x, y, x + entryWidth, y + cardHeight, background);
-            context.drawBorder(x, y, entryWidth, cardHeight, border);
+            context.outline(x, y, entryWidth, cardHeight, border);
 
             int padding = 7;
             int textLeft = x + padding;
             int textRight = x + entryWidth - padding;
 
             String safeName = this.mapName.isBlank() ? "Unnamed Map" : this.mapName;
-            String trimmedName = textRenderer.trimToWidth(safeName, entryWidth - 170);
-            context.drawTextWithShadow(textRenderer, trimmedName, textLeft, y + 5, 0xFFFFFF);
+            String trimmedName = textRenderer.plainSubstrByWidth(safeName, entryWidth - 170);
+            context.text(textRenderer, trimmedName, textLeft, y + 5, GuiColors.text(0xFFFFFF));
 
             String playersText = this.playerCount + " online";
-            int playersWidth = textRenderer.getWidth(playersText);
-            context.drawTextWithShadow(textRenderer, playersText, textRight - playersWidth, y + 5, 0x99D5FF);
+            int playersWidth = textRenderer.width(playersText);
+            context.text(textRenderer, playersText, textRight - playersWidth, y + 5, GuiColors.text(0x99D5FF));
 
             String performanceText;
             if (this.userMap) {
@@ -224,17 +228,17 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
                 performanceText = recordText + "   " + averageText;
             }
             int rightReserved = this.userMap ? 92 : 0;
-            String perfLine = textRenderer.trimToWidth(performanceText, entryWidth - 170 - rightReserved);
-            context.drawTextWithShadow(textRenderer, perfLine, textLeft, y + 18, 0xD5DCE8);
+            String perfLine = textRenderer.plainSubstrByWidth(performanceText, entryWidth - 170 - rightReserved);
+            context.text(textRenderer, perfLine, textLeft, y + 18, GuiColors.text(0xD5DCE8));
 
             DifficultyVisual difficultyVisual = difficultyVisual(this.difficulty);
-            int difficultyWidth = textRenderer.getWidth(difficultyVisual.text);
-            context.drawTextWithShadow(
+            int difficultyWidth = textRenderer.width(difficultyVisual.text);
+            context.text(
                     textRenderer,
                     difficultyVisual.text,
                     textRight - difficultyWidth,
                     y + 18,
-                    difficultyVisual.color
+                    GuiColors.text(difficultyVisual.color)
             );
 
             String ownerPart = this.userMap ? "Owner: " + this.ownerName : "Server Map";
@@ -247,8 +251,8 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
                 descriptionPart = this.description;
             }
             String infoText = ownerPart + " | " + descriptionPart;
-            String infoLine = textRenderer.trimToWidth(infoText, entryWidth - (padding * 2) - rightReserved);
-            context.drawTextWithShadow(textRenderer, infoLine, textLeft, y + 31, 0xA9B3C6);
+            String infoLine = textRenderer.plainSubstrByWidth(infoText, entryWidth - (padding * 2) - rightReserved);
+            context.text(textRenderer, infoLine, textLeft, y + 31, GuiColors.text(0xA9B3C6));
 
             if (this.userMap) {
                 PendingRating pendingRating = this.getPendingRating();
@@ -258,15 +262,18 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
                 int qualityHover = this.getRatingIndexAt(mouseX, mouseY, true);
                 int difficultyHover = this.getRatingIndexAt(mouseX, mouseY, false);
 
-                context.drawTextWithShadow(textRenderer, "Q", ratingStartX - 8, qualityY - 1, 0x80D4FF);
-                context.drawTextWithShadow(textRenderer, "D", ratingStartX - 8, difficultyY - 1, 0x80D4FF);
+                context.text(textRenderer, "Q", ratingStartX - 8, qualityY - 1, GuiColors.text(0x80D4FF));
+                context.text(textRenderer, "D", ratingStartX - 8, difficultyY - 1, GuiColors.text(0x80D4FF));
                 this.drawXpRatingRow(context, ratingStartX, qualityY, pendingRating.quality, qualityHover);
                 this.drawXpRatingRow(context, ratingStartX, difficultyY, pendingRating.difficulty, difficultyHover);
             }
         }
 
         @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
+            double mouseX = click.x();
+            double mouseY = click.y();
+            int button = click.button();
             if (button != 0) {
                 return false;
             }
@@ -294,12 +301,12 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
         }
 
         @Override
-        public List<? extends Selectable> selectableChildren() {
+        public List<? extends NarratableEntry> narratables() {
             return Collections.emptyList();
         }
 
         @Override
-        public List<? extends Element> children() {
+        public List<? extends GuiEventListener> children() {
             return Collections.emptyList();
         }
 
@@ -310,54 +317,54 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
                     && mouseY <= this.lastY + this.lastHeight;
         }
 
-        private List<Text> buildTooltip(double mouseX, double mouseY) {
-            List<Text> lines = new ArrayList<>();
+        private List<Component> buildTooltip(double mouseX, double mouseY) {
+            List<Component> lines = new ArrayList<>();
             String safeName = this.mapName.isBlank() ? "Unnamed Map" : this.mapName;
-            lines.add(Text.literal(safeName).formatted(Formatting.AQUA));
-            lines.add(Text.literal("Left click: Teleport to this map").formatted(Formatting.GRAY));
-            lines.add(Text.literal("Difficulty: " + difficultyVisual(this.difficulty).text).formatted(Formatting.GRAY));
-            lines.add(Text.literal("Players online: " + this.playerCount).formatted(Formatting.GRAY));
+            lines.add(Component.literal(safeName).withStyle(ChatFormatting.AQUA));
+            lines.add(Component.literal("Left click: Teleport to this map").withStyle(ChatFormatting.GRAY));
+            lines.add(Component.literal("Difficulty: " + difficultyVisual(this.difficulty).text).withStyle(ChatFormatting.GRAY));
+            lines.add(Component.literal("Players online: " + this.playerCount).withStyle(ChatFormatting.GRAY));
 
             if (this.userMap) {
                 PendingRating pendingRating = this.getPendingRating();
-                lines.add(Text.literal("Owner: " + this.ownerName).formatted(Formatting.GRAY));
-                lines.add(Text.literal("Plays: " + this.playCount + ", Ratings: " + this.ratingCount).formatted(Formatting.GRAY));
-                lines.add(Text.literal("Rate in menu using XP rows:").formatted(Formatting.GOLD));
-                lines.add(Text.literal("Top row (Q): quality " + pendingRating.quality + "/5").formatted(Formatting.YELLOW));
-                lines.add(Text.literal("Bottom row (D): difficulty " + pendingRating.difficulty + "/5").formatted(Formatting.YELLOW));
+                lines.add(Component.literal("Owner: " + this.ownerName).withStyle(ChatFormatting.GRAY));
+                lines.add(Component.literal("Plays: " + this.playCount + ", Ratings: " + this.ratingCount).withStyle(ChatFormatting.GRAY));
+                lines.add(Component.literal("Rate in menu using XP rows:").withStyle(ChatFormatting.GOLD));
+                lines.add(Component.literal("Top row (Q): quality " + pendingRating.quality + "/5").withStyle(ChatFormatting.YELLOW));
+                lines.add(Component.literal("Bottom row (D): difficulty " + pendingRating.difficulty + "/5").withStyle(ChatFormatting.YELLOW));
                 if (this.getRatingIndexAt(mouseX, mouseY, true) > 0) {
-                    lines.add(Text.literal("Click now to set quality").formatted(Formatting.GREEN));
+                    lines.add(Component.literal("Click now to set quality").withStyle(ChatFormatting.GREEN));
                 } else if (this.getRatingIndexAt(mouseX, mouseY, false) > 0) {
-                    lines.add(Text.literal("Click now to set difficulty").formatted(Formatting.GREEN));
+                    lines.add(Component.literal("Click now to set difficulty").withStyle(ChatFormatting.GREEN));
                 } else {
-                    lines.add(Text.literal("Use /map edit " + StringArgumentType.escapeIfRequired(safeName) + " to edit map properties").formatted(Formatting.DARK_GRAY));
+                    lines.add(Component.literal("Use /map edit " + StringArgumentType.escapeIfRequired(safeName) + " to edit map properties").withStyle(ChatFormatting.DARK_GRAY));
                 }
             } else if (!this.minigame) {
-                lines.add(Text.literal("World record: " + this.formatRecord()).formatted(Formatting.DARK_GRAY));
-                lines.add(Text.literal("Average run: " + this.formatAverage()).formatted(Formatting.DARK_GRAY));
+                lines.add(Component.literal("World record: " + this.formatRecord()).withStyle(ChatFormatting.DARK_GRAY));
+                lines.add(Component.literal("Average run: " + this.formatAverage()).withStyle(ChatFormatting.DARK_GRAY));
             }
             return lines;
         }
 
         private void teleportToMap() {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client == null || client.getNetworkHandler() == null || this.mapName.isBlank()) {
+            Minecraft client = Minecraft.getInstance();
+            if (client == null || client.getConnection() == null || this.mapName.isBlank()) {
                 return;
             }
             String mapArgument = StringArgumentType.escapeIfRequired(this.mapName);
             client.setScreen(null);
-            client.getNetworkHandler().sendCommand("map " + mapArgument);
+            client.getConnection().sendCommand("map " + mapArgument);
         }
 
         private void sendRatingCommand(PendingRating pendingRating) {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client == null || client.getNetworkHandler() == null || this.mapName.isBlank()) {
+            Minecraft client = Minecraft.getInstance();
+            if (client == null || client.getConnection() == null || this.mapName.isBlank()) {
                 return;
             }
             String mapArgument = StringArgumentType.escapeIfRequired(this.mapName);
             int clampedQuality = clampRating(pendingRating.quality);
             int clampedDifficulty = clampRating(pendingRating.difficulty);
-            client.getNetworkHandler().sendCommand("map rate " + mapArgument + " " + clampedQuality + " " + clampedDifficulty);
+            client.getConnection().sendCommand("map rate " + mapArgument + " " + clampedQuality + " " + clampedDifficulty);
         }
 
         private PendingRating getPendingRating() {
@@ -398,7 +405,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
             return 0;
         }
 
-        private void drawXpRatingRow(DrawContext context, int startX, int y, int value, int hoverValue) {
+        private void drawXpRatingRow(GuiGraphicsExtractor context, int startX, int y, int value, int hoverValue) {
             int clampedValue = clampRating(value);
             int effectiveHover = clampRatingAllowZero(hoverValue);
             for (int i = 0; i < RATING_CELL_COUNT; i++) {
@@ -454,12 +461,12 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
         private static DifficultyVisual difficultyVisual(int difficulty) {
             return switch (difficulty) {
-                case 0 -> new DifficultyVisual("Beginner", Formatting.AQUA.getColorValue());
-                case 1 -> new DifficultyVisual("Easy", Formatting.GREEN.getColorValue());
-                case 2 -> new DifficultyVisual("Moderate", Formatting.YELLOW.getColorValue());
-                case 3 -> new DifficultyVisual("Challenging", Formatting.RED.getColorValue());
-                case 4 -> new DifficultyVisual("Ext Hard", Formatting.DARK_RED.getColorValue());
-                case 5 -> new DifficultyVisual("Impossible", Formatting.LIGHT_PURPLE.getColorValue());
+                case 0 -> new DifficultyVisual("Beginner", ChatFormatting.AQUA.getColor());
+                case 1 -> new DifficultyVisual("Easy", ChatFormatting.GREEN.getColor());
+                case 2 -> new DifficultyVisual("Moderate", ChatFormatting.YELLOW.getColor());
+                case 3 -> new DifficultyVisual("Challenging", ChatFormatting.RED.getColor());
+                case 4 -> new DifficultyVisual("Ext Hard", ChatFormatting.DARK_RED.getColor());
+                case 5 -> new DifficultyVisual("Impossible", ChatFormatting.LIGHT_PURPLE.getColor());
                 default -> new DifficultyVisual("Unknown", 0xFFAAAAAA);
             };
         }

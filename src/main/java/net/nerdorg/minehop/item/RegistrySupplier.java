@@ -1,9 +1,8 @@
 package net.nerdorg.minehop.item;
 
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.util.Identifier;
 import java.util.function.Supplier;
+import net.minecraft.core.Registry;
+import net.minecraft.resources.Identifier;
 
 public class RegistrySupplier<T> {
 	private final Identifier id;

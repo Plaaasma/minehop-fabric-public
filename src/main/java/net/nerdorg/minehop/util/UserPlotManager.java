@@ -5,34 +5,34 @@ import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockWithEntity;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.BucketItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.item.SpawnEggItem;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
-import net.minecraft.world.World;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.BucketItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.SpawnEggItem;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BaseEntityBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.config.ConfigWrapper;
@@ -54,8 +54,8 @@ import java.util.Map;
 import java.util.Set;
 
 public final class UserPlotManager {
-    public static final Identifier PLOTS_DIMENSION_ID = Identifier.of(Minehop.MOD_ID, "plots");
-    public static final RegistryKey<World> PLOTS_WORLD_KEY = RegistryKey.of(RegistryKeys.WORLD, PLOTS_DIMENSION_ID);
+    public static final Identifier PLOTS_DIMENSION_ID = Identifier.fromNamespaceAndPath(Minehop.MOD_ID, "plots");
+    public static final ResourceKey<Level> PLOTS_WORLD_KEY = ResourceKey.create(Registries.DIMENSION, PLOTS_DIMENSION_ID);
 
     private static final int PLOT_SIZE = 512;
     private static final int PLOT_PADDING = 64;
@@ -109,13 +109,13 @@ public final class UserPlotManager {
         ServerTickEvents.END_SERVER_TICK.register(UserPlotManager::tickServer);
 
         PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> {
-            if (!(player instanceof ServerPlayerEntity serverPlayer)) {
+            if (!(player instanceof ServerPlayer serverPlayer)) {
                 return true;
             }
-            if (world instanceof ServerWorld serverWorld && canBuildAt(serverPlayer, serverWorld, pos)) {
+            if (world instanceof ServerLevel serverWorld && canBuildAt(serverPlayer, serverWorld, pos)) {
                 return true;
             }
-            if (isPlotsWorld(world) && !serverPlayer.hasPermissionLevel(4)) {
+            if (isPlotsWorld(world) && !PermissionUtil.hasLevel(serverPlayer, 4)) {
                 Logger.logActionBar(serverPlayer, "You can only build inside your own plot.");
                 return false;
             }
@@ -132,73 +132,73 @@ public final class UserPlotManager {
         processFillQueue(server);
     }
 
-    private static ActionResult onUseBlock(PlayerEntity player, World world, net.minecraft.util.Hand hand, BlockHitResult hitResult) {
-        if (world.isClient || !(player instanceof ServerPlayerEntity serverPlayer) || !(world instanceof ServerWorld serverWorld)) {
-            return ActionResult.PASS;
+    private static InteractionResult onUseBlock(Player player, Level world, net.minecraft.world.InteractionHand hand, BlockHitResult hitResult) {
+        if (world.isClientSide() || !(player instanceof ServerPlayer serverPlayer) || !(world instanceof ServerLevel serverWorld)) {
+            return InteractionResult.PASS;
         }
         if (isSpawnEggUsageBlocked(serverPlayer, serverWorld, hand)) {
-            return ActionResult.FAIL;
+            return InteractionResult.FAIL;
         }
-        if (isPlotsWorld(serverWorld) && !serverPlayer.hasPermissionLevel(4)) {
-            ItemStack heldStack = serverPlayer.getStackInHand(hand);
+        if (isPlotsWorld(serverWorld) && !PermissionUtil.hasLevel(serverPlayer, 4)) {
+            ItemStack heldStack = serverPlayer.getItemInHand(hand);
             if (isIllegalPlotItem(heldStack)) {
                 Logger.logActionBar(serverPlayer, "That item is disabled in plot worlds.");
-                return ActionResult.FAIL;
+                return InteractionResult.FAIL;
             }
             BlockPos clickedPos = hitResult.getBlockPos();
-            BlockPos placementPos = clickedPos.offset(hitResult.getSide());
+            BlockPos placementPos = clickedPos.relative(hitResult.getDirection());
             boolean isPlacement = isPlacementAttempt(heldStack);
             boolean allowed = canBuildAt(serverPlayer, serverWorld, clickedPos)
                     && (!isPlacement || canBuildAt(serverPlayer, serverWorld, placementPos));
             if (!allowed) {
                 Logger.logActionBar(serverPlayer, "You can only build inside your own plot.");
-                return ActionResult.FAIL;
+                return InteractionResult.FAIL;
             }
         }
-        return ActionResult.PASS;
+        return InteractionResult.PASS;
     }
 
-    private static ActionResult onUseItem(PlayerEntity player, World world, Hand hand) {
-        if (world.isClient || !(player instanceof ServerPlayerEntity serverPlayer) || !(world instanceof ServerWorld serverWorld)) {
-            return ActionResult.PASS;
+    private static InteractionResult onUseItem(Player player, Level world, InteractionHand hand) {
+        if (world.isClientSide() || !(player instanceof ServerPlayer serverPlayer) || !(world instanceof ServerLevel serverWorld)) {
+            return InteractionResult.PASS;
         }
         if (isSpawnEggUsageBlocked(serverPlayer, serverWorld, hand)) {
-            return ActionResult.FAIL;
+            return InteractionResult.FAIL;
         }
-        if (isPlotsWorld(serverWorld) && !serverPlayer.hasPermissionLevel(4)
-                && isIllegalPlotItem(serverPlayer.getStackInHand(hand))) {
+        if (isPlotsWorld(serverWorld) && !PermissionUtil.hasLevel(serverPlayer, 4)
+                && isIllegalPlotItem(serverPlayer.getItemInHand(hand))) {
             Logger.logActionBar(serverPlayer, "That item is disabled in plot worlds.");
-            return ActionResult.FAIL;
+            return InteractionResult.FAIL;
         }
-        return ActionResult.PASS;
+        return InteractionResult.PASS;
     }
 
-    private static ActionResult onUseEntity(PlayerEntity player, World world, Hand hand, Entity entity, EntityHitResult hitResult) {
-        if (world.isClient || !(player instanceof ServerPlayerEntity serverPlayer) || !(world instanceof ServerWorld serverWorld)) {
-            return ActionResult.PASS;
+    private static InteractionResult onUseEntity(Player player, Level world, InteractionHand hand, Entity entity, EntityHitResult hitResult) {
+        if (world.isClientSide() || !(player instanceof ServerPlayer serverPlayer) || !(world instanceof ServerLevel serverWorld)) {
+            return InteractionResult.PASS;
         }
         if (isSpawnEggUsageBlocked(serverPlayer, serverWorld, hand)) {
-            return ActionResult.FAIL;
+            return InteractionResult.FAIL;
         }
-        if (isPlotsWorld(serverWorld) && !serverPlayer.hasPermissionLevel(4)
+        if (isPlotsWorld(serverWorld) && !PermissionUtil.hasLevel(serverPlayer, 4)
                 && !canEditEntity(serverPlayer, entity)) {
             Logger.logActionBar(serverPlayer, "You can only interact with entities inside your own plot.");
-            return ActionResult.FAIL;
+            return InteractionResult.FAIL;
         }
-        return ActionResult.PASS;
+        return InteractionResult.PASS;
     }
 
-    private static boolean isSpawnEggUsageBlocked(ServerPlayerEntity player, ServerWorld world, Hand hand) {
+    private static boolean isSpawnEggUsageBlocked(ServerPlayer player, ServerLevel world, InteractionHand hand) {
         if (player == null || world == null || hand == null) {
             return false;
         }
-        if (player.hasPermissionLevel(4)) {
+        if (PermissionUtil.hasLevel(player, 4)) {
             return false;
         }
         if (!isPlotsWorld(world)) {
             return false;
         }
-        ItemStack heldStack = player.getStackInHand(hand);
+        ItemStack heldStack = player.getItemInHand(hand);
         if (heldStack == null || heldStack.isEmpty()) {
             return false;
         }
@@ -234,23 +234,23 @@ public final class UserPlotManager {
         if (server == null) {
             return;
         }
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (player == null) {
                 continue;
             }
-            String uuidString = player.getUuidAsString();
-            if (player.hasPermissionLevel(4) || player.isSpectator()) {
+            String uuidString = player.getStringUUID();
+            if (PermissionUtil.hasLevel(player, 4) || player.isSpectator()) {
                 FORCED_CREATIVE_PLAYERS.remove(uuidString);
                 continue;
             }
 
-            boolean shouldHaveCreative = isInsideOwnedPlot(player, player.getPos());
+            boolean shouldHaveCreative = isInsideOwnedPlot(player, player.position());
             boolean forcedByPlotSystem = FORCED_CREATIVE_PLAYERS.contains(uuidString);
             boolean hasPlotGamemodeOverride = PLOT_GAMEMODE_OVERRIDES.contains(uuidString);
 
             if (shouldHaveCreative && !hasPlotGamemodeOverride) {
                 if (!player.isCreative()) {
-                    if (player.changeGameMode(GameMode.CREATIVE)) {
+                    if (player.setGameMode(GameType.CREATIVE)) {
                         FORCED_CREATIVE_PLAYERS.add(uuidString);
                     }
                 } else {
@@ -260,149 +260,149 @@ public final class UserPlotManager {
                 consumeForcedCreativeState(player);
             } else if (!shouldHaveCreative && hasPlotGamemodeOverride) {
                 PLOT_GAMEMODE_OVERRIDES.remove(uuidString);
-            } else if (player.isCreative() && player.getWorld() instanceof ServerWorld serverWorld && isPlotsWorld(serverWorld)) {
-                player.changeGameMode(GameMode.SURVIVAL);
-                player.getInventory().clear();
+            } else if (player.isCreative() && player.level() instanceof ServerLevel serverWorld && isPlotsWorld(serverWorld)) {
+                player.setGameMode(GameType.SURVIVAL);
+                player.getInventory().clearContent();
             }
         }
     }
 
-    public static boolean consumeForcedCreativeState(ServerPlayerEntity player) {
-        if (player == null || player.hasPermissionLevel(4) || player.isSpectator()) {
+    public static boolean consumeForcedCreativeState(ServerPlayer player) {
+        if (player == null || PermissionUtil.hasLevel(player, 4) || player.isSpectator()) {
             return false;
         }
 
-        String uuidString = player.getUuidAsString();
+        String uuidString = player.getStringUUID();
         boolean wasForced = FORCED_CREATIVE_PLAYERS.remove(uuidString);
         if (!wasForced) {
             return false;
         }
 
         if (player.isCreative()) {
-            player.changeGameMode(GameMode.SURVIVAL);
+            player.setGameMode(GameType.SURVIVAL);
         }
-        player.getInventory().clear();
+        player.getInventory().clearContent();
         return true;
     }
 
-    public static void onPlayerDisconnect(ServerPlayerEntity player) {
+    public static void onPlayerDisconnect(ServerPlayer player) {
         if (player == null) {
             return;
         }
-        FORCED_CREATIVE_PLAYERS.remove(player.getUuidAsString());
-        PLOT_GAMEMODE_OVERRIDES.remove(player.getUuidAsString());
+        FORCED_CREATIVE_PLAYERS.remove(player.getStringUUID());
+        PLOT_GAMEMODE_OVERRIDES.remove(player.getStringUUID());
     }
 
-    public static int setOwnedPlotGameMode(ServerPlayerEntity player, GameMode gameMode) {
+    public static int setOwnedPlotGameMode(ServerPlayer player, GameType gameMode) {
         if (player == null || gameMode == null) {
             return 0;
         }
-        if (player.hasPermissionLevel(4)) {
-            player.changeGameMode(gameMode);
+        if (PermissionUtil.hasLevel(player, 4)) {
+            player.setGameMode(gameMode);
             Logger.logSuccess(player, "Set plot gamemode to " + formatGameMode(gameMode) + ".");
             return 1;
         }
 
-        DataManager.MapData mapData = getOwnedPlotAt(player, player.getPos());
+        DataManager.MapData mapData = getOwnedPlotAt(player, player.position());
         if (mapData == null) {
             Logger.logFailure(player, "Stand inside your plot to change plot gamemode.");
             return 0;
         }
 
-        String uuidString = player.getUuidAsString();
-        if (gameMode == GameMode.CREATIVE) {
+        String uuidString = player.getStringUUID();
+        if (gameMode == GameType.CREATIVE) {
             PLOT_GAMEMODE_OVERRIDES.remove(uuidString);
-            if (player.changeGameMode(GameMode.CREATIVE)) {
+            if (player.setGameMode(GameType.CREATIVE)) {
                 FORCED_CREATIVE_PLAYERS.add(uuidString);
             }
             Logger.logSuccess(player, "Set plot gamemode to creative.");
             return 1;
         }
 
-        if (gameMode != GameMode.ADVENTURE && gameMode != GameMode.SURVIVAL) {
+        if (gameMode != GameType.ADVENTURE && gameMode != GameType.SURVIVAL) {
             Logger.logFailure(player, "Plot gamemode can only be creative, adventure, or survival.");
             return 0;
         }
 
         FORCED_CREATIVE_PLAYERS.remove(uuidString);
         PLOT_GAMEMODE_OVERRIDES.add(uuidString);
-        player.changeGameMode(gameMode);
+        player.setGameMode(gameMode);
         if (!player.isCreative()) {
-            player.getInventory().clear();
+            player.getInventory().clearContent();
         }
         Logger.logSuccess(player, "Set plot gamemode to " + formatGameMode(gameMode) + ".");
         return 1;
     }
 
-    public static boolean canOpenMapManager(ServerPlayerEntity player) {
+    public static boolean canOpenMapManager(ServerPlayer player) {
         if (player == null) {
             return false;
         }
-        if (player.hasPermissionLevel(4)) {
+        if (PermissionUtil.hasLevel(player, 4)) {
             return true;
         }
-        return getOwnedPlotAt(player, player.getPos()) != null;
+        return getOwnedPlotAt(player, player.position()) != null;
     }
 
-    public static boolean canManageMap(ServerPlayerEntity player, DataManager.MapData mapData) {
+    public static boolean canManageMap(ServerPlayer player, DataManager.MapData mapData) {
         if (player == null || mapData == null) {
             return false;
         }
-        if (player.hasPermissionLevel(4)) {
+        if (PermissionUtil.hasLevel(player, 4)) {
             return true;
         }
         if (!isOwnedBy(player, mapData)) {
             return false;
         }
-        if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(player.level() instanceof ServerLevel serverWorld)) {
             return false;
         }
         if (!isMapInWorld(mapData, serverWorld)) {
             return false;
         }
-        return isInsidePlotBounds(mapData, player.getPos())
-                && isInsidePlotBuildBounds(mapData, player.getBlockPos());
+        return isInsidePlotBounds(mapData, player.position())
+                && isInsidePlotBuildBounds(mapData, player.blockPosition());
     }
 
-    public static boolean canManageMapByName(ServerPlayerEntity player, String mapName) {
+    public static boolean canManageMapByName(ServerPlayer player, String mapName) {
         DataManager.MapData mapData = DataManager.getMap(mapName);
         return canManageMap(player, mapData);
     }
 
-    public static boolean canBuildAt(ServerPlayerEntity player, ServerWorld world, BlockPos pos) {
+    public static boolean canBuildAt(ServerPlayer player, ServerLevel world, BlockPos pos) {
         if (player == null || world == null || pos == null) {
             return false;
         }
-        if (player.hasPermissionLevel(4)) {
+        if (PermissionUtil.hasLevel(player, 4)) {
             return true;
         }
         if (!isPlotsWorld(world)) {
             return false;
         }
-        DataManager.MapData plot = getOwnedPlotAt(player, pos.toCenterPos());
+        DataManager.MapData plot = getOwnedPlotAt(player, pos.getCenter());
         return plot != null && isInsidePlotBuildBounds(plot, pos);
     }
 
-    public static boolean canEditEntity(ServerPlayerEntity player, Entity entity) {
-        if (player == null || entity == null || !(entity.getWorld() instanceof ServerWorld serverWorld)) {
+    public static boolean canEditEntity(ServerPlayer player, Entity entity) {
+        if (player == null || entity == null || !(entity.level() instanceof ServerLevel serverWorld)) {
             return false;
         }
-        if (player.hasPermissionLevel(4)) {
+        if (PermissionUtil.hasLevel(player, 4)) {
             return true;
         }
         if (!isPlotsWorld(serverWorld)) {
             return false;
         }
-        DataManager.MapData plot = getOwnedPlotAt(player, entity.getPos());
-        return plot != null && isInsidePlotBuildBounds(plot, entity.getBlockPos());
+        DataManager.MapData plot = getOwnedPlotAt(player, entity.position());
+        return plot != null && isInsidePlotBuildBounds(plot, entity.blockPosition());
     }
 
-    public static boolean isInsideOwnedPlot(ServerPlayerEntity player, Vec3d position) {
+    public static boolean isInsideOwnedPlot(ServerPlayer player, Vec3 position) {
         return getOwnedPlotAt(player, position) != null;
     }
 
-    public static DataManager.MapData getOwnedPlotAt(ServerPlayerEntity player, Vec3d position) {
-        if (player == null || position == null || !(player.getWorld() instanceof ServerWorld serverWorld)) {
+    public static DataManager.MapData getOwnedPlotAt(ServerPlayer player, Vec3 position) {
+        if (player == null || position == null || !(player.level() instanceof ServerLevel serverWorld)) {
             return null;
         }
         if (!isPlotsWorld(serverWorld)) {
@@ -425,7 +425,7 @@ public final class UserPlotManager {
         return null;
     }
 
-    public static DataManager.MapData getPlotAt(ServerWorld world, Vec3d position) {
+    public static DataManager.MapData getPlotAt(ServerLevel world, Vec3 position) {
         if (world == null || position == null || !isPlotsWorld(world)) {
             return null;
         }
@@ -443,11 +443,11 @@ public final class UserPlotManager {
         return null;
     }
 
-    public static DataManager.MapData getAnyOwnedPlot(ServerPlayerEntity player) {
+    public static DataManager.MapData getAnyOwnedPlot(ServerPlayer player) {
         if (player == null) {
             return null;
         }
-        String uuid = player.getUuidAsString();
+        String uuid = player.getStringUUID();
         for (DataManager.MapData mapData : Minehop.mapList) {
             if (mapData == null || !mapData.userMap) {
                 continue;
@@ -459,7 +459,7 @@ public final class UserPlotManager {
         return null;
     }
 
-    public static int createPlot(ServerPlayerEntity player, String rawMapName, String rawGroundBlockId, String rawDescription) {
+    public static int createPlot(ServerPlayer player, String rawMapName, String rawGroundBlockId, String rawDescription) {
         if (player == null) {
             return 0;
         }
@@ -482,7 +482,7 @@ public final class UserPlotManager {
             return 0;
         }
 
-        ServerWorld plotsWorld = getPlotsWorld(player.getServer());
+        ServerLevel plotsWorld = getPlotsWorld(player.level().getServer());
         if (plotsWorld == null) {
             Logger.logFailure(player, "Plots dimension was not found. Make sure data/minehop/dimension/plots.json exists.");
             return 0;
@@ -516,7 +516,7 @@ public final class UserPlotManager {
                 spawnZ,
                 0.0D,
                 0.0D,
-                plotsWorld.getRegistryKey().toString(),
+                plotsWorld.dimension().toString(),
                 false,
                 false,
                 false,
@@ -524,8 +524,8 @@ public final class UserPlotManager {
                 1,
                 0,
                 true,
-                player.getUuidAsString(),
-                player.getNameForScoreboard(),
+                player.getStringUUID(),
+                player.getScoreboardName(),
                 description,
                 minX,
                 PLOT_GROUND_Y,
@@ -540,28 +540,28 @@ public final class UserPlotManager {
         Minehop.mapList.add(mapData);
         enqueuePlotGroundFill(plotsWorld, mapData, groundBlockId, player, true);
         DataManager.saveData(plotsWorld, DataManager.mapListLocation, Minehop.mapList);
-        syncMaps(player.getServer());
+        syncMaps(player.level().getServer());
 
-        player.teleportTo(ZoneUtil.makeTeleportTarget(
+        player.teleport(ZoneUtil.makeTeleportTarget(
                 plotsWorld,
-                new Vec3d(spawnX, spawnY, spawnZ),
+                new Vec3(spawnX, spawnY, spawnZ),
                 0.0F,
                 0.0F
         ));
-        if (!player.hasPermissionLevel(4) && !player.isCreative()) {
-            if (player.changeGameMode(GameMode.CREATIVE)) {
-                FORCED_CREATIVE_PLAYERS.add(player.getUuidAsString());
+        if (!PermissionUtil.hasLevel(player, 4) && !player.isCreative()) {
+            if (player.setGameMode(GameType.CREATIVE)) {
+                FORCED_CREATIVE_PLAYERS.add(player.getStringUUID());
             }
         }
         Logger.logSuccess(player, "Created plot '" + mapName + "' (" + PLOT_SIZE + "x" + PLOT_SIZE + ") in the plots dimension.");
-        Logger.log(player, net.minecraft.text.Text.literal("Ground material: " + groundBlockId));
+        Logger.log(player, net.minecraft.network.chat.Component.literal("Ground material: " + groundBlockId));
         if (!description.isBlank()) {
-            Logger.log(player, net.minecraft.text.Text.literal("Description: " + description));
+            Logger.log(player, net.minecraft.network.chat.Component.literal("Description: " + description));
         }
         return 1;
     }
 
-    public static int teleportHome(ServerPlayerEntity player) {
+    public static int teleportHome(ServerPlayer player) {
         if (player == null) {
             return 0;
         }
@@ -570,9 +570,9 @@ public final class UserPlotManager {
             Logger.logFailure(player, "You do not have a plot yet. Use /plot create <name>.");
             return 0;
         }
-        ServerWorld world = resolveWorld(player.getServer(), mapData.worldKey);
+        ServerLevel world = resolveWorld(player.level().getServer(), mapData.worldKey);
         if (world == null) {
-            world = getPlotsWorld(player.getServer());
+            world = getPlotsWorld(player.level().getServer());
         }
         if (world == null) {
             Logger.logFailure(player, "Could not find your plot dimension.");
@@ -584,7 +584,7 @@ public final class UserPlotManager {
         double targetZ = mapData.z;
         double minSafeY = (double) (mapData.plotMinY > 0 ? mapData.plotMinY : PLOT_GROUND_Y) + 1.0D;
         if (!Double.isFinite(targetX) || !Double.isFinite(targetY) || !Double.isFinite(targetZ)
-                || !isInsidePlotBounds(mapData, new Vec3d(targetX, targetY, targetZ))) {
+                || !isInsidePlotBounds(mapData, new Vec3(targetX, targetY, targetZ))) {
             targetX = (mapData.plotMinX + mapData.plotMaxX) * 0.5D;
             targetY = minSafeY + 1.0D;
             targetZ = (mapData.plotMinZ + mapData.plotMaxZ) * 0.5D;
@@ -593,9 +593,9 @@ public final class UserPlotManager {
             targetY = minSafeY + 1.0D;
         }
 
-        player.teleportTo(ZoneUtil.makeTeleportTarget(
+        player.teleport(ZoneUtil.makeTeleportTarget(
                 world,
-                new Vec3d(targetX, targetY, targetZ),
+                new Vec3(targetX, targetY, targetZ),
                 (float) mapData.yrot,
                 (float) mapData.xrot
         ));
@@ -603,7 +603,7 @@ public final class UserPlotManager {
         return 1;
     }
 
-    public static int setDescription(ServerPlayerEntity player, String rawDescription) {
+    public static int setDescription(ServerPlayer player, String rawDescription) {
         if (player == null) {
             return 0;
         }
@@ -614,16 +614,16 @@ public final class UserPlotManager {
         }
         String newDescription = DescriptionCensor.sanitizeAndMaybeCensor(rawDescription);
         mapData.description = newDescription;
-        DataManager.saveData(player.getServerWorld(), DataManager.mapListLocation, Minehop.mapList);
-        syncMaps(player.getServer());
+        DataManager.saveData(player.level(), DataManager.mapListLocation, Minehop.mapList);
+        syncMaps(player.level().getServer());
         Logger.logSuccess(player, "Updated plot description.");
         if (!newDescription.isBlank()) {
-            Logger.log(player, net.minecraft.text.Text.literal(newDescription));
+            Logger.log(player, net.minecraft.network.chat.Component.literal(newDescription));
         }
         return 1;
     }
 
-    public static int setGround(ServerPlayerEntity player, String rawGroundBlockId) {
+    public static int setGround(ServerPlayer player, String rawGroundBlockId) {
         if (player == null) {
             return 0;
         }
@@ -633,9 +633,9 @@ public final class UserPlotManager {
             return 0;
         }
 
-        ServerWorld world = resolveWorld(player.getServer(), mapData.worldKey);
+        ServerLevel world = resolveWorld(player.level().getServer(), mapData.worldKey);
         if (world == null) {
-            world = getPlotsWorld(player.getServer());
+            world = getPlotsWorld(player.level().getServer());
         }
         if (world == null) {
             Logger.logFailure(player, "Could not find your plot world.");
@@ -651,12 +651,12 @@ public final class UserPlotManager {
         mapData.plotGroundBlockId = groundBlockId;
         enqueuePlotGroundFill(world, mapData, groundBlockId, player, true);
         DataManager.saveData(world, DataManager.mapListLocation, Minehop.mapList);
-        syncMaps(player.getServer());
+        syncMaps(player.level().getServer());
         Logger.logSuccess(player, "Queued ground update to " + groundBlockId + ".");
         return 1;
     }
 
-    public static int deleteOwnedPlot(ServerPlayerEntity player) {
+    public static int deleteOwnedPlot(ServerPlayer player) {
         if (player == null) {
             return 0;
         }
@@ -666,14 +666,14 @@ public final class UserPlotManager {
             return 0;
         }
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server == null) {
             Logger.logFailure(player, "Could not access server.");
             return 0;
         }
 
         String mapName = mapData.name;
-        ServerWorld plotWorld = resolveWorld(server, mapData.worldKey);
+        ServerLevel plotWorld = resolveWorld(server, mapData.worldKey);
         if (plotWorld == null) {
             plotWorld = getPlotsWorld(server);
         }
@@ -696,7 +696,7 @@ public final class UserPlotManager {
         Minehop.recordList.removeIf(record -> record != null && mapName.equals(record.map_name));
         ReplayManager.deleteReplaysForMap(mapName);
 
-        ServerWorld saveWorld = plotWorld != null ? plotWorld : player.getServerWorld();
+        ServerLevel saveWorld = plotWorld != null ? plotWorld : player.level();
         DataManager.saveData(saveWorld, DataManager.mapListLocation, Minehop.mapList);
         DataManager.saveData(saveWorld, DataManager.mapRatingsLocation, Minehop.mapRatingList);
         DataManager.saveData(saveWorld, DataManager.pbListLocation, Minehop.personalRecordList);
@@ -704,17 +704,17 @@ public final class UserPlotManager {
         ReplayManager.saveRecordReplays(saveWorld, Minehop.replayList);
         syncAllMapData(server);
 
-        FORCED_CREATIVE_PLAYERS.remove(player.getUuidAsString());
-        if (!player.hasPermissionLevel(4) && !player.isSpectator()) {
-            player.changeGameMode(GameMode.SURVIVAL);
+        FORCED_CREATIVE_PLAYERS.remove(player.getStringUUID());
+        if (!PermissionUtil.hasLevel(player, 4) && !player.isSpectator()) {
+            player.setGameMode(GameType.SURVIVAL);
         }
 
-        if (plotWorld != null && player.getServerWorld() == plotWorld) {
-            ServerWorld overworld = server.getOverworld();
+        if (plotWorld != null && player.level() == plotWorld) {
+            ServerLevel overworld = server.overworld();
             if (overworld != null) {
-                BlockPos spawnPos = overworld.getSpawnPos();
-                Vec3d spawnCenter = Vec3d.ofBottomCenter(spawnPos).add(0.0D, 1.0D, 0.0D);
-                player.teleportTo(ZoneUtil.makeTeleportTarget(overworld, spawnCenter, player.getYaw(), player.getPitch()));
+                BlockPos spawnPos = overworld.getRespawnData().globalPos().pos();
+                Vec3 spawnCenter = Vec3.atBottomCenterOf(spawnPos).add(0.0D, 1.0D, 0.0D);
+                player.teleport(ZoneUtil.makeTeleportTarget(overworld, spawnCenter, player.getYRot(), player.getXRot()));
             }
         }
 
@@ -732,40 +732,40 @@ public final class UserPlotManager {
         return validation.valid ? validation.blockId : DEFAULT_GROUND_BLOCK_ID;
     }
 
-    public static ServerWorld getPlotsWorld(MinecraftServer server) {
+    public static ServerLevel getPlotsWorld(MinecraftServer server) {
         if (server == null) {
             return null;
         }
-        return server.getWorld(PLOTS_WORLD_KEY);
+        return server.getLevel(PLOTS_WORLD_KEY);
     }
 
-    public static boolean isPlotsWorld(World world) {
-        if (!(world instanceof ServerWorld serverWorld)) {
+    public static boolean isPlotsWorld(Level world) {
+        if (!(world instanceof ServerLevel serverWorld)) {
             return false;
         }
-        return serverWorld.getRegistryKey().equals(PLOTS_WORLD_KEY);
+        return serverWorld.dimension().equals(PLOTS_WORLD_KEY);
     }
 
-    private static boolean isOwnedBy(ServerPlayerEntity player, DataManager.MapData mapData) {
+    private static boolean isOwnedBy(ServerPlayer player, DataManager.MapData mapData) {
         if (player == null || mapData == null) {
             return false;
         }
-        return mapData.userMap && player.getUuidAsString().equals(mapData.ownerUuid);
+        return mapData.userMap && player.getStringUUID().equals(mapData.ownerUuid);
     }
 
-    private static String formatGameMode(GameMode gameMode) {
+    private static String formatGameMode(GameType gameMode) {
         return gameMode == null ? "unknown" : gameMode.getName();
     }
 
-    private static boolean isMapInWorld(DataManager.MapData mapData, ServerWorld world) {
+    private static boolean isMapInWorld(DataManager.MapData mapData, ServerLevel world) {
         if (mapData == null || world == null) {
             return false;
         }
-        String expected = world.getRegistryKey().toString();
+        String expected = world.dimension().toString();
         return expected.equals(mapData.worldKey);
     }
 
-    private static boolean isInsidePlotBounds(DataManager.MapData mapData, Vec3d pos) {
+    private static boolean isInsidePlotBounds(DataManager.MapData mapData, Vec3 pos) {
         if (mapData == null || pos == null) {
             return false;
         }
@@ -850,7 +850,7 @@ public final class UserPlotManager {
         PENDING_FILL_TASKS.remove(task);
     }
 
-    private static int removePlotEntities(MinecraftServer server, DataManager.MapData mapData, ServerWorld plotWorld) {
+    private static int removePlotEntities(MinecraftServer server, DataManager.MapData mapData, ServerLevel plotWorld) {
         if (server == null || mapData == null || mapData.name == null) {
             return 0;
         }
@@ -858,9 +858,9 @@ public final class UserPlotManager {
         String mapName = mapData.name;
         int removedCount = 0;
 
-        for (ServerWorld world : server.getWorlds()) {
+        for (ServerLevel world : server.getAllLevels()) {
             List<Entity> toRemove = new ArrayList<>();
-            Iterator<Entity> iterator = world.iterateEntities().iterator();
+            Iterator<Entity> iterator = world.getAllEntities().iterator();
             while (iterator.hasNext()) {
                 Entity entity = iterator.next();
                 if (entity == null || entity.isRemoved() || !entity.isAlive()) {
@@ -897,7 +897,7 @@ public final class UserPlotManager {
         return removedCount;
     }
 
-    public static int countSurfRampsInPlot(ServerWorld world, DataManager.MapData mapData) {
+    public static int countSurfRampsInPlot(ServerLevel world, DataManager.MapData mapData) {
         if (world == null || mapData == null) {
             return 0;
         }
@@ -921,7 +921,7 @@ public final class UserPlotManager {
         return count;
     }
 
-    private static boolean intersectsPlotBounds(DataManager.MapData mapData, Box box) {
+    private static boolean intersectsPlotBounds(DataManager.MapData mapData, AABB box) {
         if (mapData == null || box == null) {
             return false;
         }
@@ -931,7 +931,7 @@ public final class UserPlotManager {
                 && box.minZ < mapData.plotMaxZ;
     }
 
-    private static void enqueuePlotClearTask(ServerWorld world, DataManager.MapData mapData) {
+    private static void enqueuePlotClearTask(ServerLevel world, DataManager.MapData mapData) {
         if (world == null || mapData == null || mapData.name == null) {
             return;
         }
@@ -951,17 +951,17 @@ public final class UserPlotManager {
                 mapData.plotMaxZ,
                 groundY,
                 clearTopExclusive,
-                Blocks.AIR.getDefaultState()
+                Blocks.AIR.defaultBlockState()
         );
         PENDING_FILL_TASKS.add(task);
         FILL_TASKS_BY_MAP.put(taskKey, task);
     }
 
     private static void enqueuePlotGroundFill(
-            ServerWorld world,
+            ServerLevel world,
             DataManager.MapData mapData,
             String groundBlockId,
-            ServerPlayerEntity ownerPlayer,
+            ServerPlayer ownerPlayer,
             boolean notifyQueued
     ) {
         if (world == null || mapData == null || mapData.name == null || mapData.name.isBlank()) {
@@ -1028,7 +1028,7 @@ public final class UserPlotManager {
             if (task.isComplete()) {
                 FILL_TASKS_BY_MAP.remove(task.mapName, task);
                 if (!task.ownerUuid.isBlank()) {
-                    ServerPlayerEntity owner = server.getPlayerManager().getPlayer(task.ownerUuid);
+                    ServerPlayer owner = server.getPlayerList().getPlayerByName(task.ownerUuid);
                     if (owner != null) {
                         Logger.logActionBar(owner, "Plot ground generation complete.");
                     }
@@ -1044,11 +1044,11 @@ public final class UserPlotManager {
         Block block = Blocks.GRASS_BLOCK;
         if (validation.valid) {
             Identifier blockId = Identifier.tryParse(validation.blockId);
-            if (blockId != null && Registries.BLOCK.containsId(blockId)) {
-                block = Registries.BLOCK.get(blockId);
+            if (blockId != null && BuiltInRegistries.BLOCK.containsKey(blockId)) {
+                block = BuiltInRegistries.BLOCK.getValue(blockId);
             }
         }
-        return block.getDefaultState();
+        return block.defaultBlockState();
     }
 
     private static GroundBlockValidation validateGroundBlockId(String rawGroundBlockId, boolean allowBlankDefault) {
@@ -1065,11 +1065,11 @@ public final class UserPlotManager {
         }
 
         Identifier id = Identifier.tryParse(trimmed);
-        if (id == null || !Registries.BLOCK.containsId(id)) {
+        if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) {
             return GroundBlockValidation.invalid("Invalid ground block id: " + rawGroundBlockId + ".");
         }
 
-        Block block = Registries.BLOCK.get(id);
+        Block block = BuiltInRegistries.BLOCK.getValue(id);
         if (!isAllowedGroundBlock(block)) {
             return GroundBlockValidation.invalid("That ground block is not allowed for plots. Use a normal placeable solid block.");
         }
@@ -1081,14 +1081,14 @@ public final class UserPlotManager {
         if (block == null) {
             return false;
         }
-        BlockState state = block.getDefaultState();
+        BlockState state = block.defaultBlockState();
         if (state.isAir()) {
             return false;
         }
         if (ILLEGAL_PLOT_GROUND_BLOCKS.contains(block)) {
             return false;
         }
-        if (block instanceof BlockWithEntity || state.hasBlockEntity()) {
+        if (block instanceof BaseEntityBlock || state.hasBlockEntity()) {
             return false;
         }
         return true;
@@ -1101,7 +1101,7 @@ public final class UserPlotManager {
         return isAllowedGroundBlock(block);
     }
 
-    private static void placeSpawnPatch(ServerWorld world, DataManager.MapData mapData, int y, BlockState groundState) {
+    private static void placeSpawnPatch(ServerLevel world, DataManager.MapData mapData, int y, BlockState groundState) {
         if (world == null || mapData == null || groundState == null) {
             return;
         }
@@ -1112,21 +1112,21 @@ public final class UserPlotManager {
         int minZ = Math.max(mapData.plotMinZ, centerZ - SPAWN_PATCH_RADIUS);
         int maxZ = Math.min(mapData.plotMaxZ - 1, centerZ + SPAWN_PATCH_RADIUS);
 
-        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
                 mutable.set(x, y, z);
-                world.setBlockState(mutable, groundState, 3);
+                world.setBlock(mutable, groundState, 3);
             }
         }
     }
 
-    private static ServerWorld resolveWorld(MinecraftServer server, String worldKeyString) {
+    private static ServerLevel resolveWorld(MinecraftServer server, String worldKeyString) {
         if (server == null || worldKeyString == null || worldKeyString.isBlank()) {
             return null;
         }
-        for (ServerWorld world : server.getWorlds()) {
-            if (world.getRegistryKey().toString().equals(worldKeyString)) {
+        for (ServerLevel world : server.getAllLevels()) {
+            if (world.dimension().toString().equals(worldKeyString)) {
                 return world;
             }
         }
@@ -1137,7 +1137,7 @@ public final class UserPlotManager {
         if (server == null) {
             return;
         }
-        for (ServerPlayerEntity worldPlayer : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer worldPlayer : server.getPlayerList().getPlayers()) {
             PacketHandler.sendMaps(worldPlayer);
         }
     }
@@ -1146,7 +1146,7 @@ public final class UserPlotManager {
         if (server == null) {
             return;
         }
-        for (ServerPlayerEntity worldPlayer : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer worldPlayer : server.getPlayerList().getPlayers()) {
             PacketHandler.sendMaps(worldPlayer);
             PacketHandler.sendRecords(worldPlayer);
             PacketHandler.sendPersonalRecords(worldPlayer);
@@ -1181,7 +1181,7 @@ public final class UserPlotManager {
     private static final class PlotFillTask {
         private final String mapName;
         private final String ownerUuid;
-        private final ServerWorld world;
+        private final ServerLevel world;
         private final int minX;
         private final int maxX;
         private final int minZ;
@@ -1200,7 +1200,7 @@ public final class UserPlotManager {
         private PlotFillTask(
                 String mapName,
                 String ownerUuid,
-                ServerWorld world,
+                ServerLevel world,
                 int minX,
                 int maxX,
                 int minZ,
@@ -1214,7 +1214,7 @@ public final class UserPlotManager {
         private PlotFillTask(
                 String mapName,
                 String ownerUuid,
-                ServerWorld world,
+                ServerLevel world,
                 int minX,
                 int maxX,
                 int minZ,
@@ -1248,11 +1248,11 @@ public final class UserPlotManager {
             if (this.canceled || blockBudget <= 0 || this.isComplete()) {
                 return 0;
             }
-            BlockPos.Mutable mutable = new BlockPos.Mutable();
+            BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
             int placedNow = 0;
             while (placedNow < blockBudget && this.cursorY < this.maxYExclusive) {
                 mutable.set(this.cursorX, this.cursorY, this.cursorZ);
-                this.world.setBlockState(mutable, this.groundState, 3);
+                this.world.setBlock(mutable, this.groundState, 3);
                 this.placed++;
                 placedNow++;
 

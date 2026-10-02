@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
@@ -12,20 +14,14 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.command.EntitySelector;
-import net.minecraft.command.argument.EntityArgumentType;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.SpawnReason;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.s2c.play.PositionFlag;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec2f;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.anticheat.AntiCheatManager;
 import net.nerdorg.minehop.config.ConfigWrapper;
@@ -52,15 +48,15 @@ public class MapUtilCommands {
 
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("map")
-            .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+            LiteralArgumentBuilder.<CommandSourceStack>literal("map")
+            .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                 .executes(context -> {
                     handleTeleport(context);
                     return Command.SINGLE_SUCCESS;
                 })
             )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("edit")
-                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+            .then(LiteralArgumentBuilder.<CommandSourceStack>literal("edit")
+                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                     .suggests((context, builder) -> {
                         for (DataManager.MapData mapData : Minehop.mapList) {
                             if (mapData != null && mapData.name != null) {
@@ -75,8 +71,8 @@ public class MapUtilCommands {
                     })
                 )
             )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("rate")
-                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+            .then(LiteralArgumentBuilder.<CommandSourceStack>literal("rate")
+                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                     .suggests((context, builder) -> {
                         for (DataManager.MapData mapData : Minehop.mapList) {
                             if (mapData != null && mapData.userMap && mapData.name != null) {
@@ -85,8 +81,8 @@ public class MapUtilCommands {
                         }
                         return builder.buildFuture();
                     })
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("good_rating", IntegerArgumentType.integer(1, 5))
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("difficulty_rating", IntegerArgumentType.integer(1, 5))
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("good_rating", IntegerArgumentType.integer(1, 5))
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("difficulty_rating", IntegerArgumentType.integer(1, 5))
                             .executes(context -> {
                                 handleRateMap(context);
                                 return Command.SINGLE_SUCCESS;
@@ -95,20 +91,20 @@ public class MapUtilCommands {
                     )
                 )
             )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("restart")
+            .then(LiteralArgumentBuilder.<CommandSourceStack>literal("restart")
                 .executes(context -> {
                     handleRestart(context);
                     return Command.SINGLE_SUCCESS;
                 })
             )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("list")
+            .then(LiteralArgumentBuilder.<CommandSourceStack>literal("list")
                 .executes(context -> {
                     handleList(context);
                     return Command.SINGLE_SUCCESS;
                 })
             )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("top")
-                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+            .then(LiteralArgumentBuilder.<CommandSourceStack>literal("top")
+                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                     .suggests((context, builder) -> {
                         for (DataManager.MapData mapData : Minehop.mapList) {
                             builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -121,21 +117,21 @@ public class MapUtilCommands {
                     })
                 )
             )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("plotmanage")
+            .then(LiteralArgumentBuilder.<CommandSourceStack>literal("plotmanage")
                 .executes(context -> {
                     handleOpenMapManageScreen(context);
                     return Command.SINGLE_SUCCESS;
                 })
             )
-            .then(LiteralArgumentBuilder.<ServerCommandSource>literal("manage")
-            .requires(source -> source.hasPermissionLevel(4))
+            .then(LiteralArgumentBuilder.<CommandSourceStack>literal("manage")
+            .requires(source -> PermissionUtil.hasLevel(source, 4))
                 .executes(context -> {
                     handleOpenMapManageScreen(context);
                     return Command.SINGLE_SUCCESS;
                 })
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("checkpoint")
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("checkpoint")
+                    .then(LiteralArgumentBuilder.<CommandSourceStack>literal("add")
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                             .suggests((context, builder) -> {
                                 for (DataManager.MapData mapData : Minehop.mapList) {
                                     builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -149,18 +145,18 @@ public class MapUtilCommands {
                         )
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("add_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("add")
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("add_name", StringArgumentType.string())
                         .executes(context -> {
                             handleAdd(context);
                             return Command.SINGLE_SUCCESS;
                         })
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("invalidate")
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("times")
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("player")
-                            .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("invalidate")
+                    .then(LiteralArgumentBuilder.<CommandSourceStack>literal("times")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("player")
+                            .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player_name", StringArgumentType.string())
                                 .suggests((context, builder) -> {
                                     suggestKnownPlayerNames(context.getSource(), builder);
                                     return builder.buildFuture();
@@ -171,8 +167,8 @@ public class MapUtilCommands {
                                 })
                             )
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("map")
-                            .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("map")
+                            .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                 .suggests((context, builder) -> {
                                     suggestMapNames(builder);
                                     return builder.buildFuture();
@@ -184,9 +180,9 @@ public class MapUtilCommands {
                             )
                         )
                     )
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("replays")
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("player")
-                            .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player_name", StringArgumentType.string())
+                    .then(LiteralArgumentBuilder.<CommandSourceStack>literal("replays")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("player")
+                            .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player_name", StringArgumentType.string())
                                 .suggests((context, builder) -> {
                                     suggestKnownPlayerNames(context.getSource(), builder);
                                     return builder.buildFuture();
@@ -197,8 +193,8 @@ public class MapUtilCommands {
                                 })
                             )
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("map")
-                            .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("map")
+                            .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                 .suggests((context, builder) -> {
                                     suggestMapNames(builder);
                                     return builder.buildFuture();
@@ -210,12 +206,12 @@ public class MapUtilCommands {
                             )
                         )
                     )
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("run")
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("replay_id", StringArgumentType.string())
+                    .then(LiteralArgumentBuilder.<CommandSourceStack>literal("run")
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("replay_id", StringArgumentType.string())
                             .executes(context -> LeaderboardCommands.invalidateRun(context, StringArgumentType.getString(context, "replay_id")))
                         )
                     )
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                         .suggests((context, builder) -> {
                             for (DataManager.MapData mapData : Minehop.mapList) {
                                 builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -228,14 +224,14 @@ public class MapUtilCommands {
                         })
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("history")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("history")
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player", StringArgumentType.string())
                         .suggests((context, builder) -> {
                             suggestKnownPlayerNames(context.getSource(), builder);
                             return builder.buildFuture();
                         })
                         .executes(context -> LeaderboardCommands.history(context, StringArgumentType.getString(context, "player"), null))
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                             .suggests((context, builder) -> {
                                 suggestMapNames(builder);
                                 return builder.buildFuture();
@@ -245,9 +241,9 @@ public class MapUtilCommands {
                         )
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("flagged")
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("flagged")
                     .executes(context -> LeaderboardCommands.flagged(context, null))
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                         .suggests((context, builder) -> {
                             suggestMapNames(builder);
                             return builder.buildFuture();
@@ -255,39 +251,39 @@ public class MapUtilCommands {
                         .executes(context -> LeaderboardCommands.flagged(context, canonicalMapName(StringArgumentType.getString(context, "map_name"))))
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("ban")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("ban")
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player", StringArgumentType.string())
                         .suggests((context, builder) -> {
                             suggestKnownPlayerNames(context.getSource(), builder);
                             return builder.buildFuture();
                         })
                         .executes(context -> LeaderboardCommands.ban(context, StringArgumentType.getString(context, "player"), ""))
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("reason", StringArgumentType.greedyString())
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("reason", StringArgumentType.greedyString())
                             .executes(context -> LeaderboardCommands.ban(context, StringArgumentType.getString(context, "player"),
                                     StringArgumentType.getString(context, "reason")))
                         )
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("unban")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("unban")
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player", StringArgumentType.string())
                         .executes(context -> LeaderboardCommands.unban(context, StringArgumentType.getString(context, "player")))
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("bans")
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("bans")
                     .executes(LeaderboardCommands::listBans)
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reconcile_ranks")
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("reconcile_ranks")
                     .executes(LeaderboardCommands::reconcileRanks)
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("invalidate_player")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("invalidate_player")
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                         .suggests((context, builder) -> {
                             for (DataManager.MapData mapData : Minehop.mapList) {
                                 builder.suggest(mapData.name, new LiteralMessage(mapData.name));
                             }
                             return builder.buildFuture();
                         })
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player_name", StringArgumentType.string())
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player_name", StringArgumentType.string())
                             .executes(context -> {
                                 handleInvalidatePlayer(context);
                                 return Command.SINGLE_SUCCESS;
@@ -295,8 +291,8 @@ public class MapUtilCommands {
                         )
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("remove")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("remove_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("remove")
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("remove_name", StringArgumentType.string())
                         .suggests((context, builder) -> {
                             for (DataManager.MapData mapData : Minehop.mapList) {
                                 builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -309,8 +305,8 @@ public class MapUtilCommands {
                         })
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("setspawn")
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("setspawn")
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                 .suggests((context, builder) -> {
                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                         builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -323,15 +319,15 @@ public class MapUtilCommands {
                                 })
                         )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("difficulty")
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("difficulty")
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                 .suggests((context, builder) -> {
                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                         builder.suggest(mapData.name, new LiteralMessage(mapData.name));
                                     }
                                     return builder.buildFuture();
                                 })
-                                .then(RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("difficulty", IntegerArgumentType.integer())
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("difficulty", IntegerArgumentType.integer())
                                         .suggests((context, builder) -> {
                                             builder.suggest(0, new LiteralMessage("Beginner"));
                                             builder.suggest(1, new LiteralMessage("Easy"));
@@ -348,8 +344,8 @@ public class MapUtilCommands {
                                 )
                         )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("arena")
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("arena")
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                 .suggests((context, builder) -> {
                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                         builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -362,8 +358,8 @@ public class MapUtilCommands {
                                 })
                         )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("hns")
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("hns")
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                 .suggests((context, builder) -> {
                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                         builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -376,8 +372,8 @@ public class MapUtilCommands {
                                 })
                         )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("kz")
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("kz")
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                 .suggests((context, builder) -> {
                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                         builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -390,8 +386,8 @@ public class MapUtilCommands {
                                 })
                         )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("preservespeed")
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("preservespeed")
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                 .suggests((context, builder) -> {
                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                         builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -404,8 +400,8 @@ public class MapUtilCommands {
                                 })
                         )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("info")
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("search_name", StringArgumentType.string())
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("info")
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("search_name", StringArgumentType.string())
                         .executes(context -> {
                             handleInfo(context);
                             return Command.SINGLE_SUCCESS;
@@ -420,15 +416,15 @@ public class MapUtilCommands {
         ));
     }
 
-    private static void handleOpenMapScreen(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleOpenMapScreen(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         ConfigWrapper.refreshPlayerCounts(context.getSource().getServer());
         PacketHandler.sendMaps(serverPlayerEntity);
         PacketHandler.sendOpenMapScreen(serverPlayerEntity, "Map Browser");
     }
 
-    private static void handleOpenMapManageScreen(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleOpenMapManageScreen(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         if (serverPlayerEntity == null) {
             return;
         }
@@ -439,8 +435,8 @@ public class MapUtilCommands {
         MapCreationManager.openGui(serverPlayerEntity);
     }
 
-    private static void handleEditMap(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleEditMap(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         if (serverPlayerEntity == null) {
             return;
         }
@@ -452,7 +448,7 @@ public class MapUtilCommands {
             return;
         }
 
-        if (!serverPlayerEntity.hasPermissionLevel(4) && !UserPlotManager.canManageMap(serverPlayerEntity, mapData)) {
+        if (!PermissionUtil.hasLevel(serverPlayerEntity, 4) && !UserPlotManager.canManageMap(serverPlayerEntity, mapData)) {
             Logger.logFailure(serverPlayerEntity, "You can only edit your own user plot map from inside your plot.");
             return;
         }
@@ -460,8 +456,8 @@ public class MapUtilCommands {
         MapCreationManager.openGuiForMap(serverPlayerEntity, mapData.name);
     }
 
-    private static void handleRateMap(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleRateMap(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         if (serverPlayerEntity == null) {
             return;
         }
@@ -479,20 +475,20 @@ public class MapUtilCommands {
             Logger.logFailure(serverPlayerEntity, "Only user maps can be community-rated.");
             return;
         }
-        if (mapData.ownerUuid != null && mapData.ownerUuid.equals(serverPlayerEntity.getUuidAsString())) {
+        if (mapData.ownerUuid != null && mapData.ownerUuid.equals(serverPlayerEntity.getStringUUID())) {
             Logger.logFailure(serverPlayerEntity, "You cannot rate your own map.");
             return;
         }
 
         DataManager.setMapRating(
                 mapName,
-                serverPlayerEntity.getUuidAsString(),
+                serverPlayerEntity.getStringUUID(),
                 goodRating,
                 difficultyRating
         );
         DataManager.recalculateMapRatings();
 
-        ServerWorld world = serverPlayerEntity.getServerWorld();
+        ServerLevel world = serverPlayerEntity.level();
         DataManager.saveData(world, DataManager.mapListLocation, Minehop.mapList);
         DataManager.saveData(world, DataManager.mapRatingsLocation, Minehop.mapRatingList);
 
@@ -513,8 +509,8 @@ public class MapUtilCommands {
         );
     }
 
-    private static void handleAddCheckpoint(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleAddCheckpoint(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String name = StringArgumentType.getString(context, "map_name");
 
@@ -535,22 +531,22 @@ public class MapUtilCommands {
             }
             Logger.logSuccess(serverPlayerEntity, "Added checkpoint " + (mapToAddTo.checkpointPositions.size() + 1) + " to " + name);
             Minehop.mapList.remove(mapToAddTo);
-            mapToAddTo.checkpointPositions.add(new ArrayList<>(Arrays.asList(serverPlayerEntity.getPos(), new Vec3d(serverPlayerEntity.getRotationClient().x, serverPlayerEntity.getRotationClient().y, 0))));
+            mapToAddTo.checkpointPositions.add(new ArrayList<>(Arrays.asList(serverPlayerEntity.position(), new Vec3(serverPlayerEntity.getRotationVector().x, serverPlayerEntity.getRotationVector().y, 0))));
             Minehop.mapList.add(mapToAddTo);
-            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+            DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
         }
         else {
             Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
         }
     }
 
-    private static void handleRestart(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleRestart(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
 
 
         assert serverPlayerEntity != null;
-        Zone closestEntity = Minehop.playerMapLocation.get(serverPlayerEntity.getUuidAsString());
+        Zone closestEntity = Minehop.playerMapLocation.get(serverPlayerEntity.getStringUUID());
 
 
 
@@ -582,14 +578,14 @@ public class MapUtilCommands {
             if (currentMapData != null) {
                 if (currentMapData.worldKey == null || currentMapData.worldKey.equals("")) {
                     Minehop.mapList.remove(currentMapData);
-                    currentMapData.worldKey = context.getSource().getServer().getOverworld().getRegistryKey().toString();
+                    currentMapData.worldKey = context.getSource().getServer().overworld().dimension().toString();
                     Minehop.mapList.add(currentMapData);
-                    DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+                    DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
                 }
-                Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
-                ServerWorld foundWorld = null;
-                for (ServerWorld svrWorld : context.getSource().getServer().getWorlds()) {
-                    if (svrWorld.getRegistryKey().toString().equals(currentMapData.worldKey)) {
+                Minehop.timerManager.remove(serverPlayerEntity.getScoreboardName());
+                ServerLevel foundWorld = null;
+                for (ServerLevel svrWorld : context.getSource().getServer().getAllLevels()) {
+                    if (svrWorld.dimension().toString().equals(currentMapData.worldKey)) {
                         foundWorld = svrWorld;
                         break;
                     }
@@ -598,23 +594,23 @@ public class MapUtilCommands {
                     if (!serverPlayerEntity.isSpectator()) {
                         UserPlotManager.consumeForcedCreativeState(serverPlayerEntity);
                         if (!serverPlayerEntity.isCreative()) {
-                            serverPlayerEntity.getInventory().clear();
+                            serverPlayerEntity.getInventory().clearContent();
                         }
-                        serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget(foundWorld, new Vec3d(currentMapData.x, currentMapData.y, currentMapData.z), (float) currentMapData.yrot, (float) currentMapData.xrot));
-                        if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                            List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                        serverPlayerEntity.teleport(ZoneUtil.makeTeleportTarget(foundWorld, new Vec3(currentMapData.x, currentMapData.y, currentMapData.z), (float) currentMapData.yrot, (float) currentMapData.xrot));
+                        if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getScoreboardName())) {
+                            List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getScoreboardName());
                             for (String spectator : spectators) {
-                                if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
-                                    ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                                if (!spectator.equals(serverPlayerEntity.getScoreboardName())) {
+                                    ServerPlayer spectatorPlayer = context.getSource().getServer().getPlayerList().getPlayerByName(spectator);
                                     if (spectatorPlayer == null) {
                                         continue;
                                     }
                                     UserPlotManager.consumeForcedCreativeState(spectatorPlayer);
                                     if (!spectatorPlayer.isCreative()) {
-                                        spectatorPlayer.getInventory().clear();
+                                        spectatorPlayer.getInventory().clearContent();
                                     }
-                                    spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
-                                    spectatorPlayer.setCameraEntity(serverPlayerEntity);
+                                    spectatorPlayer.teleport(ZoneUtil.makeTeleportTarget(serverPlayerEntity.level(), new Vec3(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYRot(), serverPlayerEntity.getXRot()));
+                                    spectatorPlayer.setCamera(serverPlayerEntity);
                                 }
                             }
                         }
@@ -627,8 +623,8 @@ public class MapUtilCommands {
         }
     }
 
-    private static void handleTeleport(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleTeleport(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String name = StringArgumentType.getString(context, "map_name");
 
@@ -649,14 +645,14 @@ public class MapUtilCommands {
             }
             if (tpData.worldKey == null || tpData.worldKey.equals("")) {
                 Minehop.mapList.remove(tpData);
-                tpData.worldKey = context.getSource().getServer().getOverworld().getRegistryKey().toString();
+                tpData.worldKey = context.getSource().getServer().overworld().dimension().toString();
                 Minehop.mapList.add(tpData);
-                DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+                DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
             }
             Logger.logSuccess(serverPlayerEntity, "Teleporting to " + name);
-            ServerWorld foundWorld = null;
-            for (ServerWorld serverWorld : context.getSource().getServer().getWorlds()) {
-                if (serverWorld.getRegistryKey().toString().equals(tpData.worldKey)) {
+            ServerLevel foundWorld = null;
+            for (ServerLevel serverWorld : context.getSource().getServer().getAllLevels()) {
+                if (serverWorld.dimension().toString().equals(tpData.worldKey)) {
                     foundWorld = serverWorld;
                     break;
                 }
@@ -665,25 +661,25 @@ public class MapUtilCommands {
                 if (tpData.hns || tpData.arena) {
                     GamemodeEntity gamemodeEntity = ZoneUtil.getGamemodeEntity(tpData.name, foundWorld);
                     if (gamemodeEntity == null) {
-                        gamemodeEntity = ModEntities.GAMEMODE_ENTITY.spawn(foundWorld, new BlockPos((int) tpData.x, (int) tpData.y, (int) tpData.z), SpawnReason.NATURAL);
+                        gamemodeEntity = ModEntities.GAMEMODE_ENTITY.spawn(foundWorld, new BlockPos((int) tpData.x, (int) tpData.y, (int) tpData.z), EntitySpawnReason.NATURAL);
                         gamemodeEntity.setPairedMap(tpData.name);
                     }
-                    Minehop.playerMapLocation.put(serverPlayerEntity.getUuidAsString(), gamemodeEntity);
+                    Minehop.playerMapLocation.put(serverPlayerEntity.getStringUUID(), gamemodeEntity);
                 }
-                Vec3d targetPos = new Vec3d(tpData.x, tpData.y, tpData.z);
-                Vec3d rotPos = new Vec3d(tpData.xrot, tpData.yrot, 0);
+                Vec3 targetPos = new Vec3(tpData.x, tpData.y, tpData.z);
+                Vec3 rotPos = new Vec3(tpData.xrot, tpData.yrot, 0);
                 if (tpData.arena) {
-                    List<Vec3d> spawnCheck = new ArrayList<>();
-                    spawnCheck.add(new Vec3d(tpData.x, tpData.y, tpData.z));
-                    spawnCheck.add(new Vec3d(tpData.xrot, tpData.yrot, 0));
+                    List<Vec3> spawnCheck = new ArrayList<>();
+                    spawnCheck.add(new Vec3(tpData.x, tpData.y, tpData.z));
+                    spawnCheck.add(new Vec3(tpData.xrot, tpData.yrot, 0));
 
-                    List<List<Vec3d>> checkpointPositions = new ArrayList<>();
+                    List<List<Vec3>> checkpointPositions = new ArrayList<>();
                     if (tpData.checkpointPositions != null) {
                         checkpointPositions.addAll(tpData.checkpointPositions);
                     }
                     checkpointPositions.add(spawnCheck);
 
-                    List<Vec3d> randomCheckpoint = checkpointPositions.get(random.nextInt(0, checkpointPositions.size()));
+                    List<Vec3> randomCheckpoint = checkpointPositions.get(random.nextInt(0, checkpointPositions.size()));
                     targetPos = randomCheckpoint.get(0);
                     rotPos = randomCheckpoint.get(1);
                 }
@@ -691,31 +687,31 @@ public class MapUtilCommands {
                 if (!serverPlayerEntity.isSpectator()) {
                     UserPlotManager.consumeForcedCreativeState(serverPlayerEntity);
                     if (!serverPlayerEntity.isCreative()) {
-                        serverPlayerEntity.getInventory().clear();
+                        serverPlayerEntity.getInventory().clearContent();
                     }
-                    serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget(foundWorld, targetPos, (float) rotPos.getY(), (float) rotPos.getX()));
-                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                    serverPlayerEntity.teleport(ZoneUtil.makeTeleportTarget(foundWorld, targetPos, (float) rotPos.y(), (float) rotPos.x()));
+                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getScoreboardName())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getScoreboardName());
                         for (String spectator : spectators) {
-                            if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
-                                ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                            if (!spectator.equals(serverPlayerEntity.getScoreboardName())) {
+                                ServerPlayer spectatorPlayer = context.getSource().getServer().getPlayerList().getPlayerByName(spectator);
                                 if (spectatorPlayer == null) {
                                     continue;
                                 }
                                 UserPlotManager.consumeForcedCreativeState(spectatorPlayer);
                                 if (!spectatorPlayer.isCreative()) {
-                                    spectatorPlayer.getInventory().clear();
+                                    spectatorPlayer.getInventory().clearContent();
                                 }
-                                spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
-                                spectatorPlayer.setCameraEntity(serverPlayerEntity);
+                                spectatorPlayer.teleport(ZoneUtil.makeTeleportTarget(serverPlayerEntity.level(), new Vec3(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYRot(), serverPlayerEntity.getXRot()));
+                                spectatorPlayer.setCamera(serverPlayerEntity);
                             }
                         }
                     }
                     if (tpData.arena) {
-                        for (int slotNum = 1; slotNum < serverPlayerEntity.getInventory().size(); slotNum++) {
-                            serverPlayerEntity.getInventory().setStack(slotNum, new ItemStack(Items.AIR));
+                        for (int slotNum = 1; slotNum < serverPlayerEntity.getInventory().getContainerSize(); slotNum++) {
+                            serverPlayerEntity.getInventory().setItem(slotNum, new ItemStack(Items.AIR));
                         }
-                        serverPlayerEntity.getInventory().setStack(0, new ItemStack(ModItems.INSTAGIB_GUN));
+                        serverPlayerEntity.getInventory().setItem(0, new ItemStack(ModItems.INSTAGIB_GUN));
                     }
                 }
             }
@@ -725,8 +721,8 @@ public class MapUtilCommands {
         }
     }
 
-    private static void handleAdd(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleAdd(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String rawName = StringArgumentType.getString(context, "add_name");
         String name = rawName == null ? "" : rawName.trim();
@@ -742,13 +738,13 @@ public class MapUtilCommands {
         double spawn_x = serverPlayerEntity.getX();
         double spawn_y = serverPlayerEntity.getY();
         double spawn_z = serverPlayerEntity.getZ();
-        double spawn_xrot = serverPlayerEntity.getPitch();
-        double spawn_yrot = serverPlayerEntity.getYaw();
+        double spawn_xrot = serverPlayerEntity.getXRot();
+        double spawn_yrot = serverPlayerEntity.getYRot();
 
-        DataManager.MapData mapData = new DataManager.MapData(name, spawn_x, spawn_y, spawn_z, spawn_xrot, spawn_yrot, serverPlayerEntity.getWorld().getRegistryKey().toString());
+        DataManager.MapData mapData = new DataManager.MapData(name, spawn_x, spawn_y, spawn_z, spawn_xrot, spawn_yrot, serverPlayerEntity.level().dimension().toString());
         mapData.copyMovementFrom(ConfigWrapper.config, false);
         Minehop.mapList.add(mapData);
-        DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+        DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
 
         Logger.logSuccess(serverPlayerEntity, "Created map \\/\n" + StringFormatting.limitDecimals(gson.toJson(mapData)));
 
@@ -762,33 +758,33 @@ public class MapUtilCommands {
 
     // All invalidation goes through LeaderboardIntegrity (UUID-safe identity, WR promotion, replays,
     // record_holder rank, WR replay entity, client sync, audit log).
-    private static void handleInvalidatePlayer(CommandContext<ServerCommandSource> context) {
+    private static void handleInvalidatePlayer(CommandContext<CommandSourceStack> context) {
         LeaderboardCommands.invalidatePlayer(context, StringArgumentType.getString(context, "player_name"),
                 canonicalMapName(StringArgumentType.getString(context, "map_name")), true, true);
     }
 
-    private static void handleInvalidate(CommandContext<ServerCommandSource> context) {
+    private static void handleInvalidate(CommandContext<CommandSourceStack> context) {
         LeaderboardCommands.invalidateMap(context, canonicalMapName(StringArgumentType.getString(context, "map_name")), true, true);
     }
 
-    private static void handleInvalidateAllTimesForPlayer(CommandContext<ServerCommandSource> context) {
+    private static void handleInvalidateAllTimesForPlayer(CommandContext<CommandSourceStack> context) {
         LeaderboardCommands.invalidatePlayer(context, StringArgumentType.getString(context, "player_name"), null, true, true);
     }
 
-    private static void handleInvalidateTimesForMap(CommandContext<ServerCommandSource> context) {
+    private static void handleInvalidateTimesForMap(CommandContext<CommandSourceStack> context) {
         LeaderboardCommands.invalidateMap(context, canonicalMapName(StringArgumentType.getString(context, "map_name")), true, true);
     }
 
-    private static void handleInvalidateReplaysForPlayer(CommandContext<ServerCommandSource> context) {
+    private static void handleInvalidateReplaysForPlayer(CommandContext<CommandSourceStack> context) {
         LeaderboardCommands.invalidatePlayer(context, StringArgumentType.getString(context, "player_name"), null, false, true);
     }
 
-    private static void handleInvalidateReplaysForMap(CommandContext<ServerCommandSource> context) {
+    private static void handleInvalidateReplaysForMap(CommandContext<CommandSourceStack> context) {
         LeaderboardCommands.invalidateMap(context, canonicalMapName(StringArgumentType.getString(context, "map_name")), false, true);
     }
 
-    private static void handleRemove(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleRemove(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String name = StringArgumentType.getString(context, "remove_name");
 
@@ -800,8 +796,8 @@ public class MapUtilCommands {
                     removedData = mapData;
                     Minehop.mapList.remove(mapData);
                     DataManager.removeRatingsForMap(name);
-                    DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
-                    DataManager.saveData(context.getSource().getWorld(), DataManager.mapRatingsLocation, Minehop.mapRatingList);
+                    DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
+                    DataManager.saveData(context.getSource().getLevel(), DataManager.mapRatingsLocation, Minehop.mapRatingList);
                     break;
                 }
             }
@@ -811,7 +807,7 @@ public class MapUtilCommands {
             // Cascade: a removed map keeps no times, WR, replays or WR replay entity (and its holder
             // loses record_holder unless they hold another WR). Re-adding the name starts clean.
             net.nerdorg.minehop.data.LeaderboardIntegrity.Report cascade = net.nerdorg.minehop.data.LeaderboardIntegrity.purgeMap(
-                    context.getSource().getServer(), name, true, true, context.getSource().getName(), "map removed");
+                    context.getSource().getServer(), name, true, true, context.getSource().getTextName(), "map removed");
             Logger.logSuccess(serverPlayerEntity, "Removed map (and " + cascade.summary() + ") \\/\n" + StringFormatting.limitDecimals(gson.toJson(removedData)));
         }
         else {
@@ -819,8 +815,8 @@ public class MapUtilCommands {
         }
     }
 
-    private static void handleSetDifficulty(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleSetDifficulty(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String name = StringArgumentType.getString(context, "map_name");
         int difficulty = IntegerArgumentType.getInteger(context, "difficulty");
@@ -840,7 +836,7 @@ public class MapUtilCommands {
         if (difficultyData != null) {
             difficultyData.difficulty = difficulty;
             Minehop.mapList.add(difficultyData);
-            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+            DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Set map difficulty \\/\n" + StringFormatting.limitDecimals(gson.toJson(difficultyData)));
         }
@@ -849,16 +845,16 @@ public class MapUtilCommands {
         }
     }
 
-    private static void handleSetMapSpawn(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleSetMapSpawn(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String name = StringArgumentType.getString(context, "map_name");
 
         double spawn_x = serverPlayerEntity.getX();
         double spawn_y = serverPlayerEntity.getY();
         double spawn_z = serverPlayerEntity.getZ();
-        double spawn_xrot = serverPlayerEntity.getPitch();
-        double spawn_yrot = serverPlayerEntity.getYaw();
+        double spawn_xrot = serverPlayerEntity.getXRot();
+        double spawn_yrot = serverPlayerEntity.getYRot();
 
         DataManager.MapData spawnData = null;
 
@@ -879,7 +875,7 @@ public class MapUtilCommands {
             spawnData.xrot = spawn_xrot;
             spawnData.yrot = spawn_yrot;
             Minehop.mapList.add(spawnData);
-            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+            DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Set map spawn \\/\n" + StringFormatting.limitDecimals(gson.toJson(spawnData)));
         }
@@ -888,8 +884,8 @@ public class MapUtilCommands {
         }
     }
 
-    private static void handleToggleArena(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleToggleArena(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String name = StringArgumentType.getString(context, "map_name");
 
@@ -908,7 +904,7 @@ public class MapUtilCommands {
         if (toggleData != null) {
             toggleData.arena = !toggleData.arena;
             Minehop.mapList.add(toggleData);
-            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+            DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Toggled arena mode to " + toggleData.arena);
         }
@@ -917,8 +913,8 @@ public class MapUtilCommands {
         }
     }
 
-    private static void handleTogglePreserveSpeed(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleTogglePreserveSpeed(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String name = StringArgumentType.getString(context, "map_name");
 
@@ -937,7 +933,7 @@ public class MapUtilCommands {
         if (toggleData != null) {
             toggleData.preserve_speed = !toggleData.preserve_speed;
             Minehop.mapList.add(toggleData);
-            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+            DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Toggled preserve speed on reset to " + toggleData.preserve_speed + " for " + name + ".");
         }
@@ -946,8 +942,8 @@ public class MapUtilCommands {
         }
     }
 
-    private static void handleToggleHNS(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleToggleHNS(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String name = StringArgumentType.getString(context, "map_name");
 
@@ -966,7 +962,7 @@ public class MapUtilCommands {
         if (toggleData != null) {
             toggleData.hns = !toggleData.hns;
             Minehop.mapList.add(toggleData);
-            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+            DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Toggled hns mode to " + toggleData.hns);
         }
@@ -975,8 +971,8 @@ public class MapUtilCommands {
         }
     }
 
-    private static void handleToggleKZ(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleToggleKZ(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String name = StringArgumentType.getString(context, "map_name");
 
@@ -995,7 +991,7 @@ public class MapUtilCommands {
         if (toggleData != null) {
             toggleData.kz = !toggleData.kz;
             Minehop.mapList.add(toggleData);
-            DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
+            DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Toggled kz mode to " + toggleData.kz);
         }
@@ -1004,8 +1000,8 @@ public class MapUtilCommands {
         }
     }
 
-    private static void handleListTop(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleListTop(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         String name = StringArgumentType.getString(context, "map_name");
 
         List<DataManager.RecordData> recordDataList = new ArrayList<>();
@@ -1031,8 +1027,8 @@ public class MapUtilCommands {
         Logger.logSuccess(serverPlayerEntity, "Top Map Times for " + name + " \\/\n" + StringFormatting.limitDecimals(gson.toJson(sortedRecordDataList)));
     }
 
-    private static void handleList(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleList(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         List<String> mapNameList = new ArrayList<>();
 
@@ -1047,8 +1043,8 @@ public class MapUtilCommands {
         Logger.logSuccess(serverPlayerEntity, "Map Names \\/\n" + StringFormatting.limitDecimals(gson.toJson(mapNameList)) + "\nUse /map \"map_name\" in order to teleport.");
     }
 
-    private static void handleInfo(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleInfo(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         String name = StringArgumentType.getString(context, "search_name");
 
@@ -1082,18 +1078,18 @@ public class MapUtilCommands {
         }
     }
 
-    private static void suggestKnownPlayerNames(ServerCommandSource source, SuggestionsBuilder builder) {
+    private static void suggestKnownPlayerNames(CommandSourceStack source, SuggestionsBuilder builder) {
         for (String playerName : collectKnownPlayerNames(source)) {
             builder.suggest(playerName, new LiteralMessage(playerName));
         }
     }
 
-    private static Set<String> collectKnownPlayerNames(ServerCommandSource source) {
+    private static Set<String> collectKnownPlayerNames(CommandSourceStack source) {
         Set<String> playerNames = new LinkedHashSet<>();
         if (source != null && source.getServer() != null) {
-            for (ServerPlayerEntity player : source.getServer().getPlayerManager().getPlayerList()) {
-                if (player != null && player.getNameForScoreboard() != null && !player.getNameForScoreboard().isBlank()) {
-                    playerNames.add(player.getNameForScoreboard());
+            for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
+                if (player != null && player.getScoreboardName() != null && !player.getScoreboardName().isBlank()) {
+                    playerNames.add(player.getScoreboardName());
                 }
             }
         }
@@ -1125,7 +1121,7 @@ public class MapUtilCommands {
         if (server == null) {
             return;
         }
-        for (ServerPlayerEntity worldPlayer : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer worldPlayer : server.getPlayerList().getPlayers()) {
             PacketHandler.sendMaps(worldPlayer);
         }
     }

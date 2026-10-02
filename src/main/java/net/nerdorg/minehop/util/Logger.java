@@ -1,65 +1,64 @@
 package net.nerdorg.minehop.util;
 
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import java.util.List;
 
 public class Logger {
-    private static Text prefix = Text.literal("NerdOrg ").withColor(Formatting.GREEN.getColorValue()).append(Text.literal("(").withColor(Formatting.GRAY.getColorValue())).append(Text.literal("Minehop").withColor(Formatting.LIGHT_PURPLE.getColorValue()).formatted(Formatting.ITALIC)).append(Text.literal(") ").withColor(Formatting.GRAY.getColorValue())).append(Text.literal("-> ").withColor(Formatting.DARK_GRAY.getColorValue()));
+    private static Component prefix = Component.literal("NerdOrg ").withColor(ChatFormatting.GREEN.getColor()).append(Component.literal("(").withColor(ChatFormatting.GRAY.getColor())).append(Component.literal("Minehop").withColor(ChatFormatting.LIGHT_PURPLE.getColor()).withStyle(ChatFormatting.ITALIC)).append(Component.literal(") ").withColor(ChatFormatting.GRAY.getColor())).append(Component.literal("-> ").withColor(ChatFormatting.DARK_GRAY.getColor()));
 
     public static void logGlobal(MinecraftServer server, String message) {
-        List<ServerPlayerEntity> playerEntities = server.getPlayerManager().getPlayerList();
+        List<ServerPlayer> playerEntities = server.getPlayerList().getPlayers();
 
-        for (ServerPlayerEntity playerEntity : playerEntities) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.AQUA.getColorValue())));
+        for (ServerPlayer playerEntity : playerEntities) {
+            playerEntity.sendSystemMessage(prefix.copy().append(Component.literal(message).withColor(ChatFormatting.AQUA.getColor())));
         }
     }
 
-    public static void logGlobalColor(MinecraftServer server, String message, Formatting color) {
-        List<ServerPlayerEntity> playerEntities = server.getPlayerManager().getPlayerList();
+    public static void logGlobalColor(MinecraftServer server, String message, ChatFormatting color) {
+        List<ServerPlayer> playerEntities = server.getPlayerList().getPlayers();
 
-        for (ServerPlayerEntity playerEntity : playerEntities) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(color.getColorValue())));
+        for (ServerPlayer playerEntity : playerEntities) {
+            playerEntity.sendSystemMessage(prefix.copy().append(Component.literal(message).withColor(color.getColor())));
         }
     }
 
-    public static void logGlobal(MinecraftServer server, Text message) {
-        List<ServerPlayerEntity> playerEntities = server.getPlayerManager().getPlayerList();
+    public static void logGlobal(MinecraftServer server, Component message) {
+        List<ServerPlayer> playerEntities = server.getPlayerList().getPlayers();
 
-        for (ServerPlayerEntity playerEntity : playerEntities) {
-            playerEntity.sendMessage(prefix.copy().append(message.copy().withColor(Formatting.AQUA.getColorValue())));
+        for (ServerPlayer playerEntity : playerEntities) {
+            playerEntity.sendSystemMessage(prefix.copy().append(message.copy().withColor(ChatFormatting.AQUA.getColor())));
         }
     }
 
     public static void logServer(MinecraftServer server, String message) {
-        server.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.AQUA.getColorValue())));
+        server.sendSystemMessage(prefix.copy().append(Component.literal(message).withColor(ChatFormatting.AQUA.getColor())));
     }
 
-    public static void logActionBar(PlayerEntity playerEntity, String message) {
+    public static void logActionBar(Player playerEntity, String message) {
         if (playerEntity != null) {
-            playerEntity.sendMessage(Text.literal(message).withColor(Formatting.AQUA.getColorValue()), true);
+            playerEntity.sendOverlayMessage(Component.literal(message).withColor(ChatFormatting.AQUA.getColor()));
         }
     }
 
-    public static void logSuccess(PlayerEntity playerEntity, String message) {
+    public static void logSuccess(Player playerEntity, String message) {
         if (playerEntity != null) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.GOLD.getColorValue())), false);
+            playerEntity.sendSystemMessage(prefix.copy().append(Component.literal(message).withColor(ChatFormatting.GOLD.getColor())));
         }
     }
 
-    public static void log(PlayerEntity playerEntity, Text message) {
+    public static void log(Player playerEntity, Component message) {
         if (playerEntity != null) {
-            playerEntity.sendMessage(prefix.copy().append(message), false);
+            playerEntity.sendSystemMessage(prefix.copy().append(message));
         }
     }
 
-    public static void logFailure(PlayerEntity playerEntity, String message) {
+    public static void logFailure(Player playerEntity, String message) {
         if (playerEntity != null) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.RED.getColorValue())), false);
+            playerEntity.sendSystemMessage(prefix.copy().append(Component.literal(message).withColor(ChatFormatting.RED.getColor())));
         }
     }
 }

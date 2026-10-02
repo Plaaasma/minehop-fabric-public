@@ -1,13 +1,12 @@
 package net.nerdorg.minehop.anticheat;
 
-import net.minecraft.util.math.Vec3d;
-
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import net.minecraft.world.phys.Vec3;
 
 public final class AntiCheatPlayerState {
     public static final int RECENT_FLAG_HISTORY = 32;
@@ -16,9 +15,9 @@ public final class AntiCheatPlayerState {
     private final UUID playerUuid;
     private String lastKnownName = "";
 
-    private Vec3d lastVerifiedPos;
-    private Vec3d lastReportedPos;
-    private Vec3d lastTickVelocity = Vec3d.ZERO;
+    private Vec3 lastVerifiedPos;
+    private Vec3 lastReportedPos;
+    private Vec3 lastTickVelocity = Vec3.ZERO;
     private double topRecentHorizontalSpeed;
     private int airborneTicks;
     private int ticksSinceMoved;
@@ -52,28 +51,28 @@ public final class AntiCheatPlayerState {
         }
     }
 
-    public Vec3d lastVerifiedPos() {
+    public Vec3 lastVerifiedPos() {
         return this.lastVerifiedPos;
     }
 
-    public void setLastVerifiedPos(Vec3d pos) {
+    public void setLastVerifiedPos(Vec3 pos) {
         this.lastVerifiedPos = pos;
     }
 
-    public Vec3d lastReportedPos() {
+    public Vec3 lastReportedPos() {
         return this.lastReportedPos;
     }
 
-    public void setLastReportedPos(Vec3d pos) {
+    public void setLastReportedPos(Vec3 pos) {
         this.lastReportedPos = pos;
     }
 
-    public Vec3d lastTickVelocity() {
-        return this.lastTickVelocity == null ? Vec3d.ZERO : this.lastTickVelocity;
+    public Vec3 lastTickVelocity() {
+        return this.lastTickVelocity == null ? Vec3.ZERO : this.lastTickVelocity;
     }
 
-    public void setLastTickVelocity(Vec3d velocity) {
-        this.lastTickVelocity = velocity == null ? Vec3d.ZERO : velocity;
+    public void setLastTickVelocity(Vec3 velocity) {
+        this.lastTickVelocity = velocity == null ? Vec3.ZERO : velocity;
     }
 
     public double topRecentHorizontalSpeed() {

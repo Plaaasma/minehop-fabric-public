@@ -1,18 +1,15 @@
 package net.nerdorg.minehop.damage;
 
-import net.minecraft.entity.damage.DamageEffects;
-import net.minecraft.entity.damage.DamageScaling;
-import net.minecraft.entity.damage.DamageType;
-import net.minecraft.entity.damage.DeathMessageType;
-import net.minecraft.registry.Registerable;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.util.Identifier;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.data.worldgen.BootstrapContext;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.damagesource.DamageType;
 
 public class ModDamageTypes {
-    public static RegistryKey<DamageType> INSTAGIB = RegistryKey.of(RegistryKeys.DAMAGE_TYPE, Identifier.of("instagib"));
+    public static ResourceKey<DamageType> INSTAGIB = ResourceKey.create(Registries.DAMAGE_TYPE, Identifier.parse("instagib"));
 
-    public static void bootstrap(Registerable<DamageType> damageTypeRegisterable) {
+    public static void bootstrap(BootstrapContext<DamageType> damageTypeRegisterable) {
         damageTypeRegisterable.register(INSTAGIB, new DamageType("instagib", 0.0F));
     }
 }

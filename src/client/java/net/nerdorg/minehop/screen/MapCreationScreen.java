@@ -1,13 +1,15 @@
 package net.nerdorg.minehop.screen;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.ClientPacketHandler;
@@ -34,15 +36,15 @@ public class MapCreationScreen extends Screen {
     private final int initialCheckpointIndex;
     private final boolean initialResetToStart;
 
-    private TextFieldWidget mapNameField;
-    private TextFieldWidget checkpointIndexField;
-    private ButtonWidget difficultyButton;
-    private ButtonWidget arenaButton;
-    private ButtonWidget hnsButton;
-    private ButtonWidget surfButton;
-    private ButtonWidget kzButton;
-    private ButtonWidget movementButton;
-    private ButtonWidget resetTargetButton;
+    private EditBox mapNameField;
+    private EditBox checkpointIndexField;
+    private Button difficultyButton;
+    private Button arenaButton;
+    private Button hnsButton;
+    private Button surfButton;
+    private Button kzButton;
+    private Button movementButton;
+    private Button resetTargetButton;
 
     private int selectedDifficulty;
     private boolean selectedArena;
@@ -76,9 +78,9 @@ public class MapCreationScreen extends Screen {
             boolean movementFallDamage,
             int checkpointIndex
     ) {
-        super(Text.translatable("screen.minehop.map_creator.title"));
+        super(Component.translatable("screen.minehop.map_creator.title"));
         this.initialMapName = mapName == null ? "" : mapName;
-        this.initialDifficulty = MathHelper.clamp(difficulty, 0, 5);
+        this.initialDifficulty = Mth.clamp(difficulty, 0, 5);
         this.initialArena = arena;
         this.initialHns = hns;
         this.initialSurf = surf;
@@ -112,11 +114,11 @@ public class MapCreationScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void extractBlurredBackground(GuiGraphicsExtractor context) {
     }
 
     @Override
-    public void blur() {
+    public void clearFocus() {
     }
 
     @Override
@@ -130,112 +132,112 @@ public class MapCreationScreen extends Screen {
         int fieldX = panelX + 142;
         int fieldWidth = panelWidth - 160;
 
-        this.mapNameField = new TextFieldWidget(
-                this.textRenderer,
+        this.mapNameField = new EditBox(
+                this.font,
                 fieldX,
                 panelY + 30,
                 fieldWidth,
                 18,
-                Text.translatable("screen.minehop.map_creator.map_name")
+                Component.translatable("screen.minehop.map_creator.map_name")
         );
-        this.mapNameField.setText(this.initialMapName);
+        this.mapNameField.setValue(this.initialMapName);
         this.mapNameField.setMaxLength(128);
-        this.addDrawableChild(this.mapNameField);
+        this.addRenderableWidget(this.mapNameField);
 
-        this.difficultyButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.cycleDifficulty())
-                        .dimensions(fieldX, panelY + 56, fieldWidth, 20)
+        this.difficultyButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.cycleDifficulty())
+                        .bounds(fieldX, panelY + 56, fieldWidth, 20)
                         .build()
         );
-        this.arenaButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.toggleArena())
-                        .dimensions(fieldX, panelY + 82, fieldWidth, 20)
+        this.arenaButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.toggleArena())
+                        .bounds(fieldX, panelY + 82, fieldWidth, 20)
                         .build()
         );
-        this.hnsButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.toggleHns())
-                        .dimensions(fieldX, panelY + 108, fieldWidth, 20)
+        this.hnsButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.toggleHns())
+                        .bounds(fieldX, panelY + 108, fieldWidth, 20)
                         .build()
         );
-        this.surfButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.toggleSurf())
-                        .dimensions(fieldX, panelY + 134, fieldWidth, 20)
+        this.surfButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.toggleSurf())
+                        .bounds(fieldX, panelY + 134, fieldWidth, 20)
                         .build()
         );
-        this.kzButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.toggleKz())
-                        .dimensions(fieldX, panelY + 160, fieldWidth, 20)
+        this.kzButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.toggleKz())
+                        .bounds(fieldX, panelY + 160, fieldWidth, 20)
                         .build()
         );
-        this.movementButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.openMovementSettings())
-                        .dimensions(fieldX, panelY + 186, fieldWidth, 20)
-                        .build()
-        );
-
-        this.resetTargetButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.toggleResetTarget())
-                        .dimensions(fieldX, panelY + 212, fieldWidth, 20)
+        this.movementButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.openMovementSettings())
+                        .bounds(fieldX, panelY + 186, fieldWidth, 20)
                         .build()
         );
 
-        this.checkpointIndexField = new TextFieldWidget(
-                this.textRenderer,
+        this.resetTargetButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.toggleResetTarget())
+                        .bounds(fieldX, panelY + 212, fieldWidth, 20)
+                        .build()
+        );
+
+        this.checkpointIndexField = new EditBox(
+                this.font,
                 fieldX,
                 panelY + 238,
                 fieldWidth,
                 18,
-                Text.translatable("screen.minehop.map_creator.checkpoint_index")
+                Component.translatable("screen.minehop.map_creator.checkpoint_index")
         );
-        this.checkpointIndexField.setText(Integer.toString(this.initialCheckpointIndex));
+        this.checkpointIndexField.setValue(Integer.toString(this.initialCheckpointIndex));
         this.checkpointIndexField.setMaxLength(6);
-        this.addDrawableChild(this.checkpointIndexField);
+        this.addRenderableWidget(this.checkpointIndexField);
 
         int actionY = panelY + 272;
         int buttonWidth = 166;
         int leftX = panelX + 18;
         int rightX = panelX + panelWidth - buttonWidth - 18;
 
-        this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("screen.minehop.map_creator.create_update"), button ->
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("screen.minehop.map_creator.create_update"), button ->
                                 this.sendAction(MapCreatorActionPayload.ACTION_CREATE_OR_UPDATE))
-                        .dimensions(leftX, actionY, buttonWidth, 20)
+                        .bounds(leftX, actionY, buttonWidth, 20)
                         .build()
         );
-        this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("screen.minehop.map_creator.set_spawn"), button ->
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("screen.minehop.map_creator.set_spawn"), button ->
                                 this.sendAction(MapCreatorActionPayload.ACTION_SET_SPAWN))
-                        .dimensions(rightX, actionY, buttonWidth, 20)
+                        .bounds(rightX, actionY, buttonWidth, 20)
                         .build()
         );
-        this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("screen.minehop.map_creator.add_checkpoint"), button ->
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("screen.minehop.map_creator.add_checkpoint"), button ->
                                 this.sendAction(MapCreatorActionPayload.ACTION_ADD_CHECKPOINT))
-                        .dimensions(leftX, actionY + 24, buttonWidth, 20)
+                        .bounds(leftX, actionY + 24, buttonWidth, 20)
                         .build()
         );
-        this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("screen.minehop.map_creator.add_start_zone"), button ->
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("screen.minehop.map_creator.add_start_zone"), button ->
                                 this.sendAction(MapCreatorActionPayload.ACTION_ADD_START_ZONE))
-                        .dimensions(rightX, actionY + 24, buttonWidth, 20)
+                        .bounds(rightX, actionY + 24, buttonWidth, 20)
                         .build()
         );
-        this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("screen.minehop.map_creator.add_end_zone"), button ->
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("screen.minehop.map_creator.add_end_zone"), button ->
                                 this.sendAction(MapCreatorActionPayload.ACTION_ADD_END_ZONE))
-                        .dimensions(leftX, actionY + 48, buttonWidth, 20)
+                        .bounds(leftX, actionY + 48, buttonWidth, 20)
                         .build()
         );
-        this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("screen.minehop.map_creator.add_reset_zone"), button ->
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("screen.minehop.map_creator.add_reset_zone"), button ->
                                 this.sendAction(MapCreatorActionPayload.ACTION_ADD_RESET_ZONE))
-                        .dimensions(rightX, actionY + 48, buttonWidth, 20)
+                        .bounds(rightX, actionY + 48, buttonWidth, 20)
                         .build()
         );
 
-        this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("gui.done"), button -> this.close())
-                        .dimensions(panelX + 130, panelY + panelHeight - 24, 120, 20)
+        this.addRenderableWidget(
+                Button.builder(Component.translatable("gui.done"), button -> this.onClose())
+                        .bounds(panelX + 130, panelY + panelHeight - 24, 120, 20)
                         .build()
         );
 
@@ -250,13 +252,13 @@ public class MapCreationScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        this.extractBackground(context, mouseX, mouseY, delta);
 
         int panelWidth = 380;
         int panelHeight = 402;
@@ -266,29 +268,29 @@ public class MapCreationScreen extends Screen {
         int disabledColor = 0x808080;
 
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xD0101010);
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, 0xFFFFFF);
+        context.outline(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
+        context.centeredText(this.font, this.title, this.width / 2, panelY + 10, GuiColors.text(0xFFFFFF));
 
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.map_name"), labelX, panelY + 35, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.difficulty"), labelX, panelY + 61, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.arena"), labelX, panelY + 87, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.hns"), labelX, panelY + 113, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.surf"), labelX, panelY + 139, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.kz"), labelX, panelY + 165, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.movement"), labelX, panelY + 191, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.reset_target"), labelX, panelY + 217, 0xE0E0E0);
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.map_creator.checkpoint_index"),
+        context.text(this.font, Component.translatable("screen.minehop.map_creator.map_name"), labelX, panelY + 35, GuiColors.text(0xE0E0E0));
+        context.text(this.font, Component.translatable("screen.minehop.map_creator.difficulty"), labelX, panelY + 61, GuiColors.text(0xE0E0E0));
+        context.text(this.font, Component.translatable("screen.minehop.map_creator.arena"), labelX, panelY + 87, GuiColors.text(0xE0E0E0));
+        context.text(this.font, Component.translatable("screen.minehop.map_creator.hns"), labelX, panelY + 113, GuiColors.text(0xE0E0E0));
+        context.text(this.font, Component.translatable("screen.minehop.map_creator.surf"), labelX, panelY + 139, GuiColors.text(0xE0E0E0));
+        context.text(this.font, Component.translatable("screen.minehop.map_creator.kz"), labelX, panelY + 165, GuiColors.text(0xE0E0E0));
+        context.text(this.font, Component.translatable("screen.minehop.map_creator.movement"), labelX, panelY + 191, GuiColors.text(0xE0E0E0));
+        context.text(this.font, Component.translatable("screen.minehop.map_creator.reset_target"), labelX, panelY + 217, GuiColors.text(0xE0E0E0));
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.map_creator.checkpoint_index"),
                 labelX,
                 panelY + 243,
-                this.selectedResetToStart ? disabledColor : 0xE0E0E0
+                GuiColors.text(this.selectedResetToStart ? disabledColor : 0xE0E0E0)
         );
-        context.drawTextWithShadow(this.textRenderer, Text.literal(this.getCheckpointCountHint()), labelX, panelY + 261, 0xB0B0B0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.help.bounds"), labelX, panelY + 350, 0xC8C8C8);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.help.reopen"), labelX, panelY + 362, 0xC8C8C8);
+        context.text(this.font, Component.literal(this.getCheckpointCountHint()), labelX, panelY + 261, GuiColors.text(0xB0B0B0));
+        context.text(this.font, Component.translatable("screen.minehop.map_creator.help.bounds"), labelX, panelY + 350, GuiColors.text(0xC8C8C8));
+        context.text(this.font, Component.translatable("screen.minehop.map_creator.help.reopen"), labelX, panelY + 362, GuiColors.text(0xC8C8C8));
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     private void cycleDifficulty() {
@@ -317,10 +319,10 @@ public class MapCreationScreen extends Screen {
     }
 
     private void openMovementSettings() {
-        if (this.client == null) {
+        if (this.minecraft == null) {
             return;
         }
-        this.client.setScreen(new MovementSettingsScreen(this, this.selectedMovementSettings, values -> {
+        this.minecraft.setScreen(new MovementSettingsScreen(this, this.selectedMovementSettings, values -> {
             this.selectedMovementSettings = values;
             this.updateMovementButtonText();
         }));
@@ -337,7 +339,7 @@ public class MapCreationScreen extends Screen {
             return;
         }
         this.difficultyButton.setMessage(
-                Text.literal(DIFFICULTY_NAMES[MathHelper.clamp(this.selectedDifficulty, 0, DIFFICULTY_NAMES.length - 1)])
+                Component.literal(DIFFICULTY_NAMES[Mth.clamp(this.selectedDifficulty, 0, DIFFICULTY_NAMES.length - 1)])
         );
     }
 
@@ -347,8 +349,8 @@ public class MapCreationScreen extends Screen {
         }
         this.arenaButton.setMessage(
                 this.selectedArena
-                        ? Text.translatable("screen.minehop.map_creator.toggle.on")
-                        : Text.translatable("screen.minehop.map_creator.toggle.off")
+                        ? Component.translatable("screen.minehop.map_creator.toggle.on")
+                        : Component.translatable("screen.minehop.map_creator.toggle.off")
         );
     }
 
@@ -358,8 +360,8 @@ public class MapCreationScreen extends Screen {
         }
         this.hnsButton.setMessage(
                 this.selectedHns
-                        ? Text.translatable("screen.minehop.map_creator.toggle.on")
-                        : Text.translatable("screen.minehop.map_creator.toggle.off")
+                        ? Component.translatable("screen.minehop.map_creator.toggle.on")
+                        : Component.translatable("screen.minehop.map_creator.toggle.off")
         );
     }
 
@@ -369,8 +371,8 @@ public class MapCreationScreen extends Screen {
         }
         this.surfButton.setMessage(
                 this.selectedSurf
-                        ? Text.translatable("screen.minehop.map_creator.toggle.on")
-                        : Text.translatable("screen.minehop.map_creator.toggle.off")
+                        ? Component.translatable("screen.minehop.map_creator.toggle.on")
+                        : Component.translatable("screen.minehop.map_creator.toggle.off")
         );
     }
 
@@ -380,8 +382,8 @@ public class MapCreationScreen extends Screen {
         }
         this.kzButton.setMessage(
                 this.selectedKz
-                        ? Text.translatable("screen.minehop.map_creator.toggle.on")
-                        : Text.translatable("screen.minehop.map_creator.toggle.off")
+                        ? Component.translatable("screen.minehop.map_creator.toggle.on")
+                        : Component.translatable("screen.minehop.map_creator.toggle.off")
         );
     }
 
@@ -392,8 +394,8 @@ public class MapCreationScreen extends Screen {
         boolean override = this.selectedMovementSettings != null && this.selectedMovementSettings.overrideEnabled();
         this.movementButton.setMessage(
                 override
-                        ? Text.translatable("screen.minehop.map_creator.movement.custom")
-                        : Text.translatable("screen.minehop.map_creator.movement.global")
+                        ? Component.translatable("screen.minehop.map_creator.movement.custom")
+                        : Component.translatable("screen.minehop.map_creator.movement.global")
         );
     }
 
@@ -403,8 +405,8 @@ public class MapCreationScreen extends Screen {
         }
         this.resetTargetButton.setMessage(
                 this.selectedResetToStart
-                        ? Text.translatable("screen.minehop.map_creator.reset_target.start")
-                        : Text.translatable("screen.minehop.map_creator.reset_target.checkpoint")
+                        ? Component.translatable("screen.minehop.map_creator.reset_target.start")
+                        : Component.translatable("screen.minehop.map_creator.reset_target.checkpoint")
         );
     }
 
@@ -416,25 +418,25 @@ public class MapCreationScreen extends Screen {
         this.checkpointIndexField.active = active;
         this.checkpointIndexField.setEditable(active);
         if (active) {
-            String raw = this.checkpointIndexField.getText();
+            String raw = this.checkpointIndexField.getValue();
             if (raw == null || raw.isBlank() || "0".equals(raw.trim())) {
-                this.checkpointIndexField.setText("1");
+                this.checkpointIndexField.setValue("1");
             }
-        } else if (this.checkpointIndexField.getText() == null || this.checkpointIndexField.getText().isBlank()) {
-            this.checkpointIndexField.setText("0");
+        } else if (this.checkpointIndexField.getValue() == null || this.checkpointIndexField.getValue().isBlank()) {
+            this.checkpointIndexField.setValue("0");
         }
     }
 
     private String getCheckpointCountHint() {
         int count = this.resolveCheckpointCount();
-        return Text.translatable("screen.minehop.map_creator.checkpoint_count", count).getString();
+        return Component.translatable("screen.minehop.map_creator.checkpoint_count", count).getString();
     }
 
     private int resolveCheckpointCount() {
         if (this.mapNameField == null) {
             return 0;
         }
-        String mapName = this.mapNameField.getText();
+        String mapName = this.mapNameField.getValue();
         if (mapName == null || mapName.isBlank()) {
             return 0;
         }
@@ -455,7 +457,7 @@ public class MapCreationScreen extends Screen {
         int checkpointIndex = this.selectedResetToStart ? 0 : this.parseCheckpointIndex();
         ClientPacketHandler.sendMapCreatorAction(
                 action,
-                this.mapNameField == null ? "" : this.mapNameField.getText(),
+                this.mapNameField == null ? "" : this.mapNameField.getValue(),
                 this.selectedDifficulty,
                 this.selectedArena,
                 this.selectedHns,
@@ -487,7 +489,7 @@ public class MapCreationScreen extends Screen {
         if (this.checkpointIndexField == null) {
             return Math.max(1, this.initialCheckpointIndex);
         }
-        String text = this.checkpointIndexField.getText();
+        String text = this.checkpointIndexField.getValue();
         if (text == null || text.isBlank()) {
             return Math.max(1, this.initialCheckpointIndex);
         }

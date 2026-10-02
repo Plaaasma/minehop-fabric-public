@@ -1,14 +1,15 @@
 package net.nerdorg.minehop.screen;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.screen.widget.MapListWidget;
@@ -32,16 +33,16 @@ public class SelectMapScreen extends Screen {
     private MapListWidget hnsListWidget;
     private MapListWidget userListWidget;
 
-    private TextFieldWidget textFieldWidget;
-    private TextFieldWidget authorFieldWidget;
-    private ButtonWidget userSortButtonWidget;
-    private ButtonWidget bhopButtonWidget;
-    private ButtonWidget surfButtonWidget;
-    private ButtonWidget kzButtonWidget;
-    private ButtonWidget arenaButtonWidget;
-    private ButtonWidget hnsButtonWidget;
-    private ButtonWidget userButtonWidget;
-    private ButtonWidget closeButtonWidget;
+    private EditBox textFieldWidget;
+    private EditBox authorFieldWidget;
+    private Button userSortButtonWidget;
+    private Button bhopButtonWidget;
+    private Button surfButtonWidget;
+    private Button kzButtonWidget;
+    private Button arenaButtonWidget;
+    private Button hnsButtonWidget;
+    private Button userButtonWidget;
+    private Button closeButtonWidget;
 
     private String lastFieldText = "";
     private String lastAuthorText = "";
@@ -67,16 +68,16 @@ public class SelectMapScreen extends Screen {
     private int panelMaxScroll;
     private int tabWidth;
 
-    public SelectMapScreen(Text title) {
+    public SelectMapScreen(Component title) {
         super(title);
     }
 
     @Override
-    protected void applyBlur() {
+    protected void extractBlurredBackground(GuiGraphicsExtractor context) {
     }
 
     @Override
-    public void blur() {
+    public void clearFocus() {
     }
 
     @Override
@@ -87,132 +88,132 @@ public class SelectMapScreen extends Screen {
         int contentX = this.panelX + 10;
         int contentWidth = this.panelWidth - 20;
 
-        this.textFieldWidget = this.addDrawableChild(
-                new TextFieldWidget(
-                        this.client.textRenderer,
+        this.textFieldWidget = this.addRenderableWidget(
+                new EditBox(
+                        this.minecraft.font,
                         contentX,
                         this.panelY + 34,
                         contentWidth,
                         18,
-                        Text.literal("Filter maps by name, owner, or description")
+                        Component.literal("Filter maps by name, owner, or description")
                 )
         );
         this.textFieldWidget.setMaxLength(128);
-        this.textFieldWidget.setText(this.lastFieldText);
+        this.textFieldWidget.setValue(this.lastFieldText);
 
         int tabY = this.panelY + 56;
         this.tabWidth = Math.max(24, (contentWidth - (TAB_GAP * (TAB_COUNT - 1))) / TAB_COUNT);
         int tabX = contentX;
 
-        this.bhopButtonWidget = this.addDrawableChild(
-                ButtonWidget.builder(Text.of("Bhop"), button -> this.setActiveTab(MapTab.BHOP))
-                        .dimensions(tabX, tabY, this.tabWidth, 18)
+        this.bhopButtonWidget = this.addRenderableWidget(
+                Button.builder(Component.nullToEmpty("Bhop"), button -> this.setActiveTab(MapTab.BHOP))
+                        .bounds(tabX, tabY, this.tabWidth, 18)
                         .build()
         );
         tabX += this.tabWidth + TAB_GAP;
 
-        this.surfButtonWidget = this.addDrawableChild(
-                ButtonWidget.builder(Text.of("Surf"), button -> this.setActiveTab(MapTab.SURF))
-                        .dimensions(tabX, tabY, this.tabWidth, 18)
+        this.surfButtonWidget = this.addRenderableWidget(
+                Button.builder(Component.nullToEmpty("Surf"), button -> this.setActiveTab(MapTab.SURF))
+                        .bounds(tabX, tabY, this.tabWidth, 18)
                         .build()
         );
         tabX += this.tabWidth + TAB_GAP;
 
-        this.kzButtonWidget = this.addDrawableChild(
-                ButtonWidget.builder(Text.of("KZ"), button -> this.setActiveTab(MapTab.KZ))
-                        .dimensions(tabX, tabY, this.tabWidth, 18)
+        this.kzButtonWidget = this.addRenderableWidget(
+                Button.builder(Component.nullToEmpty("KZ"), button -> this.setActiveTab(MapTab.KZ))
+                        .bounds(tabX, tabY, this.tabWidth, 18)
                         .build()
         );
         tabX += this.tabWidth + TAB_GAP;
 
-        this.arenaButtonWidget = this.addDrawableChild(
-                ButtonWidget.builder(Text.of("Arena"), button -> this.setActiveTab(MapTab.ARENA))
-                        .dimensions(tabX, tabY, this.tabWidth, 18)
+        this.arenaButtonWidget = this.addRenderableWidget(
+                Button.builder(Component.nullToEmpty("Arena"), button -> this.setActiveTab(MapTab.ARENA))
+                        .bounds(tabX, tabY, this.tabWidth, 18)
                         .build()
         );
         tabX += this.tabWidth + TAB_GAP;
 
-        this.hnsButtonWidget = this.addDrawableChild(
-                ButtonWidget.builder(Text.of("HNS"), button -> this.setActiveTab(MapTab.HNS))
-                        .dimensions(tabX, tabY, this.tabWidth, 18)
+        this.hnsButtonWidget = this.addRenderableWidget(
+                Button.builder(Component.nullToEmpty("HNS"), button -> this.setActiveTab(MapTab.HNS))
+                        .bounds(tabX, tabY, this.tabWidth, 18)
                         .build()
         );
         tabX += this.tabWidth + TAB_GAP;
 
-        this.userButtonWidget = this.addDrawableChild(
-                ButtonWidget.builder(Text.of("User"), button -> this.setActiveTab(MapTab.USER))
-                        .dimensions(tabX, tabY, this.tabWidth, 18)
+        this.userButtonWidget = this.addRenderableWidget(
+                Button.builder(Component.nullToEmpty("User"), button -> this.setActiveTab(MapTab.USER))
+                        .bounds(tabX, tabY, this.tabWidth, 18)
                         .build()
         );
 
         int authorY = this.panelY + 88;
         int sortWidth = Math.min(130, Math.max(92, contentWidth / 3));
         int authorWidth = Math.max(80, contentWidth - sortWidth - 6);
-        this.authorFieldWidget = this.addDrawableChild(
-                new TextFieldWidget(
-                        this.client.textRenderer,
+        this.authorFieldWidget = this.addRenderableWidget(
+                new EditBox(
+                        this.minecraft.font,
                         contentX,
                         authorY,
                         authorWidth,
                         18,
-                        Text.literal("Filter user maps by author")
+                        Component.literal("Filter user maps by author")
                 )
         );
         this.authorFieldWidget.setMaxLength(64);
-        this.authorFieldWidget.setText(this.lastAuthorText);
+        this.authorFieldWidget.setValue(this.lastAuthorText);
 
-        this.userSortButtonWidget = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.cycleUserSort())
-                        .dimensions(contentX + authorWidth + 6, authorY, sortWidth, 18)
+        this.userSortButtonWidget = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.cycleUserSort())
+                        .bounds(contentX + authorWidth + 6, authorY, sortWidth, 18)
                         .build()
         );
         this.updateUserSortButtonText();
 
-        this.closeButtonWidget = this.addDrawableChild(
-                ButtonWidget.builder(Text.translatable("gui.done"), button -> this.close())
-                        .dimensions(this.panelX + this.panelWidth - 90, this.panelY + this.panelHeight - 22, 80, 20)
+        this.closeButtonWidget = this.addRenderableWidget(
+                Button.builder(Component.translatable("gui.done"), button -> this.onClose())
+                        .bounds(this.panelX + this.panelWidth - 90, this.panelY + this.panelHeight - 22, 80, 20)
                         .build()
         );
 
-        this.rebuildLists(this.textFieldWidget.getText(), this.authorFieldWidget.getText());
+        this.rebuildLists(this.textFieldWidget.getValue(), this.authorFieldWidget.getValue());
         this.updateTabButtonLabels();
         this.updateMapListSignature();
         this.setActiveTab(this.activeTab);
     }
 
     @Override
-    public void resize(MinecraftClient client, int width, int height) {
-        String currentFilter = this.textFieldWidget == null ? this.lastFieldText : this.textFieldWidget.getText();
-        String currentAuthor = this.authorFieldWidget == null ? this.lastAuthorText : this.authorFieldWidget.getText();
-        super.resize(client, width, height);
+    public void resize(int width, int height) {
+        String currentFilter = this.textFieldWidget == null ? this.lastFieldText : this.textFieldWidget.getValue();
+        String currentAuthor = this.authorFieldWidget == null ? this.lastAuthorText : this.authorFieldWidget.getValue();
+        super.resize(width, height);
         if (this.textFieldWidget != null) {
-            this.textFieldWidget.setText(currentFilter);
+            this.textFieldWidget.setValue(currentFilter);
         }
         if (this.authorFieldWidget != null) {
-            this.authorFieldWidget.setText(currentAuthor);
+            this.authorFieldWidget.setValue(currentAuthor);
         }
         this.lastFieldText = currentFilter == null ? "" : currentFilter;
         this.lastAuthorText = currentAuthor == null ? "" : currentAuthor;
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (this.panelMaxScroll > 0 && this.isMouseInsidePanel(mouseX, mouseY) && Math.abs(verticalAmount) >= 1.0E-6D) {
-            int adaptiveStep = MathHelper.clamp((int) Math.round(this.panelMaxScroll / 8.0D), 2, 10);
+            int adaptiveStep = Mth.clamp((int) Math.round(this.panelMaxScroll / 8.0D), 2, 10);
             int scrollDelta = (int) Math.round(verticalAmount * adaptiveStep);
             if (scrollDelta == 0) {
                 scrollDelta = verticalAmount > 0.0D ? 1 : -1;
             }
-            int nextOffset = MathHelper.clamp(this.panelScrollOffset - scrollDelta, 0, this.panelMaxScroll);
+            int nextOffset = Mth.clamp(this.panelScrollOffset - scrollDelta, 0, this.panelMaxScroll);
             if (nextOffset != this.panelScrollOffset) {
                 this.panelScrollOffset = nextOffset;
-                if (this.client != null) {
-                    this.resize(this.client, this.width, this.height);
+                if (this.minecraft != null) {
+                    this.resize(this.width, this.height);
                 }
                 return true;
             }
@@ -222,12 +223,12 @@ public class SelectMapScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        this.extractBackground(context, mouseX, mouseY, delta);
         this.drawPanel(context);
 
-        String filterText = this.textFieldWidget == null ? "" : this.textFieldWidget.getText();
-        String authorText = this.authorFieldWidget == null ? "" : this.authorFieldWidget.getText();
+        String filterText = this.textFieldWidget == null ? "" : this.textFieldWidget.getValue();
+        String authorText = this.authorFieldWidget == null ? "" : this.authorFieldWidget.getValue();
         boolean mapChanged = this.hasMapListChanged();
         boolean filterChanged = !Objects.equals(filterText, this.lastFieldText);
         boolean authorChanged = !Objects.equals(authorText, this.lastAuthorText);
@@ -244,70 +245,70 @@ public class SelectMapScreen extends Screen {
         }
 
         this.drawHeaderText(context);
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
 
         MapListWidget activeList = this.getActiveList();
         if (activeList != null) {
-            List<Text> tooltip = activeList.getTooltipAt(mouseX, mouseY);
+            List<Component> tooltip = activeList.getTooltipAt(mouseX, mouseY);
             if (tooltip != null && !tooltip.isEmpty()) {
-                context.drawTooltip(this.textRenderer, tooltip, mouseX, mouseY);
+                context.setComponentTooltipForNextFrame(this.font, tooltip, mouseX, mouseY);
             }
         }
     }
 
-    private void drawPanel(DrawContext context) {
+    private void drawPanel(GuiGraphicsExtractor context) {
         context.fill(this.panelX, this.panelY, this.panelX + this.panelWidth, this.panelY + this.panelHeight, 0xD010141D);
-        context.drawBorder(this.panelX, this.panelY, this.panelWidth, this.panelHeight, 0xFF4A5D78);
+        context.outline(this.panelX, this.panelY, this.panelWidth, this.panelHeight, 0xFF4A5D78);
         context.fill(this.panelX + 1, this.panelY + 1, this.panelX + this.panelWidth - 1, this.panelY + 26, 0xA0162436);
 
         int listX = this.panelX + 7;
         int listWidth = this.panelWidth - 14;
         int listHeight = this.listBottom - this.listTop;
         context.fill(listX, this.listTop, listX + listWidth, this.listTop + listHeight, 0x8E0C1018);
-        context.drawBorder(listX, this.listTop, listWidth, listHeight, 0xFF30425E);
+        context.outline(listX, this.listTop, listWidth, listHeight, 0xFF30425E);
     }
 
-    private void drawHeaderText(DrawContext context) {
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Map Browser"), this.panelX + 10, this.panelY + 9, 0xFFFFFF);
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.literal("Click a map card to teleport"),
+    private void drawHeaderText(GuiGraphicsExtractor context) {
+        context.text(this.font, Component.literal("Map Browser"), this.panelX + 10, this.panelY + 9, GuiColors.text(0xFFFFFF));
+        context.text(
+                this.font,
+                Component.literal("Click a map card to teleport"),
                 this.panelX + 118,
                 this.panelY + 9,
-                0xB7C6DA
+                GuiColors.text(0xB7C6DA)
         );
 
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Map Filter"), this.panelX + 10, this.panelY + 24, 0xC5D4E8);
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Author"), this.panelX + 10, this.panelY + 78, 0xC5D4E8);
+        context.text(this.font, Component.literal("Map Filter"), this.panelX + 10, this.panelY + 24, GuiColors.text(0xC5D4E8));
+        context.text(this.font, Component.literal("Author"), this.panelX + 10, this.panelY + 78, GuiColors.text(0xC5D4E8));
 
         MapListWidget activeList = this.getActiveList();
         int activeCount = activeList == null ? 0 : activeList.mapCount();
         int totalCount = this.getTotalMapCount();
         String summary = "Showing " + activeCount + " of " + totalCount + " maps";
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.literal(summary),
+        context.text(
+                this.font,
+                Component.literal(summary),
                 this.panelX + 10,
                 this.panelY + this.panelHeight - 17,
-                0x96A8C2
+                GuiColors.text(0x96A8C2)
         );
 
         if (this.activeTab == MapTab.USER) {
             int hintLeftBound = this.panelX + 170;
             int hintRight = this.panelX + this.panelWidth - 10;
             int hintMaxWidth = Math.max(60, hintRight - hintLeftBound);
-            String hintText = this.textRenderer.trimToWidth(
+            String hintText = this.font.plainSubstrByWidth(
                     "Rate user maps by clicking the XP rows on each map card",
                     hintMaxWidth
             );
-            int hintWidth = this.textRenderer.getWidth(hintText);
+            int hintWidth = this.font.width(hintText);
             int hintX = Math.max(hintLeftBound, hintRight - hintWidth);
-            context.drawTextWithShadow(
-                    this.textRenderer,
-                    Text.literal(hintText),
+            context.text(
+                    this.font,
+                    Component.literal(hintText),
                     hintX,
                     this.panelY + 78,
-                    0x89B8FF
+                    GuiColors.text(0x89B8FF)
             );
         }
     }
@@ -358,32 +359,32 @@ public class SelectMapScreen extends Screen {
         if (this.userSortButtonWidget == null) {
             return;
         }
-        this.userSortButtonWidget.setMessage(Text.literal(this.userSortMode.label));
+        this.userSortButtonWidget.setMessage(Component.literal(this.userSortMode.label));
     }
 
     private void attachActiveList() {
         if (this.bhopListWidget != null) {
-            this.remove(this.bhopListWidget);
+            this.removeWidget(this.bhopListWidget);
         }
         if (this.surfListWidget != null) {
-            this.remove(this.surfListWidget);
+            this.removeWidget(this.surfListWidget);
         }
         if (this.kzListWidget != null) {
-            this.remove(this.kzListWidget);
+            this.removeWidget(this.kzListWidget);
         }
         if (this.arenaListWidget != null) {
-            this.remove(this.arenaListWidget);
+            this.removeWidget(this.arenaListWidget);
         }
         if (this.hnsListWidget != null) {
-            this.remove(this.hnsListWidget);
+            this.removeWidget(this.hnsListWidget);
         }
         if (this.userListWidget != null) {
-            this.remove(this.userListWidget);
+            this.removeWidget(this.userListWidget);
         }
 
         MapListWidget activeList = this.getActiveList();
         if (activeList != null) {
-            this.addDrawableChild(activeList);
+            this.addRenderableWidget(activeList);
         }
     }
 
@@ -425,12 +426,12 @@ public class SelectMapScreen extends Screen {
         this.detachListWidget(oldHnsList);
         this.detachListWidget(oldUserList);
 
-        this.bhopListWidget = new MapListWidget(this.client, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
-        this.surfListWidget = new MapListWidget(this.client, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
-        this.kzListWidget = new MapListWidget(this.client, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
-        this.arenaListWidget = new MapListWidget(this.client, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
-        this.hnsListWidget = new MapListWidget(this.client, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
-        this.userListWidget = new MapListWidget(this.client, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
+        this.bhopListWidget = new MapListWidget(this.minecraft, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
+        this.surfListWidget = new MapListWidget(this.minecraft, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
+        this.kzListWidget = new MapListWidget(this.minecraft, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
+        this.arenaListWidget = new MapListWidget(this.minecraft, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
+        this.hnsListWidget = new MapListWidget(this.minecraft, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
+        this.userListWidget = new MapListWidget(this.minecraft, this.width, this.listBottom, this.listTop, LIST_ITEM_HEIGHT, rowWidth, scrollbarX);
 
         List<DataManager.MapData> userMaps = new ArrayList<>();
 
@@ -577,7 +578,7 @@ public class SelectMapScreen extends Screen {
 
     private void detachListWidget(MapListWidget listWidget) {
         if (listWidget != null) {
-            this.remove(listWidget);
+            this.removeWidget(listWidget);
         }
     }
 
@@ -585,7 +586,7 @@ public class SelectMapScreen extends Screen {
         if (listWidget == null || tab == null || listWidget.mapCount() <= 0) {
             return;
         }
-        double scrollY = listWidget.getScrollY();
+        double scrollY = listWidget.scrollAmount();
         switch (tab) {
             case BHOP -> this.bhopScrollY = scrollY;
             case SURF -> this.surfScrollY = scrollY;
@@ -609,7 +610,7 @@ public class SelectMapScreen extends Screen {
             case USER -> this.userScrollY;
         };
         if (scrollY > 0.0D) {
-            listWidget.setScrollY(scrollY);
+            listWidget.setScrollAmount(scrollY);
         }
     }
 
@@ -692,17 +693,17 @@ public class SelectMapScreen extends Screen {
         }
     }
 
-    private Text tabLabel(String fullName, String shortName, int count) {
+    private Component tabLabel(String fullName, String shortName, int count) {
         int maxTextWidth = Math.max(0, this.tabWidth - 8);
         String full = fullName + " (" + count + ")";
-        if (this.textRenderer == null || this.textRenderer.getWidth(full) <= maxTextWidth) {
-            return Text.literal(full);
+        if (this.font == null || this.font.width(full) <= maxTextWidth) {
+            return Component.literal(full);
         }
         String compact = shortName + " (" + count + ")";
-        if (this.textRenderer.getWidth(compact) <= maxTextWidth) {
-            return Text.literal(compact);
+        if (this.font.width(compact) <= maxTextWidth) {
+            return Component.literal(compact);
         }
-        return Text.literal(shortName);
+        return Component.literal(shortName);
     }
 
     private boolean matchesFilter(DataManager.MapData mapData, String filter) {
@@ -809,7 +810,7 @@ public class SelectMapScreen extends Screen {
 
         this.panelWidth = Math.min(this.panelWidth, maxPanelWidth);
         this.panelMaxScroll = Math.max(0, this.panelHeight - availableHeight);
-        this.panelScrollOffset = MathHelper.clamp(this.panelScrollOffset, 0, this.panelMaxScroll);
+        this.panelScrollOffset = Mth.clamp(this.panelScrollOffset, 0, this.panelMaxScroll);
 
         this.panelX = (this.width - this.panelWidth) / 2;
         if (this.panelMaxScroll > 0) {
@@ -827,7 +828,7 @@ public class SelectMapScreen extends Screen {
         if (this.listBottom > this.height - 4) {
             this.listBottom = this.height - 4;
         }
-        this.listTop = MathHelper.clamp(this.listTop, 0, Math.max(0, this.listBottom - 70));
+        this.listTop = Mth.clamp(this.listTop, 0, Math.max(0, this.listBottom - 70));
     }
 
     private boolean isMouseInsidePanel(double mouseX, double mouseY) {

@@ -1,19 +1,17 @@
 package net.nerdorg.minehop.networking;
 
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.util.UUIDTypeAdapter;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.anticheat.ProcessChecker;
@@ -39,13 +37,13 @@ import org.joml.Vector3i;
 import java.util.*;
 
 public class ClientPacketHandler {
-    private static boolean shouldApplyAuthoritativeListSync(MinecraftClient client) {
+    private static boolean shouldApplyAuthoritativeListSync(Minecraft client) {
         if (client == null) {
             return false;
         }
         // In integrated singleplayer, client and server share static state. Applying list sync packets here can
         // overwrite authoritative server lists (e.g. checkpoints) from client-side payload projections.
-        return client.getServer() == null;
+        return client.getSingleplayerServer() == null;
     }
 
     public static void sortMapList(List<DataManager.MapData> mapList) {
@@ -119,11 +117,11 @@ public class ClientPacketHandler {
 
         ClientPlayNetworking.registerGlobalReceiver(OpenAntiCheatScreenPayload.ID, (payload, ctx) -> {
             ctx.client().execute(() -> {
-                MinecraftClient client = ctx.client();
+                Minecraft client = ctx.client();
                 if (client == null || client.player == null) {
                     return;
                 }
-                if (client.currentScreen instanceof AntiCheatScreen existing) {
+                if (client.screen instanceof AntiCheatScreen existing) {
                     existing.applySnapshotJson(payload.json());
                 } else {
                     client.setScreen(new AntiCheatScreen(payload.json()));
@@ -133,7 +131,7 @@ public class ClientPacketHandler {
 
         ClientPlayNetworking.registerGlobalReceiver(OpenSurfStickSettingsPayload.ID, (payload, ctx) -> {
             ctx.client().execute(() -> {
-                MinecraftClient client = ctx.client();
+                Minecraft client = ctx.client();
                 if (client.player != null) {
                     client.setScreen(
                             new SurfStickSettingsScreen(
@@ -156,7 +154,7 @@ public class ClientPacketHandler {
 
         ClientPlayNetworking.registerGlobalReceiver(OpenZoneStickSettingsPayload.ID, (payload, ctx) -> {
             ctx.client().execute(() -> {
-                MinecraftClient client = ctx.client();
+                Minecraft client = ctx.client();
                 if (client.player != null) {
                     client.setScreen(
                             new ZoneStickSettingsScreen(
@@ -176,11 +174,11 @@ public class ClientPacketHandler {
             BlockPos pos1 = new BlockPos((int) payload.pos1().x, (int) payload.pos1().y, (int) payload.pos1().z);
             BlockPos pos2 = new BlockPos((int) payload.pos2().x, (int) payload.pos2().y, (int) payload.pos2().z);
 
-            MinecraftClient client = ctx.client();
+            Minecraft client = ctx.client();
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             client.execute(() -> {
                 // Assign the read values to your variables or fields here
-                Entity entity = client.world.getEntityById(payload.entityId());
+                Entity entity = client.level.getEntity(payload.entityId());
                 if (entity instanceof ResetEntity resetEntity) {
                     resetEntity.setCorner1(pos1);
                     resetEntity.setCorner2(pos2);
@@ -246,18 +244,18 @@ public class ClientPacketHandler {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             double efficiency = payload.efficiency();
 
-            MinecraftClient client = ctx.client();
+            Minecraft client = ctx.client();
             client.execute(() -> {
                 if (efficiency != 0) {
                     MinehopClient.last_efficiency = efficiency;
                 }
                 else {
-                    if (Minehop.efficiencyListMap.containsKey(client.player.getNameForScoreboard())) {
-                        List<Double> efficiencyList = Minehop.efficiencyListMap.get(client.player.getNameForScoreboard());
+                    if (Minehop.efficiencyListMap.containsKey(client.player.getScoreboardName())) {
+                        List<Double> efficiencyList = Minehop.efficiencyListMap.get(client.player.getScoreboardName());
                         if (efficiencyList != null && efficiencyList.size() > 1) {
                             double averageEfficiency = efficiencyList.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
                             MinehopClient.last_efficiency = averageEfficiency;
-                            Minehop.efficiencyListMap.put(client.player.getNameForScoreboard(), new ArrayList<>());
+                            Minehop.efficiencyListMap.put(client.player.getScoreboardName(), new ArrayList<>());
                         }
                     }
                 }
@@ -266,7 +264,7 @@ public class ClientPacketHandler {
         });
 
         ClientPlayNetworking.registerGlobalReceiver(RunTimerHudPayload.ID, (payload, ctx) -> {
-            MinecraftClient client = ctx.client();
+            Minecraft client = ctx.client();
             client.execute(() -> {
                 if (!payload.visible()) {
                     MinehopClient.runTimerHudVisible = false;
@@ -280,14 +278,14 @@ public class ClientPacketHandler {
         });
 
         ClientPlayNetworking.registerGlobalReceiver(ResetVelocityCarryPayload.ID, (payload, ctx) -> {
-            MinecraftClient client = ctx.client();
+            Minecraft client = ctx.client();
             client.execute(() -> {
                 MinehopClient.resetCarryX = payload.x();
                 MinehopClient.resetCarryY = payload.y();
                 MinehopClient.resetCarryZ = payload.z();
                 MinehopClient.resetCarryTicks = Math.max(0, payload.ticks() - 1);
                 if (client.player != null) {
-                    client.player.setVelocity(MinehopClient.resetCarryX, MinehopClient.resetCarryY, MinehopClient.resetCarryZ);
+                    client.player.setDeltaMovement(MinehopClient.resetCarryX, MinehopClient.resetCarryY, MinehopClient.resetCarryZ);
                     client.player.setOnGround(false);
                 }
             });
@@ -308,14 +306,14 @@ public class ClientPacketHandler {
 
         ClientPlayNetworking.registerGlobalReceiver(OpenMapScreenPayload.ID, (payload, ctx) -> {
             String title = payload.title();
-            MinecraftClient client = ctx.client();
+            Minecraft client = ctx.client();
             client.execute(() -> {
-                client.setScreen(new SelectMapScreen(Text.literal(title)));
+                client.setScreen(new SelectMapScreen(Component.literal(title)));
             });
         });
 
         ClientPlayNetworking.registerGlobalReceiver(OpenMapCreatorScreenPayload.ID, (payload, ctx) -> {
-            MinecraftClient client = ctx.client();
+            Minecraft client = ctx.client();
             client.execute(() -> {
                 if (client.player != null) {
                     client.setScreen(
@@ -565,12 +563,12 @@ public class ClientPacketHandler {
             double power_z = payload.z_power();
 
             BlockPos boosterPos = new BlockPos(payload.posX(), payload.posY(), payload.posZ());
-            MinecraftClient client = ctx.client();
+            Minecraft client = ctx.client();
             // Ensure you are on the main thread when modifying the game or accessing client side only classes
             client.execute(() -> {
                 // Assign the read values to your variables or fields here
                 new Thread(() -> {
-                    BlockEntity blockEntity = client.player.getWorld().getBlockEntity(boosterPos);
+                    BlockEntity blockEntity = client.player.level().getBlockEntity(boosterPos);
                     if (blockEntity instanceof BoostBlockEntity boostBlockEntity) {
                         boostBlockEntity.setXPower(power_x);
                         boostBlockEntity.setYPower(power_y);
@@ -581,7 +579,7 @@ public class ClientPacketHandler {
         });
 
         ClientPlayNetworking.registerGlobalReceiver(AntiCheatPayload.ID, (payload, ctx) -> {
-            MinecraftClient client = ctx.client();
+            Minecraft client = ctx.client();
             client.execute(() -> {
                 new Thread(() -> {
                     sendAntiCheatCheck(null);
@@ -590,27 +588,27 @@ public class ClientPacketHandler {
         });
 
         ClientPlayNetworking.registerGlobalReceiver(SetCheaterPayload.ID, (payload, ctx) -> {
-            MinecraftClient client = ctx.client();
-            ClientWorld world = ctx.client().world;
+            Minecraft client = ctx.client();
+            ClientLevel world = ctx.client().level;
             client.execute(() -> {
                 new Thread(() -> {
 
                     String UUID = payload.uuid();
                     boolean isCheater = payload.isCheater();
 
-                    PlayerEntity cheater = world.getPlayerByUuid(java.util.UUID.fromString(UUID));
+                    Player cheater = world.getPlayerByUUID(java.util.UUID.fromString(UUID));
 
                     if (isCheater) {
-                        if (client.player.getUuidAsString().equals(UUID)) {
-                                client.getNetworkHandler().sendCommand("map restart");
+                        if (client.player.getStringUUID().equals(UUID)) {
+                                client.getConnection().sendCommand("map restart");
                         }
                         CustomPlayerEntityRenderer.setPlayerModel(CustomPlayerEntityRenderer.PlayerModel.Cheater, UUID);
-                        Minehop.currentCheaters.add(world.getPlayerByUuid(java.util.UUID.fromString(UUID)));
+                        Minehop.currentCheaters.add(world.getPlayerByUUID(java.util.UUID.fromString(UUID)));
                     }
                     else {
                         CustomPlayerEntityRenderer.setPlayerModel(CustomPlayerEntityRenderer.PlayerModel.Player, UUID);
-                        while (Minehop.currentCheaters.contains(world.getPlayerByUuid(java.util.UUID.fromString(UUID)))) {
-                            Minehop.currentCheaters.remove(world.getPlayerByUuid(java.util.UUID.fromString(UUID)));
+                        while (Minehop.currentCheaters.contains(world.getPlayerByUUID(java.util.UUID.fromString(UUID)))) {
+                            Minehop.currentCheaters.remove(world.getPlayerByUUID(java.util.UUID.fromString(UUID)));
                         }
                     }
 
@@ -633,8 +631,8 @@ public class ClientPacketHandler {
         ClientPlayNetworking.send(new AntiCheatPayload(checkResults));
     }
 
-    public static void sendEndMapEvent(String map_name, double time, Vec3d finishPosition) {
-        Vec3d safePosition = finishPosition == null ? Vec3d.ZERO : finishPosition;
+    public static void sendEndMapEvent(String map_name, double time, Vec3 finishPosition) {
+        Vec3 safePosition = finishPosition == null ? Vec3.ZERO : finishPosition;
         ClientPlayNetworking.send(new MapFinishPayload(map_name, time, safePosition.x, safePosition.y, safePosition.z));
     }
 

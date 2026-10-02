@@ -1,23 +1,22 @@
 package net.nerdorg.minehop.entity.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Frustum;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.entity.EntityRendererFactory;
-import net.minecraft.client.render.entity.MobEntityRenderer;
-import net.minecraft.client.render.model.BakedModel;
-import net.minecraft.client.texture.Sprite;
-import net.minecraft.client.texture.SpriteAtlasTexture;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.block.Blocks;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.debug.DebugScreenEntries;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.client.renderer.entity.MobRenderer;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.entity.custom.SurfRampEntity;
 import net.nerdorg.minehop.render.ModRenderLayer;
@@ -25,11 +24,12 @@ import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.jetbrains.annotations.Nullable;
-
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import java.util.Arrays;
 import java.util.List;
 
-public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRampEntityRenderState, SurfRampModel> {
+public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntityRenderState, SurfRampModel> {
     private static final double UV_SCALE = 0.5D;
     private static final float HORIZONTAL_TEXTURE_INSET_PIXELS = 1.0F;
     private static final double UV_SPLIT_EPSILON = 1.0E-7D;
@@ -37,7 +37,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private static final double SEAM_OUTER_JOIN_MIN_DISTANCE = 0.03D;
     private static final double SEAM_SEARCH_RADIUS = 0.55D;
     private static final double SEAM_BRIDGE_DETAIL_DISTANCE_SQ = 32.0D * 32.0D;
-    private static final Identifier WIREFRAME_FILL_TEXTURE = Identifier.of("minehop", "textures/misc/white.png");
+    private static final Identifier WIREFRAME_FILL_TEXTURE = Identifier.fromNamespaceAndPath("minehop", "textures/misc/white.png");
     private static final int WIREFRAME_LINE_WIDTH = 2;
     private static final int WIREFRAME_LINE_ALPHA = 255;
     private static final double WIREFRAME_RIB_SPACING = 1.65D;
@@ -50,8 +50,8 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private static final double COLLISION_DEBUG_RIB_SPACING = 0.70D;
     private static final double[] COLLISION_DEBUG_SURFACE_LINE_FRACTIONS = new double[]{0.33D, 0.66D};
 
-    public SurfRampRenderer(EntityRendererFactory.Context context) {
-        super(context, new SurfRampModel(context.getPart(ModModelLayers.SURF_RAMP_ENTITY)), 0.0F);
+    public SurfRampRenderer(EntityRendererProvider.Context context) {
+        super(context, new SurfRampModel(context.bakeLayer(ModModelLayers.SURF_RAMP_ENTITY)), 0.0F);
     }
 
     @Override
@@ -65,40 +65,105 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     }
 
     @Override
-    public void updateRenderState(SurfRampEntity entity, SurfRampEntityRenderState state, float tickDelta) {
+    public void extractRenderState(SurfRampEntity entity, SurfRampEntityRenderState state, float tickDelta) {
+        // 1.21.9+: the dispatcher positions the entity from the render state (x/y/z) and the light
+        // comes from state.light, so the base state must be filled in (1.21.4 passed both separately).
+        super.extractRenderState(entity, state, tickDelta);
         state.surfRampEntity = entity;
     }
 
     @Override
-    public void render(SurfRampEntityRenderState renderState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int light) {
+    public void submit(SurfRampEntityRenderState renderState, PoseStack matrixStack, SubmitNodeCollector queue, CameraRenderState cameraState) {
         SurfRampEntity entity = renderState.surfRampEntity;
         if (entity == null) {
             return;
         }
+        int light = renderState.lightCoords;
 
-        Vec3d entityPos = entity.getPos();
-        Vec3d cameraPos = this.getCameraPos();
+        // 1.21.9+: geometry is submitted to the render command queue per render layer instead of being
+        // written into a VertexConsumerProvider; each callback rebuilds the same vertices as 1.21.4.
+        Vec3 entityPos = entity.position();
+        Vec3 cameraPos = this.getCameraPos();
         boolean renderUnderside = this.shouldRenderUnderside(entity, cameraPos);
         if (entity.isWireframeMode()) {
             int segments = this.getLodSegmentCount(entity, entityPos, true);
-            this.renderWireframe(entity, entityPos, segments, matrixStack, vertexConsumerProvider, light);
+            queue.submitCustomGeometry(matrixStack, ModRenderLayer.getLineOfWidth(WIREFRAME_LINE_WIDTH), (entry, wireConsumer) ->
+                    this.renderWireframe(entity, entityPos, segments, toMatrixStack(entry), wireConsumer, null, light));
+            if (entity.isWireframeFillEnabled()) {
+                queue.submitCustomGeometry(matrixStack, RenderTypes.entityTranslucent(WIREFRAME_FILL_TEXTURE), (entry, fillConsumer) ->
+                        this.renderWireframe(entity, entityPos, segments, toMatrixStack(entry), DISCARDING_CONSUMER, fillConsumer, light));
+            }
         } else {
             int segments = this.getLodSegmentCount(entity, entityPos, false);
-            Sprite rampSprite = this.resolveRampSprite(entity);
-            VertexConsumer consumer = vertexConsumerProvider.getBuffer(RenderLayer.getEntityCutoutNoCull(SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE));
-            if (entity.isTwoSided()) {
-                this.renderTwoSidedSolid(entity, entityPos, segments, matrixStack, consumer, rampSprite, light, renderUnderside);
-            } else {
-                this.renderOneSidedSolid(entity, entityPos, cameraPos, segments, matrixStack, consumer, rampSprite, light, renderUnderside);
-            }
+            TextureAtlasSprite rampSprite = this.resolveRampSprite(entity);
+            queue.submitCustomGeometry(matrixStack, RenderTypes.entityCutout(TextureAtlas.LOCATION_BLOCKS), (entry, consumer) -> {
+                PoseStack entryStack = toMatrixStack(entry);
+                if (entity.isTwoSided()) {
+                    this.renderTwoSidedSolid(entity, entityPos, segments, entryStack, consumer, rampSprite, light, renderUnderside);
+                } else {
+                    this.renderOneSidedSolid(entity, entityPos, cameraPos, segments, entryStack, consumer, rampSprite, light, renderUnderside);
+                }
+            });
         }
 
-        if (MinecraftClient.getInstance().getEntityRenderDispatcher().shouldRenderHitboxes()) {
-            this.renderCollisionPolygons(entity, matrixStack, vertexConsumerProvider, entityPos);
+        if (Minecraft.getInstance().debugEntries.isCurrentlyEnabled(DebugScreenEntries.ENTITY_HITBOXES)) {
+            queue.submitCustomGeometry(matrixStack, ModRenderLayer.getLineOfWidth(COLLISION_DEBUG_LINE_WIDTH), (entry, consumer) ->
+                    this.renderCollisionPolygons(entity, toMatrixStack(entry), consumer, entityPos));
         }
     }
 
-    private int getLodSegmentCount(SurfRampEntity entity, Vec3d entityPos, boolean wireframe) {
+    /** A MatrixStack whose top entry is the queued command's entry, for the MatrixStack-based helpers. */
+    private static PoseStack toMatrixStack(PoseStack.Pose entry) {
+        PoseStack stack = new PoseStack();
+        stack.last().pose().set(entry.pose());
+        stack.last().normal().set(entry.normal());
+        return stack;
+    }
+
+    /** Swallows vertices: the wireframe fill pass reuses the wireframe walker without emitting its lines. */
+    private static final VertexConsumer DISCARDING_CONSUMER = new VertexConsumer() {
+        @Override
+        public VertexConsumer addVertex(float x, float y, float z) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setColor(int red, int green, int blue, int alpha) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setColor(int argb) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setUv(float u, float v) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setUv1(int u, int v) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setUv2(int u, int v) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setNormal(float x, float y, float z) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setLineWidth(float width) {
+            return this;
+        }
+    };
+
+    private int getLodSegmentCount(SurfRampEntity entity, Vec3 entityPos, boolean wireframe) {
         int baseSegments;
         if (wireframe) {
             baseSegments = entity.isCurved() ? 12 : 8;
@@ -119,11 +184,11 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             }
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.gameRenderer != null && client.gameRenderer.getCamera() != null) {
-            Vec3d cameraPos = client.gameRenderer.getCamera().getPos();
+        Minecraft client = Minecraft.getInstance();
+        if (client != null && client.gameRenderer != null && client.gameRenderer.getMainCamera() != null) {
+            Vec3 cameraPos = client.gameRenderer.getMainCamera().position();
             if (cameraPos != null) {
-                double distanceSq = cameraPos.squaredDistanceTo(entityPos);
+                double distanceSq = cameraPos.distanceToSqr(entityPos);
                 if (distanceSq > 4096.0D) {
                     baseSegments = (int) Math.ceil(baseSegments * 0.35D);
                 } else if (distanceSq > 1024.0D) {
@@ -135,45 +200,45 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         }
 
         return wireframe
-                ? MathHelper.clamp(baseSegments, 4, 18)
-                : MathHelper.clamp(baseSegments, 6, 24);
+                ? Mth.clamp(baseSegments, 4, 18)
+                : Mth.clamp(baseSegments, 6, 24);
     }
 
     private void renderOneSidedSolid(
             SurfRampEntity entity,
-            Vec3d entityPos,
-            @Nullable Vec3d cameraPos,
+            Vec3 entityPos,
+            @Nullable Vec3 cameraPos,
             int segments,
-            MatrixStack matrixStack,
+            PoseStack matrixStack,
             VertexConsumer consumer,
-            Sprite sprite,
+            TextureAtlasSprite sprite,
             int light,
             boolean renderUnderside
     ) {
-        Vec3d firstTop = null;
-        Vec3d firstOuter = null;
-        Vec3d firstInnerBase = null;
+        Vec3 firstTop = null;
+        Vec3 firstOuter = null;
+        Vec3 firstInnerBase = null;
 
-        Vec3d previousTop = null;
-        Vec3d previousOuter = null;
-        Vec3d previousInnerBase = null;
-        Vec3d previousCenter = null;
+        Vec3 previousTop = null;
+        Vec3 previousOuter = null;
+        Vec3 previousInnerBase = null;
+        Vec3 previousCenter = null;
         double accumulatedU = 0.0D;
 
         for (int i = 0; i <= segments; i++) {
             double t = (double) i / (double) segments;
-            Vec3d center = entity.sampleCenterlineCached(t);
-            Vec3d left = entity.sampleLeftCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
+            Vec3 left = entity.sampleLeftCached(t);
             double baseY = entity.sampleBaseYCached(t);
             double topY = baseY + entity.getDrop();
 
-            Vec3d top = new Vec3d(center.x, topY, center.z).subtract(entityPos);
-            Vec3d outer = new Vec3d(
+            Vec3 top = new Vec3(center.x, topY, center.z).subtract(entityPos);
+            Vec3 outer = new Vec3(
                     center.x + left.x * entity.getRampWidth() * entity.getSideSign(),
                     baseY,
                     center.z + left.z * entity.getRampWidth() * entity.getSideSign()
             ).subtract(entityPos);
-            Vec3d innerBase = new Vec3d(center.x, baseY, center.z).subtract(entityPos);
+            Vec3 innerBase = new Vec3(center.x, baseY, center.z).subtract(entityPos);
 
             if (firstTop == null) {
                 firstTop = top;
@@ -233,15 +298,15 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         }
     }
 
-    private EndpointSlice computeOneSidedEndpointSlice(SurfRampEntity entity, Vec3d entityPos, double t) {
-        Vec3d center = entity.sampleCenterlineCached(t);
-        Vec3d left = entity.sampleLeftCached(t);
+    private EndpointSlice computeOneSidedEndpointSlice(SurfRampEntity entity, Vec3 entityPos, double t) {
+        Vec3 center = entity.sampleCenterlineCached(t);
+        Vec3 left = entity.sampleLeftCached(t);
         double baseY = entity.sampleBaseYCached(t);
         double topY = baseY + entity.getDrop();
 
-        Vec3d topWorld = new Vec3d(center.x, topY, center.z);
-        Vec3d innerWorld = new Vec3d(center.x, baseY, center.z);
-        Vec3d outerWorld = new Vec3d(
+        Vec3 topWorld = new Vec3(center.x, topY, center.z);
+        Vec3 innerWorld = new Vec3(center.x, baseY, center.z);
+        Vec3 outerWorld = new Vec3(
                 center.x + left.x * entity.getRampWidth() * entity.getSideSign(),
                 baseY,
                 center.z + left.z * entity.getRampWidth() * entity.getSideSign()
@@ -257,10 +322,10 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     private void drawOneSidedSeamBridge(
             SurfRampEntity entity,
-            Vec3d entityPos,
-            MatrixStack matrixStack,
+            Vec3 entityPos,
+            PoseStack matrixStack,
             VertexConsumer consumer,
-            Sprite sprite,
+            TextureAtlasSprite sprite,
             int light,
             EndpointSlice slice,
             @Nullable EndpointConnection connection,
@@ -272,20 +337,20 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
         SurfRampEntity other = connection.other;
         double otherT = connection.otherAtStart ? 0.0D : 1.0D;
-        Vec3d otherCenter = other.sampleCenterlineCached(otherT);
-        Vec3d otherLeft = other.sampleLeftCached(otherT);
+        Vec3 otherCenter = other.sampleCenterlineCached(otherT);
+        Vec3 otherLeft = other.sampleLeftCached(otherT);
         double otherBaseY = other.sampleBaseYCached(otherT);
         double otherTopY = otherBaseY + other.getDrop();
-        Vec3d otherTopWorld = new Vec3d(otherCenter.x, otherTopY, otherCenter.z);
-        Vec3d otherInnerWorld = new Vec3d(otherCenter.x, otherBaseY, otherCenter.z);
-        Vec3d otherOuterWorld = new Vec3d(
+        Vec3 otherTopWorld = new Vec3(otherCenter.x, otherTopY, otherCenter.z);
+        Vec3 otherInnerWorld = new Vec3(otherCenter.x, otherBaseY, otherCenter.z);
+        Vec3 otherOuterWorld = new Vec3(
                 otherCenter.x + otherLeft.x * other.getRampWidth() * other.getSideSign(),
                 otherBaseY,
                 otherCenter.z + otherLeft.z * other.getRampWidth() * other.getSideSign()
         );
-        Vec3d otherTopLocal = otherTopWorld.subtract(entityPos);
-        Vec3d otherInnerLocal = otherInnerWorld.subtract(entityPos);
-        Vec3d otherOuterLocal = otherOuterWorld.subtract(entityPos);
+        Vec3 otherTopLocal = otherTopWorld.subtract(entityPos);
+        Vec3 otherInnerLocal = otherInnerWorld.subtract(entityPos);
+        Vec3 otherOuterLocal = otherOuterWorld.subtract(entityPos);
 
         double topDistance = otherTopLocal.distanceTo(slice.topLocal);
         double innerDistance = otherInnerLocal.distanceTo(slice.innerLocal);
@@ -309,15 +374,15 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     }
 
     @Nullable
-    private EndpointConnection findConnectedOneSidedEndpoint(SurfRampEntity entity, Vec3d endpointWorld) {
-        if (entity == null || entity.getWorld() == null || endpointWorld == null) {
+    private EndpointConnection findConnectedOneSidedEndpoint(SurfRampEntity entity, Vec3 endpointWorld) {
+        if (entity == null || entity.level() == null || endpointWorld == null) {
             return null;
         }
         if (entity.isTwoSided()) {
             return null;
         }
 
-        Box searchBox = new Box(
+        AABB searchBox = new AABB(
                 endpointWorld.x - SEAM_SEARCH_RADIUS,
                 endpointWorld.y - SEAM_SEARCH_RADIUS,
                 endpointWorld.z - SEAM_SEARCH_RADIUS,
@@ -325,7 +390,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
                 endpointWorld.y + SEAM_SEARCH_RADIUS,
                 endpointWorld.z + SEAM_SEARCH_RADIUS
         );
-        List<SurfRampEntity> nearby = SurfRampEntity.collectNearbyRamps(entity.getWorld(), searchBox, 0.0D);
+        List<SurfRampEntity> nearby = SurfRampEntity.collectNearbyRamps(entity.level(), searchBox, 0.0D);
         if (nearby.isEmpty()) {
             return null;
         }
@@ -338,15 +403,15 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             if (other == entity || !other.isAlive() || other.isRemoved() || other.isTwoSided()) {
                 continue;
             }
-            Vec3d otherStart = other.getStart();
-            double startDistSq = otherStart.squaredDistanceTo(endpointWorld);
+            Vec3 otherStart = other.getStart();
+            double startDistSq = otherStart.distanceToSqr(endpointWorld);
             if (startDistSq <= maxDistSq && startDistSq < bestDistanceSquared) {
                 bestDistanceSquared = startDistSq;
                 best = new EndpointConnection(other, true);
             }
 
-            Vec3d otherEnd = other.getEnd();
-            double endDistSq = otherEnd.squaredDistanceTo(endpointWorld);
+            Vec3 otherEnd = other.getEnd();
+            double endDistSq = otherEnd.distanceToSqr(endpointWorld);
             if (endDistSq <= maxDistSq && endDistSq < bestDistanceSquared) {
                 bestDistanceSquared = endDistSq;
                 best = new EndpointConnection(other, false);
@@ -358,63 +423,63 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     private record EndpointConnection(SurfRampEntity other, boolean otherAtStart) {}
 
-    private record EndpointSlice(Vec3d worldCenter, Vec3d topLocal, Vec3d innerLocal, Vec3d outerLocal) {}
+    private record EndpointSlice(Vec3 worldCenter, Vec3 topLocal, Vec3 innerLocal, Vec3 outerLocal) {}
 
-    private boolean shouldResolveSeamConnection(Vec3d cameraPos, Vec3d endpointWorld) {
+    private boolean shouldResolveSeamConnection(Vec3 cameraPos, Vec3 endpointWorld) {
         if (cameraPos == null || endpointWorld == null) {
             return false;
         }
-        return cameraPos.squaredDistanceTo(endpointWorld) <= SEAM_BRIDGE_DETAIL_DISTANCE_SQ;
+        return cameraPos.distanceToSqr(endpointWorld) <= SEAM_BRIDGE_DETAIL_DISTANCE_SQ;
     }
 
     @Nullable
-    private Vec3d getCameraPos() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.gameRenderer == null || client.gameRenderer.getCamera() == null) {
+    private Vec3 getCameraPos() {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.gameRenderer == null || client.gameRenderer.getMainCamera() == null) {
             return null;
         }
-        return client.gameRenderer.getCamera().getPos();
+        return client.gameRenderer.getMainCamera().position();
     }
 
-    private boolean shouldRenderUnderside(SurfRampEntity entity, @Nullable Vec3d cameraPos) {
+    private boolean shouldRenderUnderside(SurfRampEntity entity, @Nullable Vec3 cameraPos) {
         if (entity == null || cameraPos == null) {
             return true;
         }
-        Box bounds = entity.getBoundingBox();
+        AABB bounds = entity.getBoundingBox();
         double approxBaseY = bounds.minY + 0.65D;
         return cameraPos.y <= approxBaseY + 0.45D;
     }
 
     private void renderTwoSidedSolid(
             SurfRampEntity entity,
-            Vec3d entityPos,
+            Vec3 entityPos,
             int segments,
-            MatrixStack matrixStack,
+            PoseStack matrixStack,
             VertexConsumer consumer,
-            Sprite sprite,
+            TextureAtlasSprite sprite,
             int light,
             boolean renderUnderside
     ) {
-        Vec3d firstRidge = null;
-        Vec3d firstLeftBase = null;
-        Vec3d firstRightBase = null;
+        Vec3 firstRidge = null;
+        Vec3 firstLeftBase = null;
+        Vec3 firstRightBase = null;
 
-        Vec3d previousRidge = null;
-        Vec3d previousLeftBase = null;
-        Vec3d previousRightBase = null;
-        Vec3d previousCenter = null;
+        Vec3 previousRidge = null;
+        Vec3 previousLeftBase = null;
+        Vec3 previousRightBase = null;
+        Vec3 previousCenter = null;
         double accumulatedU = 0.0D;
 
         for (int i = 0; i <= segments; i++) {
             double t = (double) i / (double) segments;
-            Vec3d center = entity.sampleCenterlineCached(t);
-            Vec3d left = entity.sampleLeftCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
+            Vec3 left = entity.sampleLeftCached(t);
             double baseY = entity.sampleBaseYCached(t);
             double topY = baseY + entity.getDrop();
 
-            Vec3d ridge = new Vec3d(center.x, topY, center.z).subtract(entityPos);
-            Vec3d leftBase = new Vec3d(center.x + left.x * entity.getRampWidth(), baseY, center.z + left.z * entity.getRampWidth()).subtract(entityPos);
-            Vec3d rightBase = new Vec3d(center.x - left.x * entity.getRampWidth(), baseY, center.z - left.z * entity.getRampWidth()).subtract(entityPos);
+            Vec3 ridge = new Vec3(center.x, topY, center.z).subtract(entityPos);
+            Vec3 leftBase = new Vec3(center.x + left.x * entity.getRampWidth(), baseY, center.z + left.z * entity.getRampWidth()).subtract(entityPos);
+            Vec3 rightBase = new Vec3(center.x - left.x * entity.getRampWidth(), baseY, center.z - left.z * entity.getRampWidth()).subtract(entityPos);
 
             if (firstRidge == null) {
                 firstRidge = ridge;
@@ -448,10 +513,11 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     private void renderWireframe(
             SurfRampEntity entity,
-            Vec3d entityPos,
+            Vec3 entityPos,
             int segments,
-            MatrixStack matrixStack,
-            VertexConsumerProvider provider,
+            PoseStack matrixStack,
+            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer fillConsumer,
             int light
     ) {
         int wireRgb = entity.getWireframeColorRgb();
@@ -459,7 +525,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         int wireGreen = (wireRgb >> 8) & 0xFF;
         int wireBlue = wireRgb & 0xFF;
 
-        boolean fillEnabled = entity.isWireframeFillEnabled();
+        boolean fillEnabled = entity.isWireframeFillEnabled() && fillConsumer != null;
         int fillRed = 0;
         int fillGreen = 0;
         int fillBlue = 0;
@@ -472,11 +538,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             fillAlpha = entity.getWireframeFillAlpha();
         }
 
-        Matrix4f positionMatrix = matrixStack.peek().getPositionMatrix();
-        VertexConsumer wireConsumer = provider.getBuffer(ModRenderLayer.getLineOfWidth(WIREFRAME_LINE_WIDTH));
-        VertexConsumer fillConsumer = fillEnabled
-                ? provider.getBuffer(RenderLayer.getEntityTranslucent(WIREFRAME_FILL_TEXTURE))
-                : null;
+        Matrix4f positionMatrix = matrixStack.last().pose();
 
         if (entity.isTwoSided()) {
             this.renderTwoSidedWireframe(
@@ -521,9 +583,9 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     private void renderOneSidedWireframe(
             SurfRampEntity entity,
-            Vec3d entityPos,
+            Vec3 entityPos,
             int segments,
-            MatrixStack matrixStack,
+            PoseStack matrixStack,
             Matrix4f positionMatrix,
             VertexConsumer wireConsumer,
             @Nullable VertexConsumer fillConsumer,
@@ -537,29 +599,29 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             int fillAlpha,
             int light
     ) {
-        Vec3d firstTop = null;
-        Vec3d firstOuter = null;
-        Vec3d firstInner = null;
+        Vec3 firstTop = null;
+        Vec3 firstOuter = null;
+        Vec3 firstInner = null;
 
-        Vec3d previousTop = null;
-        Vec3d previousOuter = null;
-        Vec3d previousInner = null;
-        Vec3d[] previousSurfaceBands = new Vec3d[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
+        Vec3 previousTop = null;
+        Vec3 previousOuter = null;
+        Vec3 previousInner = null;
+        Vec3[] previousSurfaceBands = new Vec3[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
 
         for (int i = 0; i <= segments; i++) {
             double t = (double) i / (double) segments;
-            Vec3d center = entity.sampleCenterlineCached(t);
-            Vec3d left = entity.sampleLeftCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
+            Vec3 left = entity.sampleLeftCached(t);
             double baseY = entity.sampleBaseYCached(t);
             double topY = baseY + entity.getDrop();
 
-            Vec3d top = new Vec3d(center.x, topY, center.z).subtract(entityPos);
-            Vec3d outer = new Vec3d(
+            Vec3 top = new Vec3(center.x, topY, center.z).subtract(entityPos);
+            Vec3 outer = new Vec3(
                     center.x + left.x * entity.getRampWidth() * entity.getSideSign(),
                     baseY,
                     center.z + left.z * entity.getRampWidth() * entity.getSideSign()
             ).subtract(entityPos);
-            Vec3d inner = new Vec3d(center.x, baseY, center.z).subtract(entityPos);
+            Vec3 inner = new Vec3(center.x, baseY, center.z).subtract(entityPos);
 
             if (firstTop == null) {
                 firstTop = top;
@@ -579,9 +641,9 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
                 }
             }
 
-            Vec3d[] currentSurfaceBands = new Vec3d[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
+            Vec3[] currentSurfaceBands = new Vec3[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
             for (int bandIndex = 0; bandIndex < WIREFRAME_SURFACE_LINE_FRACTIONS.length; bandIndex++) {
-                Vec3d surfacePoint = top.lerp(outer, WIREFRAME_SURFACE_LINE_FRACTIONS[bandIndex]);
+                Vec3 surfacePoint = top.lerp(outer, WIREFRAME_SURFACE_LINE_FRACTIONS[bandIndex]);
                 currentSurfaceBands[bandIndex] = surfacePoint;
                 if (previousSurfaceBands[bandIndex] != null) {
                     this.drawWireLine(wireConsumer, positionMatrix, previousSurfaceBands[bandIndex], surfacePoint, wireRed, wireGreen, wireBlue);
@@ -621,9 +683,9 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     private void renderTwoSidedWireframe(
             SurfRampEntity entity,
-            Vec3d entityPos,
+            Vec3 entityPos,
             int segments,
-            MatrixStack matrixStack,
+            PoseStack matrixStack,
             Matrix4f positionMatrix,
             VertexConsumer wireConsumer,
             @Nullable VertexConsumer fillConsumer,
@@ -637,26 +699,26 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             int fillAlpha,
             int light
     ) {
-        Vec3d firstRidge = null;
-        Vec3d firstLeft = null;
-        Vec3d firstRight = null;
+        Vec3 firstRidge = null;
+        Vec3 firstLeft = null;
+        Vec3 firstRight = null;
 
-        Vec3d previousRidge = null;
-        Vec3d previousLeft = null;
-        Vec3d previousRight = null;
-        Vec3d[] previousLeftSurfaceBands = new Vec3d[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
-        Vec3d[] previousRightSurfaceBands = new Vec3d[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
+        Vec3 previousRidge = null;
+        Vec3 previousLeft = null;
+        Vec3 previousRight = null;
+        Vec3[] previousLeftSurfaceBands = new Vec3[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
+        Vec3[] previousRightSurfaceBands = new Vec3[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
 
         for (int i = 0; i <= segments; i++) {
             double t = (double) i / (double) segments;
-            Vec3d center = entity.sampleCenterlineCached(t);
-            Vec3d left = entity.sampleLeftCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
+            Vec3 left = entity.sampleLeftCached(t);
             double baseY = entity.sampleBaseYCached(t);
             double topY = baseY + entity.getDrop();
 
-            Vec3d ridge = new Vec3d(center.x, topY, center.z).subtract(entityPos);
-            Vec3d leftBase = new Vec3d(center.x + left.x * entity.getRampWidth(), baseY, center.z + left.z * entity.getRampWidth()).subtract(entityPos);
-            Vec3d rightBase = new Vec3d(center.x - left.x * entity.getRampWidth(), baseY, center.z - left.z * entity.getRampWidth()).subtract(entityPos);
+            Vec3 ridge = new Vec3(center.x, topY, center.z).subtract(entityPos);
+            Vec3 leftBase = new Vec3(center.x + left.x * entity.getRampWidth(), baseY, center.z + left.z * entity.getRampWidth()).subtract(entityPos);
+            Vec3 rightBase = new Vec3(center.x - left.x * entity.getRampWidth(), baseY, center.z - left.z * entity.getRampWidth()).subtract(entityPos);
 
             if (firstRidge == null) {
                 firstRidge = ridge;
@@ -676,12 +738,12 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
                 }
             }
 
-            Vec3d[] currentLeftSurfaceBands = new Vec3d[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
-            Vec3d[] currentRightSurfaceBands = new Vec3d[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
+            Vec3[] currentLeftSurfaceBands = new Vec3[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
+            Vec3[] currentRightSurfaceBands = new Vec3[WIREFRAME_SURFACE_LINE_FRACTIONS.length];
             for (int bandIndex = 0; bandIndex < WIREFRAME_SURFACE_LINE_FRACTIONS.length; bandIndex++) {
                 double fraction = WIREFRAME_SURFACE_LINE_FRACTIONS[bandIndex];
-                Vec3d leftSurface = ridge.lerp(leftBase, fraction);
-                Vec3d rightSurface = ridge.lerp(rightBase, fraction);
+                Vec3 leftSurface = ridge.lerp(leftBase, fraction);
+                Vec3 rightSurface = ridge.lerp(rightBase, fraction);
                 currentLeftSurfaceBands[bandIndex] = leftSurface;
                 currentRightSurfaceBands[bandIndex] = rightSurface;
                 if (previousLeftSurfaceBands[bandIndex] != null) {
@@ -726,7 +788,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     private void drawOneSidedWireRibs(
             SurfRampEntity entity,
-            Vec3d entityPos,
+            Vec3 entityPos,
             int segments,
             Matrix4f positionMatrix,
             VertexConsumer wireConsumer,
@@ -742,18 +804,18 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         for (int ribIndex = startRib; ribIndex <= endRib; ribIndex++) {
             double targetDistance = arcLengthTable.totalLength() * ((double) ribIndex / (double) ribCount);
             double t = arcLengthTable.tAtDistance(targetDistance);
-            Vec3d center = entity.sampleCenterlineCached(t);
-            Vec3d left = entity.sampleLeftCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
+            Vec3 left = entity.sampleLeftCached(t);
             double baseY = entity.sampleBaseYCached(t);
             double topY = baseY + entity.getDrop();
 
-            Vec3d top = new Vec3d(center.x, topY, center.z).subtract(entityPos);
-            Vec3d outer = new Vec3d(
+            Vec3 top = new Vec3(center.x, topY, center.z).subtract(entityPos);
+            Vec3 outer = new Vec3(
                     center.x + left.x * entity.getRampWidth() * entity.getSideSign(),
                     baseY,
                     center.z + left.z * entity.getRampWidth() * entity.getSideSign()
             ).subtract(entityPos);
-            Vec3d inner = new Vec3d(center.x, baseY, center.z).subtract(entityPos);
+            Vec3 inner = new Vec3(center.x, baseY, center.z).subtract(entityPos);
 
             this.drawWireLine(wireConsumer, positionMatrix, top, outer, wireRed, wireGreen, wireBlue);
             this.drawWireLine(wireConsumer, positionMatrix, top, inner, wireRed, wireGreen, wireBlue);
@@ -763,7 +825,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     private void drawTwoSidedWireRibs(
             SurfRampEntity entity,
-            Vec3d entityPos,
+            Vec3 entityPos,
             int segments,
             Matrix4f positionMatrix,
             VertexConsumer wireConsumer,
@@ -779,18 +841,18 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         for (int ribIndex = startRib; ribIndex <= endRib; ribIndex++) {
             double targetDistance = arcLengthTable.totalLength() * ((double) ribIndex / (double) ribCount);
             double t = arcLengthTable.tAtDistance(targetDistance);
-            Vec3d center = entity.sampleCenterlineCached(t);
-            Vec3d left = entity.sampleLeftCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
+            Vec3 left = entity.sampleLeftCached(t);
             double baseY = entity.sampleBaseYCached(t);
             double topY = baseY + entity.getDrop();
 
-            Vec3d ridge = new Vec3d(center.x, topY, center.z).subtract(entityPos);
-            Vec3d leftBase = new Vec3d(
+            Vec3 ridge = new Vec3(center.x, topY, center.z).subtract(entityPos);
+            Vec3 leftBase = new Vec3(
                     center.x + left.x * entity.getRampWidth(),
                     baseY,
                     center.z + left.z * entity.getRampWidth()
             ).subtract(entityPos);
-            Vec3d rightBase = new Vec3d(
+            Vec3 rightBase = new Vec3(
                     center.x - left.x * entity.getRampWidth(),
                     baseY,
                     center.z - left.z * entity.getRampWidth()
@@ -807,14 +869,14 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         double[] distances = new double[sampleCount + 1];
         double[] tSamples = new double[sampleCount + 1];
 
-        Vec3d previousCenter = entity.sampleCenterlineCached(0.0D);
+        Vec3 previousCenter = entity.sampleCenterlineCached(0.0D);
         double totalLength = 0.0D;
         distances[0] = 0.0D;
         tSamples[0] = 0.0D;
 
         for (int i = 1; i <= sampleCount; i++) {
             double t = (double) i / (double) sampleCount;
-            Vec3d center = entity.sampleCenterlineCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
             totalLength += center.distanceTo(previousCenter);
             distances[i] = totalLength;
             tSamples[i] = t;
@@ -842,29 +904,31 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private void drawWireLine(
             VertexConsumer wireConsumer,
             Matrix4f positionMatrix,
-            Vec3d a,
-            Vec3d b,
+            Vec3 a,
+            Vec3 b,
             int red,
             int green,
             int blue
     ) {
-        wireConsumer.vertex(positionMatrix, (float) a.x, (float) a.y, (float) a.z)
-                .color(red, green, blue, WIREFRAME_LINE_ALPHA)
-                .normal(1.0F, 1.0F, 1.0F);
-        wireConsumer.vertex(positionMatrix, (float) b.x, (float) b.y, (float) b.z)
-                .color(red, green, blue, WIREFRAME_LINE_ALPHA)
-                .normal(1.0F, 1.0F, 1.0F);
+        wireConsumer.addVertex(positionMatrix, (float) a.x, (float) a.y, (float) a.z)
+                .setColor(red, green, blue, WIREFRAME_LINE_ALPHA)
+                .setNormal(1.0F, 1.0F, 1.0F)
+                .setLineWidth(WIREFRAME_LINE_WIDTH);
+        wireConsumer.addVertex(positionMatrix, (float) b.x, (float) b.y, (float) b.z)
+                .setColor(red, green, blue, WIREFRAME_LINE_ALPHA)
+                .setNormal(1.0F, 1.0F, 1.0F)
+                .setLineWidth(WIREFRAME_LINE_WIDTH);
     }
 
     private void drawCollisionLine(
-            VertexConsumerProvider provider,
-            MatrixStack matrixStack,
-            Vec3d a,
-            Vec3d b
+            VertexConsumer provider,
+            PoseStack matrixStack,
+            Vec3 a,
+            Vec3 b
     ) {
         RenderUtil.drawLine(
                 provider,
-                matrixStack,
+                matrixStack.last(),
                 new Vector3f((float) a.x, (float) a.y, (float) a.z),
                 new Vector3f((float) b.x, (float) b.y, (float) b.z),
                 COLLISION_DEBUG_LINE_WIDTH,
@@ -878,11 +942,11 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private void drawFilledQuadDoubleSided(
             SurfRampEntity entity,
             VertexConsumer consumer,
-            MatrixStack matrices,
-            Vec3d a,
-            Vec3d b,
-            Vec3d c,
-            Vec3d d,
+            PoseStack matrices,
+            Vec3 a,
+            Vec3 b,
+            Vec3 c,
+            Vec3 d,
             int red,
             int green,
             int blue,
@@ -896,21 +960,21 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private void drawFilledQuad(
             SurfRampEntity entity,
             VertexConsumer consumer,
-            MatrixStack matrices,
-            Vec3d a,
-            Vec3d b,
-            Vec3d c,
-            Vec3d d,
+            PoseStack matrices,
+            Vec3 a,
+            Vec3 b,
+            Vec3 c,
+            Vec3 d,
             int red,
             int green,
             int blue,
             int alpha,
             int light
     ) {
-        Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
-        Vec3d normal = b.subtract(a).crossProduct(d.subtract(a));
-        if (normal.lengthSquared() < 1.0E-8D) {
-            normal = new Vec3d(0.0D, 1.0D, 0.0D);
+        Matrix4f positionMatrix = matrices.last().pose();
+        Vec3 normal = b.subtract(a).cross(d.subtract(a));
+        if (normal.lengthSqr() < 1.0E-8D) {
+            normal = new Vec3(0.0D, 1.0D, 0.0D);
         } else {
             normal = normal.normalize();
         }
@@ -929,10 +993,10 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private void drawFilledTriangleDoubleSided(
             SurfRampEntity entity,
             VertexConsumer consumer,
-            MatrixStack matrices,
-            Vec3d a,
-            Vec3d b,
-            Vec3d c,
+            PoseStack matrices,
+            Vec3 a,
+            Vec3 b,
+            Vec3 c,
             int red,
             int green,
             int blue,
@@ -946,20 +1010,20 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private void drawFilledTriangle(
             SurfRampEntity entity,
             VertexConsumer consumer,
-            MatrixStack matrices,
-            Vec3d a,
-            Vec3d b,
-            Vec3d c,
+            PoseStack matrices,
+            Vec3 a,
+            Vec3 b,
+            Vec3 c,
             int red,
             int green,
             int blue,
             int alpha,
             int light
     ) {
-        Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
-        Vec3d normal = b.subtract(a).crossProduct(c.subtract(a));
-        if (normal.lengthSquared() < 1.0E-8D) {
-            normal = new Vec3d(0.0D, 1.0D, 0.0D);
+        Matrix4f positionMatrix = matrices.last().pose();
+        Vec3 normal = b.subtract(a).cross(c.subtract(a));
+        if (normal.lengthSqr() < 1.0E-8D) {
+            normal = new Vec3(0.0D, 1.0D, 0.0D);
         } else {
             normal = normal.normalize();
         }
@@ -977,7 +1041,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private void putFilledVertex(
             VertexConsumer consumer,
             Matrix4f positionMatrix,
-            Vec3d pos,
+            Vec3 pos,
             float u,
             float v,
             int red,
@@ -985,21 +1049,21 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             int blue,
             int alpha,
             int light,
-            Vec3d normal
+            Vec3 normal
     ) {
-        consumer.vertex(positionMatrix, (float) pos.x, (float) pos.y, (float) pos.z)
-                .color(red, green, blue, alpha)
-                .texture(clamp01(u), clamp01(v))
-                .overlay(OverlayTexture.DEFAULT_UV)
-                .light(light)
-                .normal((float) normal.x, (float) normal.y, (float) normal.z);
+        consumer.addVertex(positionMatrix, (float) pos.x, (float) pos.y, (float) pos.z)
+                .setColor(red, green, blue, alpha)
+                .setUv(clamp01(u), clamp01(v))
+                .setOverlay(OverlayTexture.NO_OVERLAY)
+                .setLight(light)
+                .setNormal((float) normal.x, (float) normal.y, (float) normal.z);
     }
 
     private void renderCollisionPolygons(
             SurfRampEntity entity,
-            MatrixStack matrixStack,
-            VertexConsumerProvider provider,
-            Vec3d entityPos
+            PoseStack matrixStack,
+            VertexConsumer provider,
+            Vec3 entityPos
     ) {
         int samples = entity.isCurved() ? 60 : 36;
         if (entity.isTwoSided()) {
@@ -1011,32 +1075,32 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     private void renderOneSidedCollisionDebug(
             SurfRampEntity entity,
-            Vec3d entityPos,
+            Vec3 entityPos,
             int samples,
-            MatrixStack matrixStack,
-            VertexConsumerProvider provider
+            PoseStack matrixStack,
+            VertexConsumer provider
     ) {
         ArcLengthTable arcLengthTable = this.buildArcLengthTable(entity, samples);
-        Vec3d previousTop = null;
-        Vec3d previousOuter = null;
-        Vec3d previousInner = null;
-        Vec3d[] previousSurfaceBands = new Vec3d[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
+        Vec3 previousTop = null;
+        Vec3 previousOuter = null;
+        Vec3 previousInner = null;
+        Vec3[] previousSurfaceBands = new Vec3[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
 
         for (int i = 0; i <= samples; i++) {
             double targetDistance = arcLengthTable.totalLength() * ((double) i / (double) samples);
             double t = arcLengthTable.tAtDistance(targetDistance);
-            Vec3d center = entity.sampleCenterlineCached(t);
-            Vec3d left = entity.sampleLeftCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
+            Vec3 left = entity.sampleLeftCached(t);
             double baseY = entity.sampleBaseYCached(t);
             double topY = baseY + entity.getDrop();
 
-            Vec3d top = new Vec3d(center.x, topY, center.z).subtract(entityPos);
-            Vec3d outer = new Vec3d(
+            Vec3 top = new Vec3(center.x, topY, center.z).subtract(entityPos);
+            Vec3 outer = new Vec3(
                     center.x + left.x * entity.getRampWidth() * entity.getSideSign(),
                     baseY,
                     center.z + left.z * entity.getRampWidth() * entity.getSideSign()
             ).subtract(entityPos);
-            Vec3d inner = new Vec3d(center.x, baseY, center.z).subtract(entityPos);
+            Vec3 inner = new Vec3(center.x, baseY, center.z).subtract(entityPos);
 
             if (previousTop != null) {
                 this.drawCollisionLine(provider, matrixStack, previousTop, top);
@@ -1044,9 +1108,9 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
                 this.drawCollisionLine(provider, matrixStack, previousInner, inner);
             }
 
-            Vec3d[] currentSurfaceBands = new Vec3d[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
+            Vec3[] currentSurfaceBands = new Vec3[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
             for (int bandIndex = 0; bandIndex < COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length; bandIndex++) {
-                Vec3d surfacePoint = top.lerp(outer, COLLISION_DEBUG_SURFACE_LINE_FRACTIONS[bandIndex]);
+                Vec3 surfacePoint = top.lerp(outer, COLLISION_DEBUG_SURFACE_LINE_FRACTIONS[bandIndex]);
                 currentSurfaceBands[bandIndex] = surfacePoint;
                 if (previousSurfaceBands[bandIndex] != null) {
                     this.drawCollisionLine(provider, matrixStack, previousSurfaceBands[bandIndex], surfacePoint);
@@ -1063,18 +1127,18 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         for (int ribIndex = 0; ribIndex <= ribCount; ribIndex++) {
             double targetDistance = arcLengthTable.totalLength() * ((double) ribIndex / (double) ribCount);
             double t = arcLengthTable.tAtDistance(targetDistance);
-            Vec3d center = entity.sampleCenterlineCached(t);
-            Vec3d left = entity.sampleLeftCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
+            Vec3 left = entity.sampleLeftCached(t);
             double baseY = entity.sampleBaseYCached(t);
             double topY = baseY + entity.getDrop();
 
-            Vec3d top = new Vec3d(center.x, topY, center.z).subtract(entityPos);
-            Vec3d outer = new Vec3d(
+            Vec3 top = new Vec3(center.x, topY, center.z).subtract(entityPos);
+            Vec3 outer = new Vec3(
                     center.x + left.x * entity.getRampWidth() * entity.getSideSign(),
                     baseY,
                     center.z + left.z * entity.getRampWidth() * entity.getSideSign()
             ).subtract(entityPos);
-            Vec3d inner = new Vec3d(center.x, baseY, center.z).subtract(entityPos);
+            Vec3 inner = new Vec3(center.x, baseY, center.z).subtract(entityPos);
 
             this.drawCollisionLine(provider, matrixStack, top, outer);
             this.drawCollisionLine(provider, matrixStack, top, inner);
@@ -1084,33 +1148,33 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     private void renderTwoSidedCollisionDebug(
             SurfRampEntity entity,
-            Vec3d entityPos,
+            Vec3 entityPos,
             int samples,
-            MatrixStack matrixStack,
-            VertexConsumerProvider provider
+            PoseStack matrixStack,
+            VertexConsumer provider
     ) {
         ArcLengthTable arcLengthTable = this.buildArcLengthTable(entity, samples);
-        Vec3d previousRidge = null;
-        Vec3d previousLeft = null;
-        Vec3d previousRight = null;
-        Vec3d[] previousLeftSurfaceBands = new Vec3d[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
-        Vec3d[] previousRightSurfaceBands = new Vec3d[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
+        Vec3 previousRidge = null;
+        Vec3 previousLeft = null;
+        Vec3 previousRight = null;
+        Vec3[] previousLeftSurfaceBands = new Vec3[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
+        Vec3[] previousRightSurfaceBands = new Vec3[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
 
         for (int i = 0; i <= samples; i++) {
             double targetDistance = arcLengthTable.totalLength() * ((double) i / (double) samples);
             double t = arcLengthTable.tAtDistance(targetDistance);
-            Vec3d center = entity.sampleCenterlineCached(t);
-            Vec3d left = entity.sampleLeftCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
+            Vec3 left = entity.sampleLeftCached(t);
             double baseY = entity.sampleBaseYCached(t);
             double topY = baseY + entity.getDrop();
 
-            Vec3d ridge = new Vec3d(center.x, topY, center.z).subtract(entityPos);
-            Vec3d leftBase = new Vec3d(
+            Vec3 ridge = new Vec3(center.x, topY, center.z).subtract(entityPos);
+            Vec3 leftBase = new Vec3(
                     center.x + left.x * entity.getRampWidth(),
                     baseY,
                     center.z + left.z * entity.getRampWidth()
             ).subtract(entityPos);
-            Vec3d rightBase = new Vec3d(
+            Vec3 rightBase = new Vec3(
                     center.x - left.x * entity.getRampWidth(),
                     baseY,
                     center.z - left.z * entity.getRampWidth()
@@ -1122,12 +1186,12 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
                 this.drawCollisionLine(provider, matrixStack, previousRight, rightBase);
             }
 
-            Vec3d[] currentLeftSurfaceBands = new Vec3d[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
-            Vec3d[] currentRightSurfaceBands = new Vec3d[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
+            Vec3[] currentLeftSurfaceBands = new Vec3[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
+            Vec3[] currentRightSurfaceBands = new Vec3[COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length];
             for (int bandIndex = 0; bandIndex < COLLISION_DEBUG_SURFACE_LINE_FRACTIONS.length; bandIndex++) {
                 double fraction = COLLISION_DEBUG_SURFACE_LINE_FRACTIONS[bandIndex];
-                Vec3d leftSurface = ridge.lerp(leftBase, fraction);
-                Vec3d rightSurface = ridge.lerp(rightBase, fraction);
+                Vec3 leftSurface = ridge.lerp(leftBase, fraction);
+                Vec3 rightSurface = ridge.lerp(rightBase, fraction);
                 currentLeftSurfaceBands[bandIndex] = leftSurface;
                 currentRightSurfaceBands[bandIndex] = rightSurface;
                 if (previousLeftSurfaceBands[bandIndex] != null) {
@@ -1149,18 +1213,18 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         for (int ribIndex = 0; ribIndex <= ribCount; ribIndex++) {
             double targetDistance = arcLengthTable.totalLength() * ((double) ribIndex / (double) ribCount);
             double t = arcLengthTable.tAtDistance(targetDistance);
-            Vec3d center = entity.sampleCenterlineCached(t);
-            Vec3d left = entity.sampleLeftCached(t);
+            Vec3 center = entity.sampleCenterlineCached(t);
+            Vec3 left = entity.sampleLeftCached(t);
             double baseY = entity.sampleBaseYCached(t);
             double topY = baseY + entity.getDrop();
 
-            Vec3d ridge = new Vec3d(center.x, topY, center.z).subtract(entityPos);
-            Vec3d leftBase = new Vec3d(
+            Vec3 ridge = new Vec3(center.x, topY, center.z).subtract(entityPos);
+            Vec3 leftBase = new Vec3(
                     center.x + left.x * entity.getRampWidth(),
                     baseY,
                     center.z + left.z * entity.getRampWidth()
             ).subtract(entityPos);
-            Vec3d rightBase = new Vec3d(
+            Vec3 rightBase = new Vec3(
                     center.x - left.x * entity.getRampWidth(),
                     baseY,
                     center.z - left.z * entity.getRampWidth()
@@ -1172,25 +1236,25 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         }
     }
 
-    private Sprite resolveRampSprite(SurfRampEntity entity) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        BakedModel model = client.getBlockRenderManager().getModel(entity.getTextureBlockState());
-        Sprite sprite = model.getParticleSprite();
+    private TextureAtlasSprite resolveRampSprite(SurfRampEntity entity) {
+        Minecraft client = Minecraft.getInstance();
+        BlockStateModel model = client.getModelManager().getBlockStateModelSet().get(entity.getTextureBlockState());
+        TextureAtlasSprite sprite = model.particleMaterial().sprite();
         if (sprite != null) {
             return sprite;
         }
-        return client.getBlockRenderManager().getModel(Blocks.SMOOTH_STONE.getDefaultState()).getParticleSprite();
+        return client.getModelManager().getBlockStateModelSet().get(Blocks.SMOOTH_STONE.defaultBlockState()).particleMaterial().sprite();
     }
 
     private static void drawTexturedQuad(
             SurfRampEntity entity,
             VertexConsumer consumer,
-            MatrixStack matrices,
-            Vec3d a,
-            Vec3d b,
-            Vec3d c,
-            Vec3d d,
-            Sprite sprite,
+            PoseStack matrices,
+            Vec3 a,
+            Vec3 b,
+            Vec3 c,
+            Vec3 d,
+            TextureAtlasSprite sprite,
             int light,
             double u0,
             double u1,
@@ -1207,10 +1271,10 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             return;
         }
 
-        Vec3d currentA = a;
-        Vec3d currentB = b;
-        Vec3d currentC = c;
-        Vec3d currentD = d;
+        Vec3 currentA = a;
+        Vec3 currentB = b;
+        Vec3 currentC = c;
+        Vec3 currentD = d;
         double currentU0 = u0;
         double currentU1 = u1;
 
@@ -1222,8 +1286,8 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             }
 
             double t = (nextBoundary - currentU0) / (currentU1 - currentU0);
-            Vec3d splitTop = lerp(currentA, currentB, t);
-            Vec3d splitBottom = lerp(currentD, currentC, t);
+            Vec3 splitTop = lerp(currentA, currentB, t);
+            Vec3 splitBottom = lerp(currentD, currentC, t);
             drawTexturedQuadSegment(entity, consumer, matrices, currentA, splitTop, splitBottom, currentD, sprite, light, currentU0, nextBoundary, v0, v1);
 
             currentA = splitTop;
@@ -1235,12 +1299,12 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private static void drawTexturedQuadSegment(
             SurfRampEntity entity,
             VertexConsumer consumer,
-            MatrixStack matrices,
-            Vec3d a,
-            Vec3d b,
-            Vec3d c,
-            Vec3d d,
-            Sprite sprite,
+            PoseStack matrices,
+            Vec3 a,
+            Vec3 b,
+            Vec3 c,
+            Vec3 d,
+            TextureAtlasSprite sprite,
             int light,
             double u0,
             double u1,
@@ -1251,11 +1315,11 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         float localU0 = clamp01((float) (u0 - tileBase));
         float localU1 = clamp01((float) (u1 - tileBase));
 
-        Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
+        Matrix4f positionMatrix = matrices.last().pose();
 
-        Vec3d normal = b.subtract(a).crossProduct(d.subtract(a));
-        if (normal.lengthSquared() < 1.0E-8D) {
-            normal = new Vec3d(0.0D, 1.0D, 0.0D);
+        Vec3 normal = b.subtract(a).cross(d.subtract(a));
+        if (normal.lengthSqr() < 1.0E-8D) {
+            normal = new Vec3(0.0D, 1.0D, 0.0D);
         } else {
             normal = normal.normalize();
         }
@@ -1269,17 +1333,17 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private static void drawTexturedTriangle(
             SurfRampEntity entity,
             VertexConsumer consumer,
-            MatrixStack matrices,
-            Vec3d a,
-            Vec3d b,
-            Vec3d c,
-            Sprite sprite,
+            PoseStack matrices,
+            Vec3 a,
+            Vec3 b,
+            Vec3 c,
+            TextureAtlasSprite sprite,
             int light
     ) {
-        Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
-        Vec3d normal = b.subtract(a).crossProduct(c.subtract(a));
-        if (normal.lengthSquared() < 1.0E-8D) {
-            normal = new Vec3d(0.0D, 1.0D, 0.0D);
+        Matrix4f positionMatrix = matrices.last().pose();
+        Vec3 normal = b.subtract(a).cross(c.subtract(a));
+        if (normal.lengthSqr() < 1.0E-8D) {
+            normal = new Vec3(0.0D, 1.0D, 0.0D);
         } else {
             normal = normal.normalize();
         }
@@ -1293,11 +1357,11 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private static void drawDoubleSidedTexturedTriangle(
             SurfRampEntity entity,
             VertexConsumer consumer,
-            MatrixStack matrices,
-            Vec3d a,
-            Vec3d b,
-            Vec3d c,
-            Sprite sprite,
+            PoseStack matrices,
+            Vec3 a,
+            Vec3 b,
+            Vec3 c,
+            TextureAtlasSprite sprite,
             int light
     ) {
         drawTexturedTriangle(entity, consumer, matrices, a, b, c, sprite, light);
@@ -1307,12 +1371,12 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private static void putFaceVertex(
             VertexConsumer consumer,
             Matrix4f positionMatrix,
-            Vec3d pos,
+            Vec3 pos,
             float u,
             float v,
-            Sprite sprite,
+            TextureAtlasSprite sprite,
             int light,
-            Vec3d normal
+            Vec3 normal
     ) {
         float wrappedU = clamp01(u);
         float wrappedV = clamp01(v);
@@ -1323,14 +1387,14 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         float uRange = 1.0F - pixelInsetU * 2.0F;
         float croppedU = pixelInsetU + wrappedU * uRange;
 
-        float atlasU = sprite.getMinU() + (sprite.getMaxU() - sprite.getMinU()) * croppedU;
-        float atlasV = sprite.getMinV() + (sprite.getMaxV() - sprite.getMinV()) * wrappedV;
-        consumer.vertex(positionMatrix, (float) pos.x, (float) pos.y, (float) pos.z)
-                .color(255, 255, 255, 255)
-                .texture(atlasU, atlasV)
-                .overlay(OverlayTexture.DEFAULT_UV)
-                .light(light)
-                .normal((float) normal.x, (float) normal.y, (float) normal.z);
+        float atlasU = sprite.getU0() + (sprite.getU1() - sprite.getU0()) * croppedU;
+        float atlasV = sprite.getV0() + (sprite.getV1() - sprite.getV0()) * wrappedV;
+        consumer.addVertex(positionMatrix, (float) pos.x, (float) pos.y, (float) pos.z)
+                .setColor(255, 255, 255, 255)
+                .setUv(atlasU, atlasV)
+                .setOverlay(OverlayTexture.NO_OVERLAY)
+                .setLight(light)
+                .setNormal((float) normal.x, (float) normal.y, (float) normal.z);
     }
 
     private static float clamp01(float value) {
@@ -1343,8 +1407,8 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         return value;
     }
 
-    private static Vec3d lerp(Vec3d from, Vec3d to, double t) {
-        return from.add(to.subtract(from).multiply(t));
+    private static Vec3 lerp(Vec3 from, Vec3 to, double t) {
+        return from.add(to.subtract(from).scale(t));
     }
 
     private record ArcLengthTable(double[] distances, double[] tSamples, double totalLength) {
@@ -1384,8 +1448,8 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     }
 
     @Override
-    public Identifier getTexture(SurfRampEntityRenderState state) {
-        return SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE;
+    public Identifier getTextureLocation(SurfRampEntityRenderState state) {
+        return TextureAtlas.LOCATION_BLOCKS;
     }
 }
 

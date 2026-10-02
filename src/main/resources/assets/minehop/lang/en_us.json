@@ -72,6 +72,7 @@
   "screen.minehop.map_creator.help.reopen": "Sneak + right-click a block with the Zone Stick to reopen this menu.",
 
   "key.category.minehop": "Minehop",
+  "key.category.minehop.main": "Minehop",
   "key.minehop.restart": "Restart Map",
   "key.minehop.hud_editor": "Open HUD Editor",
 

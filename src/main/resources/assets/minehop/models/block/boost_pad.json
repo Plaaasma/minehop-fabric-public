@@ -2,7 +2,7 @@
 	"credit": "Made with Blockbench",
 	"texture_size": [32, 32],
 	"textures": {
-		"0": "minehop:block/booster_texture",
+		"0": {"sprite": "minehop:block/booster_texture", "force_translucent": true},
 		"particle": "minehop:block/booster_texture"
 	},
 	"elements": [

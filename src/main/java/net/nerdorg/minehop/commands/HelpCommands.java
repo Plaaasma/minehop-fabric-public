@@ -8,13 +8,8 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.level.ServerPlayer;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.util.Logger;
@@ -25,7 +20,7 @@ public class HelpCommands {
     public static void register() {
         if (ConfigWrapper.config.help_command) {
             CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-                    LiteralArgumentBuilder.<ServerCommandSource>literal("help")
+                    LiteralArgumentBuilder.<CommandSourceStack>literal("help")
                             .executes(context -> {
                                 handleHelp(context);
                                 return Command.SINGLE_SUCCESS;
@@ -34,8 +29,8 @@ public class HelpCommands {
         }
     }
 
-    private static void handleHelp(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleHelp(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         Logger.logSuccess(serverPlayerEntity, """
                 Use /map and all of it's sub commands to list maps, see the top times, and go to maps.

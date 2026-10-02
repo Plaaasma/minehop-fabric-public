@@ -2,14 +2,16 @@
 
 package net.nerdorg.minehop.client;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.config.MinehopConfig;
@@ -36,8 +38,8 @@ public class SqueedometerHud {
     static final int EFF_THICK = 8;
     static final int GAUGE_THICK = 6;
 
-    private MinecraftClient client;
-    private TextRenderer textRenderer;
+    private Minecraft client;
+    private Font textRenderer;
 
     private double lastFrameSpeed = 0.0;
 
@@ -50,7 +52,7 @@ public class SqueedometerHud {
 
     // red (0) -> yellow (0.5) -> green (1)
     static int gradient(double t) {
-        t = MathHelper.clamp(t, 0.0D, 1.0D);
+        t = Mth.clamp(t, 0.0D, 1.0D);
         int r, g;
         if (t < 0.5D) {
             r = 255;
@@ -69,32 +71,32 @@ public class SqueedometerHud {
     }
 
     private int xPct(int pct) {
-        return (int) ((pct / 100f) * this.client.getWindow().getScaledWidth());
+        return (int) ((pct / 100f) * this.client.getWindow().getGuiScaledWidth());
     }
 
     private int yPct(int pct) {
-        return (int) ((pct / 100f) * this.client.getWindow().getScaledHeight());
+        return (int) ((pct / 100f) * this.client.getWindow().getGuiScaledHeight());
     }
 
-    private void centeredText(DrawContext ctx, String text, int cx, int y, int color) {
-        ctx.drawTextWithShadow(this.textRenderer, text, cx - this.textRenderer.getWidth(text) / 2, y, color);
+    private void centeredText(GuiGraphicsExtractor ctx, String text, int cx, int y, int color) {
+        ctx.text(this.textRenderer, text, cx - this.textRenderer.width(text) / 2, y, GuiColors.text(color));
     }
 
-    private void scaledCenteredText(DrawContext ctx, String text, int cx, int y, float scale, int color) {
-        ctx.getMatrices().push();
-        ctx.getMatrices().translate(cx, y, 0);
-        ctx.getMatrices().scale(scale, scale, 1f);
-        ctx.drawTextWithShadow(this.textRenderer, text, -this.textRenderer.getWidth(text) / 2, 0, color);
-        ctx.getMatrices().pop();
+    private void scaledCenteredText(GuiGraphicsExtractor ctx, String text, int cx, int y, float scale, int color) {
+        ctx.pose().pushMatrix();
+        ctx.pose().translate(cx, y);
+        ctx.pose().scale(scale, scale);
+        ctx.text(this.textRenderer, text, -this.textRenderer.width(text) / 2, 0, GuiColors.text(color));
+        ctx.pose().popMatrix();
     }
 
     /**
      * Fill bar centered on (anchorX, anchorY). Horizontal: fills left->right. Vertical: fills
      * bottom->up. len = long axis, thick = short axis. tick80 marks the 80% "good" target.
      */
-    static void fillBar(DrawContext ctx, int anchorX, int anchorY, int len, int thick, double frac,
+    static void fillBar(GuiGraphicsExtractor ctx, int anchorX, int anchorY, int len, int thick, double frac,
                         int fillColor, boolean tick80, boolean vertical) {
-        frac = MathHelper.clamp(frac, 0.0D, 1.0D);
+        frac = Mth.clamp(frac, 0.0D, 1.0D);
         if (!vertical) {
             int x = anchorX - len / 2;
             int y = anchorY;
@@ -127,9 +129,9 @@ public class SqueedometerHud {
     }
 
     /** Center-anchored slider gauge (0..200, 100=perfect=center). Marker color = closeness to perfect. */
-    static void gaugeBar(DrawContext ctx, int anchorX, int anchorY, int len, int thick, double value0to200, boolean vertical) {
-        double frac = MathHelper.clamp(value0to200 / 200.0D, 0.0D, 1.0D);
-        double err = MathHelper.clamp(Math.abs(value0to200 - 100.0D) / 100.0D, 0.0D, 1.0D);
+    static void gaugeBar(GuiGraphicsExtractor ctx, int anchorX, int anchorY, int len, int thick, double value0to200, boolean vertical) {
+        double frac = Mth.clamp(value0to200 / 200.0D, 0.0D, 1.0D);
+        double err = Mth.clamp(Math.abs(value0to200 - 100.0D) / 100.0D, 0.0D, 1.0D);
         int markerColor = err < 0.06D ? C_CYAN : gradient(1.0D - err);
         if (!vertical) {
             int x = anchorX - len / 2;
@@ -157,15 +159,15 @@ public class SqueedometerHud {
         }
     }
 
-    public void drawMain(DrawContext context, float tickDelta, MinehopConfig config) {
-        this.client = MinecraftClient.getInstance();
+    public void drawMain(GuiGraphicsExtractor context, float tickDelta, MinehopConfig config) {
+        this.client = Minecraft.getInstance();
         if (this.client == null || this.client.player == null) return;
-        this.textRenderer = this.client.textRenderer;
+        this.textRenderer = this.client.font;
         if (!config.jHud.speedHud.show_current_speed) return;
 
-        Vec3d pos = this.client.player.getPos();
-        double dx = pos.x - this.client.player.prevX;
-        double dz = pos.z - this.client.player.prevZ;
+        Vec3 pos = this.client.player.position();
+        double dx = pos.x - this.client.player.xo;
+        double dz = pos.z - this.client.player.zo;
         double speedPerTick = Math.sqrt(dx * dx + dz * dz);
         double bps = blocksPerSecond(speedPerTick);
 
@@ -176,18 +178,18 @@ public class SqueedometerHud {
         int cx = this.xPct(config.jHud.speedHud.speed_x_offset);
         int y = this.yPct(config.jHud.speedHud.speed_y_offset);
         this.scaledCenteredText(context, String.format(Locale.ROOT, "%.2f", bps), cx, y, scale, speedColor);
-        int subY = y + (int) Math.round(this.textRenderer.fontHeight * scale) + 1;
+        int subY = y + (int) Math.round(this.textRenderer.lineHeight * scale) + 1;
         this.scaledCenteredText(context, "blocks/sec", cx, subY, Math.max(0.5f, scale * 0.55f), C_SUBTEXT);
     }
 
-    public void drawJHUD(DrawContext context, MinehopConfig config) {
-        this.client = MinecraftClient.getInstance();
+    public void drawJHUD(GuiGraphicsExtractor context, MinehopConfig config) {
+        this.client = Minecraft.getInstance();
         if (this.client == null || this.client.player == null) return;
-        this.textRenderer = this.client.textRenderer;
+        this.textRenderer = this.client.font;
 
         this.drawRunTimerHud(context, config);
 
-        String name = this.client.player.getNameForScoreboard();
+        String name = this.client.player.getScoreboardName();
         StrafeStats stats = Minehop.strafeStatsMap.get(name);
 
         double gauge = stats != null ? stats.liveGauge : 0.0D;
@@ -235,7 +237,7 @@ public class SqueedometerHud {
             int ey = this.yPct(config.jHud.efficiencyHud.efficiency_y_offset);
             int effColor = gradient(eff / 100.0D);
             fillBar(context, ex, ey, len, thick, eff / 100.0D, effColor, true, vert);
-            int syncColor = sync >= 90 ? C_GREEN : (sync >= 70 ? Formatting.YELLOW.getColorValue() : C_RED);
+            int syncColor = sync >= 90 ? C_GREEN : (sync >= 70 ? ChatFormatting.YELLOW.getColor() : C_RED);
             String effLabel = String.format(Locale.ROOT, "EFF %.2f%%", eff);
             String syncLabel = String.format(Locale.ROOT, "SYNC %.2f%%   STRAFES %d", sync, strafes);
             if (!vert) {
@@ -256,12 +258,12 @@ public class SqueedometerHud {
         }
 
         // PRESPEED -----------------------------------------------------------------------------
-        Vec3d pos = this.client.player.getPos();
+        Vec3 pos = this.client.player.position();
         if (config.jHud.prespeedHud.show_prespeed) {
-            double dx = pos.x - this.client.player.prevX;
-            double dz = pos.z - this.client.player.prevZ;
+            double dx = pos.x - this.client.player.xo;
+            double dz = pos.z - this.client.player.zo;
             double speed = Math.sqrt(dx * dx + dz * dz);
-            if (MinehopClient.wasOnGround && !this.client.player.isOnGround() && MinehopClient.jump_count == 0) {
+            if (MinehopClient.wasOnGround && !this.client.player.onGround() && MinehopClient.jump_count == 0) {
                 MinehopClient.start_jump_speed = speed;
             }
             String preText = String.format(Locale.ROOT, "%.2f", blocksPerSecond(MinehopClient.start_jump_speed));
@@ -274,10 +276,10 @@ public class SqueedometerHud {
         // jump_count / SSJ are driven by the per-tick takeoff detector in MinehopClient (reliable
         // for auto-bhop where land+jump happen in one tick). Render only tracks wasOnGround for the
         // prespeed readout above.
-        MinehopClient.wasOnGround = this.client.player.isOnGround();
+        MinehopClient.wasOnGround = this.client.player.onGround();
     }
 
-    private void drawRunTimerHud(DrawContext context, MinehopConfig config) {
+    private void drawRunTimerHud(GuiGraphicsExtractor context, MinehopConfig config) {
         if (context == null || config == null || config.jHud == null || config.jHud.timerHud == null) {
             return;
         }
@@ -289,7 +291,7 @@ public class SqueedometerHud {
             MinehopClient.runTimerHudVisible = false;
             return;
         }
-        if (this.client == null || this.client.textRenderer == null) {
+        if (this.client == null || this.client.font == null) {
             return;
         }
 
@@ -303,16 +305,16 @@ public class SqueedometerHud {
         this.scaledCenteredText(context, text, xCenter, y, (float) Math.max(0.1, config.jHud.timerHud.timer_scale), C_WHITE);
     }
 
-    public void drawSpectators(DrawContext context, float tickDelta) {
-        this.client = MinecraftClient.getInstance();
-        this.textRenderer = this.client.textRenderer;
+    public void drawSpectators(GuiGraphicsExtractor context, float tickDelta) {
+        this.client = Minecraft.getInstance();
+        this.textRenderer = this.client.font;
 
-        int top = (this.client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 2);
+        int top = (this.client.getWindow().getGuiScaledHeight() / 2) + (this.textRenderer.lineHeight * 2);
         int left = 6;
-        context.drawTextWithShadow(this.textRenderer, "Spectators \\/", left, top, Formatting.DARK_GRAY.getColorValue());
+        context.text(this.textRenderer, "Spectators \\/", left, top, GuiColors.text(ChatFormatting.DARK_GRAY.getColor()));
         for (int index = 0; index < MinehopClient.spectatorList.size(); index++) {
-            top += this.textRenderer.fontHeight * 2;
-            context.drawTextWithShadow(this.textRenderer, MinehopClient.spectatorList.get(index), left, top, Formatting.RED.getColorValue());
+            top += this.textRenderer.lineHeight * 2;
+            context.text(this.textRenderer, MinehopClient.spectatorList.get(index), left, top, GuiColors.text(ChatFormatting.RED.getColor()));
         }
     }
 }

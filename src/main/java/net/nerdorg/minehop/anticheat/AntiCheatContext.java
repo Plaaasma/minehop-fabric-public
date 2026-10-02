@@ -1,18 +1,18 @@
 package net.nerdorg.minehop.anticheat;
 
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.config.MinehopConfig;
 
 public final class AntiCheatContext {
-    public final ServerPlayerEntity player;
+    public final ServerPlayer player;
     public final AntiCheatPlayerState state;
     public final MinehopConfig config;
-    public final Vec3d preMovePosition;
-    public final Vec3d postMovePosition;
-    public final Vec3d preMoveVelocity;
-    public final Vec3d postMoveVelocity;
-    public final Vec3d movedDelta;
+    public final Vec3 preMovePosition;
+    public final Vec3 postMovePosition;
+    public final Vec3 preMoveVelocity;
+    public final Vec3 postMoveVelocity;
+    public final Vec3 movedDelta;
     public final boolean onGround;
     public final boolean wasOnGround;
     public final boolean climbing;
@@ -26,13 +26,13 @@ public final class AntiCheatContext {
     public final long worldTick;
 
     public AntiCheatContext(
-            ServerPlayerEntity player,
+            ServerPlayer player,
             AntiCheatPlayerState state,
             MinehopConfig config,
-            Vec3d preMovePosition,
-            Vec3d postMovePosition,
-            Vec3d preMoveVelocity,
-            Vec3d postMoveVelocity,
+            Vec3 preMovePosition,
+            Vec3 postMovePosition,
+            Vec3 preMoveVelocity,
+            Vec3 postMoveVelocity,
             boolean onGround,
             boolean wasOnGround,
             boolean climbing,
@@ -50,8 +50,8 @@ public final class AntiCheatContext {
         this.config = config;
         this.preMovePosition = preMovePosition;
         this.postMovePosition = postMovePosition;
-        this.preMoveVelocity = preMoveVelocity == null ? Vec3d.ZERO : preMoveVelocity;
-        this.postMoveVelocity = postMoveVelocity == null ? Vec3d.ZERO : postMoveVelocity;
+        this.preMoveVelocity = preMoveVelocity == null ? Vec3.ZERO : preMoveVelocity;
+        this.postMoveVelocity = postMoveVelocity == null ? Vec3.ZERO : postMoveVelocity;
         this.movedDelta = postMovePosition.subtract(preMovePosition);
         this.onGround = onGround;
         this.wasOnGround = wasOnGround;

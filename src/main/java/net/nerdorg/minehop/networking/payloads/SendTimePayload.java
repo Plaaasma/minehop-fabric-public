@@ -1,21 +1,21 @@
 package net.nerdorg.minehop.networking.payloads;
 
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 import net.nerdorg.minehop.Minehop;
 
-public record SendTimePayload(float time) implements CustomPayload {
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "send_time");
-    public static final Id<SendTimePayload> ID = new Id<>(HANDSHAKE_ID);
-    public static final PacketCodec<PacketByteBuf, SendTimePayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.FLOAT, SendTimePayload::time,
+public record SendTimePayload(float time) implements CustomPacketPayload {
+    public static final Identifier HANDSHAKE_ID = Identifier.fromNamespaceAndPath(Minehop.MOD_ID, "send_time");
+    public static final Type<SendTimePayload> ID = new Type<>(HANDSHAKE_ID);
+    public static final StreamCodec<FriendlyByteBuf, SendTimePayload> CODEC = StreamCodec.composite(
+            ByteBufCodecs.FLOAT, SendTimePayload::time,
             SendTimePayload::new);
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

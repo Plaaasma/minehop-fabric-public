@@ -1,6 +1,6 @@
 package net.nerdorg.minehop.client;
 
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
 
 public final class BoundsStickPreviewState {
     private static BlockPos firstPos;
@@ -10,8 +10,8 @@ public final class BoundsStickPreviewState {
     }
 
     public static void update(BlockPos first, BlockPos second) {
-        firstPos = first == null ? null : first.toImmutable();
-        secondPos = second == null ? null : second.toImmutable();
+        firstPos = first == null ? null : first.immutable();
+        secondPos = second == null ? null : second.immutable();
     }
 
     public static void clear() {

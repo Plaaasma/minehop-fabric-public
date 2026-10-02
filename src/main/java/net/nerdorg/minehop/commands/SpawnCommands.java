@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
@@ -8,13 +10,10 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.entity.SpawnReason;
-import net.minecraft.item.ItemStack;
-import net.minecraft.network.packet.s2c.play.PositionFlag;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.ModEntities;
@@ -34,7 +33,7 @@ public class SpawnCommands {
 
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("spawn")
+            LiteralArgumentBuilder.<CommandSourceStack>literal("spawn")
                 .executes(context -> {
                     handleSpawn(context);
                     return Command.SINGLE_SUCCESS;
@@ -42,7 +41,7 @@ public class SpawnCommands {
             ));
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-                LiteralArgumentBuilder.<ServerCommandSource>literal("delspawn").requires(source -> source.hasPermissionLevel(4))
+                LiteralArgumentBuilder.<CommandSourceStack>literal("delspawn").requires(source -> PermissionUtil.hasLevel(source, 4))
                         .executes(context -> {
                             removeSpawn(context);
                             return Command.SINGLE_SUCCESS;
@@ -50,8 +49,8 @@ public class SpawnCommands {
         ));
     }
 
-    public static void handleSpawn(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    public static void handleSpawn(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         if (serverPlayerEntity == null) {
             return;
         }
@@ -61,42 +60,42 @@ public class SpawnCommands {
             if (!serverPlayerEntity.isSpectator()) {
                 UserPlotManager.consumeForcedCreativeState(serverPlayerEntity);
                 if (!serverPlayerEntity.isCreative()) {
-                    serverPlayerEntity.getInventory().clear();
+                    serverPlayerEntity.getInventory().clearContent();
                 }
-                ServerWorld foundWorld = null;
+                ServerLevel foundWorld = null;
                 if (pairedMap.worldKey != null && !pairedMap.worldKey.isBlank()) {
-                    for (ServerWorld svrWorld : context.getSource().getServer().getWorlds()) {
-                        if (svrWorld.getRegistryKey().toString().equals(pairedMap.worldKey)) {
+                    for (ServerLevel svrWorld : context.getSource().getServer().getAllLevels()) {
+                        if (svrWorld.dimension().toString().equals(pairedMap.worldKey)) {
                             foundWorld = svrWorld;
                             break;
                         }
                     }
                 }
                 if (foundWorld == null) {
-                    foundWorld = context.getSource().getServer().getOverworld();
+                    foundWorld = context.getSource().getServer().overworld();
                 }
                 if (foundWorld != null) {
-                    serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget(
+                    serverPlayerEntity.teleport(ZoneUtil.makeTeleportTarget(
                             foundWorld,
-                            new Vec3d(pairedMap.x, pairedMap.y, pairedMap.z),
+                            new Vec3(pairedMap.x, pairedMap.y, pairedMap.z),
                             (float) pairedMap.yrot,
                             (float) pairedMap.xrot
                     ));
-                    Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+                    Minehop.timerManager.remove(serverPlayerEntity.getScoreboardName());
                     Logger.logSuccess(serverPlayerEntity, "Teleporting to spawn.");
-                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getScoreboardName())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getScoreboardName());
                         for (String spectator : spectators) {
-                            ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
+                            ServerPlayer spectatorPlayer = context.getSource().getServer().getPlayerList().getPlayerByName(spectator);
                             if (spectatorPlayer == null) {
                                 continue;
                             }
                             UserPlotManager.consumeForcedCreativeState(spectatorPlayer);
                             if (!spectatorPlayer.isCreative()) {
-                                spectatorPlayer.getInventory().clear();
+                                spectatorPlayer.getInventory().clearContent();
                             }
-                            spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
-                            spectatorPlayer.setCameraEntity(serverPlayerEntity);
+                            spectatorPlayer.teleport(ZoneUtil.makeTeleportTarget(serverPlayerEntity.level(), new Vec3(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYRot(), serverPlayerEntity.getXRot()));
+                            spectatorPlayer.setCamera(serverPlayerEntity);
                         }
                     }
                 }
@@ -107,13 +106,13 @@ public class SpawnCommands {
         }
     }
 
-    private static void removeSpawn(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void removeSpawn(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         String name = "spawn";
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
             Minehop.mapList.removeIf(data -> data != null && name.equals(data.name));
-            ServerWorld world = context.getSource().getWorld();
+            ServerLevel world = context.getSource().getLevel();
             if (world != null) {
                 DataManager.saveData(world, DataManager.mapListLocation, Minehop.mapList);
             }

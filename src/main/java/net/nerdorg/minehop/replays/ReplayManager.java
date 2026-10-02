@@ -2,10 +2,10 @@ package net.nerdorg.minehop.replays;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.storage.LevelResource;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.util.JsonStorage;
@@ -225,15 +225,15 @@ public class ReplayManager {
         return bestExactMatch;
     }
 
-    public static void saveRecordReplay(ServerWorld world, Replay replay) {
+    public static void saveRecordReplay(ServerLevel world, Replay replay) {
         saveReplay(world, replay);
     }
 
-    public static void savePersonalBestReplay(ServerWorld world, Replay replay) {
+    public static void savePersonalBestReplay(ServerLevel world, Replay replay) {
         saveReplay(world, replay);
     }
 
-    public static void saveReplay(ServerWorld world, Replay replay) {
+    public static void saveReplay(ServerLevel world, Replay replay) {
         if (world == null || replay == null || replay.map_name == null || replay.map_name.isBlank()) {
             return;
         }
@@ -266,27 +266,32 @@ public class ReplayManager {
         saveRecordReplays(world, Minehop.replayList);
     }
 
-    /** Atomic, backed-up, version-enveloped write (see JsonStorage). Returns false if it failed. */
-    public static boolean saveRecordReplays(ServerWorld world, List<Replay> replays) {
+    /** Atomic, backed-up, version-enveloped write (see JsonStorage). Signature kept for other mods. */
+    public static void saveRecordReplays(ServerLevel world, List<Replay> replays) {
+        saveRecordReplaysChecked(world, replays);
+    }
+
+    /** Same as {@link #saveRecordReplays}, returning false if the write failed. */
+    public static boolean saveRecordReplaysChecked(ServerLevel world, List<Replay> replays) {
         if (world == null) {
             return false;
         }
         List<Replay> safeReplays = replays == null ? new ArrayList<>() : replays;
         MinecraftServer server = world.getServer();
-        Path worldDir = server.getSavePath(WorldSavePath.ROOT);
+        Path worldDir = server.getWorldPath(LevelResource.ROOT);
         return JsonStorage.writeAtomic(worldDir.resolve(REPLAYS_FILE), SCHEMA_VERSION, safeReplays);
     }
 
-    public static List<Replay> loadRecordReplays(ServerWorld world) {
-        Path worldDir = world.getServer().getSavePath(WorldSavePath.ROOT);
+    public static List<Replay> loadRecordReplays(ServerLevel world) {
+        Path worldDir = world.getServer().getWorldPath(LevelResource.ROOT);
         // Crash-proof read with .corrupt quarantine + .bak fallback; null = no data yet.
         return JsonStorage.readData(worldDir.resolve(REPLAYS_FILE), replayListType);
     }
 
     public static void register() {
         // Once per server, not per dimension: the replay file lives at the server root (see DataManager).
-        ServerWorldEvents.LOAD.register(((server, world) -> {
-            if (world.getRegistryKey() != net.minecraft.world.World.OVERWORLD) {
+        ServerLevelEvents.LOAD.register(((server, world) -> {
+            if (world.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
                 return;
             }
             Minehop.replayList = new ArrayList<>();
@@ -321,8 +326,8 @@ public class ReplayManager {
             }
         }));
 
-        ServerWorldEvents.UNLOAD.register(((server, world) -> {
-            if (world.getRegistryKey() != net.minecraft.world.World.OVERWORLD) {
+        ServerLevelEvents.UNLOAD.register(((server, world) -> {
+            if (world.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
                 return;
             }
             saveRecordReplays(world, Minehop.replayList);
@@ -356,8 +361,9 @@ public class ReplayManager {
         if (server == null || Minehop.replayList == null) {
             return false;
         }
-        net.minecraft.util.UserCache cache = server.getUserCache();
-        if (cache == null) {
+        // Same cache-only lookup as the record backfill: no Mojang round trips on the server thread.
+        java.util.Map<String, String> cachedUuids = net.nerdorg.minehop.data.DataManager.loadCachedUuidsByName(server);
+        if (cachedUuids.isEmpty()) {
             return false;
         }
         boolean changed = false;
@@ -368,9 +374,9 @@ public class ReplayManager {
             if (replay.player_uuid != null && !replay.player_uuid.isBlank()) {
                 continue;
             }
-            java.util.Optional<com.mojang.authlib.GameProfile> profile = cache.findByName(replay.player_name);
-            if (profile.isPresent() && profile.get().getId() != null) {
-                replay.player_uuid = profile.get().getId().toString();
+            String uuid = cachedUuids.get(replay.player_name.toLowerCase(java.util.Locale.ROOT));
+            if (uuid != null) {
+                replay.player_uuid = uuid;
                 changed = true;
             }
         }

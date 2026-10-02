@@ -1,20 +1,19 @@
 package net.nerdorg.minehop.networking.payloads;
 
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 import net.nerdorg.minehop.Minehop;
 
 public record ConfigSyncPayload(double sv_friction, double sv_accelerate,
                                 double sv_airaccelerate, double sv_maxairspeed, double sv_jump_impulse,
                                 double speed_mul, double sv_gravity, double speedCoef, double speedCap, boolean autoStepUp,
                                 boolean cssCrouchJump, boolean isHNS, boolean isKZ, boolean isEnabled, boolean fallDamage,
-                                double sv_stopspeed, boolean disableSprint) implements CustomPayload {
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "config");
-    public static final Id<ConfigSyncPayload> ID = new Id<>(HANDSHAKE_ID);
-    public static final PacketCodec<PacketByteBuf, ConfigSyncPayload> CODEC = PacketCodec.of(
+                                double sv_stopspeed, boolean disableSprint) implements CustomPacketPayload {
+    public static final Identifier HANDSHAKE_ID = Identifier.fromNamespaceAndPath(Minehop.MOD_ID, "config");
+    public static final Type<ConfigSyncPayload> ID = new Type<>(HANDSHAKE_ID);
+    public static final StreamCodec<FriendlyByteBuf, ConfigSyncPayload> CODEC = StreamCodec.ofMember(
             (buf, value) -> {
                 value.writeDouble(buf.sv_friction);
                 value.writeDouble(buf.sv_accelerate);
@@ -56,7 +55,7 @@ public record ConfigSyncPayload(double sv_friction, double sv_accelerate,
     );
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

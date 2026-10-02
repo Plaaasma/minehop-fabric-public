@@ -1,29 +1,34 @@
 package net.nerdorg.minehop.mixin;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.HorizontalFacingBlock;
-import net.minecraft.block.ShapeContext;
-import net.minecraft.block.StairsBlock;
-import net.minecraft.block.VineBlock;
-import net.minecraft.entity.*;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.damage.DamageTypes;
-import net.minecraft.entity.effect.StatusEffect;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.registry.tag.BlockTags;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.animal.FlyingAnimal;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.VineBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.anticheat.AntiCheatManager;
 import net.nerdorg.minehop.block.ModBlocks;
@@ -39,6 +44,7 @@ import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.MovementUtil;
 import net.nerdorg.minehop.util.SurfContact;
 import net.nerdorg.minehop.util.ZoneUtil;
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -54,26 +60,26 @@ import java.util.List;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin extends Entity {
-    @Shadow private float movementSpeed;
-    @Shadow public float sidewaysSpeed;
-    @Shadow public float forwardSpeed;
-    @Shadow private int jumpingCooldown;
+    @Shadow private float speed;
+    @Shadow public float xxa;
+    @Shadow public float zza;
+    @Shadow private int noJumpDelay;
     @Shadow protected boolean jumping;
 
-    @Shadow protected abstract float getJumpVelocity();
-    @Shadow public abstract boolean hasStatusEffect(RegistryEntry<StatusEffect> effect);
-    @Shadow public abstract StatusEffectInstance getStatusEffect(RegistryEntry<StatusEffect> effect);
-    @Shadow public abstract boolean isClimbing();
+    @Shadow protected abstract float getJumpPower();
+    @Shadow public abstract boolean hasEffect(Holder<MobEffect> effect);
+    @Shadow public abstract MobEffectInstance getEffect(Holder<MobEffect> effect);
+    @Shadow public abstract boolean onClimbable();
 
-    @Shadow public abstract float getYaw(float tickDelta);
+    @Shadow public abstract float getViewYRot(float tickDelta);
 
-    @Shadow public abstract void updateLimbs(boolean flutter);
+    @Shadow public abstract void calculateEntityAnimation(boolean flutter);
 
-    @Shadow public float prevHeadYaw;
+    @Shadow public float yHeadRotO;
 
-    @Shadow public abstract float getHeadYaw();
+    @Shadow public abstract float getYHeadRot();
 
-    @Shadow public abstract boolean isGliding();
+    @Shadow public abstract boolean isFallFlying();
 
     private boolean wasOnGround;
     @Unique private boolean cssCrouchOffsetApplied;
@@ -322,13 +328,13 @@ public abstract class LivingEntityMixin extends Entity {
     @Unique private int minehop$nearRampAcGraceTicks;
     @Unique private boolean minehop$sweepHit;
     @Unique private double minehop$sweepT;
-    @Unique private Vec3d minehop$sweepNormal;
+    @Unique private Vec3 minehop$sweepNormal;
     @Unique private double minehop$sweepSurfaceY;
     @Unique private boolean minehop$hullOnRamp;
-    @Unique private Vec3d minehop$hullNormal;
+    @Unique private Vec3 minehop$hullNormal;
     @Unique private double minehop$hullSurfaceY;
     @Unique private double minehop$bindLift;
-    @Unique private Vec3d minehop$bindNormal;
+    @Unique private Vec3 minehop$bindNormal;
     @Unique private double minehop$bindSurfaceY;
     @Unique private int surfContactGraceTicks;
     @Unique private int surfCollisionBypassGraceTicks;
@@ -342,8 +348,18 @@ public abstract class LivingEntityMixin extends Entity {
     @Unique private long surfRampQueryCacheTick = Long.MIN_VALUE;
     @Unique private final HashMap<Long, Object> surfRampQueryCache = new HashMap<>();
 
-    public LivingEntityMixin(EntityType<?> type, World world) {
+    public LivingEntityMixin(EntityType<?> type, Level world) {
         super(type, world);
+    }
+
+    // 1.21.5+ tickMovement zeroes a PLAYER's horizontal velocity only when its whole horizontal speed is
+    // tiny (|v_h|^2 < 9e-6); 1.21.4 (and non-players still) zero each axis separately when |v| < 0.003.
+    // That runs every tick right before travel(), so keep the 1.21.4 per-axis rule for players to keep
+    // Minehop's movement identical. 26.1: the EntityType.PLAYER check is now this.is(EntityType.PLAYER)
+    // (TypedInstance#is, invoked on LivingEntity) and it is the only is(Object) call in aiStep.
+    @ModifyExpressionValue(method = "aiStep", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;is(Ljava/lang/Object;)Z", ordinal = 0))
+    private boolean minehop$legacyPerAxisVelocityCutoff(boolean isPlayer) {
+        return false;
     }
 
     @Inject(method = "isPushable", at = @At("HEAD"), cancellable = true)
@@ -353,9 +369,9 @@ public abstract class LivingEntityMixin extends Entity {
         }
     }
 
-    @Inject(method = "teleport", at = @At("HEAD"))
+    @Inject(method = "randomTeleport", at = @At("HEAD"))
     public void onTeleport(double x, double y, double z, boolean particleEffects, CallbackInfoReturnable<Boolean> cir) {
-        HNSManager.taggedMap.remove(this.getNameForScoreboard());
+        HNSManager.taggedMap.remove(this.getScoreboardName());
         this.minehop$hasLastTravelYaw = false;
         this.minehop$descendedSinceJump = true; // don't carry a stale rising-state across a teleport
         this.minehop$jumpHeldFromGround = false;
@@ -372,25 +388,25 @@ public abstract class LivingEntityMixin extends Entity {
     // M6: any externally-applied knockback (melee, projectiles, wind charge, some explosions route
     // through here) arms a short anticheat grace so the legit velocity isn't lagbacked as a speed
     // violation. Server-authoritative — a client cannot call this on itself.
-    @Inject(method = "takeKnockback", at = @At("TAIL"))
+    @Inject(method = "knockback", at = @At("TAIL"))
     private void minehop$onTakeKnockback(double strength, double x, double z, CallbackInfo ci) {
-        if (((Object) this) instanceof PlayerEntity && strength > 0.0D) {
+        if (((Object) this) instanceof Player && strength > 0.0D) {
             this.minehop$externalVelocityGraceTicks = EXTERNAL_VELOCITY_GRACE_TICKS;
         }
     }
 
-    @Inject(method = "damage", at = @At("HEAD"), cancellable = true)
-    public void onDamage(ServerWorld world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "hurtServer", at = @At("HEAD"), cancellable = true)
+    public void onDamage(ServerLevel world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         MinehopConfig config = this.getType() == EntityType.PLAYER
                 ? ConfigWrapper.getEffectiveConfig(this)
                 : ConfigWrapper.config;
-        if (source.isOf(DamageTypes.FALL)) {
-            if (this.getWorld().getEntityById(this.getId()) instanceof PlayerEntity player) {
+        if (source.is(DamageTypes.FALL)) {
+            if (this.level().getEntity(this.getId()) instanceof Player player) {
                 DataManager.MapData mapData = ZoneUtil.getCurrentMap(player);
                 if (mapData != null && mapData.hns) {
-                    BlockState belowState = this.getWorld().getBlockState(this.getBlockPos().offset(Direction.DOWN, 1));
-                    if (amount >= 20 && !(belowState.getBlock() instanceof StairsBlock)) {
-                        HNSManager.taggedMap.put(player.getNameForScoreboard(), true);
+                    BlockState belowState = this.level().getBlockState(this.blockPosition().relative(Direction.DOWN, 1));
+                    if (amount >= 20 && !(belowState.getBlock() instanceof StairBlock)) {
+                        HNSManager.taggedMap.put(player.getScoreboardName(), true);
                         Logger.logFailure(player, "You were tagged because you fell too far. You can break your fall by landing on stairs.");
                     }
                 }
@@ -399,16 +415,16 @@ public abstract class LivingEntityMixin extends Entity {
                 cir.cancel();
         }
         else {
-            Entity sourceEntity = source.getSource();
+            Entity sourceEntity = source.getDirectEntity();
             if (sourceEntity != null) {
                 DataManager.MapData mapData = ZoneUtil.getCurrentMap(sourceEntity);
 
                 if (mapData != null && mapData.hns) {
-                    if (sourceEntity instanceof PlayerEntity player) {
-                        if (player.getEyePos().distanceTo(this.getEyePos()) > 3.5 && player.getEyePos().distanceTo(this.getPos()) > 3.5) {
+                    if (sourceEntity instanceof Player player) {
+                        if (player.getEyePosition().distanceTo(this.getEyePosition()) > 3.5 && player.getEyePosition().distanceTo(this.position()) > 3.5) {
                             cir.cancel();
                         }
-                        if (player.getEyePos().getY() <= this.getPos().getY() - 1) {
+                        if (player.getEyePosition().y() <= this.position().y() - 1) {
                             cir.cancel();
                         }
                     }
@@ -418,7 +434,7 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
-    public void travel(Vec3d movementInput, CallbackInfo ci) {
+    public void travel(Vec3 movementInput, CallbackInfo ci) {
         MinehopConfig config;
         double speedCap = 0.0D;
         if (Minehop.override_config && Minehop.receivedConfig) {
@@ -457,57 +473,57 @@ public abstract class LivingEntityMixin extends Entity {
 
         if (!config.enabled) { return; }
 
-        if (!this.canMoveVoluntarily() && !this.isLogicalSideForUpdatingMovement()) { return; }
+        if (!this.canSimulateMovement() && !this.isLocalInstanceAuthoritative()) { return; }
 
-        if (this.isTouchingWater() || this.isInLava() || this.isGliding()) { return; }
+        if (this.isInWater() || this.isInLava() || this.isFallFlying()) { return; }
 
-        LivingEntity self = (LivingEntity) this.getWorld().getEntityById(this.getId());
-        PlayerEntity debugPlayer = self instanceof PlayerEntity playerEntity ? playerEntity : null;
-        ServerPlayerEntity startZonePlayer = !this.getWorld().isClient && self instanceof ServerPlayerEntity serverPlayer ? serverPlayer : null;
+        LivingEntity self = (LivingEntity) this.level().getEntity(this.getId());
+        Player debugPlayer = self instanceof Player playerEntity ? playerEntity : null;
+        ServerPlayer startZonePlayer = !this.level().isClientSide() && self instanceof ServerPlayer serverPlayer ? serverPlayer : null;
         StartEntity activeStartZone = startZonePlayer == null ? null : StartEntity.getStartZoneForPlayer(startZonePlayer);
         boolean inStartZone = activeStartZone != null;
         if (inStartZone) {
-            Minehop.playerMapLocation.put(startZonePlayer.getUuidAsString(), activeStartZone);
-            Vec3d clampedStartVelocity = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, this.getVelocity());
-            if (clampedStartVelocity != this.getVelocity() && !clampedStartVelocity.equals(this.getVelocity())) {
-                this.setVelocity(clampedStartVelocity);
-                this.velocityDirty = true;
+            Minehop.playerMapLocation.put(startZonePlayer.getStringUUID(), activeStartZone);
+            Vec3 clampedStartVelocity = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, this.getDeltaMovement());
+            if (clampedStartVelocity != this.getDeltaMovement() && !clampedStartVelocity.equals(this.getDeltaMovement())) {
+                this.setDeltaMovement(clampedStartVelocity);
+                this.needsSync = true;
             }
         }
         boolean surfDebug = debugPlayer != null
-                && Minehop.surfDebugPlayers.contains(debugPlayer.getUuid())
-                && !this.getWorld().isClient;
+                && Minehop.surfDebugPlayers.contains(debugPlayer.getUUID())
+                && !this.level().isClientSide();
         boolean broadIncomingFallbackUsed = false;
         boolean groundedReacquireApplied = false;
         boolean endpointDisableTriggered = false;
         boolean catastrophicRestoreApplied = false;
         boolean forceRestorePreApplied = false;
         boolean forceRestorePostApplied = false;
-        if (this.getType() == EntityType.PLAYER && isFlying((PlayerEntity) self)) { return; }
+        if (this.getType() == EntityType.PLAYER && isFlying((Player) self)) { return; }
 
-        this.sidewaysSpeed /= 0.98F;
-        this.forwardSpeed /= 0.98F;
+        this.xxa /= 0.98F;
+        this.zza /= 0.98F;
         double sI = movementInput.x / 0.98F;
         double fI = movementInput.z / 0.98F;
 
-        float airStrafeStartYaw = this.minehop$hasLastTravelYaw ? this.minehop$lastTravelYaw : this.getYaw();
-        this.minehop$lastTravelYaw = this.getYaw();
+        float airStrafeStartYaw = this.minehop$hasLastTravelYaw ? this.minehop$lastTravelYaw : this.getYRot();
+        this.minehop$lastTravelYaw = this.getYRot();
         this.minehop$hasLastTravelYaw = true;
 
-        this.jumpingCooldown = 0;
+        this.noJumpDelay = 0;
 
-        BlockPos blockPos = this.getVelocityAffectingPos();
+        BlockPos blockPos = this.getBlockPosBelowThatAffectsMyMovement();
 
         SurfContact preMoveSurfContact = this.findSurfContact();
-        if (preMoveSurfContact == null && !this.isOnGround()) {
-            preMoveSurfContact = this.findIncomingSurfContact(this.getVelocity());
+        if (preMoveSurfContact == null && !this.onGround()) {
+            preMoveSurfContact = this.findIncomingSurfContact(this.getDeltaMovement());
         }
-        if (preMoveSurfContact == null && !this.isClimbing()) {
-            Vec3d preVelocity = this.getVelocity();
+        if (preMoveSurfContact == null && !this.onClimbable()) {
+            Vec3 preVelocity = this.getDeltaMovement();
             double preHorizontal = this.getHorizontalSpeed(preVelocity);
             if (preHorizontal >= SURF_COLLISION_BYPASS_GRACE_MIN_HORIZONTAL
                     && preVelocity.y <= this.getClipRestoreMaxVertical(preHorizontal)) {
-                Box preBox = this.getBoundingBox();
+                AABB preBox = this.getBoundingBox();
                 SurfContact broadIncomingFallback = this.findNearestSurfContactFallback(
                         this.getX() + preVelocity.x,
                         this.getZ() + preVelocity.z,
@@ -522,7 +538,7 @@ public abstract class LivingEntityMixin extends Entity {
                 }
             }
         }
-        boolean nearSurfRampPre = !this.isClimbing() && this.isNearSurfRamp();
+        boolean nearSurfRampPre = !this.onClimbable() && this.isNearSurfRamp();
 
         // Jump buffer for the edge bug: an edge (esp. thin blocks like carpet) can fail to register
         // onGround on the landing tick, so vanilla never calls jump() and you slide off ("edge bug").
@@ -545,7 +561,7 @@ public abstract class LivingEntityMixin extends Entity {
             this.minehop$stepUpGraceTicks--;
         }
         boolean jumpIntentForBuffer = this.jumping || this.minehop$uncrouchLandingJumpGraceTicks > 0;
-        boolean groundedishForCoyote = this.isOnGround() || this.minehop$hasRealGroundBelow();
+        boolean groundedishForCoyote = this.onGround() || this.minehop$hasRealGroundBelow();
         if (groundedishForCoyote) {
             this.minehop$groundedCoyote = 0;
             // Seed the continuous-hold flag from whether jump is held at this ground contact.
@@ -566,27 +582,27 @@ public abstract class LivingEntityMixin extends Entity {
         // or actually falling. Until then the buffer must not fire — otherwise on a slope/stairs,
         // where hasRealGroundBelow keeps groundedCoyote pinned at 0 during the whole ascent, the
         // buffer fires a SECOND impulse at apex (cooldown=6 expires right as vy drops <=0.10).
-        if (this.isOnGround() || this.getVelocity().y < -0.05D) {
+        if (this.onGround() || this.getDeltaMovement().y < -0.05D) {
             this.minehop$descendedSinceJump = true;
         }
         if (jumpIntentForBuffer
-                && ((Object) this) instanceof PlayerEntity
+                && ((Object) this) instanceof Player
                 && this.minehop$jumpCooldownTicks <= 0
                 && this.minehop$descendedSinceJump
                 && this.minehop$jumpHeldFromGround
-                && !this.isClimbing()
-                && !this.isTouchingWater() && !this.isInLava() && !this.isGliding()
-                && this.getVelocity().y <= 0.10D
+                && !this.onClimbable()
+                && !this.isInWater() && !this.isInLava() && !this.isFallFlying()
+                && this.getDeltaMovement().y <= 0.10D
                 && groundedishForCoyote
                 && preMoveSurfContact == null
                 && !nearSurfRampPre) {
             double bufferYVel = config.movement.sv_jump_impulse * SOURCE_UNIT_TO_BLOCKS_PER_TICK;
-            if (this.hasStatusEffect(StatusEffects.JUMP_BOOST)) {
-                bufferYVel += 0.1F * (this.getStatusEffect(StatusEffects.JUMP_BOOST).getAmplifier() + 1);
+            if (this.hasEffect(MobEffects.JUMP_BOOST)) {
+                bufferYVel += 0.1F * (this.getEffect(MobEffects.JUMP_BOOST).getAmplifier() + 1);
             }
-            Vec3d bufferVel = this.getVelocity();
-            this.setVelocity(bufferVel.x, bufferYVel, bufferVel.z);
-            this.velocityDirty = true;
+            Vec3 bufferVel = this.getDeltaMovement();
+            this.setDeltaMovement(bufferVel.x, bufferYVel, bufferVel.z);
+            this.needsSync = true;
             this.minehop$groundedCoyote = 999; // consume — one buffered jump per ground contact
             this.minehop$jumpCooldownTicks = SURF_JUMP_BUFFER_COOLDOWN;
             this.minehop$descendedSinceJump = false; // must descend/land again before next buffer fire
@@ -596,22 +612,22 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         SurfContact previousSurfContact = this.lastSurfContact;
-        double seamContinuityHorizontalPre = this.getHorizontalSpeed(this.getVelocity());
+        double seamContinuityHorizontalPre = this.getHorizontalSpeed(this.getDeltaMovement());
         double seamContinuityMaxAscentPre = this.getSeamContinuityMaxAscent(seamContinuityHorizontalPre);
         boolean nearSurfSupportPre = nearSurfRampPre || this.isReusableSurfContact(previousSurfContact);
         if (!nearSurfSupportPre
-                && !this.isClimbing()
-                && this.getHorizontalSpeed(this.getVelocity()) >= SURF_GROUND_SUPPRESS_MIN_HORIZONTAL
-                && (this.isOnGround()
+                && !this.onClimbable()
+                && this.getHorizontalSpeed(this.getDeltaMovement()) >= SURF_GROUND_SUPPRESS_MIN_HORIZONTAL
+                && (this.onGround()
                 || this.isReusableSurfContact(previousSurfContact)
                 || this.surfGroundSuppressTicks > 0
                 || this.surfContactGraceTicks > 0
                 || this.surfCollisionBypassGraceTicks > 0)) {
-            SurfContact preSupportContact = this.findJumpRampSupportContact(this.getBoundingBox(), this.getVelocity());
+            SurfContact preSupportContact = this.findJumpRampSupportContact(this.getBoundingBox(), this.getDeltaMovement());
             nearSurfSupportPre = this.isReusableSurfContact(preSupportContact);
         }
         boolean preSurfContactFromGrace = false;
-        if (preMoveSurfContact != null && !this.isClimbing()) {
+        if (preMoveSurfContact != null && !this.onClimbable()) {
             preMoveSurfContact = this.resolveSurfPenetration(preMoveSurfContact);
             preMoveSurfContact = this.snapToSurfSurface(preMoveSurfContact);
             if (preMoveSurfContact == null && this.isReusableSurfContact(previousSurfContact)) {
@@ -629,19 +645,19 @@ public abstract class LivingEntityMixin extends Entity {
                 this.lastSurfContact = null;
                 this.surfContactGraceTicks = 0;
             }
-        } else if (!this.isClimbing() && this.surfContactGraceTicks > 0 && this.isReusableSurfContact(this.lastSurfContact) && nearSurfSupportPre) {
+        } else if (!this.onClimbable() && this.surfContactGraceTicks > 0 && this.isReusableSurfContact(this.lastSurfContact) && nearSurfSupportPre) {
             preMoveSurfContact = this.lastSurfContact;
             preSurfContactFromGrace = true;
             this.surfContactGraceTicks--;
-        } else if (!this.isClimbing()
+        } else if (!this.onClimbable()
                 && nearSurfSupportPre
-                && !this.isOnGround()
+                && !this.onGround()
                 && this.isReusableSurfContact(previousSurfContact)
                 && (!previousSurfContact.hardEndpoint()
                     || (seamContinuityHorizontalPre > SURF_HARD_ENDPOINT_DISABLE_MAX_HORIZONTAL
-                        && this.getVelocity().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT))
+                        && this.getDeltaMovement().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT))
                 && seamContinuityHorizontalPre >= SURF_SEAM_CONTINUITY_MIN_HORIZONTAL
-                && this.getVelocity().y <= seamContinuityMaxAscentPre) {
+                && this.getDeltaMovement().y <= seamContinuityMaxAscentPre) {
 
             preMoveSurfContact = previousSurfContact;
             preSurfContactFromGrace = true;
@@ -652,19 +668,19 @@ public abstract class LivingEntityMixin extends Entity {
             this.lastSurfContact = null;
             this.surfContactGraceTicks = 0;
         }
-        nearSurfRampPre = !this.isClimbing() && this.isNearSurfRamp();
+        nearSurfRampPre = !this.onClimbable() && this.isNearSurfRamp();
         nearSurfSupportPre = nearSurfRampPre || this.isReusableSurfContact(this.lastSurfContact);
-        if (!nearSurfRampPre || this.isClimbing()) {
+        if (!nearSurfRampPre || this.onClimbable()) {
             this.surfEntryNoFrictionTicks = 0;
         } else if (this.surfEntryNoFrictionTicks > 0) {
             this.surfEntryNoFrictionTicks--;
         }
-        double preHorizontalSpeed = this.getHorizontalSpeed(this.getVelocity());
-        boolean transitionRampZonePre = !this.isClimbing() && this.isInRampTransitionZone();
-        boolean nearRampEndpointPre = !this.isClimbing()
+        double preHorizontalSpeed = this.getHorizontalSpeed(this.getDeltaMovement());
+        boolean transitionRampZonePre = !this.onClimbable() && this.isInRampTransitionZone();
+        boolean nearRampEndpointPre = !this.onClimbable()
                 && !transitionRampZonePre
                 && this.isNearSurfRampEndpoint();
-        double preTotalSpeed = this.getVelocity().length();
+        double preTotalSpeed = this.getDeltaMovement().length();
         boolean hardEndpointPre = preMoveSurfContact != null && preMoveSurfContact.hardEndpoint();
         if (nearRampEndpointPre && preSurfContactFromGrace && preHorizontalSpeed <= SURF_HARD_ENDPOINT_DISABLE_MAX_HORIZONTAL) {
             preMoveSurfContact = null;
@@ -683,21 +699,21 @@ public abstract class LivingEntityMixin extends Entity {
         boolean hasSurfSupportPre = preMoveSurfContact != null
                 || (this.surfContactGraceTicks > 0 && this.lastSurfContact != null);
         boolean recentSurfStatePre = hasSurfSupportPre || this.surfCollisionBypassGraceTicks > 0;
-        if (!this.isClimbing()) {
+        if (!this.onClimbable()) {
             boolean suppressionContextPre = nearSurfSupportPre
                     || recentSurfStatePre
                     || this.surfGroundSuppressTicks > 0;
             if (nearSurfSupportPre && preMoveSurfContact != null) {
                 this.surfGroundSuppressTicks = SURF_GROUND_SUPPRESS_CONTACT_TICKS;
             } else if (recentSurfStatePre
-                    && this.isOnGround()
+                    && this.onGround()
                     && preHorizontalSpeed >= SURF_GROUND_SUPPRESS_ON_GROUND_MIN_HORIZONTAL
-                    && this.getVelocity().y <= SURF_GROUND_SUPPRESS_ON_GROUND_MAX_VERTICAL) {
+                    && this.getDeltaMovement().y <= SURF_GROUND_SUPPRESS_ON_GROUND_MAX_VERTICAL) {
                 this.surfGroundSuppressTicks = Math.max(this.surfGroundSuppressTicks, SURF_GROUND_SUPPRESS_ON_GROUND_TICKS);
             } else if (suppressionContextPre
                     && (preSurfContactFromGrace || this.isReusableSurfContact(this.lastSurfContact) || recentSurfStatePre)
                     && preHorizontalSpeed >= SURF_GROUND_SUPPRESS_MIN_HORIZONTAL
-                    && this.getVelocity().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT) {
+                    && this.getDeltaMovement().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT) {
                 this.surfGroundSuppressTicks = Math.max(this.surfGroundSuppressTicks, SURF_GROUND_SUPPRESS_GRACE_TICKS);
             } else if (this.surfGroundSuppressTicks > 0) {
                 this.surfGroundSuppressTicks--;
@@ -708,36 +724,36 @@ public abstract class LivingEntityMixin extends Entity {
         boolean speedBypassPre = nearSurfSupportPre
                 && preHorizontalSpeed >= SURF_SPEED_BYPASS_MIN_HORIZONTAL
                 && preHorizontalSpeed >= SURF_COLLISION_BYPASS_GRACE_MIN_HORIZONTAL
-                && this.getVelocity().y <= 0.12D
+                && this.getDeltaMovement().y <= 0.12D
                 && hasSurfSupportPre;
         boolean descentBypassPre = nearSurfSupportPre
                 && hasSurfSupportPre
                 && preHorizontalSpeed >= SURF_COLLISION_BYPASS_GRACE_MIN_HORIZONTAL
-                && this.getVelocity().y <= SURF_PRECONTACT_DESCENT_BYPASS_MIN_FALL;
+                && this.getDeltaMovement().y <= SURF_PRECONTACT_DESCENT_BYPASS_MIN_FALL;
         boolean blindVerticalDropPre = nearSurfRampPre
                 && !recentSurfStatePre
                 && preHorizontalSpeed < 0.10D
-                && this.getVelocity().y < -0.10D;
+                && this.getDeltaMovement().y < -0.10D;
         boolean bypassGraceEligiblePre = this.surfCollisionBypassGraceTicks > 0
                 && nearSurfSupportPre
                 && preHorizontalSpeed >= SURF_COLLISION_BYPASS_GRACE_MIN_HORIZONTAL
                 && (this.surfContactGraceTicks > 0 || this.isReusableSurfContact(this.lastSurfContact));
         boolean highSpeedBlindApproachPre = nearSurfRampPre
                 && preMoveSurfContact == null
-                && !this.isOnGround()
+                && !this.onGround()
                 && this.surfGroundSuppressTicks == 0
-                && this.getVelocity().y <= SURF_BYPASS_BLIND_APPROACH_MIN_DESCENT
+                && this.getDeltaMovement().y <= SURF_BYPASS_BLIND_APPROACH_MIN_DESCENT
                 && preHorizontalSpeed >= SURF_BYPASS_BLIND_APPROACH_MIN_HORIZONTAL
                 && preTotalSpeed >= SURF_BYPASS_BLIND_APPROACH_MIN_TOTAL;
         boolean riskyGraceDescentPre = preSurfContactFromGrace
-                && this.getVelocity().y <= SURF_BYPASS_GRACE_DESCENT_CUTOFF;
+                && this.getDeltaMovement().y <= SURF_BYPASS_GRACE_DESCENT_CUTOFF;
         boolean groundSuppressBypassPre = this.surfGroundSuppressTicks > 0
                 && preHorizontalSpeed >= SURF_GROUND_SUPPRESS_MIN_HORIZONTAL
-                && this.getVelocity().y >= -0.06D
-                && this.getVelocity().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT;
+                && this.getDeltaMovement().y >= -0.06D
+                && this.getDeltaMovement().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT;
 
-        boolean realGroundBelow = !this.isClimbing() && this.minehop$hasRealGroundBelow();
-        boolean bypassRampCollision = !this.isClimbing()
+        boolean realGroundBelow = !this.onClimbable() && this.minehop$hasRealGroundBelow();
+        boolean bypassRampCollision = !this.onClimbable()
                 && !realGroundBelow
                 && !(hardEndpointPre && preSurfContactFromGrace)
                 && !blindVerticalDropPre
@@ -763,13 +779,13 @@ public abstract class LivingEntityMixin extends Entity {
         // ground friction and keeps speed forever. Two consecutive server-grounded ticks (matching the
         // old wasOnGround && isOnGround() two-tick gate) so a 1-tick bhop landing still isn't slowed.
         boolean fullGrounded = this.minehop$wasServerGrounded && realGroundBelow;
-        boolean surfing = preMoveSurfContact != null && !this.isClimbing() && !realGroundBelow;
+        boolean surfing = preMoveSurfContact != null && !this.onClimbable() && !realGroundBelow;
         boolean surfGroundSuppressed = this.surfGroundSuppressTicks > 0
-                && !this.isClimbing()
+                && !this.onClimbable()
                 && !realGroundBelow
                 && nearSurfSupportPre;
         boolean pseudoSurfing = !surfing
-                && !this.isClimbing()
+                && !this.onClimbable()
                 && !realGroundBelow
                 && nearSurfRampPre
                 && recentSurfStatePre
@@ -785,7 +801,7 @@ public abstract class LivingEntityMixin extends Entity {
                 && !realGroundBelow
                 && (preMoveSurfContact != null || this.isReusableSurfContact(this.lastSurfContact))
                 && (preHorizontalSpeed >= SURF_NEAR_RAMP_GROUND_FRICTION_SPEED_THRESHOLD || this.surfEntryNoFrictionTicks > 0)
-                && !this.isClimbing();
+                && !this.onClimbable();
 
         boolean useGroundMovement = fullGrounded
                 && !surfing
@@ -826,63 +842,63 @@ public abstract class LivingEntityMixin extends Entity {
                 ? 0.0D
                 : speedCap;
         if (useGroundMovement) {
-            if (!Minehop.groundedList.contains(this.getNameForScoreboard())) {
-                Minehop.groundedList.add(this.getNameForScoreboard());
+            if (!Minehop.groundedList.contains(this.getScoreboardName())) {
+                Minehop.groundedList.add(this.getScoreboardName());
             }
         }
         else {
-            Minehop.groundedList.remove(this.getNameForScoreboard());
+            Minehop.groundedList.remove(this.getScoreboardName());
         }
         if (useGroundMovement) {
-            this.setVelocity(applySourceFriction(this.getVelocity(), config.movement.sv_friction, config.movement.sv_stopspeed, 1.0D));
-            Vec3d groundVelocity = this.getVelocity();
+            this.setDeltaMovement(applySourceFriction(this.getDeltaMovement(), config.movement.sv_friction, config.movement.sv_stopspeed, 1.0D));
+            Vec3 groundVelocity = this.getDeltaMovement();
             double groundHorizontalSpeed = this.getHorizontalSpeed(groundVelocity);
             if (activeHardSpeedCap > 0.0D && groundHorizontalSpeed > activeHardSpeedCap) {
                 double groundScale = activeHardSpeedCap / groundHorizontalSpeed;
-                this.setVelocity(groundVelocity.x * groundScale, groundVelocity.y, groundVelocity.z * groundScale);
-                this.velocityDirty = true;
+                this.setDeltaMovement(groundVelocity.x * groundScale, groundVelocity.y, groundVelocity.z * groundScale);
+                this.needsSync = true;
             }
         }
-        this.wasOnGround = (surfing || pseudoSurfing || surfGroundSuppressed) ? false : this.isOnGround();
+        this.wasOnGround = (surfing || pseudoSurfing || surfGroundSuppressed) ? false : this.onGround();
         // M5: mirror the wasOnGround update with server ground truth for next tick's friction decision.
         this.minehop$wasServerGrounded = (surfing || pseudoSurfing || surfGroundSuppressed) ? false : realGroundBelow;
 
-        if (this.isOnGround() && !surfing && this.getWorld().isClient && ((Object) this) instanceof PlayerEntity) {
+        if (this.onGround() && !surfing && this.level().isClientSide() && ((Object) this) instanceof Player) {
             // Jump arc ended: latch the per-jump strafe summary (sync/efficiency/strafes) and reset
             // accumulators for the next jump. Client-only so it isn't double-driven by the server tick
             // (shared static map keyed by name) which would reset mid-jump and flash a bogus 100%.
-            net.nerdorg.minehop.util.StrafeStats landedStats = Minehop.strafeStatsMap.get(this.getNameForScoreboard());
+            net.nerdorg.minehop.util.StrafeStats landedStats = Minehop.strafeStatsMap.get(this.getScoreboardName());
             if (landedStats != null && landedStats.measuredTicks > 0) {
                 landedStats.latchAndReset();
             }
         }
 
         if (sI != 0.0F || fI != 0.0F) {
-            Vec3d wishVector = MovementUtil.movementInputToVelocity(new Vec3d(sI, 0.0F, fI), 1.0F, this.getYaw());
-            double wishVectorLength = wishVector.horizontalLength();
+            Vec3 wishVector = MovementUtil.movementInputToVelocity(new Vec3(sI, 0.0F, fI), 1.0F, this.getYRot());
+            double wishVectorLength = wishVector.horizontalDistance();
             if (wishVectorLength > 0.0D) {
-                Vec3d wishDir = new Vec3d(wishVector.x / wishVectorLength, 0.0D, wishVector.z / wishVectorLength);
+                Vec3 wishDir = new Vec3(wishVector.x / wishVectorLength, 0.0D, wishVector.z / wishVectorLength);
                 double wishSpeed = getBaseWishSpeed(config) * wishVectorLength;
-                Vec3d accelVec = new Vec3d(this.getVelocity().x, 0.0D, this.getVelocity().z);
-                Vec3d acceleratedVelocity;
+                Vec3 accelVec = new Vec3(this.getDeltaMovement().x, 0.0D, this.getDeltaMovement().z);
+                Vec3 acceleratedVelocity;
                 double airWishSpeedCap = getAirWishSpeedCap(config);
 
                 if (useGroundMovement) {
                     acceleratedVelocity = accelerateSource(accelVec, wishDir, wishSpeed, wishSpeed, config.movement.sv_accelerate, 1.0D, false, 1.0D);
                 } else {
-                    acceleratedVelocity = accelerateAirSubstepped(accelVec, sI, fI, config, airWishSpeedCap, airStrafeStartYaw, this.getYaw());
+                    acceleratedVelocity = accelerateAirSubstepped(accelVec, sI, fI, config, airWishSpeedCap, airStrafeStartYaw, this.getYRot());
                 }
 
-                Vec3d newVelocity = new Vec3d(acceleratedVelocity.x, this.getVelocity().y, acceleratedVelocity.z);
-                Vec3d newHorizontalVelocity = new Vec3d(newVelocity.x, 0.0D, newVelocity.z);
+                Vec3 newVelocity = new Vec3(acceleratedVelocity.x, this.getDeltaMovement().y, acceleratedVelocity.z);
+                Vec3 newHorizontalVelocity = new Vec3(newVelocity.x, 0.0D, newVelocity.z);
                 if (inStartZone && startZonePlayer != null) {
-                    Vec3d clampedStartZoneVelocity = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, newVelocity);
+                    Vec3 clampedStartZoneVelocity = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, newVelocity);
                     newVelocity = clampedStartZoneVelocity;
-                    newHorizontalVelocity = new Vec3d(clampedStartZoneVelocity.x, 0.0D, clampedStartZoneVelocity.z);
+                    newHorizontalVelocity = new Vec3(clampedStartZoneVelocity.x, 0.0D, clampedStartZoneVelocity.z);
                 }
                 newHorizontalVelocity = this.minehop$applySpeedCap(newHorizontalVelocity, activeHardSpeedCap);
 
-                if (!useGroundMovement && this.getWorld().isClient && ((Object) this) instanceof PlayerEntity) {
+                if (!useGroundMovement && this.level().isClientSide() && ((Object) this) instanceof Player) {
                     // Faithful Source/bhop strafe stats, measured from the ACTUAL before/after
                     // (CLIENT-ONLY: the side that renders the HUD; identical predicted physics, and
                     // avoids the server tick double-recording the same shared StrafeStats / racing).
@@ -891,7 +907,7 @@ public abstract class LivingEntityMixin extends Entity {
                     double vAfter = Math.sqrt((newVelocity.x * newVelocity.x) + (newVelocity.z * newVelocity.z));
 
                     // View turn applied this tick (degrees). airStrafeStartYaw is the yaw at tick start.
-                    double yawDelta = Math.abs(normalizeAngle(this.getYaw() - airStrafeStartYaw));
+                    double yawDelta = Math.abs(normalizeAngle(this.getYRot() - airStrafeStartYaw));
                     boolean turning = yawDelta > 0.05D;
                     boolean moving = vBefore > 1.0E-4D;
                     boolean measured = turning && moving; // already airborne in this branch
@@ -908,32 +924,32 @@ public abstract class LivingEntityMixin extends Entity {
                     double optimalTurnDeg = opt[1];
 
                     // Efficiency = realized gain / best achievable gain (rare to hit 100%).
-                    double effTick = optimalGain > 1.0E-6D ? MathHelper.clamp(gain / optimalGain, 0.0D, 1.0D) : 0.0D;
+                    double effTick = optimalGain > 1.0E-6D ? Mth.clamp(gain / optimalGain, 0.0D, 1.0D) : 0.0D;
 
                     // Gauge = your view turn vs the optimal turn, 0..200, 100 = perfect (center).
                     double gaugeRatio = optimalTurnDeg > 1.0E-3D
-                            ? MathHelper.clamp((yawDelta / optimalTurnDeg) * 100.0D, 0.0D, 200.0D)
+                            ? Mth.clamp((yawDelta / optimalTurnDeg) * 100.0D, 0.0D, 200.0D)
                             : (yawDelta < 0.5D ? 100.0D : 200.0D);
 
                     int strafeSign = sI > 0.0F ? 1 : (sI < 0.0F ? -1 : 0);
 
                     net.nerdorg.minehop.util.StrafeStats stats = Minehop.strafeStatsMap
-                            .computeIfAbsent(this.getNameForScoreboard(), k -> new net.nerdorg.minehop.util.StrafeStats());
+                            .computeIfAbsent(this.getScoreboardName(), k -> new net.nerdorg.minehop.util.StrafeStats());
                     stats.recordTick(measured, good, effTick, gaugeRatio, strafeSign);
 
                     // Legacy/compat live maps (read by the HUD via shared statics in SP).
-                    Minehop.efficiencyMap.put(this.getNameForScoreboard(), stats.liveEfficiency);
+                    Minehop.efficiencyMap.put(this.getScoreboardName(), stats.liveEfficiency);
                 }
 
-                this.setVelocity(new Vec3d(newHorizontalVelocity.getX(), newVelocity.getY(), newHorizontalVelocity.getZ()));
+                this.setDeltaMovement(new Vec3(newHorizontalVelocity.x(), newVelocity.y(), newHorizontalVelocity.z()));
                 if (surfDebug) {
                     double beforeAccelSpeed = this.getHorizontalSpeed(accelVec) * 800.0D;
                     double afterAccelSpeed = this.getHorizontalSpeed(newHorizontalVelocity) * 800.0D;
                     Minehop.LOGGER.info(String.format(java.util.Locale.ROOT,
                             "[ACDBG] branch=%s sI=%.2f fI=%.2f yaw=%.1f prevYaw=%.1f onGround=%b useGround=%b surfing=%b preContact=%b nearRamp=%b cap=%.1f wishSpeed=%.1f beforeAccel=%.1f afterAccel=%.1f u/s",
                             useGroundMovement ? "GROUND" : "AIR",
-                            sI, fI, this.getYaw(), this.prevYaw,
-                            this.isOnGround(), useGroundMovement, surfing,
+                            sI, fI, this.getYRot(), this.yRotO,
+                            this.onGround(), useGroundMovement, surfing,
                             preMoveSurfContact != null, nearSurfRampPre,
                             airWishSpeedCap * 800.0D, wishSpeed * 800.0D,
                             beforeAccelSpeed, afterAccelSpeed));
@@ -942,33 +958,33 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         if (activeHardSpeedCap > 0.0D || hnsKzSoftCapActive) {
-            Vec3d velocityBeforeCap = this.getVelocity();
-            Vec3d cappedHorizontalVelocity = hnsKzSoftCapActive
-                    ? this.minehop$applySoftSpeedCap(new Vec3d(velocityBeforeCap.x, 0.0D, velocityBeforeCap.z), speedCap)
-                    : this.minehop$applySpeedCap(new Vec3d(velocityBeforeCap.x, 0.0D, velocityBeforeCap.z), activeHardSpeedCap);
+            Vec3 velocityBeforeCap = this.getDeltaMovement();
+            Vec3 cappedHorizontalVelocity = hnsKzSoftCapActive
+                    ? this.minehop$applySoftSpeedCap(new Vec3(velocityBeforeCap.x, 0.0D, velocityBeforeCap.z), speedCap)
+                    : this.minehop$applySpeedCap(new Vec3(velocityBeforeCap.x, 0.0D, velocityBeforeCap.z), activeHardSpeedCap);
             if (cappedHorizontalVelocity.x != velocityBeforeCap.x || cappedHorizontalVelocity.z != velocityBeforeCap.z) {
-                this.setVelocity(cappedHorizontalVelocity.x, velocityBeforeCap.y, cappedHorizontalVelocity.z);
-                this.velocityDirty = true;
+                this.setDeltaMovement(cappedHorizontalVelocity.x, velocityBeforeCap.y, cappedHorizontalVelocity.z);
+                this.needsSync = true;
             }
         }
         if (hnsKzSoftCapActive && this.minehop$hnsKzSoftCapTicks > 0) {
             this.minehop$hnsKzSoftCapTicks--;
         }
 
-        if (Minehop.surfHullSolverEnabled && !this.isClimbing()) {
-            Vec3d ladderNormalH = this.getLadderNormal();
-            this.setVelocity(applySourceLadderMove(this.getVelocity(), fI, sI, ladderNormalH));
-            Vec3d velBeforeMoveH = this.getVelocity();
-            Vec3d posBeforeMoveH = this.getPos();
+        if (Minehop.surfHullSolverEnabled && !this.onClimbable()) {
+            Vec3 ladderNormalH = this.getLadderNormal();
+            this.setDeltaMovement(applySourceLadderMove(this.getDeltaMovement(), fI, sI, ladderNormalH));
+            Vec3 velBeforeMoveH = this.getDeltaMovement();
+            Vec3 posBeforeMoveH = this.position();
             boolean handledH = this.minehop$surfMoveAndCollide(velBeforeMoveH);
             if (!handledH) {
-                this.move(MovementType.SELF, velBeforeMoveH);
+                this.move(MoverType.SELF, velBeforeMoveH);
             }
             if (config.movement.auto_step_up) {
                 this.minehop$tryForcedAutoStepUp(velBeforeMoveH, posBeforeMoveH, null);
             }
-            if (!this.getWorld().isClient && self instanceof ServerPlayerEntity speH) {
-                ResetEntity.recordObservedVelocity(speH, this.getPos().subtract(posBeforeMoveH));
+            if (!this.level().isClientSide() && self instanceof ServerPlayer speH) {
+                ResetEntity.recordObservedVelocity(speH, this.position().subtract(posBeforeMoveH));
             }
             boolean onRampH = handledH && this.minehop$hullOnRamp;
             if (onRampH && !this.minehop$hasRealGroundBelow()) {
@@ -978,22 +994,22 @@ public abstract class LivingEntityMixin extends Entity {
                 this.minehop$hnsKzSpeedCapSuspended = true;
                 this.minehop$hnsKzSoftCapTicks = 0;
             }
-            Vec3d preVelH = this.getVelocity();
+            Vec3 preVelH = this.getDeltaMovement();
             double yVelH = preVelH.y;
             double gravityH = getGravityPerTick(config);
-            if (preVelH.y <= 0.0D && this.hasStatusEffect(StatusEffects.SLOW_FALLING)) {
+            if (preVelH.y <= 0.0D && this.hasEffect(MobEffects.SLOW_FALLING)) {
                 gravityH = 0.01D;
                 this.fallDistance = 0.0F;
             }
-            if (this.hasStatusEffect(StatusEffects.LEVITATION)) {
-                yVelH += (0.05D * (this.getStatusEffect(StatusEffects.LEVITATION).getAmplifier() + 1) - preVelH.y) * 0.2D;
+            if (this.hasEffect(MobEffects.LEVITATION)) {
+                yVelH += (0.05D * (this.getEffect(MobEffects.LEVITATION).getAmplifier() + 1) - preVelH.y) * 0.2D;
                 this.fallDistance = 0.0F;
-            } else if (this.getWorld().isClient && !this.getWorld().isChunkLoaded(blockPos)) {
+            } else if (this.level().isClientSide() && !this.level().hasChunkAt(blockPos)) {
                 yVelH = 0.0D;
-            } else if (!this.hasNoGravity() && !(this.isClimbing() && ladderNormalH != null)) {
+            } else if (!this.isNoGravity() && !(this.onClimbable() && ladderNormalH != null)) {
                 yVelH -= gravityH;
             }
-            Vec3d afterGravH = new Vec3d(preVelH.x, yVelH, preVelH.z);
+            Vec3 afterGravH = new Vec3(preVelH.x, yVelH, preVelH.z);
             if (inStartZone && startZonePlayer != null) {
                 afterGravH = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, afterGravH);
             }
@@ -1003,23 +1019,23 @@ public abstract class LivingEntityMixin extends Entity {
                     afterGravH = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, afterGravH);
                 }
             }
-            BlockState belowStateH = this.getWorld().getBlockState(this.getBlockPos());
-            if (belowStateH.isOf(ModBlocks.BOOSTER_BLOCK) && (this.getWorld().getTime() > this.boostTime + 5 || this.getWorld().getTime() < this.boostTime)) {
-                this.boostTime = this.getWorld().getTime();
-                BoostBlockEntity boostBlockEntityH = (BoostBlockEntity) this.getWorld().getBlockEntity(this.getBlockPos());
+            BlockState belowStateH = this.level().getBlockState(this.blockPosition());
+            if (belowStateH.is(ModBlocks.BOOSTER_BLOCK) && (this.level().getGameTime() > this.boostTime + 5 || this.level().getGameTime() < this.boostTime)) {
+                this.boostTime = this.level().getGameTime();
+                BoostBlockEntity boostBlockEntityH = (BoostBlockEntity) this.level().getBlockEntity(this.blockPosition());
                 afterGravH = this.minehop$applyBoostPad(afterGravH, boostBlockEntityH);
             }
             if (inStartZone && startZonePlayer != null) {
                 afterGravH = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, afterGravH);
             }
-            this.setVelocity(afterGravH);
+            this.setDeltaMovement(afterGravH);
 
             if (nearSurfRampPre || onRampH) {
                 this.minehop$nearRampAcGraceTicks = 8;
             } else if (this.minehop$nearRampAcGraceTicks > 0) {
                 this.minehop$nearRampAcGraceTicks--;
             }
-            if (!this.getWorld().isClient && self instanceof ServerPlayerEntity acPlayerH) {
+            if (!this.level().isClientSide() && self instanceof ServerPlayer acPlayerH) {
                 boolean surfingForAcH = onRampH || nearSurfRampPre || this.minehop$nearRampAcGraceTicks > 0
                         || this.minehop$boostGraceTicks > 0 // M8: don't lagback a legit boost-pad launch
                         || this.minehop$externalVelocityGraceTicks > 0 // M6: nor a legit knockback
@@ -1031,13 +1047,13 @@ public abstract class LivingEntityMixin extends Entity {
                 AntiCheatManager.onMovementTick(
                         acPlayerH,
                         posBeforeMoveH,
-                        this.getPos(),
+                        this.position(),
                         velBeforeMoveH,
                         afterGravH,
-                        this.isOnGround(),
+                        this.onGround(),
                         this.wasOnGround,
-                        this.isClimbing(),
-                        this.isTouchingWater() || this.isInLava(),
+                        this.onClimbable(),
+                        this.isInWater() || this.isInLava(),
                         surfingForAcH,
                         this.minehop$serverJumpTakeoff(config, velBeforeMoveH.y, afterGravH.y),
                         antiCheatSpeedCapH
@@ -1050,14 +1066,14 @@ public abstract class LivingEntityMixin extends Entity {
                         this.minehop$hullSurfaceY, this.getX(), this.getBoundingBox().minY, this.getZ(),
                         afterGravH.x, afterGravH.y, afterGravH.z));
             }
-            this.updateLimbs(self instanceof Flutterer);
+            this.calculateEntityAnimation(self instanceof FlyingAnimal);
             ci.cancel();
             return;
         }
 
-        if (preMoveSurfContact != null && !this.isClimbing()) {
-            Vec3d incomingPreClipVelocity = this.getVelocity();
-            Vec3d clippedPreClipVelocity = this.clipVelocityAgainstSurfRamp(incomingPreClipVelocity, preMoveSurfContact.normal());
+        if (preMoveSurfContact != null && !this.onClimbable()) {
+            Vec3 incomingPreClipVelocity = this.getDeltaMovement();
+            Vec3 clippedPreClipVelocity = this.clipVelocityAgainstSurfRamp(incomingPreClipVelocity, preMoveSurfContact.normal());
             double incomingPreClipHorizontal = this.getHorizontalSpeed(incomingPreClipVelocity);
             if (incomingPreClipVelocity.y <= this.getClipRestoreMaxVertical(incomingPreClipHorizontal)) {
                 clippedPreClipVelocity = this.restoreSurfClipHorizontal(
@@ -1068,14 +1084,14 @@ public abstract class LivingEntityMixin extends Entity {
                         SURF_PREMOVE_CLIP_RESTORE_KEEP_RATIO
                 );
             }
-            this.setVelocity(clippedPreClipVelocity);
+            this.setDeltaMovement(clippedPreClipVelocity);
         }
 
-        Vec3d ladderNormal = this.getLadderNormal();
-        boolean sourceLadderActive = this.isClimbing() && ladderNormal != null;
-        this.setVelocity(applySourceLadderMove(this.getVelocity(), fI, sI, ladderNormal));
-        Vec3d velocityBeforeMove = this.getVelocity();
-        if (preMoveSurfContact == null && !this.isClimbing()) {
+        Vec3 ladderNormal = this.getLadderNormal();
+        boolean sourceLadderActive = this.onClimbable() && ladderNormal != null;
+        this.setDeltaMovement(applySourceLadderMove(this.getDeltaMovement(), fI, sI, ladderNormal));
+        Vec3 velocityBeforeMove = this.getDeltaMovement();
+        if (preMoveSurfContact == null && !this.onClimbable()) {
             SurfContact incomingPreMoveContact = this.findIncomingSurfContact(velocityBeforeMove);
             if (this.isReusableSurfContact(incomingPreMoveContact)) {
                 preMoveSurfContact = incomingPreMoveContact;
@@ -1083,7 +1099,7 @@ public abstract class LivingEntityMixin extends Entity {
                 this.surfContactGraceTicks = SURF_CONTACT_GRACE_TICKS;
                 this.surfCollisionBypassGraceTicks = SURF_COLLISION_BYPASS_GRACE_TICKS;
                 Minehop.surfCollisionBypassEntities.add(this.getId());
-                Vec3d incomingVelocityBeforeClip = velocityBeforeMove;
+                Vec3 incomingVelocityBeforeClip = velocityBeforeMove;
                 velocityBeforeMove = this.clipVelocityAgainstSurfRamp(incomingVelocityBeforeClip, incomingPreMoveContact.normal());
                 double incomingBeforeClipHorizontal = this.getHorizontalSpeed(incomingVelocityBeforeClip);
                 if (incomingVelocityBeforeClip.y <= this.getClipRestoreMaxVertical(incomingBeforeClipHorizontal)) {
@@ -1095,21 +1111,21 @@ public abstract class LivingEntityMixin extends Entity {
                             SURF_PREMOVE_CLIP_RESTORE_KEEP_RATIO
                     );
                 }
-                this.setVelocity(velocityBeforeMove);
+                this.setDeltaMovement(velocityBeforeMove);
             }
         }
-        Vec3d posBeforeMove = this.getPos();
-        this.move(MovementType.SELF, velocityBeforeMove);
+        Vec3 posBeforeMove = this.position();
+        this.move(MoverType.SELF, velocityBeforeMove);
         StartEntity postMoveStartZone = startZonePlayer == null ? null : StartEntity.getStartZoneForPlayer(startZonePlayer);
         boolean inStartZoneAfterMove = postMoveStartZone != null;
         if (inStartZoneAfterMove) {
-            Minehop.playerMapLocation.put(startZonePlayer.getUuidAsString(), postMoveStartZone);
+            Minehop.playerMapLocation.put(startZonePlayer.getStringUUID(), postMoveStartZone);
         }
         if (config.movement.auto_step_up) {
             this.minehop$tryForcedAutoStepUp(velocityBeforeMove, posBeforeMove, preMoveSurfContact);
         }
-        if (!this.getWorld().isClient && self instanceof ServerPlayerEntity serverPlayerEntityForSample) {
-            Vec3d movedThisTick = this.getPos().subtract(posBeforeMove);
+        if (!this.level().isClientSide() && self instanceof ServerPlayer serverPlayerEntityForSample) {
+            Vec3 movedThisTick = this.position().subtract(posBeforeMove);
             ResetEntity.recordObservedVelocity(serverPlayerEntityForSample, movedThisTick);
         }
         SurfContact postMoveSurfContact = this.findSurfContact();
@@ -1117,12 +1133,12 @@ public abstract class LivingEntityMixin extends Entity {
             postMoveSurfContact = preMoveSurfContact;
         }
         SurfContact recoveredImpactContact = null;
-        if (postMoveSurfContact == null && !this.isClimbing()) {
+        if (postMoveSurfContact == null && !this.onClimbable()) {
             boolean nearRampAfterMoveForRecovery = this.isNearSurfRamp();
 
             boolean likelyRampImpact = nearRampAfterMoveForRecovery
                     && velocityBeforeMove.y < -0.35D
-                    && this.getVelocity().y > velocityBeforeMove.y + 0.20D;
+                    && this.getDeltaMovement().y > velocityBeforeMove.y + 0.20D;
             if (likelyRampImpact) {
 
                 recoveredImpactContact = this.isReusableSurfContact(preMoveSurfContact)
@@ -1135,10 +1151,10 @@ public abstract class LivingEntityMixin extends Entity {
                 }
             }
         }
-        boolean nearSurfRampPost = !this.isClimbing() && this.isNearSurfRamp();
+        boolean nearSurfRampPost = !this.onClimbable() && this.isNearSurfRamp();
         SurfContact previousPostSurfContact = this.lastSurfContact;
         boolean postSurfContactFromGrace = false;
-        if (postMoveSurfContact != null && !this.isClimbing()) {
+        if (postMoveSurfContact != null && !this.onClimbable()) {
             SurfContact fallbackPostContact = postMoveSurfContact;
             postMoveSurfContact = this.resolveSurfPenetration(postMoveSurfContact);
             postMoveSurfContact = this.snapToSurfSurface(postMoveSurfContact);
@@ -1154,24 +1170,24 @@ public abstract class LivingEntityMixin extends Entity {
                 postSurfContactFromGrace = true;
                 this.surfContactGraceTicks--;
             }
-        } else if (!this.isClimbing() && this.surfContactGraceTicks > 0 && this.isReusableSurfContact(this.lastSurfContact) && nearSurfRampPost) {
+        } else if (!this.onClimbable() && this.surfContactGraceTicks > 0 && this.isReusableSurfContact(this.lastSurfContact) && nearSurfRampPost) {
             postMoveSurfContact = this.lastSurfContact;
             postSurfContactFromGrace = true;
             this.surfContactGraceTicks--;
         }
-        double seamContinuityHorizontalPost = this.getHorizontalSpeed(this.getVelocity());
+        double seamContinuityHorizontalPost = this.getHorizontalSpeed(this.getDeltaMovement());
         double seamContinuityMaxAscentPost = this.getSeamContinuityMaxAscent(seamContinuityHorizontalPost);
         if (postMoveSurfContact == null
-                && !this.isClimbing()
+                && !this.onClimbable()
                 && this.surfContactGraceTicks == 0
                 && nearSurfRampPost
-                && !this.isOnGround()
+                && !this.onGround()
                 && this.isReusableSurfContact(previousPostSurfContact)
                 && (!previousPostSurfContact.hardEndpoint()
                     || (seamContinuityHorizontalPost > SURF_HARD_ENDPOINT_DISABLE_MAX_HORIZONTAL
-                        && this.getVelocity().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT))
+                        && this.getDeltaMovement().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT))
                 && seamContinuityHorizontalPost >= SURF_SEAM_CONTINUITY_MIN_HORIZONTAL
-                && this.getVelocity().y <= seamContinuityMaxAscentPost) {
+                && this.getDeltaMovement().y <= seamContinuityMaxAscentPost) {
 
             postMoveSurfContact = previousPostSurfContact;
             postSurfContactFromGrace = true;
@@ -1193,42 +1209,42 @@ public abstract class LivingEntityMixin extends Entity {
         }
         if (postMoveSurfContact == null
                 && this.surfContactGraceTicks == 0
-                && !this.isOnGround()
-                && this.getVelocity().y < -0.28D) {
+                && !this.onGround()
+                && this.getDeltaMovement().y < -0.28D) {
 
             this.surfCollisionBypassGraceTicks = 0;
         }
-        nearSurfRampPost = !this.isClimbing() && this.isNearSurfRamp();
-        double postHorizontalSpeed = this.getHorizontalSpeed(this.getVelocity());
-        Vec3d groundedLandingRestoreDir = null;
+        nearSurfRampPost = !this.onClimbable() && this.isNearSurfRamp();
+        double postHorizontalSpeed = this.getHorizontalSpeed(this.getDeltaMovement());
+        Vec3 groundedLandingRestoreDir = null;
         double groundedLandingRestoreHorizontal = 0.0D;
         boolean groundedLandingReacquiredThisTick = false;
         boolean nearSurfSupportPost = nearSurfRampPost || this.isReusableSurfContact(this.lastSurfContact);
         if (!nearSurfSupportPost
-                && !this.isClimbing()
+                && !this.onClimbable()
                 && postHorizontalSpeed >= SURF_GROUND_SUPPRESS_MIN_HORIZONTAL
-                && (this.isOnGround()
+                && (this.onGround()
                 || this.isReusableSurfContact(this.lastSurfContact)
                 || this.surfGroundSuppressTicks > 0
                 || this.surfContactGraceTicks > 0
                 || this.surfCollisionBypassGraceTicks > 0)) {
-            SurfContact postSupportContact = this.findJumpRampSupportContact(this.getBoundingBox(), this.getVelocity());
+            SurfContact postSupportContact = this.findJumpRampSupportContact(this.getBoundingBox(), this.getDeltaMovement());
             nearSurfSupportPost = this.isReusableSurfContact(postSupportContact);
         }
         double incomingHorizontalForReacquire = this.getHorizontalSpeed(velocityBeforeMove);
-        boolean groundedLandingStallForReacquire = this.isOnGround()
+        boolean groundedLandingStallForReacquire = this.onGround()
                 && incomingHorizontalForReacquire >= SURF_LANDING_STALL_RESTORE_MIN_INCOMING_HORIZONTAL
                 && postHorizontalSpeed + 1.0E-6D < incomingHorizontalForReacquire * 0.85D;
         double seamReacquireMaxVertical = incomingHorizontalForReacquire >= SURF_SEAM_REACQUIRE_ASCENT_MIN_HORIZONTAL
                 ? SURF_SEAM_REACQUIRE_MAX_ASCENT_HIGH_SPEED
                 : 0.24D;
         if (postMoveSurfContact == null
-                && !this.isClimbing()
+                && !this.onClimbable()
                 && nearSurfRampPost
-                && (!this.isOnGround() || groundedLandingStallForReacquire)
+                && (!this.onGround() || groundedLandingStallForReacquire)
                 && (postHorizontalSpeed >= SURF_SEAM_REACQUIRE_MIN_HORIZONTAL || groundedLandingStallForReacquire)
-                && this.getVelocity().y <= seamReacquireMaxVertical) {
-            Box postBox = this.getBoundingBox();
+                && this.getDeltaMovement().y <= seamReacquireMaxVertical) {
+            AABB postBox = this.getBoundingBox();
             SurfContact seamRecoveryContact = this.findNearestSurfContactFallback(
                     this.getX(),
                     this.getZ(),
@@ -1243,8 +1259,8 @@ public abstract class LivingEntityMixin extends Entity {
                 this.surfContactGraceTicks = SURF_CONTACT_GRACE_TICKS;
                 this.surfCollisionBypassGraceTicks = SURF_COLLISION_BYPASS_GRACE_TICKS;
                 if (groundedLandingStallForReacquire) {
-                    Vec3d clippedIncoming = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, seamRecoveryContact.normal());
-                    Vec3d restoreDir = this.resolveLandingRestoreDirection(clippedIncoming, velocityBeforeMove, seamRecoveryContact.normal());
+                    Vec3 clippedIncoming = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, seamRecoveryContact.normal());
+                    Vec3 restoreDir = this.resolveLandingRestoreDirection(clippedIncoming, velocityBeforeMove, seamRecoveryContact.normal());
                     if (restoreDir != null) {
                         groundedLandingRestoreHorizontal = Math.max(
                                 postHorizontalSpeed,
@@ -1266,8 +1282,8 @@ public abstract class LivingEntityMixin extends Entity {
                 && nearSurfSupportPost
                 && postHorizontalSpeed >= SURF_COLLISION_BYPASS_GRACE_MIN_HORIZONTAL
                 && (this.surfContactGraceTicks > 0 || this.isReusableSurfContact(this.lastSurfContact));
-        boolean transitionRampZonePost = !this.isClimbing() && this.isInRampTransitionZone();
-        boolean nearRampEndpointPost = !this.isClimbing()
+        boolean transitionRampZonePost = !this.onClimbable() && this.isInRampTransitionZone();
+        boolean nearRampEndpointPost = !this.onClimbable()
                 && !transitionRampZonePost
                 && this.isNearSurfRampEndpoint();
         boolean hardEndpointPost = postMoveSurfContact != null && postMoveSurfContact.hardEndpoint();
@@ -1286,12 +1302,12 @@ public abstract class LivingEntityMixin extends Entity {
                 && this.lastSurfContact.hardEndpoint();
         double endpointCarryHorizontal = Math.max(preHorizontalSpeed, postHorizontalSpeed);
         boolean highSpeedEndpointCarry = endpointCarryHorizontal > SURF_HARD_ENDPOINT_DISABLE_MAX_HORIZONTAL
-                && this.getVelocity().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT
+                && this.getDeltaMovement().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT
                 && (nearSurfRampPost
                     || nearSurfSupportPost
                     || this.isReusableSurfContact(previousPostSurfContact)
                     || this.isReusableSurfContact(preMoveSurfContact));
-        boolean disableBypassAtHardEndpoint = !this.isClimbing()
+        boolean disableBypassAtHardEndpoint = !this.onClimbable()
                 && postMoveSurfContact == null
                 && !nearSurfSupportPost
                 && (hardEndpointPost || hardEndpointGracePost || (hardEndpointPre && preMoveSurfContact != null))
@@ -1308,33 +1324,33 @@ public abstract class LivingEntityMixin extends Entity {
                 && hasSurfSupportPost
                 && postHorizontalSpeed >= SURF_COLLISION_BYPASS_GRACE_MIN_HORIZONTAL
                 && postHorizontalSpeed >= SURF_SPEED_BYPASS_MIN_HORIZONTAL;
-        if (!this.isClimbing() && nearSurfSupportPost) {
+        if (!this.onClimbable() && nearSurfSupportPost) {
             if (postMoveSurfContact != null) {
                 this.surfGroundSuppressTicks = Math.max(this.surfGroundSuppressTicks, SURF_GROUND_SUPPRESS_CONTACT_TICKS);
             } else if ((postSurfContactFromGrace || recentSurfStatePost)
                     && postHorizontalSpeed >= SURF_GROUND_SUPPRESS_MIN_HORIZONTAL
-                    && this.getVelocity().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT) {
+                    && this.getDeltaMovement().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT) {
                 this.surfGroundSuppressTicks = Math.max(this.surfGroundSuppressTicks, SURF_GROUND_SUPPRESS_GRACE_TICKS);
             }
         } else if (!nearSurfSupportPost) {
             this.surfGroundSuppressTicks = 0;
         }
-        if (!this.isClimbing()
-                && this.isOnGround()
+        if (!this.onClimbable()
+                && this.onGround()
                 && nearSurfRampPost
                 && postMoveSurfContact != null
                 && postHorizontalSpeed >= SURF_JUMP_SUPPRESS_MIN_HORIZONTAL
-                && this.getVelocity().y <= SURF_GROUND_SUPPRESS_ON_GROUND_MAX_VERTICAL + 0.10D) {
+                && this.getDeltaMovement().y <= SURF_GROUND_SUPPRESS_ON_GROUND_MAX_VERTICAL + 0.10D) {
             this.surfJumpSuppressTicks = Math.max(this.surfJumpSuppressTicks, SURF_JUMP_SUPPRESS_TICKS);
         }
-        if (!this.isClimbing()) {
+        if (!this.onClimbable()) {
             if (this.surfJumpSuppressTicks > 0) {
                 this.surfJumpSuppressTicks--;
             }
         } else {
             this.surfJumpSuppressTicks = 0;
         }
-        boolean realGroundBelowPost = !this.isClimbing() && this.minehop$hasRealGroundBelow();
+        boolean realGroundBelowPost = !this.onClimbable() && this.minehop$hasRealGroundBelow();
         if (realGroundBelowPost) {
             this.surfContactGraceTicks = 0;
             this.surfCollisionBypassGraceTicks = 0;
@@ -1343,7 +1359,7 @@ public abstract class LivingEntityMixin extends Entity {
             postMoveSurfContact = null;
         }
         boolean keepBypassAfterMove = !disableBypassAtHardEndpoint
-                && !this.isClimbing()
+                && !this.onClimbable()
                 && !realGroundBelowPost
                 && (
                 postMoveSurfContact != null
@@ -1359,28 +1375,28 @@ public abstract class LivingEntityMixin extends Entity {
         } else {
             Minehop.surfCollisionBypassEntities.remove(this.getId());
         }
-        if (postMoveSurfContact != null && !this.isClimbing() && !realGroundBelowPost) {
+        if (postMoveSurfContact != null && !this.onClimbable() && !realGroundBelowPost) {
             this.setOnGround(false);
         }
 
-        Vec3d preVel = this.getVelocity();
+        Vec3 preVel = this.getDeltaMovement();
         if (groundedLandingReacquiredThisTick && groundedLandingRestoreDir != null && groundedLandingRestoreHorizontal > 1.0E-6D) {
             double resolvedHorizontal = this.getHorizontalSpeed(preVel);
             if (resolvedHorizontal + 1.0E-6D < groundedLandingRestoreHorizontal * 0.92D) {
-                preVel = new Vec3d(
+                preVel = new Vec3(
                         groundedLandingRestoreDir.x * groundedLandingRestoreHorizontal,
                         Math.min(preVel.y, -0.08D),
                         groundedLandingRestoreDir.z * groundedLandingRestoreHorizontal
                 );
             }
-            Vec3d movedAfterCollision = this.getPos().subtract(posBeforeMove);
+            Vec3 movedAfterCollision = this.position().subtract(posBeforeMove);
             double movedHorizontal = Math.hypot(movedAfterCollision.x, movedAfterCollision.z);
             if (movedHorizontal + 1.0E-6D < groundedLandingRestoreHorizontal * 0.35D) {
-                double nudgeDistance = MathHelper.clamp(groundedLandingRestoreHorizontal * 0.20D, 0.04D, 0.16D);
-                Vec3d nudge = groundedLandingRestoreDir.multiply(nudgeDistance);
-                Box nudgedBox = this.getBoundingBox().offset(nudge.x, 0.0D, nudge.z);
-                if (this.getWorld().isSpaceEmpty(this, nudgedBox)) {
-                    this.setPosition(this.getX() + nudge.x, this.getY(), this.getZ() + nudge.z);
+                double nudgeDistance = Mth.clamp(groundedLandingRestoreHorizontal * 0.20D, 0.04D, 0.16D);
+                Vec3 nudge = groundedLandingRestoreDir.scale(nudgeDistance);
+                AABB nudgedBox = this.getBoundingBox().move(nudge.x, 0.0D, nudge.z);
+                if (this.level().noCollision(this, nudgedBox)) {
+                    this.setPos(this.getX() + nudge.x, this.getY(), this.getZ() + nudge.z);
                 }
             }
             this.setOnGround(false);
@@ -1396,14 +1412,14 @@ public abstract class LivingEntityMixin extends Entity {
         }
         double incomingHorizontalCatastrophic = this.getHorizontalSpeed(velocityBeforeMove);
         double resolvedHorizontalCatastrophic = this.getHorizontalSpeed(preVel);
-        boolean catastrophicRampSlowdown = !this.isClimbing()
+        boolean catastrophicRampSlowdown = !this.onClimbable()
                 && this.isUsableSurfContactForCarryOrRestore(catastrophicSlowdownContact)
                 && (nearSurfRampPre || nearSurfRampPost || nearSurfSupportPost)
                 && incomingHorizontalCatastrophic >= SURF_CONTACT_SPEED_RESTORE_MIN_HORIZONTAL
                 && resolvedHorizontalCatastrophic + 1.0E-6D
                 < incomingHorizontalCatastrophic * SURF_CONTACT_SPEED_RESTORE_POST_GRAVITY_TRIGGER_RATIO;
         if (catastrophicRampSlowdown) {
-            Vec3d restoreDir = this.resolveLandingRestoreDirection(
+            Vec3 restoreDir = this.resolveLandingRestoreDirection(
                     preVel,
                     velocityBeforeMove,
                     catastrophicSlowdownContact.normal()
@@ -1414,7 +1430,7 @@ public abstract class LivingEntityMixin extends Entity {
                         resolvedHorizontalCatastrophic,
                         incomingHorizontalCatastrophic * SURF_CONTACT_SPEED_RESTORE_POST_GRAVITY_KEEP_RATIO
                 );
-                preVel = new Vec3d(
+                preVel = new Vec3(
                         restoreDir.x * targetHorizontal,
                         this.getRampRestoreY(preVel.y, velocityBeforeMove.y, -0.06D),
                         restoreDir.z * targetHorizontal
@@ -1427,18 +1443,18 @@ public abstract class LivingEntityMixin extends Entity {
             }
         }
         if (postMoveSurfContact == null
-                && !this.isClimbing()
+                && !this.onClimbable()
                 && nearSurfSupportPost
                 && preHorizontalSpeed >= SURF_COLLISION_BYPASS_GRACE_MIN_HORIZONTAL) {
-            Vec3d incomingHorizontalVec = new Vec3d(velocityBeforeMove.x, 0.0D, velocityBeforeMove.z);
-            double incomingHorizontal = incomingHorizontalVec.horizontalLength();
+            Vec3 incomingHorizontalVec = new Vec3(velocityBeforeMove.x, 0.0D, velocityBeforeMove.z);
+            double incomingHorizontal = incomingHorizontalVec.horizontalDistance();
             double resolvedHorizontal = this.getHorizontalSpeed(preVel);
             if (incomingHorizontal > 1.0E-6D
                     && resolvedHorizontal + 1.0E-6D < incomingHorizontal * 0.97D
-                    && (this.isOnGround() || velocityBeforeMove.y <= 0.08D)) {
-                Vec3d incomingHorizontalDir = incomingHorizontalVec.multiply(1.0D / incomingHorizontal);
+                    && (this.onGround() || velocityBeforeMove.y <= 0.08D)) {
+                Vec3 incomingHorizontalDir = incomingHorizontalVec.scale(1.0D / incomingHorizontal);
                 double targetHorizontal = incomingHorizontal * 0.985D;
-                preVel = new Vec3d(
+                preVel = new Vec3(
                         incomingHorizontalDir.x * targetHorizontal,
                         this.getRampRestoreY(preVel.y, velocityBeforeMove.y, -0.08D),
                         incomingHorizontalDir.z * targetHorizontal
@@ -1453,16 +1469,16 @@ public abstract class LivingEntityMixin extends Entity {
         }
         if (recoveredImpactContact != null && preVel.y > velocityBeforeMove.y) {
             double restoredImpactY = velocityBeforeMove.y * SURF_IMPACT_VERTICAL_RESTORE_FACTOR;
-            preVel = new Vec3d(preVel.x, Math.min(preVel.y, restoredImpactY), preVel.z);
+            preVel = new Vec3(preVel.x, Math.min(preVel.y, restoredImpactY), preVel.z);
             double incomingHorizontal = this.getHorizontalSpeed(velocityBeforeMove);
             double resolvedHorizontal = this.getHorizontalSpeed(preVel);
             if (incomingHorizontal > 0.08D && resolvedHorizontal + 1.0E-6D < incomingHorizontal * 0.92D) {
                 double targetHorizontal = incomingHorizontal * SURF_IMPACT_HORIZONTAL_RESTORE_FACTOR;
                 if (resolvedHorizontal > 1.0E-6D) {
                     double scale = targetHorizontal / resolvedHorizontal;
-                    preVel = new Vec3d(preVel.x * scale, preVel.y, preVel.z * scale);
+                    preVel = new Vec3(preVel.x * scale, preVel.y, preVel.z * scale);
                 } else {
-                    preVel = new Vec3d(
+                    preVel = new Vec3(
                             velocityBeforeMove.x * SURF_IMPACT_HORIZONTAL_RESTORE_FACTOR,
                             preVel.y,
                             velocityBeforeMove.z * SURF_IMPACT_HORIZONTAL_RESTORE_FACTOR
@@ -1470,7 +1486,7 @@ public abstract class LivingEntityMixin extends Entity {
                 }
             }
         }
-        if (postMoveSurfContact == null && !this.isClimbing() && nearSurfRampPost) {
+        if (postMoveSurfContact == null && !this.onClimbable() && nearSurfRampPost) {
 
             double incomingHorizontal = this.getHorizontalSpeed(velocityBeforeMove);
             double resolvedHorizontal = this.getHorizontalSpeed(preVel);
@@ -1479,15 +1495,15 @@ public abstract class LivingEntityMixin extends Entity {
                     && incomingHorizontal >= 0.22D
                     && resolvedHorizontal + 1.0E-6D < incomingHorizontal * 0.95D;
             if (likelyRampImpactNoContact) {
-                Vec3d incomingHorizontalVec = new Vec3d(velocityBeforeMove.x, 0.0D, velocityBeforeMove.z);
-                double incomingHorizontalVecLen = incomingHorizontalVec.horizontalLength();
+                Vec3 incomingHorizontalVec = new Vec3(velocityBeforeMove.x, 0.0D, velocityBeforeMove.z);
+                double incomingHorizontalVecLen = incomingHorizontalVec.horizontalDistance();
                 if (incomingHorizontalVecLen > 1.0E-6D) {
-                    Vec3d incomingHorizontalDir = incomingHorizontalVec.multiply(1.0D / incomingHorizontalVecLen);
+                    Vec3 incomingHorizontalDir = incomingHorizontalVec.scale(1.0D / incomingHorizontalVecLen);
                     double targetHorizontal = Math.max(
                             resolvedHorizontal,
                             incomingHorizontal * SURF_MISSED_CONTACT_LANDING_KEEP_RATIO
                     );
-                    preVel = new Vec3d(
+                    preVel = new Vec3(
                             incomingHorizontalDir.x * targetHorizontal,
                             preVel.y,
                             incomingHorizontalDir.z * targetHorizontal
@@ -1495,7 +1511,7 @@ public abstract class LivingEntityMixin extends Entity {
                 }
 
                 if (preVel.y > -0.12D) {
-                    preVel = new Vec3d(preVel.x, -0.14D, preVel.z);
+                    preVel = new Vec3(preVel.x, -0.14D, preVel.z);
                 }
                 if (this.surfCollisionBypassGraceTicks < 2) {
                     this.surfCollisionBypassGraceTicks = 2;
@@ -1505,26 +1521,26 @@ public abstract class LivingEntityMixin extends Entity {
                 }
             }
         }
-        if (postMoveSurfContact != null && !this.isClimbing()) {
+        if (postMoveSurfContact != null && !this.onClimbable()) {
             double incomingHorizontal = this.getHorizontalSpeed(velocityBeforeMove);
             double resolvedHorizontal = this.getHorizontalSpeed(preVel);
             if (velocityBeforeMove.y < -0.18D
                     && incomingHorizontal >= SURF_LANDING_KEEP_HORIZONTAL_MIN_SPEED
                     && resolvedHorizontal + 1.0E-6D < incomingHorizontal * 0.94D) {
-                Vec3d projectedIncoming = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, postMoveSurfContact.normal());
-                Vec3d incomingHorizontalVec = new Vec3d(projectedIncoming.x, 0.0D, projectedIncoming.z);
-                double incomingHorizontalVecLen = incomingHorizontalVec.horizontalLength();
+                Vec3 projectedIncoming = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, postMoveSurfContact.normal());
+                Vec3 incomingHorizontalVec = new Vec3(projectedIncoming.x, 0.0D, projectedIncoming.z);
+                double incomingHorizontalVecLen = incomingHorizontalVec.horizontalDistance();
                 if (incomingHorizontalVecLen < 1.0E-6D) {
-                    incomingHorizontalVec = new Vec3d(velocityBeforeMove.x, 0.0D, velocityBeforeMove.z);
-                    incomingHorizontalVecLen = incomingHorizontalVec.horizontalLength();
+                    incomingHorizontalVec = new Vec3(velocityBeforeMove.x, 0.0D, velocityBeforeMove.z);
+                    incomingHorizontalVecLen = incomingHorizontalVec.horizontalDistance();
                 }
                 if (incomingHorizontalVecLen > 1.0E-6D) {
-                    Vec3d incomingHorizontalDir = incomingHorizontalVec.multiply(1.0D / incomingHorizontalVecLen);
+                    Vec3 incomingHorizontalDir = incomingHorizontalVec.scale(1.0D / incomingHorizontalVecLen);
                     double targetHorizontal = Math.max(
                             resolvedHorizontal,
                             incomingHorizontal * SURF_LANDING_KEEP_HORIZONTAL_RATIO
                     );
-                    preVel = new Vec3d(
+                    preVel = new Vec3(
                             incomingHorizontalDir.x * targetHorizontal,
                             preVel.y,
                             incomingHorizontalDir.z * targetHorizontal
@@ -1532,22 +1548,22 @@ public abstract class LivingEntityMixin extends Entity {
                 }
             }
 
-            Vec3d projectedIncomingForStall = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, postMoveSurfContact.normal());
+            Vec3 projectedIncomingForStall = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, postMoveSurfContact.normal());
             double projectedIncomingHorizontal = this.getHorizontalSpeed(projectedIncomingForStall);
             double clipRestoreMaxVertical = this.getClipRestoreMaxVertical(incomingHorizontal);
             if (velocityBeforeMove.y <= clipRestoreMaxVertical
                     && incomingHorizontal >= SURF_LANDING_STALL_RESTORE_MIN_INCOMING_HORIZONTAL
                     && projectedIncomingHorizontal >= SURF_LANDING_STALL_RESTORE_MIN_PROJECTED_HORIZONTAL
                     && resolvedHorizontal + 1.0E-6D < projectedIncomingHorizontal * SURF_LANDING_STALL_RESTORE_TRIGGER_RATIO) {
-                Vec3d projectedHorizontalVec = new Vec3d(projectedIncomingForStall.x, 0.0D, projectedIncomingForStall.z);
-                double projectedHorizontalLen = projectedHorizontalVec.horizontalLength();
+                Vec3 projectedHorizontalVec = new Vec3(projectedIncomingForStall.x, 0.0D, projectedIncomingForStall.z);
+                double projectedHorizontalLen = projectedHorizontalVec.horizontalDistance();
                 if (projectedHorizontalLen > 1.0E-6D) {
-                    Vec3d projectedHorizontalDir = projectedHorizontalVec.multiply(1.0D / projectedHorizontalLen);
+                    Vec3 projectedHorizontalDir = projectedHorizontalVec.scale(1.0D / projectedHorizontalLen);
                     double targetHorizontal = Math.max(
                             resolvedHorizontal,
                             projectedIncomingHorizontal * SURF_LANDING_STALL_RESTORE_KEEP_RATIO
                     );
-                    preVel = new Vec3d(
+                    preVel = new Vec3(
                             projectedHorizontalDir.x * targetHorizontal,
                             this.getRampRestoreY(preVel.y, velocityBeforeMove.y, -0.08D),
                             projectedHorizontalDir.z * targetHorizontal
@@ -1562,7 +1578,7 @@ public abstract class LivingEntityMixin extends Entity {
             if (velocityBeforeMove.y <= clipRestoreMaxVertical
                     && incomingHorizontal >= SURF_LANDING_STALL_RESTORE_MIN_INCOMING_HORIZONTAL
                     && resolvedHorizontal + 1.0E-6D < incomingHorizontal * SURF_LANDING_STALL_FORCE_RESTORE_TRIGGER_RATIO) {
-                Vec3d restoreDir = this.resolveLandingRestoreDirection(
+                Vec3 restoreDir = this.resolveLandingRestoreDirection(
                         this.clipVelocityAgainstSurfRamp(velocityBeforeMove, postMoveSurfContact.normal()),
                         velocityBeforeMove,
                         postMoveSurfContact.normal()
@@ -1573,7 +1589,7 @@ public abstract class LivingEntityMixin extends Entity {
                             resolvedHorizontal,
                             incomingHorizontal * SURF_LANDING_STALL_FORCE_RESTORE_KEEP_RATIO
                     );
-                    preVel = new Vec3d(
+                    preVel = new Vec3(
                             restoreDir.x * targetHorizontal,
                             this.getRampRestoreY(preVel.y, velocityBeforeMove.y, -0.08D),
                             restoreDir.z * targetHorizontal
@@ -1588,7 +1604,7 @@ public abstract class LivingEntityMixin extends Entity {
             resolvedHorizontal = this.getHorizontalSpeed(preVel);
             if (incomingHorizontal >= SURF_CONTACT_SPEED_RESTORE_MIN_HORIZONTAL
                     && resolvedHorizontal + 1.0E-6D < incomingHorizontal * SURF_CONTACT_SPEED_RESTORE_TRIGGER_RATIO) {
-                Vec3d restoreDir = this.resolveLandingRestoreDirection(
+                Vec3 restoreDir = this.resolveLandingRestoreDirection(
                         preVel,
                         velocityBeforeMove,
                         postMoveSurfContact.normal()
@@ -1599,7 +1615,7 @@ public abstract class LivingEntityMixin extends Entity {
                             resolvedHorizontal,
                             incomingHorizontal * SURF_CONTACT_SPEED_RESTORE_KEEP_RATIO
                     );
-                    preVel = new Vec3d(
+                    preVel = new Vec3(
                             restoreDir.x * targetHorizontal,
                             this.getRampRestoreY(preVel.y, velocityBeforeMove.y, -0.06D),
                             restoreDir.z * targetHorizontal
@@ -1613,27 +1629,27 @@ public abstract class LivingEntityMixin extends Entity {
         }
         boolean reacquiredSurfContact = postMoveSurfContact != null
                 && preMoveSurfContact == null
-                && !this.isClimbing();
+                && !this.onClimbable();
         if (reacquiredSurfContact) {
             double incomingHorizontal = this.getHorizontalSpeed(velocityBeforeMove);
             double resolvedHorizontal = this.getHorizontalSpeed(preVel);
             if (incomingHorizontal >= SURF_LANDING_KEEP_HORIZONTAL_MIN_SPEED
                     && velocityBeforeMove.y <= 0.08D
                     && resolvedHorizontal + 1.0E-6D < incomingHorizontal * 0.985D) {
-                Vec3d projectedIncoming = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, postMoveSurfContact.normal());
-                Vec3d incomingHorizontalVec = new Vec3d(projectedIncoming.x, 0.0D, projectedIncoming.z);
-                double incomingHorizontalVecLen = incomingHorizontalVec.horizontalLength();
+                Vec3 projectedIncoming = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, postMoveSurfContact.normal());
+                Vec3 incomingHorizontalVec = new Vec3(projectedIncoming.x, 0.0D, projectedIncoming.z);
+                double incomingHorizontalVecLen = incomingHorizontalVec.horizontalDistance();
                 if (incomingHorizontalVecLen < 1.0E-6D) {
-                    incomingHorizontalVec = new Vec3d(velocityBeforeMove.x, 0.0D, velocityBeforeMove.z);
-                    incomingHorizontalVecLen = incomingHorizontalVec.horizontalLength();
+                    incomingHorizontalVec = new Vec3(velocityBeforeMove.x, 0.0D, velocityBeforeMove.z);
+                    incomingHorizontalVecLen = incomingHorizontalVec.horizontalDistance();
                 }
                 if (incomingHorizontalVecLen > 1.0E-6D) {
-                    Vec3d incomingHorizontalDir = incomingHorizontalVec.multiply(1.0D / incomingHorizontalVecLen);
+                    Vec3 incomingHorizontalDir = incomingHorizontalVec.scale(1.0D / incomingHorizontalVecLen);
                     double targetHorizontal = Math.max(
                             resolvedHorizontal,
                             incomingHorizontal * SURF_LANDING_KEEP_HORIZONTAL_RATIO
                     );
-                    preVel = new Vec3d(
+                    preVel = new Vec3(
                             incomingHorizontalDir.x * targetHorizontal,
                             preVel.y,
                             incomingHorizontalDir.z * targetHorizontal
@@ -1644,7 +1660,7 @@ public abstract class LivingEntityMixin extends Entity {
         boolean justAcquiredSurfContact = postMoveSurfContact != null
                 && preMoveSurfContact == null
                 && previousPostSurfContact == null;
-        if ((justAcquiredSurfContact || reacquiredSurfContact) && !this.isClimbing()) {
+        if ((justAcquiredSurfContact || reacquiredSurfContact) && !this.onClimbable()) {
 
             this.surfEntryNoFrictionTicks = Math.max(this.surfEntryNoFrictionTicks, 3);
             if (postHorizontalSpeed >= SURF_JUMP_SUPPRESS_MIN_HORIZONTAL
@@ -1656,25 +1672,25 @@ public abstract class LivingEntityMixin extends Entity {
                 && this.surfCollisionBypassGraceTicks == 0) {
             this.surfEntryNoFrictionTicks = 0;
         }
-        if (justAcquiredSurfContact && !this.isClimbing()) {
+        if (justAcquiredSurfContact && !this.onClimbable()) {
             double incomingHorizontal = this.getHorizontalSpeed(velocityBeforeMove);
             double resolvedHorizontal = this.getHorizontalSpeed(preVel);
             if (incomingHorizontal >= SURF_LANDING_KEEP_HORIZONTAL_MIN_SPEED
                     && resolvedHorizontal + 1.0E-6D < incomingHorizontal * SURF_LANDING_KEEP_HORIZONTAL_RATIO) {
-                Vec3d projectedIncoming = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, postMoveSurfContact.normal());
-                Vec3d incomingHorizontalVec = new Vec3d(projectedIncoming.x, 0.0D, projectedIncoming.z);
-                double incomingHorizontalVecLen = incomingHorizontalVec.horizontalLength();
+                Vec3 projectedIncoming = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, postMoveSurfContact.normal());
+                Vec3 incomingHorizontalVec = new Vec3(projectedIncoming.x, 0.0D, projectedIncoming.z);
+                double incomingHorizontalVecLen = incomingHorizontalVec.horizontalDistance();
                 if (incomingHorizontalVecLen < 1.0E-6D) {
-                    incomingHorizontalVec = new Vec3d(velocityBeforeMove.x, 0.0D, velocityBeforeMove.z);
-                    incomingHorizontalVecLen = incomingHorizontalVec.horizontalLength();
+                    incomingHorizontalVec = new Vec3(velocityBeforeMove.x, 0.0D, velocityBeforeMove.z);
+                    incomingHorizontalVecLen = incomingHorizontalVec.horizontalDistance();
                 }
                 if (incomingHorizontalVecLen > 1.0E-6D) {
-                    Vec3d incomingHorizontalDir = incomingHorizontalVec.multiply(1.0D / incomingHorizontalVecLen);
+                    Vec3 incomingHorizontalDir = incomingHorizontalVec.scale(1.0D / incomingHorizontalVecLen);
                     double targetHorizontal = Math.max(
                             resolvedHorizontal,
                             incomingHorizontal * SURF_LANDING_KEEP_HORIZONTAL_RATIO
                     );
-                    preVel = new Vec3d(
+                    preVel = new Vec3(
                             incomingHorizontalDir.x * targetHorizontal,
                             preVel.y,
                             incomingHorizontalDir.z * targetHorizontal
@@ -1684,26 +1700,26 @@ public abstract class LivingEntityMixin extends Entity {
 
             if (velocityBeforeMove.y <= SURF_LANDING_VERTICAL_TO_HORIZONTAL_MIN_FALL
                     && incomingHorizontal < SURF_LANDING_VERTICAL_TO_HORIZONTAL_MAX_INCOMING) {
-                Vec3d normal = postMoveSurfContact.normal();
-                Vec3d projectedIncoming = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, normal);
-                Vec3d projectedHorizontal = new Vec3d(projectedIncoming.x, 0.0D, projectedIncoming.z);
-                Vec3d gravity = new Vec3d(0.0D, -1.0D, 0.0D);
-                Vec3d downhillOnPlane = gravity.subtract(normal.multiply(gravity.dotProduct(normal)));
-                Vec3d downhillHorizontal = new Vec3d(downhillOnPlane.x, 0.0D, downhillOnPlane.z);
+                Vec3 normal = postMoveSurfContact.normal();
+                Vec3 projectedIncoming = this.clipVelocityAgainstSurfRamp(velocityBeforeMove, normal);
+                Vec3 projectedHorizontal = new Vec3(projectedIncoming.x, 0.0D, projectedIncoming.z);
+                Vec3 gravity = new Vec3(0.0D, -1.0D, 0.0D);
+                Vec3 downhillOnPlane = gravity.subtract(normal.scale(gravity.dot(normal)));
+                Vec3 downhillHorizontal = new Vec3(downhillOnPlane.x, 0.0D, downhillOnPlane.z);
 
-                Vec3d launchDirection = null;
-                if (projectedHorizontal.lengthSquared() > 1.0E-6D) {
+                Vec3 launchDirection = null;
+                if (projectedHorizontal.lengthSqr() > 1.0E-6D) {
                     launchDirection = projectedHorizontal.normalize();
-                } else if (downhillHorizontal.lengthSquared() > 1.0E-6D) {
+                } else if (downhillHorizontal.lengthSqr() > 1.0E-6D) {
                     launchDirection = downhillHorizontal.normalize();
                 } else {
-                    Vec3d horizontalFromNormal = new Vec3d(normal.x, 0.0D, normal.z);
-                    if (horizontalFromNormal.lengthSquared() > 1.0E-6D) {
+                    Vec3 horizontalFromNormal = new Vec3(normal.x, 0.0D, normal.z);
+                    if (horizontalFromNormal.lengthSqr() > 1.0E-6D) {
                         launchDirection = horizontalFromNormal.normalize();
                     }
                 }
                 if (launchDirection != null) {
-                    double slopeFactor = MathHelper.clamp(1.0D - normal.y, 0.12D, 1.0D);
+                    double slopeFactor = Mth.clamp(1.0D - normal.y, 0.12D, 1.0D);
                     double targetHorizontal = Math.max(
                             resolvedHorizontal,
                             Math.max(
@@ -1712,7 +1728,7 @@ public abstract class LivingEntityMixin extends Entity {
                             )
                     );
                     if (resolvedHorizontal + 1.0E-6D < targetHorizontal) {
-                        preVel = new Vec3d(
+                        preVel = new Vec3(
                                 launchDirection.x * targetHorizontal,
                                 preVel.y,
                                 launchDirection.z * targetHorizontal
@@ -1722,17 +1738,17 @@ public abstract class LivingEntityMixin extends Entity {
             }
         }
         if (justAcquiredSurfContact && velocityBeforeMove.y < -0.30D && preVel.y > SURF_LANDING_BOUNCE_CLAMP_Y) {
-            preVel = new Vec3d(preVel.x, SURF_LANDING_BOUNCE_CLAMP_Y, preVel.z);
+            preVel = new Vec3(preVel.x, SURF_LANDING_BOUNCE_CLAMP_Y, preVel.z);
             this.surfLandingStabilizeTicks = SURF_LANDING_STABILIZE_TICKS;
         }
         if (postMoveSurfContact != null
                 && velocityBeforeMove.y < SURF_LANDING_CONTINUE_DESCENT_TRIGGER_FALL
                 && preVel.y > SURF_LANDING_CONTINUE_DESCENT_MIN_Y) {
-            preVel = new Vec3d(preVel.x, SURF_LANDING_CONTINUE_DESCENT_MIN_Y, preVel.z);
+            preVel = new Vec3(preVel.x, SURF_LANDING_CONTINUE_DESCENT_MIN_Y, preVel.z);
         }
-        if (!this.isClimbing() && postMoveSurfContact != null && this.surfLandingStabilizeTicks > 0) {
+        if (!this.onClimbable() && postMoveSurfContact != null && this.surfLandingStabilizeTicks > 0) {
             if (preVel.y > SURF_LANDING_STABILIZE_MAX_Y) {
-                preVel = new Vec3d(preVel.x, SURF_LANDING_STABILIZE_MAX_Y, preVel.z);
+                preVel = new Vec3(preVel.x, SURF_LANDING_STABILIZE_MAX_Y, preVel.z);
             }
             this.surfLandingStabilizeTicks--;
         } else if (postMoveSurfContact == null) {
@@ -1741,53 +1757,53 @@ public abstract class LivingEntityMixin extends Entity {
 
         double yVel = preVel.y;
         double gravity = getGravityPerTick(config);
-        if (preVel.y <= 0.0D && this.hasStatusEffect(StatusEffects.SLOW_FALLING)) {
+        if (preVel.y <= 0.0D && this.hasEffect(MobEffects.SLOW_FALLING)) {
             gravity = 0.01D;
             this.fallDistance = 0.0F;
         }
-        if (this.hasStatusEffect(StatusEffects.LEVITATION)) {
-            yVel += (0.05D * (this.getStatusEffect(StatusEffects.LEVITATION).getAmplifier() + 1) - preVel.y) * 0.2D;
+        if (this.hasEffect(MobEffects.LEVITATION)) {
+            yVel += (0.05D * (this.getEffect(MobEffects.LEVITATION).getAmplifier() + 1) - preVel.y) * 0.2D;
             this.fallDistance = 0.0F;
-        } else if (this.getWorld().isClient && !this.getWorld().isChunkLoaded(blockPos)) {
+        } else if (this.level().isClientSide() && !this.level().hasChunkAt(blockPos)) {
             yVel = 0.0D;
-        } else if (!this.hasNoGravity() && !sourceLadderActive) {
+        } else if (!this.isNoGravity() && !sourceLadderActive) {
             yVel -= gravity;
         }
 
-        Vec3d velocityAfterGravity = new Vec3d(preVel.x, yVel, preVel.z);
-        if (postMoveSurfContact != null && !this.isClimbing()) {
+        Vec3 velocityAfterGravity = new Vec3(preVel.x, yVel, preVel.z);
+        if (postMoveSurfContact != null && !this.onClimbable()) {
             velocityAfterGravity = this.clipVelocityAgainstSurfRamp(velocityAfterGravity, postMoveSurfContact.normal());
 
             if ((justAcquiredSurfContact || reacquiredSurfContact)) {
-                Vec3d normal = postMoveSurfContact.normal();
-                if (normal != null && normal.lengthSquared() > 1.0E-8D) {
-                    double incomingInto = new Vec3d(preVel.x, yVel, preVel.z).dotProduct(normal.normalize());
+                Vec3 normal = postMoveSurfContact.normal();
+                if (normal != null && normal.lengthSqr() > 1.0E-8D) {
+                    double incomingInto = new Vec3(preVel.x, yVel, preVel.z).dot(normal.normalize());
                     double preGravityHorizontal = this.getHorizontalSpeed(preVel);
                     double postGravityHorizontal = this.getHorizontalSpeed(velocityAfterGravity);
                     if (incomingInto >= -SURF_LANDING_POST_GRAVITY_RESTORE_MAX_INTO_COMPONENT
                             && preGravityHorizontal >= SURF_LANDING_POST_GRAVITY_RESTORE_MIN_HORIZONTAL
                             && postGravityHorizontal + 1.0E-6D < preGravityHorizontal * SURF_LANDING_POST_GRAVITY_RESTORE_TRIGGER_RATIO) {
-                        Vec3d restoreDir = this.resolveLandingRestoreDirection(velocityAfterGravity, velocityBeforeMove, normal);
+                        Vec3 restoreDir = this.resolveLandingRestoreDirection(velocityAfterGravity, velocityBeforeMove, normal);
                         if (restoreDir != null) {
                             double targetHorizontal = Math.max(
                                     postGravityHorizontal,
                                     preGravityHorizontal * SURF_LANDING_POST_GRAVITY_RESTORE_KEEP_RATIO
                             );
-                            velocityAfterGravity = new Vec3d(
+                            velocityAfterGravity = new Vec3(
                                     restoreDir.x * targetHorizontal,
                                     velocityAfterGravity.y,
                                     restoreDir.z * targetHorizontal
                             );
-                            double adjust = velocityAfterGravity.dotProduct(normal);
+                            double adjust = velocityAfterGravity.dot(normal);
                             if (adjust < 0.0D) {
-                                velocityAfterGravity = velocityAfterGravity.subtract(normal.multiply(adjust));
+                                velocityAfterGravity = velocityAfterGravity.subtract(normal.scale(adjust));
                             }
                         }
                     }
                 }
             }
-            Vec3d projectedAfterGravity = this.clipVelocityAgainstSurfRamp(
-                    new Vec3d(velocityBeforeMove.x, Math.min(velocityBeforeMove.y, 0.0D), velocityBeforeMove.z),
+            Vec3 projectedAfterGravity = this.clipVelocityAgainstSurfRamp(
+                    new Vec3(velocityBeforeMove.x, Math.min(velocityBeforeMove.y, 0.0D), velocityBeforeMove.z),
                     postMoveSurfContact.normal()
             );
             double projectedAfterGravityHorizontal = this.getHorizontalSpeed(projectedAfterGravity);
@@ -1798,15 +1814,15 @@ public abstract class LivingEntityMixin extends Entity {
                     && projectedAfterGravityHorizontal >= SURF_LANDING_STALL_RESTORE_MIN_PROJECTED_HORIZONTAL
                     && currentAfterGravityHorizontal + 1.0E-6D
                     < projectedAfterGravityHorizontal * SURF_LANDING_STALL_RESTORE_POST_GRAVITY_TRIGGER_RATIO) {
-                Vec3d projectedHorizontalVec = new Vec3d(projectedAfterGravity.x, 0.0D, projectedAfterGravity.z);
-                double projectedHorizontalLen = projectedHorizontalVec.horizontalLength();
+                Vec3 projectedHorizontalVec = new Vec3(projectedAfterGravity.x, 0.0D, projectedAfterGravity.z);
+                double projectedHorizontalLen = projectedHorizontalVec.horizontalDistance();
                 if (projectedHorizontalLen > 1.0E-6D) {
-                    Vec3d projectedHorizontalDir = projectedHorizontalVec.multiply(1.0D / projectedHorizontalLen);
+                    Vec3 projectedHorizontalDir = projectedHorizontalVec.scale(1.0D / projectedHorizontalLen);
                     double targetHorizontal = Math.max(
                             currentAfterGravityHorizontal,
                             projectedAfterGravityHorizontal * SURF_LANDING_STALL_RESTORE_KEEP_RATIO
                     );
-                    velocityAfterGravity = new Vec3d(
+                    velocityAfterGravity = new Vec3(
                             projectedHorizontalDir.x * targetHorizontal,
                             this.getRampRestoreY(velocityAfterGravity.y, velocityBeforeMove.y, -0.08D),
                             projectedHorizontalDir.z * targetHorizontal
@@ -1821,7 +1837,7 @@ public abstract class LivingEntityMixin extends Entity {
                     && incomingHorizontalAfterGravity >= SURF_LANDING_STALL_RESTORE_MIN_INCOMING_HORIZONTAL
                     && currentAfterGravityHorizontal + 1.0E-6D
                     < incomingHorizontalAfterGravity * SURF_LANDING_STALL_FORCE_RESTORE_TRIGGER_RATIO) {
-                Vec3d restoreDir = this.resolveLandingRestoreDirection(
+                Vec3 restoreDir = this.resolveLandingRestoreDirection(
                         velocityAfterGravity,
                         velocityBeforeMove,
                         postMoveSurfContact.normal()
@@ -1832,7 +1848,7 @@ public abstract class LivingEntityMixin extends Entity {
                             currentAfterGravityHorizontal,
                             incomingHorizontalAfterGravity * SURF_LANDING_STALL_FORCE_RESTORE_KEEP_RATIO
                     );
-                    velocityAfterGravity = new Vec3d(
+                    velocityAfterGravity = new Vec3(
                             restoreDir.x * targetHorizontal,
                             this.getRampRestoreY(velocityAfterGravity.y, velocityBeforeMove.y, -0.08D),
                             restoreDir.z * targetHorizontal
@@ -1847,7 +1863,7 @@ public abstract class LivingEntityMixin extends Entity {
             if (incomingHorizontalAfterGravity >= SURF_CONTACT_SPEED_RESTORE_MIN_HORIZONTAL
                     && currentAfterGravityHorizontal + 1.0E-6D
                     < incomingHorizontalAfterGravity * SURF_CONTACT_SPEED_RESTORE_POST_GRAVITY_TRIGGER_RATIO) {
-                Vec3d restoreDir = this.resolveLandingRestoreDirection(
+                Vec3 restoreDir = this.resolveLandingRestoreDirection(
                         velocityAfterGravity,
                         velocityBeforeMove,
                         postMoveSurfContact.normal()
@@ -1858,7 +1874,7 @@ public abstract class LivingEntityMixin extends Entity {
                             currentAfterGravityHorizontal,
                             incomingHorizontalAfterGravity * SURF_CONTACT_SPEED_RESTORE_POST_GRAVITY_KEEP_RATIO
                     );
-                    velocityAfterGravity = new Vec3d(
+                    velocityAfterGravity = new Vec3(
                             restoreDir.x * targetHorizontal,
                             this.getRampRestoreY(velocityAfterGravity.y, velocityBeforeMove.y, -0.06D),
                             restoreDir.z * targetHorizontal
@@ -1870,7 +1886,7 @@ public abstract class LivingEntityMixin extends Entity {
                 }
             }
             if (velocityBeforeMove.y < -0.24D && velocityAfterGravity.y > SURF_LANDING_POST_GRAVITY_MAX_Y) {
-                velocityAfterGravity = new Vec3d(
+                velocityAfterGravity = new Vec3(
                         velocityAfterGravity.x,
                         SURF_LANDING_POST_GRAVITY_MAX_Y,
                         velocityAfterGravity.z
@@ -1878,10 +1894,10 @@ public abstract class LivingEntityMixin extends Entity {
             }
         }
 
-        BlockState belowState = this.getWorld().getBlockState(this.getBlockPos());
-        if (belowState.isOf(ModBlocks.BOOSTER_BLOCK) && (this.getWorld().getTime() > this.boostTime + 5 || this.getWorld().getTime() < this.boostTime)) {
-            this.boostTime = this.getWorld().getTime();
-            BoostBlockEntity boostBlockEntity = (BoostBlockEntity) this.getWorld().getBlockEntity(this.getBlockPos());
+        BlockState belowState = this.level().getBlockState(this.blockPosition());
+        if (belowState.is(ModBlocks.BOOSTER_BLOCK) && (this.level().getGameTime() > this.boostTime + 5 || this.level().getGameTime() < this.boostTime)) {
+            this.boostTime = this.level().getGameTime();
+            BoostBlockEntity boostBlockEntity = (BoostBlockEntity) this.level().getBlockEntity(this.blockPosition());
             velocityAfterGravity = this.minehop$applyBoostPad(velocityAfterGravity, boostBlockEntity);
         }
         if ((inStartZone || inStartZoneAfterMove) && startZonePlayer != null) {
@@ -1894,7 +1910,7 @@ public abstract class LivingEntityMixin extends Entity {
         double incomingHorizontalFinal = this.getHorizontalSpeed(velocityBeforeMove);
         double preGravityHorizontalFinal = this.getHorizontalSpeed(preVel);
         double postGravityHorizontalFinal = this.getHorizontalSpeed(velocityAfterGravity);
-        Vec3d movedSincePreMove = this.getPos().subtract(posBeforeMove);
+        Vec3 movedSincePreMove = this.position().subtract(posBeforeMove);
         double movedHorizontalFinal = Math.hypot(movedSincePreMove.x, movedSincePreMove.z);
         boolean speedCollapseEvent = incomingHorizontalFinal >= SURF_CONTACT_SPEED_RESTORE_MIN_HORIZONTAL
                 && postGravityHorizontalFinal + 1.0E-6D < incomingHorizontalFinal * 0.74D;
@@ -1952,7 +1968,7 @@ public abstract class LivingEntityMixin extends Entity {
                     forceRestorePostApplied
             );
         }
-        this.setVelocity(velocityAfterGravity);
+        this.setDeltaMovement(velocityAfterGravity);
 
         if (surfDebug && this.shouldLogSurfDebugTick()) {
             this.logSurfDebugState(
@@ -1980,7 +1996,7 @@ public abstract class LivingEntityMixin extends Entity {
             this.minehop$nearRampAcGraceTicks--;
         }
 
-        if (!this.getWorld().isClient && self instanceof ServerPlayerEntity acPlayer) {
+        if (!this.level().isClientSide() && self instanceof ServerPlayer acPlayer) {
             boolean surfingForAc = preMoveSurfContact != null || postMoveSurfContact != null
                     || this.surfContactGraceTicks > 0 || this.surfCollisionBypassGraceTicks > 0
                     || nearSurfRampPre || nearSurfRampPost
@@ -1996,20 +2012,20 @@ public abstract class LivingEntityMixin extends Entity {
             AntiCheatManager.onMovementTick(
                     acPlayer,
                     posBeforeMove,
-                    this.getPos(),
+                    this.position(),
                     velocityBeforeMove,
                     velocityAfterGravity,
-                    this.isOnGround(),
+                    this.onGround(),
                     this.wasOnGround,
-                    this.isClimbing(),
-                    this.isTouchingWater() || this.isInLava(),
+                    this.onClimbable(),
+                    this.isInWater() || this.isInLava(),
                     surfingForAc,
                     this.minehop$serverJumpTakeoff(config, velocityBeforeMove.y, velocityAfterGravity.y),
                     antiCheatSpeedCap
             );
         }
 
-        this.updateLimbs(self instanceof Flutterer);
+        this.calculateEntityAnimation(self instanceof FlyingAnimal);
 
         ci.cancel();
     }
@@ -2037,20 +2053,20 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private boolean shouldCarryPreMoveContactAfterMove(SurfContact preMoveSurfContact) {
-        if (this.isClimbing() || preMoveSurfContact == null || !this.isUsableSurfContactForCarryOrRestore(preMoveSurfContact)) {
+        if (this.onClimbable() || preMoveSurfContact == null || !this.isUsableSurfContactForCarryOrRestore(preMoveSurfContact)) {
             return false;
         }
         if (!this.isNearSurfRamp()) {
             return false;
         }
-        double horizontalSpeed = this.getHorizontalSpeed(this.getVelocity());
+        double horizontalSpeed = this.getHorizontalSpeed(this.getDeltaMovement());
         if (horizontalSpeed < SURF_SEAM_CONTINUITY_MIN_HORIZONTAL) {
             return false;
         }
         double carryMaxVertical = horizontalSpeed >= SURF_POST_MOVE_CONTACT_CARRY_ASCENT_MIN_HORIZONTAL
                 ? SURF_POST_MOVE_CONTACT_CARRY_MAX_ASCENT_HIGH_SPEED
                 : SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT;
-        if (this.getVelocity().y > carryMaxVertical) {
+        if (this.getDeltaMovement().y > carryMaxVertical) {
             return false;
         }
 
@@ -2071,7 +2087,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (contact == null) {
             return false;
         }
-        Vec3d normal = contact.normal();
+        Vec3 normal = contact.normal();
         return normal != null && normal.y >= SURF_REUSE_MIN_NORMAL_Y && normal.y <= 0.999D;
     }
 
@@ -2085,26 +2101,26 @@ public abstract class LivingEntityMixin extends Entity {
 
     public double findOptimalStrafeAngle(double sI, double fI, MinehopConfig config, boolean fullGrounded) {
         if (sI == 0.0D && fI == 0.0D) {
-            return this.getYaw();
+            return this.getYRot();
         }
 
         double highestVelocity = -Double.MAX_VALUE;
         double optimalAngle = 0;
 
-        Vec3d horizontalVelocity = new Vec3d(this.getVelocity().x, 0.0D, this.getVelocity().z);
+        Vec3 horizontalVelocity = new Vec3(this.getDeltaMovement().x, 0.0D, this.getDeltaMovement().z);
         double baseWishSpeed = getBaseWishSpeed(config);
         double airWishSpeedCap = getAirWishSpeedCap(config);
 
-        for (double angle = this.prevYaw - 45; angle < this.prevYaw + 45; angle += 1) {
-            Vec3d wishVector = MovementUtil.movementInputToVelocity(new Vec3d(sI, 0.0F, fI), 1.0F, (float) angle);
-            double wishVectorLength = wishVector.horizontalLength();
+        for (double angle = this.yRotO - 45; angle < this.yRotO + 45; angle += 1) {
+            Vec3 wishVector = MovementUtil.movementInputToVelocity(new Vec3(sI, 0.0F, fI), 1.0F, (float) angle);
+            double wishVectorLength = wishVector.horizontalDistance();
             if (wishVectorLength <= 0.0D) {
                 continue;
             }
 
-            Vec3d wishDir = new Vec3d(wishVector.x / wishVectorLength, 0.0D, wishVector.z / wishVectorLength);
+            Vec3 wishDir = new Vec3(wishVector.x / wishVectorLength, 0.0D, wishVector.z / wishVectorLength);
             double wishSpeed = baseWishSpeed * wishVectorLength;
-            Vec3d candidateVelocity;
+            Vec3 candidateVelocity;
 
             if (fullGrounded) {
                 candidateVelocity = accelerateSource(horizontalVelocity, wishDir, wishSpeed, wishSpeed, config.movement.sv_accelerate, 1.0D, false, 1.0D);
@@ -2112,8 +2128,8 @@ public abstract class LivingEntityMixin extends Entity {
                 candidateVelocity = accelerateSource(horizontalVelocity, wishDir, wishSpeed, airWishSpeedCap, config.movement.sv_airaccelerate, 1.0D, true, 1.0D);
             }
 
-            if (candidateVelocity.horizontalLength() > highestVelocity) {
-                highestVelocity = candidateVelocity.horizontalLength();
+            if (candidateVelocity.horizontalDistance() > highestVelocity) {
+                highestVelocity = candidateVelocity.horizontalDistance();
                 optimalAngle = angle;
             }
         }
@@ -2122,14 +2138,14 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private SurfContact findSurfContact() {
-        if (this.isClimbing()) {
+        if (this.onClimbable()) {
             return null;
         }
 
-        Box boundingBox = this.getBoundingBox();
+        AABB boundingBox = this.getBoundingBox();
         double feetY = boundingBox.minY;
         double headY = boundingBox.maxY;
-        double minContactY = feetY - this.getDynamicSurfBelowTolerance(this.getVelocity().y);
+        double minContactY = feetY - this.getDynamicSurfBelowTolerance(this.getDeltaMovement().y);
         double maxContactY = headY + SURF_CONTACT_ABOVE_TOLERANCE;
 
         SurfContact contact = this.findSurfContactAt(
@@ -2144,7 +2160,7 @@ public abstract class LivingEntityMixin extends Entity {
             return contact;
         }
 
-        if (this.isOnGround() && this.hasRecentSurfActivity()) {
+        if (this.onGround() && this.hasRecentSurfActivity()) {
             SurfContact groundedFallback = this.findGroundedSurfContactFallback(
                     this.getX(),
                     this.getZ(),
@@ -2154,9 +2170,9 @@ public abstract class LivingEntityMixin extends Entity {
             if (this.isReusableSurfContact(groundedFallback)) {
                 return groundedFallback;
             }
-        } else if (!this.isOnGround()
-                && (this.getVelocity().y <= SURF_AIRBORNE_FALLBACK_MIN_DESCENT
-                    || this.getHorizontalSpeed(this.getVelocity()) >= SURF_SEAM_REACQUIRE_MIN_HORIZONTAL)) {
+        } else if (!this.onGround()
+                && (this.getDeltaMovement().y <= SURF_AIRBORNE_FALLBACK_MIN_DESCENT
+                    || this.getHorizontalSpeed(this.getDeltaMovement()) >= SURF_SEAM_REACQUIRE_MIN_HORIZONTAL)) {
             SurfContact incomingFallback = this.findIncomingSurfContactFallback(
                     this.getX(),
                     this.getZ(),
@@ -2170,8 +2186,8 @@ public abstract class LivingEntityMixin extends Entity {
 
         if (this.isReusableSurfContact(this.lastSurfContact)
                 && this.surfContactGraceTicks > 0
-                && this.getHorizontalSpeed(this.getVelocity()) >= SURF_SEAM_REACQUIRE_MIN_HORIZONTAL
-                && this.getVelocity().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT
+                && this.getHorizontalSpeed(this.getDeltaMovement()) >= SURF_SEAM_REACQUIRE_MIN_HORIZONTAL
+                && this.getDeltaMovement().y <= SURF_POST_MOVE_CONTACT_CARRY_MAX_DESCENT
                 && this.isNearSurfRamp()) {
             SurfContact continuityFallback = this.findNearestSurfContactFallback(
                     this.getX(),
@@ -2190,21 +2206,21 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private SurfContact findIncomingSurfContact(Vec3d currentVelocity) {
-        if (this.isClimbing()) {
+    private SurfContact findIncomingSurfContact(Vec3 currentVelocity) {
+        if (this.onClimbable()) {
             return null;
         }
         if (currentVelocity == null) {
-            currentVelocity = this.getVelocity();
+            currentVelocity = this.getDeltaMovement();
         }
 
-        Box boundingBox = this.getBoundingBox();
+        AABB boundingBox = this.getBoundingBox();
         double baseX = this.getX();
         double baseZ = this.getZ();
         double feetY = boundingBox.minY;
         double headY = boundingBox.maxY;
         double velocityLength = currentVelocity.length();
-        double horizontalSpeed = currentVelocity.horizontalLength();
+        double horizontalSpeed = currentVelocity.horizontalDistance();
         boolean fastSteepIncoming = currentVelocity.y <= SURF_INCOMING_TRACE_FAST_MIN_DESCENT
                 && horizontalSpeed >= SURF_INCOMING_TRACE_FAST_MIN_HORIZONTAL
                 && velocityLength >= SURF_INCOMING_TRACE_FAST_MIN_TOTAL_SPEED;
@@ -2228,7 +2244,7 @@ public abstract class LivingEntityMixin extends Entity {
         double predictedFeetY = feetY + currentVelocity.y;
         double predictedHeadY = headY + currentVelocity.y;
 
-        Box incomingSearchBox = new Box(
+        AABB incomingSearchBox = new AABB(
                 Math.min(baseX, predictedX) - 2.5D,
                 Math.min(feetY, predictedFeetY) - dynamicBelowTolerance - 1.0D,
                 Math.min(baseZ, predictedZ) - 2.5D,
@@ -2303,7 +2319,7 @@ public abstract class LivingEntityMixin extends Entity {
             double targetFeetY,
             double targetHeadY
     ) {
-        Box searchBox = new Box(
+        AABB searchBox = new AABB(
                 baseX - 2.5D,
                 minContactY - 1.0D,
                 baseZ - 2.5D,
@@ -2316,7 +2332,7 @@ public abstract class LivingEntityMixin extends Entity {
             return null;
         }
 
-        Box sampleBox = this.getBoundingBox();
+        AABB sampleBox = this.getBoundingBox();
         double halfX = (sampleBox.maxX - sampleBox.minX) * 0.5D;
         double halfZ = (sampleBox.maxZ - sampleBox.minZ) * 0.5D;
         double edgeX = Math.max(halfX - SURF_SAMPLE_EDGE_INSET, 0.0D);
@@ -2358,7 +2374,7 @@ public abstract class LivingEntityMixin extends Entity {
             double sampleZ = baseZ + edgeZ * offsetMultiplier[1];
 
             for (SurfRampEntity ramp : ramps) {
-                Box rampBounds = ramp.getBoundingBox();
+                AABB rampBounds = ramp.getBoundingBox();
                 if (rampBounds.maxY < minContactY - 0.40D || rampBounds.minY > maxContactY + 0.40D) {
                     continue;
                 }
@@ -2431,8 +2447,8 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private SurfContact findJumpRampSupportContact(Box referenceBox, Vec3d velocity) {
-        if (referenceBox == null || velocity == null || this.isClimbing()) {
+    private SurfContact findJumpRampSupportContact(AABB referenceBox, Vec3 velocity) {
+        if (referenceBox == null || velocity == null || this.onClimbable()) {
             return null;
         }
         double feetY = referenceBox.minY;
@@ -2457,7 +2473,7 @@ public abstract class LivingEntityMixin extends Entity {
             return strictValidated;
         }
 
-        if (!this.isOnGround()) {
+        if (!this.onGround()) {
             return null;
         }
         SurfContact looseContact = this.findNearestSurfContactFallback(
@@ -2482,7 +2498,7 @@ public abstract class LivingEntityMixin extends Entity {
     private SurfContact validateJumpSupportContact(
             SurfContact contact,
             double feetY,
-            Vec3d velocity,
+            Vec3 velocity,
             double maxAboveFeet,
             double maxBelowFeet,
             double maxIntoComponent
@@ -2495,15 +2511,15 @@ public abstract class LivingEntityMixin extends Entity {
         if (aboveFeet > maxAboveFeet || belowFeet > maxBelowFeet) {
             return null;
         }
-        Vec3d normal = contact.normal();
+        Vec3 normal = contact.normal();
         if (normal == null) {
             return null;
         }
         double horizontal = this.getHorizontalSpeed(velocity);
-        if (horizontal < SURF_GROUNDED_LANDING_CAPTURE_MIN_HORIZONTAL && !this.isOnGround()) {
+        if (horizontal < SURF_GROUNDED_LANDING_CAPTURE_MIN_HORIZONTAL && !this.onGround()) {
             return null;
         }
-        double into = velocity.dotProduct(normal);
+        double into = velocity.dot(normal);
         if (into > maxIntoComponent && velocity.y > 0.0D) {
             return null;
         }
@@ -2519,7 +2535,7 @@ public abstract class LivingEntityMixin extends Entity {
             double maxVerticalDistance,
             double lateralToleranceExtra
     ) {
-        Box searchBox = new Box(
+        AABB searchBox = new AABB(
                 baseX - 2.2D,
                 targetFeetY - 1.0D,
                 baseZ - 2.2D,
@@ -2534,7 +2550,7 @@ public abstract class LivingEntityMixin extends Entity {
 
         SurfContact best = null;
         double bestDistance = Double.MAX_VALUE;
-        Box sampleBox = this.getBoundingBox();
+        AABB sampleBox = this.getBoundingBox();
         double halfX = (sampleBox.maxX - sampleBox.minX) * 0.5D;
         double halfZ = (sampleBox.maxZ - sampleBox.minZ) * 0.5D;
         double edgeX = Math.max(halfX - SURF_SAMPLE_EDGE_INSET, 0.0D);
@@ -2557,7 +2573,7 @@ public abstract class LivingEntityMixin extends Entity {
                 if (contact == null) {
                     continue;
                 }
-                Vec3d normal = contact.normal();
+                Vec3 normal = contact.normal();
                 if (normal == null || normal.y < SURF_REUSE_MIN_NORMAL_Y || normal.y > 0.999D) {
                     continue;
                 }
@@ -2593,18 +2609,18 @@ public abstract class LivingEntityMixin extends Entity {
             return null;
         }
 
-        Box boundingBox = this.getBoundingBox();
+        AABB boundingBox = this.getBoundingBox();
         double feetY = boundingBox.minY;
         double penetration = contact.surfaceY() - feetY;
 
         if (penetration > 0.0D
                 && penetration <= SURF_MAX_SNAP_UP
-                && !this.isOnGround()) {
+                && !this.onGround()) {
             double correction = Math.min(
                     SURF_SURFACE_SNAP_MAX_UP_PER_TICK,
                     Math.max(penetration * SURF_SURFACE_SNAP_EASE, penetration - SURF_HULL_MAX_EMBED)
             );
-            this.setPosition(this.getX(), this.getY() + correction + SURF_SURFACE_SKIN, this.getZ());
+            this.setPos(this.getX(), this.getY() + correction + SURF_SURFACE_SKIN, this.getZ());
             SurfContact refreshed = this.findSurfContact();
             if (this.isReusableSurfContact(refreshed)) {
                 return refreshed;
@@ -2621,22 +2637,22 @@ public abstract class LivingEntityMixin extends Entity {
             return null;
         }
 
-        if (this.isOnGround()) {
+        if (this.onGround()) {
             return contact;
         }
 
-        Box boundingBox = this.getBoundingBox();
+        AABB boundingBox = this.getBoundingBox();
         double feetY = boundingBox.minY;
         double deltaY = contact.surfaceY() - feetY;
 
         if (deltaY < 0.0D) {
-            if (-deltaY <= SURF_MAX_SNAP_DOWN && this.getVelocity().y <= SURF_SNAP_DOWN_MAX_UPWARD) {
+            if (-deltaY <= SURF_MAX_SNAP_DOWN && this.getDeltaMovement().y <= SURF_SNAP_DOWN_MAX_UPWARD) {
                 if (Math.abs(deltaY) > 1.0E-4D) {
                     double correction = Math.max(
                             deltaY * SURF_SURFACE_SNAP_EASE,
                             -SURF_SURFACE_SNAP_MAX_DOWN_PER_TICK
                     );
-                    this.setPosition(this.getX(), this.getY() + correction, this.getZ());
+                    this.setPos(this.getX(), this.getY() + correction, this.getZ());
                 }
                 SurfContact refreshed = this.findSurfContact();
                 if (this.isReusableSurfContact(refreshed)) {
@@ -2653,7 +2669,7 @@ public abstract class LivingEntityMixin extends Entity {
                         SURF_SURFACE_SNAP_MAX_UP_PER_TICK,
                         Math.max(deltaY * SURF_SURFACE_SNAP_EASE, deltaY - SURF_HULL_MAX_EMBED)
                 );
-                this.setPosition(this.getX(), this.getY() + correction + SURF_SURFACE_SKIN, this.getZ());
+                this.setPos(this.getX(), this.getY() + correction + SURF_SURFACE_SKIN, this.getZ());
             }
             SurfContact refreshed = this.findSurfContact();
             if (this.isReusableSurfContact(refreshed)) {
@@ -2677,7 +2693,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (contact == null) {
             return false;
         }
-        Vec3d normal = contact.normal();
+        Vec3 normal = contact.normal();
         if (normal == null || normal.y < SURF_REUSE_MIN_NORMAL_Y || normal.y > 0.999D) {
             return false;
         }
@@ -2692,12 +2708,12 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private boolean shouldLogSurfDebugTick() {
-        return this.getWorld().getTime() % 4L == 0L;
+        return this.level().getGameTime() % 4L == 0L;
     }
 
     @Unique
     private void logSurfDebugState(
-            PlayerEntity player,
+            Player player,
             SurfContact preMoveSurfContact,
             SurfContact postMoveSurfContact,
             boolean hardEndpointPre,
@@ -2711,12 +2727,12 @@ public abstract class LivingEntityMixin extends Entity {
             double preHorizontalSpeed,
             double postHorizontalSpeed
     ) {
-        if (player == null || this.getWorld().isClient) {
+        if (player == null || this.level().isClientSide()) {
             return;
         }
         Minehop.LOGGER.info(
-                "SurfDebug player=" + player.getNameForScoreboard()
-                        + " tick=" + this.getWorld().getTime()
+                "SurfDebug player=" + player.getScoreboardName()
+                        + " tick=" + this.level().getGameTime()
                         + " preContact=" + (preMoveSurfContact != null)
                         + " postContact=" + (postMoveSurfContact != null)
                         + " hardEndPre=" + hardEndpointPre
@@ -2727,8 +2743,8 @@ public abstract class LivingEntityMixin extends Entity {
                         + " nearEndPost=" + nearRampEndpointPost
                         + " bypassPre=" + bypassPre
                         + " bypassPost=" + bypassPost
-                        + " onGround=" + this.isOnGround()
-                        + " vy=" + String.format("%.4f", this.getVelocity().y)
+                        + " onGround=" + this.onGround()
+                        + " vy=" + String.format("%.4f", this.getDeltaMovement().y)
                         + " hPre=" + String.format("%.3f", preHorizontalSpeed)
                         + " hPost=" + String.format("%.3f", postHorizontalSpeed)
                         + " grace=" + this.surfContactGraceTicks
@@ -2738,7 +2754,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private void logSurfStopEvent(
-            PlayerEntity player,
+            Player player,
             boolean speedCollapseEvent,
             boolean movementStallEvent,
             boolean significantDropEvent,
@@ -2766,17 +2782,17 @@ public abstract class LivingEntityMixin extends Entity {
             boolean forceRestorePreApplied,
             boolean forceRestorePostApplied
     ) {
-        World world = this.getWorld();
+        Level world = this.level();
         if (world == null) {
             return;
         }
-        long tick = world.getTime();
+        long tick = world.getGameTime();
         if (this.surfStopLogTick == tick) {
             return;
         }
         this.surfStopLogTick = tick;
-        String side = world.isClient ? "client" : "server";
-        String playerName = player != null ? player.getNameForScoreboard() : ("entity#" + this.getId());
+        String side = world.isClientSide() ? "client" : "server";
+        String playerName = player != null ? player.getScoreboardName() : ("entity#" + this.getId());
         Minehop.LOGGER.warn(
                 "SurfStop side={} player={} tick={} pos=({},{},{}) collapse={} stall={} drop={} softStall={} contactLoss={} edgeRisk={} hIn={} hPreG={} hOut={} moved={} "
                         + "nearPre={} nearPost={} nearSupportPost={} preC={} postC={} hardPre={} hardPost={} "
@@ -2818,15 +2834,15 @@ public abstract class LivingEntityMixin extends Entity {
                 this.surfCollisionBypassGraceTicks,
                 this.surfGroundSuppressTicks,
                 this.surfJumpSuppressTicks,
-                this.isOnGround(),
-                String.format("%.4f", this.getVelocity().y)
+                this.onGround(),
+                String.format("%.4f", this.getDeltaMovement().y)
         );
     }
 
     @Unique
     private void resetSurfRampQueryCacheIfNeeded() {
-        World world = this.getWorld();
-        long tick = world != null ? world.getTime() : Long.MIN_VALUE;
+        Level world = this.level();
+        long tick = world != null ? world.getGameTime() : Long.MIN_VALUE;
         if (this.surfRampQueryCacheTick != tick) {
             this.surfRampQueryCacheTick = tick;
             this.surfRampQueryCache.clear();
@@ -2839,7 +2855,7 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private long computeSurfRampQueryKey(Box queryBox, double expand, int queryType) {
+    private long computeSurfRampQueryKey(AABB queryBox, double expand, int queryType) {
         long hash = 1469598103934665603L;
         hash = (hash ^ queryType) * 1099511628211L;
         hash = (hash ^ this.quantizeSurfQueryValue(expand)) * 1099511628211L;
@@ -2853,8 +2869,8 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private boolean hasNearbySurfRampCached(Box queryBox, double expand) {
-        World world = this.getWorld();
+    private boolean hasNearbySurfRampCached(AABB queryBox, double expand) {
+        Level world = this.level();
         if (world == null || queryBox == null) {
             return false;
         }
@@ -2874,8 +2890,8 @@ public abstract class LivingEntityMixin extends Entity {
 
     @SuppressWarnings("unchecked")
     @Unique
-    private List<SurfRampEntity> collectNearbySurfRampsCached(Box queryBox, double expand) {
-        World world = this.getWorld();
+    private List<SurfRampEntity> collectNearbySurfRampsCached(AABB queryBox, double expand) {
+        Level world = this.level();
         if (world == null || queryBox == null) {
             return List.of();
         }
@@ -2899,7 +2915,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (ramp == null) {
             return false;
         }
-        Box bounds = ramp.getBoundingBox();
+        AABB bounds = ramp.getBoundingBox();
         double minX = bounds.minX - lateralExtra;
         double maxX = bounds.maxX + lateralExtra;
         double minZ = bounds.minZ - lateralExtra;
@@ -2918,14 +2934,14 @@ public abstract class LivingEntityMixin extends Entity {
         if (ramp == null) {
             return false;
         }
-        Vec3d start = ramp.getStart();
-        Vec3d end = ramp.getEnd();
+        Vec3 start = ramp.getStart();
+        Vec3 end = ramp.getEnd();
         double horizontalLength = Math.hypot(end.x - start.x, end.z - start.z);
         if (horizontalLength < 1.0E-6D) {
             return false;
         }
-        double clampedThreshold = MathHelper.clamp(endpointTThreshold, 0.01D, 0.45D);
-        double maxThresholdFromAlong = MathHelper.clamp(
+        double clampedThreshold = Mth.clamp(endpointTThreshold, 0.01D, 0.45D);
+        double maxThresholdFromAlong = Mth.clamp(
                 SURF_ENDPOINT_APPROX_MAX_ALONG_ALLOWANCE / horizontalLength,
                 0.01D,
                 0.45D
@@ -2936,7 +2952,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private boolean isNearSurfRamp() {
-        if (this.isClimbing()) {
+        if (this.onClimbable()) {
             return false;
         }
         return this.hasNearbySurfRampCached(this.getBoundingBox(), SURF_NEARBY_RAMP_SEARCH_EXPAND);
@@ -2944,11 +2960,11 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private boolean isInRampTransitionZone() {
-        if (this.isClimbing()) {
+        if (this.onClimbable()) {
             return false;
         }
 
-        Box boundingBox = this.getBoundingBox();
+        AABB boundingBox = this.getBoundingBox();
         List<SurfRampEntity> ramps = this.collectNearbySurfRampsCached(boundingBox, 2.8D);
         if (ramps.size() < 2) {
             return false;
@@ -2977,9 +2993,9 @@ public abstract class LivingEntityMixin extends Entity {
                 continue;
             }
 
-            Vec3d start = ramp.getStart();
-            Vec3d end = ramp.getEnd();
-            Vec3d endpoint = this.horizontalDistanceSquared(x, z, start.x, start.z)
+            Vec3 start = ramp.getStart();
+            Vec3 end = ramp.getEnd();
+            Vec3 endpoint = this.horizontalDistanceSquared(x, z, start.x, start.z)
                     <= this.horizontalDistanceSquared(x, z, end.x, end.z) ? start : end;
             if (this.horizontalDistanceSquared(x, z, endpoint.x, endpoint.z) > endpointRadiusSq) {
                 continue;
@@ -2994,11 +3010,11 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private boolean isNearSurfRampEndpoint() {
-        if (this.isClimbing()) {
+        if (this.onClimbable()) {
             return false;
         }
 
-        Box boundingBox = this.getBoundingBox();
+        AABB boundingBox = this.getBoundingBox();
         List<SurfRampEntity> ramps = this.collectNearbySurfRampsCached(boundingBox, 2.8D);
         if (ramps.isEmpty()) {
             return false;
@@ -3023,9 +3039,9 @@ public abstract class LivingEntityMixin extends Entity {
                 continue;
             }
 
-            Vec3d start = ramp.getStart();
-            Vec3d end = ramp.getEnd();
-            Vec3d endpoint = this.horizontalDistanceSquared(x, z, start.x, start.z)
+            Vec3 start = ramp.getStart();
+            Vec3 end = ramp.getEnd();
+            Vec3 endpoint = this.horizontalDistanceSquared(x, z, start.x, start.z)
                     <= this.horizontalDistanceSquared(x, z, end.x, end.z) ? start : end;
             if (this.hasConnectedRampAtEndpoint(ramp, endpoint, ramps)) {
                 continue;
@@ -3041,7 +3057,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (ramps == null || ramps.isEmpty()) {
             return false;
         }
-        Box bb = this.getBoundingBox();
+        AABB bb = this.getBoundingBox();
         double minY = bb.minY - 1.25D;
         double maxY = bb.maxY + 1.25D;
         for (SurfRampEntity other : ramps) {
@@ -3061,7 +3077,7 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private boolean hasConnectedRampAtEndpoint(SurfRampEntity sourceRamp, Vec3d endpoint, List<SurfRampEntity> candidates) {
+    private boolean hasConnectedRampAtEndpoint(SurfRampEntity sourceRamp, Vec3 endpoint, List<SurfRampEntity> candidates) {
         if (sourceRamp == null || endpoint == null) {
             return false;
         }
@@ -3069,7 +3085,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (candidates != null && !candidates.isEmpty()) {
             nearby = candidates;
         } else {
-            Box endpointBox = new Box(
+            AABB endpointBox = new AABB(
                     endpoint.x - 1.0D,
                     endpoint.y - 1.5D,
                     endpoint.z - 1.0D,
@@ -3104,10 +3120,10 @@ public abstract class LivingEntityMixin extends Entity {
                 return true;
             }
 
-            Vec3d otherStart = other.getStart();
-            Vec3d otherEnd = other.getEnd();
-            double dStartSq = endpoint.squaredDistanceTo(otherStart);
-            double dEndSq = endpoint.squaredDistanceTo(otherEnd);
+            Vec3 otherStart = other.getStart();
+            Vec3 otherEnd = other.getEnd();
+            double dStartSq = endpoint.distanceToSqr(otherStart);
+            double dEndSq = endpoint.distanceToSqr(otherEnd);
             if (Math.min(dStartSq, dEndSq) <= endpointAttachRadiusSq) {
                 return true;
             }
@@ -3129,7 +3145,7 @@ public abstract class LivingEntityMixin extends Entity {
             return true;
         }
 
-        double vy = this.getVelocity().y;
+        double vy = this.getDeltaMovement().y;
         double maxAttachGap;
         if (vy < -1.0D) {
             maxAttachGap = 0.48D;
@@ -3143,12 +3159,12 @@ public abstract class LivingEntityMixin extends Entity {
 
         // While actively surfing, keep the contact "sticky" as a curved/sloped surface drops away
         // beneath the feet faster than the feet descend (prevents curve contact flicker).
-        double horizontalSpeed = this.getHorizontalSpeed(this.getVelocity());
-        if (!this.isOnGround() && this.isReusableSurfContactState() && horizontalSpeed >= SURF_COLLISION_BYPASS_GRACE_MIN_HORIZONTAL) {
+        double horizontalSpeed = this.getHorizontalSpeed(this.getDeltaMovement());
+        if (!this.onGround() && this.isReusableSurfContactState() && horizontalSpeed >= SURF_COLLISION_BYPASS_GRACE_MIN_HORIZONTAL) {
             maxAttachGap = Math.max(maxAttachGap, SURF_SURFING_STICKY_ATTACH_GAP);
         }
 
-        if (this.isOnGround() && this.isNearSurfRamp()) {
+        if (this.onGround() && this.isNearSurfRamp()) {
             maxAttachGap = Math.max(maxAttachGap, SURF_GROUNDED_NEAR_RAMP_MAX_ATTACH_GAP);
         }
         return belowDistance <= maxAttachGap;
@@ -3170,14 +3186,14 @@ public abstract class LivingEntityMixin extends Entity {
         if (this.surfGroundSuppressTicks > 0 || this.surfJumpSuppressTicks > 0) {
             return true;
         }
-        return this.getHorizontalSpeed(this.getVelocity()) >= SURF_GROUNDED_LANDING_CAPTURE_MIN_HORIZONTAL;
+        return this.getHorizontalSpeed(this.getDeltaMovement()) >= SURF_GROUNDED_LANDING_CAPTURE_MIN_HORIZONTAL;
     }
 
     @Unique
     private double getDynamicSurfBelowTolerance(double verticalVelocity) {
         double fallComponent = Math.max(-verticalVelocity, 0.0D);
         double belowTolerance = SURF_CONTACT_BELOW_TOLERANCE + Math.min(fallComponent * 0.75D, 0.60D);
-        if (this.isOnGround() && this.isNearSurfRamp()) {
+        if (this.onGround() && this.isNearSurfRamp()) {
             belowTolerance = Math.max(belowTolerance, SURF_GROUNDED_NEAR_RAMP_MIN_BELOW_TOLERANCE);
         }
         return belowTolerance;
@@ -3185,47 +3201,47 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private double[][] getSurfSamplePattern() {
-        if (!this.isOnGround()
-                && this.getVelocity().y <= SURF_FAST_SAMPLE_MAX_VERTICAL
-                && this.getHorizontalSpeed(this.getVelocity()) >= SURF_FAST_SAMPLE_MIN_HORIZONTAL) {
+        if (!this.onGround()
+                && this.getDeltaMovement().y <= SURF_FAST_SAMPLE_MAX_VERTICAL
+                && this.getHorizontalSpeed(this.getDeltaMovement()) >= SURF_FAST_SAMPLE_MIN_HORIZONTAL) {
             return SURF_SAMPLE_PATTERN_FAST;
         }
         return SURF_SAMPLE_PATTERN_FULL;
     }
 
     @Unique
-    private Vec3d resolveLandingRestoreDirection(Vec3d clippedVelocity, Vec3d incomingVelocity, Vec3d surfaceNormal) {
-        Vec3d clippedHorizontal = new Vec3d(clippedVelocity.x, 0.0D, clippedVelocity.z);
-        if (clippedHorizontal.lengthSquared() > 1.0E-6D) {
+    private Vec3 resolveLandingRestoreDirection(Vec3 clippedVelocity, Vec3 incomingVelocity, Vec3 surfaceNormal) {
+        Vec3 clippedHorizontal = new Vec3(clippedVelocity.x, 0.0D, clippedVelocity.z);
+        if (clippedHorizontal.lengthSqr() > 1.0E-6D) {
             return clippedHorizontal.normalize();
         }
 
-        Vec3d gravity = new Vec3d(0.0D, -1.0D, 0.0D);
-        Vec3d downhillOnPlane = gravity.subtract(surfaceNormal.multiply(gravity.dotProduct(surfaceNormal)));
-        Vec3d downhillHorizontal = new Vec3d(downhillOnPlane.x, 0.0D, downhillOnPlane.z);
-        if (downhillHorizontal.lengthSquared() > 1.0E-6D) {
+        Vec3 gravity = new Vec3(0.0D, -1.0D, 0.0D);
+        Vec3 downhillOnPlane = gravity.subtract(surfaceNormal.scale(gravity.dot(surfaceNormal)));
+        Vec3 downhillHorizontal = new Vec3(downhillOnPlane.x, 0.0D, downhillOnPlane.z);
+        if (downhillHorizontal.lengthSqr() > 1.0E-6D) {
             return downhillHorizontal.normalize();
         }
 
-        Vec3d incomingHorizontal = new Vec3d(incomingVelocity.x, 0.0D, incomingVelocity.z);
-        if (incomingHorizontal.lengthSquared() > 1.0E-6D) {
+        Vec3 incomingHorizontal = new Vec3(incomingVelocity.x, 0.0D, incomingVelocity.z);
+        if (incomingHorizontal.lengthSqr() > 1.0E-6D) {
             return incomingHorizontal.normalize();
         }
         return null;
     }
 
     @Unique
-    private Vec3d restoreSurfClipHorizontal(
-            Vec3d clippedVelocity,
-            Vec3d incomingVelocity,
-            Vec3d surfaceNormal,
+    private Vec3 restoreSurfClipHorizontal(
+            Vec3 clippedVelocity,
+            Vec3 incomingVelocity,
+            Vec3 surfaceNormal,
             double triggerRatio,
             double keepRatio
     ) {
         if (clippedVelocity == null || incomingVelocity == null || surfaceNormal == null) {
             return clippedVelocity;
         }
-        if (surfaceNormal.lengthSquared() < 1.0E-8D) {
+        if (surfaceNormal.lengthSqr() < 1.0E-8D) {
             return clippedVelocity;
         }
 
@@ -3238,41 +3254,41 @@ public abstract class LivingEntityMixin extends Entity {
             return clippedVelocity;
         }
 
-        Vec3d restoreDir = this.resolveLandingRestoreDirection(clippedVelocity, incomingVelocity, surfaceNormal);
+        Vec3 restoreDir = this.resolveLandingRestoreDirection(clippedVelocity, incomingVelocity, surfaceNormal);
         if (restoreDir == null) {
             return clippedVelocity;
         }
 
         double targetHorizontal = Math.max(clippedHorizontal, incomingHorizontal * keepRatio);
-        Vec3d restoredVelocity = new Vec3d(
+        Vec3 restoredVelocity = new Vec3(
                 restoreDir.x * targetHorizontal,
                 clippedVelocity.y,
                 restoreDir.z * targetHorizontal
         );
-        Vec3d normal = surfaceNormal.normalize();
-        double into = restoredVelocity.dotProduct(normal);
+        Vec3 normal = surfaceNormal.normalize();
+        double into = restoredVelocity.dot(normal);
         if (into < 0.0D) {
-            restoredVelocity = restoredVelocity.subtract(normal.multiply(into));
+            restoredVelocity = restoredVelocity.subtract(normal.scale(into));
         }
         return restoredVelocity;
     }
 
     @Unique
-    private Vec3d clipVelocityCore(Vec3d velocity, Vec3d normal) {
-        double backoff = velocity.dotProduct(normal) * SURF_CLIP_OVERBOUNCE;
+    private Vec3 clipVelocityCore(Vec3 velocity, Vec3 normal) {
+        double backoff = velocity.dot(normal) * SURF_CLIP_OVERBOUNCE;
         if (backoff >= 0.0D) {
             return velocity;
         }
-        return velocity.subtract(normal.multiply(backoff));
+        return velocity.subtract(normal.scale(backoff));
     }
 
     @Unique
-    private void sweepFeetVsSurface(Vec3d feetStart, Vec3d delta, java.util.List<SurfRampEntity> ramps) {
+    private void sweepFeetVsSurface(Vec3 feetStart, Vec3 delta, java.util.List<SurfRampEntity> ramps) {
         this.minehop$sweepHit = false;
         double len = delta.length();
         int steps = Math.max(1, (int) Math.ceil(len / SURF_SWEEP_MAX_STEP));
         double[][] pattern = this.getSurfSamplePattern();
-        Box bb = this.getBoundingBox();
+        AABB bb = this.getBoundingBox();
         double edgeX = Math.max((bb.maxX - bb.minX) * 0.5D - SURF_SAMPLE_EDGE_INSET, 0.0D);
         double edgeZ = Math.max((bb.maxZ - bb.minZ) * 0.5D - SURF_SAMPLE_EDGE_INSET, 0.0D);
         double bestT = Double.MAX_VALUE;
@@ -3313,7 +3329,7 @@ public abstract class LivingEntityMixin extends Entity {
                         double denom = (y1 - y0) - (surfY1 - surfY0);
                         double localFrac = Math.abs(denom) < 1.0E-9D
                                 ? 0.0D
-                                : MathHelper.clamp((surfY0 - y0) / denom, 0.0D, 1.0D);
+                                : Mth.clamp((surfY0 - y0) / denom, 0.0D, 1.0D);
                         double tHit = f0 + localFrac * (f1 - f0);
                         if (tHit < bestT) {
                             bestT = tHit;
@@ -3333,24 +3349,24 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private boolean minehop$surfMoveAndCollide(Vec3d velocity) {
-        if (this.isClimbing() || this.minehop$hasRealGroundBelow()) {
+    private boolean minehop$surfMoveAndCollide(Vec3 velocity) {
+        if (this.onClimbable() || this.minehop$hasRealGroundBelow()) {
             return false;
         }
-        Box queryBox = this.getBoundingBox().stretch(velocity).expand(SURF_HULL_SAMPLE_BAND);
+        AABB queryBox = this.getBoundingBox().expandTowards(velocity).inflate(SURF_HULL_SAMPLE_BAND);
         java.util.List<SurfRampEntity> ramps = this.collectNearbySurfRampsCached(queryBox, SURF_COLLISION_QUERY_EXPAND);
         if (ramps.isEmpty()) {
             return false;
         }
 
         double[][] pattern = this.getSurfSamplePattern();
-        Box bb = this.getBoundingBox();
+        AABB bb = this.getBoundingBox();
         double edgeX = Math.max((bb.maxX - bb.minX) * 0.5D - SURF_SAMPLE_EDGE_INSET, 0.0D);
         double edgeZ = Math.max((bb.maxZ - bb.minZ) * 0.5D - SURF_SAMPLE_EDGE_INSET, 0.0D);
 
-        Vec3d curFeet = this.getPos();
-        Vec3d disp = Vec3d.ZERO;
-        Vec3d vel = velocity;
+        Vec3 curFeet = this.position();
+        Vec3 disp = Vec3.ZERO;
+        Vec3 vel = velocity;
         this.minehop$hullOnRamp = false;
         this.minehop$hullNormal = null;
 
@@ -3371,16 +3387,16 @@ public abstract class LivingEntityMixin extends Entity {
         this.minehop$computeBind(curFeet, pattern, edgeX, edgeZ, ramps);
         if (this.minehop$bindNormal != null
                 && this.minehop$bindLift > -SURF_HULL_ATTACH_GAP
-                && vel.dotProduct(this.minehop$bindNormal) < 0.0D) {
+                && vel.dot(this.minehop$bindNormal) < 0.0D) {
             vel = this.clipVelocityAgainstSurfRamp(vel, this.minehop$bindNormal);
         }
 
         for (int s = 0; s < steps; s++) {
-            Vec3d newFeet = curFeet.add(vel.multiply(dt));
+            Vec3 newFeet = curFeet.add(vel.scale(dt));
 
             this.minehop$computeBind(newFeet, pattern, edgeX, edgeZ, ramps);
             double maxLift = this.minehop$bindLift;
-            Vec3d bindNormal = this.minehop$bindNormal;
+            Vec3 bindNormal = this.minehop$bindNormal;
             double bindSurfaceY = this.minehop$bindSurfaceY;
 
             if (bindNormal != null && maxLift > -SURF_HULL_ATTACH_GAP) {
@@ -3417,7 +3433,7 @@ public abstract class LivingEntityMixin extends Entity {
                 double correction;
                 if (gap > 0.0D) {
                     correction = Math.min(SURF_MAX_SNAP_UP, Math.max(gap * SURF_HULL_LIFT_EASE, gap - SURF_HULL_MAX_EMBED));
-                } else if (vel.dotProduct(this.minehop$bindNormal) <= SURF_SURFACE_SKIN) {
+                } else if (vel.dot(this.minehop$bindNormal) <= SURF_SURFACE_SKIN) {
                     correction = Math.max(gap * SURF_HULL_LIFT_EASE, -SURF_HULL_EASE_DOWN);
                 } else {
                     correction = 0.0D;
@@ -3435,9 +3451,9 @@ public abstract class LivingEntityMixin extends Entity {
         // FINAL substep was actually resting, so flick-offs and convex rolls fly free.
         this.minehop$hullOnRamp = onRampNow;
 
-        this.setVelocity(vel);
-        this.velocityDirty = true;
-        this.move(MovementType.SELF, disp);
+        this.setDeltaMovement(vel);
+        this.needsSync = true;
+        this.move(MoverType.SELF, disp);
         return true;
     }
 
@@ -3445,10 +3461,10 @@ public abstract class LivingEntityMixin extends Entity {
     // local surface (the up-slope edge on a tilt). Sets minehop$bindLift / minehop$bindNormal /
     // minehop$bindSurfaceY; bindNormal stays null when no foot is over any ramp.
     @Unique
-    private void minehop$computeBind(Vec3d feet, double[][] pattern, double edgeX, double edgeZ,
+    private void minehop$computeBind(Vec3 feet, double[][] pattern, double edgeX, double edgeZ,
                                      java.util.List<SurfRampEntity> ramps) {
         double maxLift = -Double.MAX_VALUE;
-        Vec3d bindNormal = null;
+        Vec3 bindNormal = null;
         double bindSurfaceY = 0.0D;
         for (double[] off : pattern) {
             double fx = feet.x + off[0] * edgeX;
@@ -3472,23 +3488,23 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private Vec3d clipVelocityAgainstSurfRamp(Vec3d velocity, Vec3d surfNormal) {
-        if (surfNormal == null || surfNormal.lengthSquared() < SURF_CLIP_EPSILON) {
+    private Vec3 clipVelocityAgainstSurfRamp(Vec3 velocity, Vec3 surfNormal) {
+        if (surfNormal == null || surfNormal.lengthSqr() < SURF_CLIP_EPSILON) {
             return velocity;
         }
 
-        Vec3d normal = surfNormal.normalize();
-        double intoRampComponent = velocity.dotProduct(normal);
+        Vec3 normal = surfNormal.normalize();
+        double intoRampComponent = velocity.dot(normal);
         double horizontalSpeed = this.getHorizontalSpeed(velocity);
         if (intoRampComponent >= SURF_CLIP_MIN_INTO_COMPONENT) {
             return velocity;
         }
 
         double backoff = intoRampComponent * SURF_CLIP_OVERBOUNCE;
-        Vec3d clipped = velocity.subtract(normal.multiply(backoff));
-        double adjust = clipped.dotProduct(normal);
+        Vec3 clipped = velocity.subtract(normal.scale(backoff));
+        double adjust = clipped.dot(normal);
         if (adjust < 0.0D) {
-            clipped = clipped.subtract(normal.multiply(adjust));
+            clipped = clipped.subtract(normal.scale(adjust));
         }
 
         double intoRatio = Math.abs(intoRampComponent) / Math.max(horizontalSpeed, 1.0E-6D);
@@ -3501,15 +3517,15 @@ public abstract class LivingEntityMixin extends Entity {
                     && clippedHorizontal + 1.0E-6D < horizontalSpeed * SURF_CLIP_SPEED_PRESERVE_TRIGGER_RATIO) {
                 double targetHorizontal = horizontalSpeed * SURF_CLIP_SPEED_PRESERVE_KEEP_RATIO;
                 double scale = targetHorizontal / clippedHorizontal;
-                clipped = new Vec3d(clipped.x * scale, clipped.y, clipped.z * scale);
-                double scaledAdjust = clipped.dotProduct(normal);
+                clipped = new Vec3(clipped.x * scale, clipped.y, clipped.z * scale);
+                double scaledAdjust = clipped.dot(normal);
                 if (scaledAdjust < 0.0D) {
-                    clipped = clipped.subtract(normal.multiply(scaledAdjust));
+                    clipped = clipped.subtract(normal.scale(scaledAdjust));
                 }
             }
         }
 
-        Vec3d projectedIncoming = velocity.subtract(normal.multiply(intoRampComponent));
+        Vec3 projectedIncoming = velocity.subtract(normal.scale(intoRampComponent));
         double projectedIncomingSpeed = projectedIncoming.length();
         double clippedPlanarSpeed = clipped.length();
         double planarIntoRatio = Math.abs(intoRampComponent) / Math.max(projectedIncomingSpeed, 1.0E-6D);
@@ -3525,13 +3541,13 @@ public abstract class LivingEntityMixin extends Entity {
                 && clippedPlanarSpeed + 1.0E-6D < projectedIncomingSpeed * SURF_CLIP_PLANAR_PRESERVE_TRIGGER_RATIO) {
             double targetPlanarSpeed = projectedIncomingSpeed * SURF_CLIP_PLANAR_PRESERVE_KEEP_RATIO;
             if (clippedPlanarSpeed > 1.0E-6D) {
-                clipped = clipped.multiply(targetPlanarSpeed / clippedPlanarSpeed);
+                clipped = clipped.scale(targetPlanarSpeed / clippedPlanarSpeed);
             } else if (projectedIncomingSpeed > 1.0E-6D) {
-                clipped = projectedIncoming.normalize().multiply(targetPlanarSpeed);
+                clipped = projectedIncoming.normalize().scale(targetPlanarSpeed);
             }
-            double planarAdjust = clipped.dotProduct(normal);
+            double planarAdjust = clipped.dot(normal);
             if (planarAdjust < 0.0D) {
-                clipped = clipped.subtract(normal.multiply(planarAdjust));
+                clipped = clipped.subtract(normal.scale(planarAdjust));
             }
         }
 
@@ -3547,7 +3563,7 @@ public abstract class LivingEntityMixin extends Entity {
             double idz = velocity.z / inH;
             double cdx = clipped.x / clH;
             double cdz = clipped.z / clH;
-            double cosA = MathHelper.clamp(idx * cdx + idz * cdz, -1.0D, 1.0D);
+            double cosA = Mth.clamp(idx * cdx + idz * cdz, -1.0D, 1.0D);
             if (cosA < SURF_CLIP_MAX_REDIRECT_COS) {
                 double rot = Math.acos(cosA) - Math.acos(SURF_CLIP_MAX_REDIRECT_COS);
                 double cross = idx * cdz - idz * cdx;
@@ -3557,10 +3573,10 @@ public abstract class LivingEntityMixin extends Entity {
                 double ndx = cdx * ca - cdz * sa;
                 double ndz = cdx * sa + cdz * ca;
                 double mag = Math.max(clH, inH * SURF_CLIP_BEND_PRESERVE_KEEP_RATIO);
-                clipped = new Vec3d(ndx * mag, clipped.y, ndz * mag);
-                double adj = clipped.dotProduct(normal);
+                clipped = new Vec3(ndx * mag, clipped.y, ndz * mag);
+                double adj = clipped.dot(normal);
                 if (adj < 0.0D) {
-                    clipped = clipped.subtract(normal.multiply(adj));
+                    clipped = clipped.subtract(normal.scale(adj));
                 }
             }
         }
@@ -3568,35 +3584,35 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private double getHorizontalSpeed(Vec3d velocity) {
+    private double getHorizontalSpeed(Vec3 velocity) {
         return Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
     }
 
     @Unique
-    private Vec3d minehop$applySpeedCap(Vec3d horizontalVelocity, double speedCap) {
+    private Vec3 minehop$applySpeedCap(Vec3 horizontalVelocity, double speedCap) {
         if (speedCap <= 0.0D || !Double.isFinite(speedCap)) {
             return horizontalVelocity;
         }
-        double speed = horizontalVelocity.horizontalLength();
+        double speed = horizontalVelocity.horizontalDistance();
         if (speed <= speedCap || speed < 1.0E-8D) {
             return horizontalVelocity;
         }
         double scale = speedCap / speed;
-        return new Vec3d(horizontalVelocity.x * scale, horizontalVelocity.y, horizontalVelocity.z * scale);
+        return new Vec3(horizontalVelocity.x * scale, horizontalVelocity.y, horizontalVelocity.z * scale);
     }
 
     @Unique
-    private Vec3d minehop$applySoftSpeedCap(Vec3d horizontalVelocity, double speedCap) {
+    private Vec3 minehop$applySoftSpeedCap(Vec3 horizontalVelocity, double speedCap) {
         if (speedCap <= 0.0D || !Double.isFinite(speedCap)) {
             return horizontalVelocity;
         }
-        double speed = horizontalVelocity.horizontalLength();
+        double speed = horizontalVelocity.horizontalDistance();
         if (speed <= speedCap || speed < 1.0E-8D) {
             return horizontalVelocity;
         }
         double targetSpeed = speedCap + (speed - speedCap) * HNS_KZ_SOFT_CAP_EXCESS_KEEP_RATIO;
         double scale = targetSpeed / speed;
-        return new Vec3d(horizontalVelocity.x * scale, horizontalVelocity.y, horizontalVelocity.z * scale);
+        return new Vec3(horizontalVelocity.x * scale, horizontalVelocity.y, horizontalVelocity.z * scale);
     }
 
     @Unique
@@ -3604,7 +3620,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (contact == null || contact.normal() == null || !Double.isFinite(contact.surfaceY())) {
             return false;
         }
-        Vec3d normal = contact.normal();
+        Vec3 normal = contact.normal();
         if (normal.y < SURF_REUSE_MIN_NORMAL_Y || normal.y > 0.999D) {
             return false;
         }
@@ -3644,7 +3660,7 @@ public abstract class LivingEntityMixin extends Entity {
     // grace so the legit launch isn't flagged/lagbacked. Boost is server-authoritative (read from the
     // real block stood on), so a cheater can't fake the grace.
     @Unique
-    private Vec3d minehop$applyBoostPad(Vec3d velocity, BoostBlockEntity boost) {
+    private Vec3 minehop$applyBoostPad(Vec3 velocity, BoostBlockEntity boost) {
         if (boost == null) {
             return velocity;
         }
@@ -3676,11 +3692,11 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private boolean minehop$hasRealGroundBelow() {
-        Box box = this.getBoundingBox();
+        AABB box = this.getBoundingBox();
         if (box.maxX - box.minX < 1.0E-4D || box.maxZ - box.minZ < 1.0E-4D) {
             return false;
         }
-        Box below = new Box(
+        AABB below = new AABB(
                 box.minX + 0.001D,
                 box.minY - 0.20D,
                 box.minZ + 0.001D,
@@ -3688,12 +3704,12 @@ public abstract class LivingEntityMixin extends Entity {
                 box.minY - 0.001D,
                 box.maxZ - 0.001D
         );
-        return !this.getWorld().isSpaceEmpty(this, below);
+        return !this.level().noCollision(this, below);
     }
 
     @Unique
     private double getBaseWishSpeed(MinehopConfig config) {
-        return this.movementSpeed * config.movement.speed_mul;
+        return this.speed * config.movement.speed_mul;
     }
 
     @Unique
@@ -3708,9 +3724,9 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private Vec3d applySourceFriction(Vec3d velocity, double friction, double stopSpeed, double surfaceFriction) {
-        Vec3d horizontalVelocity = new Vec3d(velocity.x, 0.0D, velocity.z);
-        double speed = horizontalVelocity.horizontalLength();
+    private Vec3 applySourceFriction(Vec3 velocity, double friction, double stopSpeed, double surfaceFriction) {
+        Vec3 horizontalVelocity = new Vec3(velocity.x, 0.0D, velocity.z);
+        double speed = horizontalVelocity.horizontalDistance();
         if (speed < 1.0E-8D) {
             return velocity;
         }
@@ -3721,13 +3737,13 @@ public abstract class LivingEntityMixin extends Entity {
         double newSpeed = Math.max(speed - drop, 0.0D);
         double speedScale = newSpeed / speed;
 
-        return new Vec3d(horizontalVelocity.x * speedScale, velocity.y, horizontalVelocity.z * speedScale);
+        return new Vec3(horizontalVelocity.x * speedScale, velocity.y, horizontalVelocity.z * speedScale);
     }
 
     @Unique
-    private Vec3d accelerateSource(Vec3d horizontalVelocity, Vec3d wishDir, double wishSpeed, double wishSpeedCap, double accelerate, double surfaceFriction, boolean useUncappedWishSpeedForAccel, double frameFraction) {
+    private Vec3 accelerateSource(Vec3 horizontalVelocity, Vec3 wishDir, double wishSpeed, double wishSpeedCap, double accelerate, double surfaceFriction, boolean useUncappedWishSpeedForAccel, double frameFraction) {
         double cappedWishSpeed = Math.min(wishSpeed, wishSpeedCap);
-        double currentSpeed = horizontalVelocity.dotProduct(wishDir);
+        double currentSpeed = horizontalVelocity.dot(wishDir);
         double addSpeed = cappedWishSpeed - currentSpeed;
         if (addSpeed <= 0.0D) {
             return horizontalVelocity;
@@ -3739,11 +3755,11 @@ public abstract class LivingEntityMixin extends Entity {
             accelSpeed = addSpeed;
         }
 
-        return horizontalVelocity.add(wishDir.multiply(accelSpeed));
+        return horizontalVelocity.add(wishDir.scale(accelSpeed));
     }
 
     @Unique
-    private Vec3d accelerateAirSubstepped(Vec3d horizontalVelocity, double sI, double fI, MinehopConfig config, double airWishSpeedCap, float startYaw, float endYaw) {
+    private Vec3 accelerateAirSubstepped(Vec3 horizontalVelocity, double sI, double fI, MinehopConfig config, double airWishSpeedCap, float startYaw, float endYaw) {
         double simRate = SOURCE_SIM_TICKRATE;
         if (simRate < 20.0D) {
             simRate = 20.0D;
@@ -3757,7 +3773,7 @@ public abstract class LivingEntityMixin extends Entity {
         this.minehop$substepRemainder = Math.max(0.0D, budget - steps);
         this.minehop$lastAirSteps = steps;
 
-        float yawDelta = MathHelper.wrapDegrees(endYaw - startYaw);
+        float yawDelta = Mth.wrapDegrees(endYaw - startYaw);
         if (yawDelta > SOURCE_MAX_AIR_YAW_DELTA) {
             yawDelta = (float) SOURCE_MAX_AIR_YAW_DELTA;
         } else if (yawDelta < -SOURCE_MAX_AIR_YAW_DELTA) {
@@ -3768,16 +3784,16 @@ public abstract class LivingEntityMixin extends Entity {
         double accel = config.movement.sv_airaccelerate;
         double baseWishSpeed = getBaseWishSpeed(config);
 
-        Vec3d hv = horizontalVelocity;
+        Vec3 hv = horizontalVelocity;
         for (int i = 0; i < steps && i < 4096; i++) {
             float frac = (float) ((i + 1.0D) / steps);
-            float yawI = MathHelper.lerpAngleDegrees(frac, effectiveStartYaw, endYaw);
-            Vec3d wishVector = MovementUtil.movementInputToVelocity(new Vec3d(sI, 0.0D, fI), 1.0F, yawI);
-            double wvl = wishVector.horizontalLength();
+            float yawI = Mth.rotLerp(frac, effectiveStartYaw, endYaw);
+            Vec3 wishVector = MovementUtil.movementInputToVelocity(new Vec3(sI, 0.0D, fI), 1.0F, yawI);
+            double wvl = wishVector.horizontalDistance();
             if (wvl <= 0.0D) {
                 continue;
             }
-            Vec3d wishDir = new Vec3d(wishVector.x / wvl, 0.0D, wishVector.z / wvl);
+            Vec3 wishDir = new Vec3(wishVector.x / wvl, 0.0D, wishVector.z / wvl);
             double wishSpeed = baseWishSpeed * wvl;
             hv = accelerateSource(hv, wishDir, wishSpeed, airWishSpeedCap, accel, 1.0D, true, subFrameFraction);
         }
@@ -3788,10 +3804,10 @@ public abstract class LivingEntityMixin extends Entity {
     // and step count, returning the resulting horizontal speed. Used to find this tick's optimal
     // strafe gain so efficiency is normalized against the real physics (not a wrong closed-form cap).
     @Unique
-    private double minehop$simAirStrafeSpeed(Vec3d horizontalVelocity, double sI, double fI, MinehopConfig config,
+    private double minehop$simAirStrafeSpeed(Vec3 horizontalVelocity, double sI, double fI, MinehopConfig config,
                                              double airWishSpeedCap, float startYaw, float endYaw, int steps) {
         double subFrameFraction = 20.0D / SOURCE_SIM_TICKRATE;
-        float yawDelta = MathHelper.wrapDegrees(endYaw - startYaw);
+        float yawDelta = Mth.wrapDegrees(endYaw - startYaw);
         if (yawDelta > SOURCE_MAX_AIR_YAW_DELTA) {
             yawDelta = (float) SOURCE_MAX_AIR_YAW_DELTA;
         } else if (yawDelta < -SOURCE_MAX_AIR_YAW_DELTA) {
@@ -3800,16 +3816,16 @@ public abstract class LivingEntityMixin extends Entity {
         float effectiveStartYaw = endYaw - yawDelta;
         double accel = config.movement.sv_airaccelerate;
         double baseWishSpeed = getBaseWishSpeed(config);
-        Vec3d hv = horizontalVelocity;
+        Vec3 hv = horizontalVelocity;
         for (int i = 0; i < steps && i < 4096; i++) {
             float frac = (float) ((i + 1.0D) / steps);
-            float yawI = MathHelper.lerpAngleDegrees(frac, effectiveStartYaw, endYaw);
-            Vec3d wishVector = MovementUtil.movementInputToVelocity(new Vec3d(sI, 0.0D, fI), 1.0F, yawI);
-            double wvl = wishVector.horizontalLength();
+            float yawI = Mth.rotLerp(frac, effectiveStartYaw, endYaw);
+            Vec3 wishVector = MovementUtil.movementInputToVelocity(new Vec3(sI, 0.0D, fI), 1.0F, yawI);
+            double wvl = wishVector.horizontalDistance();
             if (wvl <= 0.0D) {
                 continue;
             }
-            Vec3d wishDir = new Vec3d(wishVector.x / wvl, 0.0D, wishVector.z / wvl);
+            Vec3 wishDir = new Vec3(wishVector.x / wvl, 0.0D, wishVector.z / wvl);
             double wishSpeed = baseWishSpeed * wvl;
             hv = accelerateSource(hv, wishDir, wishSpeed, airWishSpeedCap, accel, 1.0D, true, subFrameFraction);
         }
@@ -3820,9 +3836,9 @@ public abstract class LivingEntityMixin extends Entity {
     // that achieves it. Returns {bestSpeed, optimalTurnAbsDeg}. Both the efficiency (gain ratio) and
     // the gauge (turn ratio) normalize against this real-physics optimum so they stay consistent.
     @Unique
-    private double[] minehop$optimalAirStrafe(Vec3d horizontalVelocity, double sI, double fI, MinehopConfig config,
+    private double[] minehop$optimalAirStrafe(Vec3 horizontalVelocity, double sI, double fI, MinehopConfig config,
                                               double airWishSpeedCap, float startYaw, int steps) {
-        double best = horizontalVelocity.horizontalLength();
+        double best = horizontalVelocity.horizontalDistance();
         double bestTurn = 0.0D;
         for (double d = -SOURCE_MAX_AIR_YAW_DELTA; d <= SOURCE_MAX_AIR_YAW_DELTA + 1.0E-6D; d += 1.0D) {
             double s = this.minehop$simAirStrafeSpeed(horizontalVelocity, sI, fI, config, airWishSpeedCap,
@@ -3843,44 +3859,44 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private Vec3d getLadderNormal() {
-        if (!this.isClimbing()) {
+    private Vec3 getLadderNormal() {
+        if (!this.onClimbable()) {
             return null;
         }
 
-        BlockPos climbPos = this.getBlockPos();
-        BlockState blockState = this.getWorld().getBlockState(climbPos);
-        if (!blockState.isIn(BlockTags.CLIMBABLE)) {
+        BlockPos climbPos = this.blockPosition();
+        BlockState blockState = this.level().getBlockState(climbPos);
+        if (!blockState.is(BlockTags.CLIMBABLE)) {
             return null;
         }
 
-        if (blockState.isOf(Blocks.LADDER) && blockState.contains(HorizontalFacingBlock.FACING)) {
-            Direction facing = blockState.get(HorizontalFacingBlock.FACING);
-            Vec3d normal = new Vec3d(facing.getOffsetX(), 0.0D, facing.getOffsetZ());
-            return normal.lengthSquared() > 1.0E-8D ? normal.normalize() : null;
+        if (blockState.is(Blocks.LADDER) && blockState.hasProperty(HorizontalDirectionalBlock.FACING)) {
+            Direction facing = blockState.getValue(HorizontalDirectionalBlock.FACING);
+            Vec3 normal = new Vec3(facing.getStepX(), 0.0D, facing.getStepZ());
+            return normal.lengthSqr() > 1.0E-8D ? normal.normalize() : null;
         }
 
         List<Direction> normalCandidates = new ArrayList<>(4);
         boolean[] usedCandidates = new boolean[4];
-        for (Direction wallDir : Direction.Type.HORIZONTAL) {
-            BlockPos supportPos = climbPos.offset(wallDir);
-            BlockState supportState = this.getWorld().getBlockState(supportPos);
-            if (supportState.isSideSolidFullSquare(this.getWorld(), supportPos, wallDir.getOpposite())) {
+        for (Direction wallDir : Direction.Plane.HORIZONTAL) {
+            BlockPos supportPos = climbPos.relative(wallDir);
+            BlockState supportState = this.level().getBlockState(supportPos);
+            if (supportState.isFaceSturdy(this.level(), supportPos, wallDir.getOpposite())) {
                 this.minehop$addLadderNormalCandidate(normalCandidates, usedCandidates, wallDir.getOpposite());
             }
         }
 
-        if (normalCandidates.isEmpty() && blockState.isOf(Blocks.VINE)) {
-            if (blockState.contains(VineBlock.NORTH) && blockState.get(VineBlock.NORTH)) {
+        if (normalCandidates.isEmpty() && blockState.is(Blocks.VINE)) {
+            if (blockState.hasProperty(VineBlock.NORTH) && blockState.getValue(VineBlock.NORTH)) {
                 this.minehop$addLadderNormalCandidate(normalCandidates, usedCandidates, Direction.SOUTH);
             }
-            if (blockState.contains(VineBlock.SOUTH) && blockState.get(VineBlock.SOUTH)) {
+            if (blockState.hasProperty(VineBlock.SOUTH) && blockState.getValue(VineBlock.SOUTH)) {
                 this.minehop$addLadderNormalCandidate(normalCandidates, usedCandidates, Direction.NORTH);
             }
-            if (blockState.contains(VineBlock.WEST) && blockState.get(VineBlock.WEST)) {
+            if (blockState.hasProperty(VineBlock.WEST) && blockState.getValue(VineBlock.WEST)) {
                 this.minehop$addLadderNormalCandidate(normalCandidates, usedCandidates, Direction.EAST);
             }
-            if (blockState.contains(VineBlock.EAST) && blockState.get(VineBlock.EAST)) {
+            if (blockState.hasProperty(VineBlock.EAST) && blockState.getValue(VineBlock.EAST)) {
                 this.minehop$addLadderNormalCandidate(normalCandidates, usedCandidates, Direction.WEST);
             }
         }
@@ -3889,36 +3905,36 @@ public abstract class LivingEntityMixin extends Entity {
             return null;
         }
 
-        Vec3d approach = new Vec3d(this.getVelocity().x, 0.0D, this.getVelocity().z);
-        if (approach.lengthSquared() < 1.0E-8D) {
-            Vec3d look = this.getRotationVector();
-            approach = new Vec3d(look.x, 0.0D, look.z);
+        Vec3 approach = new Vec3(this.getDeltaMovement().x, 0.0D, this.getDeltaMovement().z);
+        if (approach.lengthSqr() < 1.0E-8D) {
+            Vec3 look = this.getLookAngle();
+            approach = new Vec3(look.x, 0.0D, look.z);
         }
-        Vec3d approachDir = approach.lengthSquared() > 1.0E-8D ? approach.normalize() : Vec3d.ZERO;
+        Vec3 approachDir = approach.lengthSqr() > 1.0E-8D ? approach.normalize() : Vec3.ZERO;
 
-        Vec3d fromCenter = new Vec3d(
+        Vec3 fromCenter = new Vec3(
                 this.getX() - (climbPos.getX() + 0.5D),
                 0.0D,
                 this.getZ() - (climbPos.getZ() + 0.5D)
         );
-        Vec3d fromCenterDir = fromCenter.lengthSquared() > 1.0E-8D ? fromCenter.normalize() : Vec3d.ZERO;
+        Vec3 fromCenterDir = fromCenter.lengthSqr() > 1.0E-8D ? fromCenter.normalize() : Vec3.ZERO;
 
-        Vec3d best = null;
+        Vec3 best = null;
         double bestScore = Double.NEGATIVE_INFINITY;
         for (Direction candidate : normalCandidates) {
-            Vec3d normal = new Vec3d(candidate.getOffsetX(), 0.0D, candidate.getOffsetZ());
-            if (normal.lengthSquared() < 1.0E-8D) {
+            Vec3 normal = new Vec3(candidate.getStepX(), 0.0D, candidate.getStepZ());
+            if (normal.lengthSqr() < 1.0E-8D) {
                 continue;
             }
 
             double score = 0.0D;
-            if (approachDir.lengthSquared() > 1.0E-8D) {
+            if (approachDir.lengthSqr() > 1.0E-8D) {
 
-                score += -normal.dotProduct(approachDir) * 2.0D;
+                score += -normal.dot(approachDir) * 2.0D;
             }
-            if (fromCenterDir.lengthSquared() > 1.0E-8D) {
+            if (fromCenterDir.lengthSqr() > 1.0E-8D) {
 
-                score += normal.dotProduct(fromCenterDir);
+                score += normal.dot(fromCenterDir);
             }
 
             if (score > bestScore) {
@@ -3952,8 +3968,8 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private Vec3d applySourceLadderMove(Vec3d motion, double fI, double sI, Vec3d ladderNormal) {
-        if (!this.isClimbing() || ladderNormal == null) {
+    private Vec3 applySourceLadderMove(Vec3 motion, double fI, double sI, Vec3 ladderNormal) {
+        if (!this.onClimbable() || ladderNormal == null) {
             return motion;
         }
 
@@ -3962,13 +3978,13 @@ public abstract class LivingEntityMixin extends Entity {
         final double ladderAngleThreshold = -0.707D;
         final double ladderPerpDampen = 0.2D;
 
-        this.onLanding();
+        this.resetFallDistance();
 
         if (this.jumping) {
-            long now = this.getWorld().getTime();
+            long now = this.level().getGameTime();
             if (now < this.ladderReleaseTime || now > this.ladderReleaseTime + 4L) {
                 this.ladderReleaseTime = now;
-                return ladderNormal.multiply(ladderJumpDetachSpeed);
+                return ladderNormal.scale(ladderJumpDetachSpeed);
             }
             return motion;
         }
@@ -3976,50 +3992,50 @@ public abstract class LivingEntityMixin extends Entity {
         double forwardSpeed = fI * climbSpeed;
         double rightSpeed = sI * climbSpeed;
         if (Math.abs(forwardSpeed) < 1.0E-8D && Math.abs(rightSpeed) < 1.0E-8D) {
-            return Vec3d.ZERO;
+            return Vec3.ZERO;
         }
 
-        Vec3d forward = this.getRotationVector().normalize();
-        Vec3d up = new Vec3d(0.0D, 1.0D, 0.0D);
-        Vec3d right = up.crossProduct(forward);
-        if (right.lengthSquared() < 1.0E-8D) {
+        Vec3 forward = this.getLookAngle().normalize();
+        Vec3 up = new Vec3(0.0D, 1.0D, 0.0D);
+        Vec3 right = up.cross(forward);
+        if (right.lengthSqr() < 1.0E-8D) {
 
-            double yawRad = Math.toRadians(this.getYaw());
-            right = new Vec3d(Math.cos(yawRad), 0.0D, Math.sin(yawRad));
+            double yawRad = Math.toRadians(this.getYRot());
+            right = new Vec3(Math.cos(yawRad), 0.0D, Math.sin(yawRad));
         } else {
             right = right.normalize();
         }
 
-        Vec3d desiredVelocity = forward.multiply(forwardSpeed).add(right.multiply(rightSpeed));
-        Vec3d perp = up.crossProduct(ladderNormal);
-        if (perp.lengthSquared() < 1.0E-8D) {
-            return Vec3d.ZERO;
+        Vec3 desiredVelocity = forward.scale(forwardSpeed).add(right.scale(rightSpeed));
+        Vec3 perp = up.cross(ladderNormal);
+        if (perp.lengthSqr() < 1.0E-8D) {
+            return Vec3.ZERO;
         }
         perp = perp.normalize();
 
-        double normal = desiredVelocity.dotProduct(ladderNormal);
-        Vec3d intoFace = ladderNormal.multiply(normal);
-        Vec3d lateral = desiredVelocity.subtract(intoFace);
-        Vec3d tmp = ladderNormal.crossProduct(perp);
-        if (tmp.lengthSquared() < 1.0E-8D) {
-            return Vec3d.ZERO;
+        double normal = desiredVelocity.dot(ladderNormal);
+        Vec3 intoFace = ladderNormal.scale(normal);
+        Vec3 lateral = desiredVelocity.subtract(intoFace);
+        Vec3 tmp = ladderNormal.cross(perp);
+        if (tmp.lengthSqr() < 1.0E-8D) {
+            return Vec3.ZERO;
         }
         tmp = tmp.normalize();
 
-        double tmpDist = tmp.dotProduct(lateral);
-        double perpDist = perp.dotProduct(lateral);
-        Vec3d angleVec = perp.multiply(perpDist).add(intoFace);
-        if (angleVec.lengthSquared() > 1.0E-8D) {
+        double tmpDist = tmp.dot(lateral);
+        double perpDist = perp.dot(lateral);
+        Vec3 angleVec = perp.scale(perpDist).add(intoFace);
+        if (angleVec.lengthSqr() > 1.0E-8D) {
             angleVec = angleVec.normalize();
-            double angleDot = angleVec.dotProduct(ladderNormal);
+            double angleDot = angleVec.dot(ladderNormal);
             if (angleDot < ladderAngleThreshold) {
-                lateral = tmp.multiply(tmpDist).add(perp.multiply(ladderPerpDampen * perpDist));
+                lateral = tmp.scale(tmpDist).add(perp.scale(ladderPerpDampen * perpDist));
             }
         }
 
-        Vec3d ladderVelocity = lateral.add(tmp.multiply(-normal));
-        if (this.isOnGround() && normal > 0.0D) {
-            ladderVelocity = ladderVelocity.add(ladderNormal.multiply(climbSpeed));
+        Vec3 ladderVelocity = lateral.add(tmp.scale(-normal));
+        if (this.onGround() && normal > 0.0D) {
+            ladderVelocity = ladderVelocity.add(ladderNormal.scale(climbSpeed));
         }
 
         return ladderVelocity;
@@ -4027,7 +4043,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private void minehop$updateCssCrouchOffset(MinehopConfig config) {
-        boolean sneakingNow = this.isSneaking();
+        boolean sneakingNow = this.isShiftKeyDown();
         boolean sprintingNow = this.isSprinting();
         if (config == null) {
             this.cssWasSneaking = sneakingNow;
@@ -4040,11 +4056,11 @@ public abstract class LivingEntityMixin extends Entity {
         boolean cssCrouchEnabled = config.enabled
                 && config.movement.css_crouch_jump
                 && this.getType() == EntityType.PLAYER;
-        boolean airborneForSprintCarry = !this.isOnGround()
-                && !this.isClimbing()
-                && !this.isTouchingWater()
+        boolean airborneForSprintCarry = !this.onGround()
+                && !this.onClimbable()
+                && !this.isInWater()
                 && !this.isInLava()
-                && !this.isGliding();
+                && !this.isFallFlying();
 
         if (cssCrouchEnabled
                 && airborneForSprintCarry
@@ -4074,17 +4090,17 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         boolean canApply = cssCrouchEnabled
-                && this.isSneaking()
-                && !this.isClimbing()
-                && !this.isTouchingWater()
+                && this.isShiftKeyDown()
+                && !this.onClimbable()
+                && !this.isInWater()
                 && !this.isInLava()
-                && !this.isGliding();
+                && !this.isFallFlying();
 
         if (canApply && !this.cssCrouchOffsetApplied) {
-            Box upBox = this.getBoundingBox().offset(0.0D, crouchDelta, 0.0D);
-            if (this.getWorld().isSpaceEmpty(this, upBox)) {
-                this.setPosition(this.getX(), this.getY() + crouchDelta, this.getZ());
-                this.velocityDirty = true;
+            AABB upBox = this.getBoundingBox().move(0.0D, crouchDelta, 0.0D);
+            if (this.level().noCollision(this, upBox)) {
+                this.setPos(this.getX(), this.getY() + crouchDelta, this.getZ());
+                this.needsSync = true;
                 this.cssCrouchOffsetApplied = true;
                 this.cssCrouchOffsetAmount = crouchDelta;
             }
@@ -4095,16 +4111,16 @@ public abstract class LivingEntityMixin extends Entity {
                     && this.cssWasSneaking
                     && !sneakingNow
                     && airborneForSprintCarry
-                    && this.getVelocity().y <= 0.15D
+                    && this.getDeltaMovement().y <= 0.15D
                     && this.minehop$jumpHeldFromGround;
             double restoreAmount = this.cssCrouchOffsetAmount > CSS_CROUCH_DELTA_EPSILON
                     ? Math.min(this.cssCrouchOffsetAmount, crouchDelta)
                     : crouchDelta;
             double beforeY = this.getY();
-            this.move(MovementType.SELF, new Vec3d(0.0D, -restoreAmount, 0.0D));
+            this.move(MoverType.SELF, new Vec3(0.0D, -restoreAmount, 0.0D));
             double restored = beforeY - this.getY();
             if (restored > CSS_CROUCH_DELTA_EPSILON) {
-                this.velocityDirty = true;
+                this.needsSync = true;
             }
             this.cssCrouchOffsetAmount = Math.max(0.0D, restoreAmount - Math.max(restored, 0.0D));
             this.cssCrouchOffsetApplied = this.cssCrouchOffsetAmount > CSS_CROUCH_DELTA_EPSILON;
@@ -4119,15 +4135,15 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private double minehop$getCssCrouchDelta() {
-        double standingHeight = this.getDimensions(EntityPose.STANDING).height();
-        double crouchingHeight = this.getDimensions(EntityPose.CROUCHING).height();
+        double standingHeight = this.getDimensions(Pose.STANDING).height();
+        double crouchingHeight = this.getDimensions(Pose.CROUCHING).height();
         if (!Double.isFinite(standingHeight) || !Double.isFinite(crouchingHeight)) {
             return 0.0D;
         }
         return Math.max(standingHeight - crouchingHeight, 0.0D);
     }
 
-    @Inject(method = "jump", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
     void jump(CallbackInfo ci) {
         MinehopConfig config;
 
@@ -4156,8 +4172,8 @@ public abstract class LivingEntityMixin extends Entity {
 
         boolean jumpRealGroundBelow = this.minehop$hasRealGroundBelow();
 
-        if (!this.isClimbing() && !jumpRealGroundBelow) {
-            Vec3d jumpVelocity = this.getVelocity();
+        if (!this.onClimbable() && !jumpRealGroundBelow) {
+            Vec3 jumpVelocity = this.getDeltaMovement();
             double jumpHorizontal = this.getHorizontalSpeed(jumpVelocity);
             SurfContact groundedLandingSupport = this.findJumpRampSupportContact(this.getBoundingBox(), jumpVelocity);
             boolean jumpNearSurfSupport = this.isNearSurfRamp()
@@ -4170,18 +4186,18 @@ public abstract class LivingEntityMixin extends Entity {
                     || this.isReusableSurfContact(this.lastSurfContact);
             boolean jumpRecentlySurfSuppressed = this.surfJumpSuppressTicks > 0
                     && jumpHorizontal >= SURF_JUMP_SUPPRESS_MIN_HORIZONTAL
-                    && (this.isOnGround() || jumpVelocity.y <= SURF_GROUND_SUPPRESS_ON_GROUND_MAX_VERTICAL + 0.06D);
+                    && (this.onGround() || jumpVelocity.y <= SURF_GROUND_SUPPRESS_ON_GROUND_MAX_VERTICAL + 0.06D);
             if (jumpRecentlySurfSuppressed) {
-                this.velocityDirty = true;
+                this.needsSync = true;
                 ci.cancel();
                 return;
             }
             boolean groundedSurfSupportNow = this.isReusableSurfContact(groundedLandingSupport);
             if (!groundedSurfSupportNow
-                    && this.isOnGround()
+                    && this.onGround()
                     && this.isNearSurfRamp()
                     && jumpHorizontal >= SURF_JUMP_SUPPRESS_MIN_HORIZONTAL) {
-                Box jumpBox = this.getBoundingBox();
+                AABB jumpBox = this.getBoundingBox();
                 SurfContact jumpWideSupport = this.findNearestSurfContactFallback(
                         this.getX(),
                         this.getZ(),
@@ -4192,16 +4208,16 @@ public abstract class LivingEntityMixin extends Entity {
                 );
                 groundedSurfSupportNow = this.isReusableSurfContact(jumpWideSupport);
             }
-            if (this.isOnGround()
+            if (this.onGround()
                     && groundedSurfSupportNow
                     && jumpHorizontal >= SURF_JUMP_SUPPRESS_MIN_HORIZONTAL
                     && jumpVelocity.y <= SURF_GROUND_SUPPRESS_ON_GROUND_MAX_VERTICAL + 0.10D) {
                 this.surfJumpSuppressTicks = Math.max(this.surfJumpSuppressTicks, SURF_JUMP_SUPPRESS_TICKS);
-                this.velocityDirty = true;
+                this.needsSync = true;
                 ci.cancel();
                 return;
             }
-            boolean groundedRampLandingFrame = this.isOnGround()
+            boolean groundedRampLandingFrame = this.onGround()
                     && jumpVelocity.y <= SURF_GROUND_SUPPRESS_ON_GROUND_MAX_VERTICAL
                     && jumpHorizontal >= SURF_GROUND_SUPPRESS_ON_GROUND_MIN_HORIZONTAL
                     && this.isReusableSurfContact(groundedLandingSupport);
@@ -4210,37 +4226,37 @@ public abstract class LivingEntityMixin extends Entity {
                         this.surfGroundSuppressTicks,
                         SURF_GROUND_SUPPRESS_ON_GROUND_TICKS
                 );
-                this.velocityDirty = true;
+                this.needsSync = true;
                 ci.cancel();
                 return;
             }
             if (jumpSurfLatched
                     && jumpHorizontal >= SURF_GROUND_SUPPRESS_MIN_HORIZONTAL
-                    && (this.isOnGround() || jumpVelocity.y <= SURF_GROUND_SUPPRESS_ON_GROUND_MAX_VERTICAL)
+                    && (this.onGround() || jumpVelocity.y <= SURF_GROUND_SUPPRESS_ON_GROUND_MAX_VERTICAL)
                     && (jumpNearSurfSupport
                     || this.surfGroundSuppressTicks > 0
                     || this.surfContactGraceTicks > 0
                     || this.surfCollisionBypassGraceTicks > 0)) {
-                this.velocityDirty = true;
+                this.needsSync = true;
                 ci.cancel();
                 return;
             }
         }
 
         SurfContact jumpSurfContact = jumpRealGroundBelow ? null : this.findSurfContact();
-        if (jumpSurfContact == null && !this.isClimbing() && !jumpRealGroundBelow) {
-            SurfContact jumpSupportContact = this.findJumpRampSupportContact(this.getBoundingBox(), this.getVelocity());
+        if (jumpSurfContact == null && !this.onClimbable() && !jumpRealGroundBelow) {
+            SurfContact jumpSupportContact = this.findJumpRampSupportContact(this.getBoundingBox(), this.getDeltaMovement());
             if (this.isReusableSurfContact(jumpSupportContact)) {
                 jumpSurfContact = jumpSupportContact;
             }
         }
-        boolean jumpSurfGraceContact = !this.isClimbing()
+        boolean jumpSurfGraceContact = !this.onClimbable()
                 && !jumpRealGroundBelow
                 && (this.isNearSurfRamp() || this.isReusableSurfContact(this.lastSurfContact))
                 && this.isReusableSurfContact(this.lastSurfContact)
                 && (this.surfContactGraceTicks > 0 || this.surfCollisionBypassGraceTicks > 0);
-        if ((jumpSurfContact != null || jumpSurfGraceContact) && !this.isClimbing()) {
-            this.velocityDirty = true;
+        if ((jumpSurfContact != null || jumpSurfGraceContact) && !this.onClimbable()) {
+            this.needsSync = true;
             ci.cancel();
             return;
         }
@@ -4248,8 +4264,8 @@ public abstract class LivingEntityMixin extends Entity {
         // Shared cooldown with the coyote buffer in travel(): if we already jumped within the last
         // few ticks, don't fire again (prevents the buffer + vanilla path double-jumping). Far below
         // the bhop air cycle, so legit consecutive bhops are unaffected.
-        if (((Object) this) instanceof PlayerEntity && this.minehop$jumpCooldownTicks > 0) {
-            this.velocityDirty = true;
+        if (((Object) this) instanceof Player && this.minehop$jumpCooldownTicks > 0) {
+            this.needsSync = true;
             ci.cancel();
             return;
         }
@@ -4259,21 +4275,21 @@ public abstract class LivingEntityMixin extends Entity {
         // vanilla calls jump() during a client/server onGround desync) — that would be the "walk off
         // a platform then jump in the air" bug. The coyote buffer in travel() is the only sanctioned
         // non-onGround jump and it requires ground within 0.20 below at the firing tick.
-        if (((Object) this) instanceof PlayerEntity && !this.isOnGround() && !jumpRealGroundBelow) {
-            this.velocityDirty = true;
+        if (((Object) this) instanceof Player && !this.onGround() && !jumpRealGroundBelow) {
+            this.needsSync = true;
             ci.cancel();
             return;
         }
 
-        Vec3d vecFin = this.getVelocity();
+        Vec3 vecFin = this.getDeltaMovement();
         double yVel = config.movement.sv_jump_impulse * SOURCE_UNIT_TO_BLOCKS_PER_TICK;
-        if (this.hasStatusEffect(StatusEffects.JUMP_BOOST)) {
-            yVel += 0.1F * (this.getStatusEffect(StatusEffects.JUMP_BOOST).getAmplifier() + 1);
+        if (this.hasEffect(MobEffects.JUMP_BOOST)) {
+            yVel += 0.1F * (this.getEffect(MobEffects.JUMP_BOOST).getAmplifier() + 1);
         }
 
-        this.setVelocity(vecFin.x, yVel, vecFin.z);
-        this.velocityDirty = true;
-        if (((Object) this) instanceof PlayerEntity) {
+        this.setDeltaMovement(vecFin.x, yVel, vecFin.z);
+        this.needsSync = true;
+        if (((Object) this) instanceof Player) {
             this.minehop$jumpCooldownTicks = SURF_JUMP_BUFFER_COOLDOWN;
             this.minehop$descendedSinceJump = false; // must descend/land again before the coyote buffer can fire
         }
@@ -4281,7 +4297,7 @@ public abstract class LivingEntityMixin extends Entity {
         ci.cancel();
     }
 
-    @Inject(method = "getStepHeight", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "maxUpStep", at = @At("HEAD"), cancellable = true)
     private void minehop$applyAutoStepUp(CallbackInfoReturnable<Float> cir) {
         if (this.getType() != EntityType.PLAYER) {
             return;
@@ -4304,7 +4320,7 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
 
-        if (this.isClimbing() || this.isTouchingWater() || this.isInLava() || this.isGliding()) {
+        if (this.onClimbable() || this.isInWater() || this.isInLava() || this.isFallFlying()) {
             return;
         }
 
@@ -4320,12 +4336,12 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private void minehop$tryForcedAutoStepUp(Vec3d attemptedMove, Vec3d posBeforeMove, SurfContact preMoveSurfContact) {
+    private void minehop$tryForcedAutoStepUp(Vec3 attemptedMove, Vec3 posBeforeMove, SurfContact preMoveSurfContact) {
         if (!this.horizontalCollision) {
             return;
         }
 
-        if (this.isClimbing() || this.isTouchingWater() || this.isInLava() || this.isGliding()) {
+        if (this.onClimbable() || this.isInWater() || this.isInLava() || this.isFallFlying()) {
             return;
         }
 
@@ -4342,8 +4358,8 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
 
-        Vec3d moved = this.getPos().subtract(posBeforeMove);
-        Vec3d remainder = new Vec3d(attemptedMove.x - moved.x, 0.0D, attemptedMove.z - moved.z);
+        Vec3 moved = this.position().subtract(posBeforeMove);
+        Vec3 remainder = new Vec3(attemptedMove.x - moved.x, 0.0D, attemptedMove.z - moved.z);
         double remainderSq = remainder.x * remainder.x + remainder.z * remainder.z;
         if (remainderSq < 1.0E-8D) {
             double attemptedHorizontal = Math.sqrt(attemptedHorizontalSq);
@@ -4352,28 +4368,28 @@ public abstract class LivingEntityMixin extends Entity {
             }
 
             double nudge = Math.min(0.35D, attemptedHorizontal);
-            remainder = new Vec3d((attemptedMove.x / attemptedHorizontal) * nudge, 0.0D, (attemptedMove.z / attemptedHorizontal) * nudge);
+            remainder = new Vec3((attemptedMove.x / attemptedHorizontal) * nudge, 0.0D, (attemptedMove.z / attemptedHorizontal) * nudge);
             remainderSq = remainder.x * remainder.x + remainder.z * remainder.z;
             if (remainderSq < 1.0E-8D) {
                 return;
             }
         }
 
-        Vec3d attemptedHorizontal = new Vec3d(attemptedMove.x, 0.0D, attemptedMove.z);
-        Vec3d halfRemainder = remainder.multiply(0.5D);
-        Vec3d[] cornerCandidates = new Vec3d[]{
+        Vec3 attemptedHorizontal = new Vec3(attemptedMove.x, 0.0D, attemptedMove.z);
+        Vec3 halfRemainder = remainder.scale(0.5D);
+        Vec3[] cornerCandidates = new Vec3[]{
                 remainder,
-                new Vec3d(remainder.x, 0.0D, 0.0D),
-                new Vec3d(0.0D, 0.0D, remainder.z),
+                new Vec3(remainder.x, 0.0D, 0.0D),
+                new Vec3(0.0D, 0.0D, remainder.z),
                 halfRemainder,
                 attemptedHorizontal,
-                new Vec3d(attemptedMove.x, 0.0D, 0.0D),
-                new Vec3d(0.0D, 0.0D, attemptedMove.z)
+                new Vec3(attemptedMove.x, 0.0D, 0.0D),
+                new Vec3(0.0D, 0.0D, attemptedMove.z)
         };
 
-        Box currentBox = this.getBoundingBox();
+        AABB currentBox = this.getBoundingBox();
         for (double stepHeight : AUTO_STEP_HEIGHT_CANDIDATES) {
-            for (Vec3d horizontalOffset : cornerCandidates) {
+            for (Vec3 horizontalOffset : cornerCandidates) {
                 if (this.minehop$tryForcedStepCandidate(currentBox, horizontalOffset, stepHeight, attemptedMove)) {
                     return;
                 }
@@ -4382,19 +4398,19 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Unique
-    private boolean minehop$tryForcedStepCandidate(Box currentBox, Vec3d horizontalOffset, double stepHeight, Vec3d attemptedMove) {
+    private boolean minehop$tryForcedStepCandidate(AABB currentBox, Vec3 horizontalOffset, double stepHeight, Vec3 attemptedMove) {
         double horizontalSq = horizontalOffset.x * horizontalOffset.x + horizontalOffset.z * horizontalOffset.z;
         if (horizontalSq < 1.0E-8D) {
             return false;
         }
 
-        Box raisedBox = currentBox.offset(0.0D, stepHeight, 0.0D);
-        if (!this.getWorld().isSpaceEmpty(this, raisedBox)) {
+        AABB raisedBox = currentBox.move(0.0D, stepHeight, 0.0D);
+        if (!this.level().noCollision(this, raisedBox)) {
             return false;
         }
 
-        Box finalBox = raisedBox.offset(horizontalOffset.x, 0.0D, horizontalOffset.z);
-        if (!this.getWorld().isSpaceEmpty(this, finalBox)) {
+        AABB finalBox = raisedBox.move(horizontalOffset.x, 0.0D, horizontalOffset.z);
+        if (!this.level().noCollision(this, finalBox)) {
             return false;
         }
 
@@ -4408,24 +4424,24 @@ public abstract class LivingEntityMixin extends Entity {
             return false;
         }
 
-        Box snappedFinalBox = currentBox.offset(horizontalOffset.x, exactStep, horizontalOffset.z);
-        if (!this.getWorld().isSpaceEmpty(this, snappedFinalBox)) {
+        AABB snappedFinalBox = currentBox.move(horizontalOffset.x, exactStep, horizontalOffset.z);
+        if (!this.level().noCollision(this, snappedFinalBox)) {
             return false;
         }
 
-        this.setPosition(this.getX() + horizontalOffset.x, supportY, this.getZ() + horizontalOffset.z);
+        this.setPos(this.getX() + horizontalOffset.x, supportY, this.getZ() + horizontalOffset.z);
 
-        Vec3d currentVelocity = this.getVelocity();
-        this.setVelocity(attemptedMove.x, Math.max(currentVelocity.y, 0.0D), attemptedMove.z);
+        Vec3 currentVelocity = this.getDeltaMovement();
+        this.setDeltaMovement(attemptedMove.x, Math.max(currentVelocity.y, 0.0D), attemptedMove.z);
         this.horizontalCollision = false;
-        this.velocityDirty = true;
+        this.needsSync = true;
         // M9: tell the anticheat this tick's displacement includes an authorized step-up.
         this.minehop$stepUpGraceTicks = STEP_UP_AC_GRACE_TICKS;
         return true;
     }
 
     @Unique
-    private double minehop$findBestAutoStepSupportY(Box currentBox, Box targetBox) {
+    private double minehop$findBestAutoStepSupportY(AABB currentBox, AABB targetBox) {
         double minX = targetBox.minX + 1.0E-3D;
         double maxX = targetBox.maxX - 1.0E-3D;
         double minZ = targetBox.minZ + 1.0E-3D;
@@ -4436,26 +4452,26 @@ public abstract class LivingEntityMixin extends Entity {
 
         double minAllowedTop = currentBox.minY + AUTO_STEP_SURFACE_EPSILON;
         double maxAllowedTop = targetBox.minY + AUTO_STEP_SURFACE_EPSILON;
-        int minY = MathHelper.floor(currentBox.minY - 1.0D);
-        int maxY = MathHelper.floor(targetBox.minY + AUTO_STEP_SURFACE_EPSILON);
+        int minY = Mth.floor(currentBox.minY - 1.0D);
+        int maxY = Mth.floor(targetBox.minY + AUTO_STEP_SURFACE_EPSILON);
 
         double bestTop = Double.NEGATIVE_INFINITY;
-        ShapeContext shapeContext = ShapeContext.of(this);
+        CollisionContext shapeContext = CollisionContext.of(this);
         for (int y = minY; y <= maxY; y++) {
-            for (int x = MathHelper.floor(minX); x <= MathHelper.floor(maxX); x++) {
-                for (int z = MathHelper.floor(minZ); z <= MathHelper.floor(maxZ); z++) {
+            for (int x = Mth.floor(minX); x <= Mth.floor(maxX); x++) {
+                for (int z = Mth.floor(minZ); z <= Mth.floor(maxZ); z++) {
                     BlockPos pos = new BlockPos(x, y, z);
-                    BlockState state = this.getWorld().getBlockState(pos);
+                    BlockState state = this.level().getBlockState(pos);
                     if (state.isAir()) {
                         continue;
                     }
 
-                    VoxelShape shape = state.getCollisionShape(this.getWorld(), pos, shapeContext);
+                    VoxelShape shape = state.getCollisionShape(this.level(), pos, shapeContext);
                     if (shape.isEmpty()) {
                         continue;
                     }
 
-                    for (Box shapePart : shape.getBoundingBoxes()) {
+                    for (AABB shapePart : shape.toAabbs()) {
                         double partMinX = pos.getX() + shapePart.minX;
                         double partMaxX = pos.getX() + shapePart.maxX;
                         double partMinZ = pos.getZ() + shapePart.minZ;
@@ -4480,7 +4496,7 @@ public abstract class LivingEntityMixin extends Entity {
         return bestTop == Double.NEGATIVE_INFINITY ? Double.NaN : bestTop;
     }
 
-    private static boolean isFlying(PlayerEntity player) {
+    private static boolean isFlying(Player player) {
         return player != null && player.getAbilities().flying;
     }
 }

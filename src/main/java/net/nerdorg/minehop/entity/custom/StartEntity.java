@@ -1,19 +1,19 @@
 package net.nerdorg.minehop.entity.custom;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.attribute.DefaultAttributeContainer;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
@@ -42,13 +42,13 @@ public class StartEntity extends Zone {
     // Circle-bhopping never goes below walk, so it never (re)arms -> no free reset.
     private final Set<String> startArmed = new HashSet<>();
 
-    public StartEntity(EntityType<? extends MobEntity> entityType, World world) {
+    public StartEntity(EntityType<? extends Mob> entityType, Level world) {
         super(entityType, world);
     }
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
+    public void addAdditionalSaveData(ValueOutput nbt) {
+        super.addAdditionalSaveData(nbt);
         if (corner1 != null) {
             nbt.putInt("Corner1X", corner1.getX());
             nbt.putInt("Corner1Y", corner1.getY());
@@ -61,22 +61,22 @@ public class StartEntity extends Zone {
         }
     }
 
-    public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
-        return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+    public static AttributeSupplier.Builder createResetEntityAttributes() {
+        return Mob.createMobAttributes()
+                .add(Attributes.MAX_HEALTH, 1000000);
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
-        int x1 = nbt.getInt("Corner1X");
-        int y1 = nbt.getInt("Corner1Y");
-        int z1 = nbt.getInt("Corner1Z");
+    public void readAdditionalSaveData(ValueInput nbt) {
+        super.readAdditionalSaveData(nbt);
+        int x1 = nbt.getIntOr("Corner1X", 0);
+        int y1 = nbt.getIntOr("Corner1Y", 0);
+        int z1 = nbt.getIntOr("Corner1Z", 0);
         corner1 = new BlockPos(x1, y1, z1);
 
-        int x2 = nbt.getInt("Corner2X");
-        int y2 = nbt.getInt("Corner2Y");
-        int z2 = nbt.getInt("Corner2Z");
+        int x2 = nbt.getIntOr("Corner2X", 0);
+        int y2 = nbt.getIntOr("Corner2Y", 0);
+        int z2 = nbt.getIntOr("Corner2Z", 0);
         corner2 = new BlockPos(x2, y2, z2);
     }
 
@@ -99,28 +99,28 @@ public class StartEntity extends Zone {
     @Override
     public void tick() {
         this.updateInteractionBounds(this.corner1, this.corner2);
-        World world = this.getWorld();
-        if (world instanceof ServerWorld serverWorld) {
-            if (serverWorld.getTime() % 2 == 0) {
+        Level world = this.level();
+        if (world instanceof ServerLevel serverWorld) {
+            if (serverWorld.getGameTime() % 2 == 0) {
                 if (this.corner1 != null && this.corner2 != null) {
-                    Vec3d center = this.getBoundsCenter(this.corner1, this.corner2);
-                    this.requestTeleport(center.x, center.y, center.z);
+                    Vec3 center = this.getBoundsCenter(this.corner1, this.corner2);
+                    this.teleportTo(center.x, center.y, center.z);
                 }
-                for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
+                for (ServerPlayer worldPlayer : serverWorld.players()) {
                     PacketHandler.updateZone(worldPlayer, this.getId(), this.corner1, this.corner2, this.getPairedMap(), 0);
                 }
             }
             if (this.corner1 != null && this.corner2 != null) {
                 DataManager.MapData pairedMap = DataManager.getMap(this.getPairedMap());
                 if (pairedMap != null) {
-                    Box colliderBox = this.getBoundsBox();
-                    List<ServerPlayerEntity> players = serverWorld.getPlayers();
-                    for (ServerPlayerEntity player : players) {
-                        String playerName = player.getNameForScoreboard();
-                        boolean insideStartZone = colliderBox.contains(player.getPos());
+                    AABB colliderBox = this.getBoundsBox();
+                    List<ServerPlayer> players = serverWorld.players();
+                    for (ServerPlayer player : players) {
+                        String playerName = player.getScoreboardName();
+                        boolean insideStartZone = colliderBox.contains(player.position());
                         boolean runner = !player.isCreative() && !player.isSpectator();
                         if (runner && insideStartZone) {
-                            Minehop.playerMapLocation.put(player.getUuidAsString(), this);
+                            Minehop.playerMapLocation.put(player.getStringUUID(), this);
                             boolean grounded = Minehop.groundedList.contains(playerName);
                             // Anti-exploit: entering the start zone while AIRBORNE (and not already
                             // inside last tick) is a re-entry to reset the timer without losing
@@ -130,7 +130,7 @@ public class StartEntity extends Zone {
                                 fullStopPlayer(player);
                             }
                             clampPlayerToStartZoneSpeed(player);
-                            Vec3d vel = player.getVelocity();
+                            Vec3 vel = player.getDeltaMovement();
                             double horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
                             if (grounded) {
                                 // Arm a fresh start by slowing below walk on the ground (so circling,
@@ -141,7 +141,7 @@ public class StartEntity extends Zone {
                                 // While armed + grounded, hold the timer at 0 (ground prestrafe is
                                 // free); it begins the moment they leave the ground (below).
                                 if (this.startArmed.contains(playerName)) {
-                                    Minehop.playerMapLocation.put(player.getUuidAsString(), this);
+                                    Minehop.playerMapLocation.put(player.getStringUUID(), this);
                                     HashMap<String, Long> informationMap = new HashMap<>();
                                     informationMap.put(this.getPairedMap(), System.nanoTime());
                                     if (ReplayEvents.replayEntryMap.containsKey(playerName)) {
@@ -187,52 +187,52 @@ public class StartEntity extends Zone {
         super.tick();
     }
 
-    public static boolean isPlayerInsideAnyStartZone(ServerPlayerEntity player) {
+    public static boolean isPlayerInsideAnyStartZone(ServerPlayer player) {
         return getStartZoneForPlayer(player) != null;
     }
 
-    public static StartEntity getStartZoneForPlayer(ServerPlayerEntity player) {
-        if (player == null || !(player.getWorld() instanceof ServerWorld serverWorld)) {
+    public static StartEntity getStartZoneForPlayer(ServerPlayer player) {
+        if (player == null || !(player.level() instanceof ServerLevel serverWorld)) {
             return null;
         }
-        for (Entity entity : serverWorld.iterateEntities()) {
+        for (Entity entity : serverWorld.getAllEntities()) {
             if (!(entity instanceof StartEntity startEntity)) {
                 continue;
             }
             if (startEntity.corner1 == null || startEntity.corner2 == null) {
                 continue;
             }
-            if (startEntity.getBoundsBox().contains(player.getPos())) {
+            if (startEntity.getBoundsBox().contains(player.position())) {
                 return startEntity;
             }
         }
         return null;
     }
 
-    public static void fullStopPlayer(ServerPlayerEntity player) {
+    public static void fullStopPlayer(ServerPlayer player) {
         if (player == null) {
             return;
         }
-        player.setVelocity(0.0D, 0.0D, 0.0D);
-        player.velocityDirty = true;
-        player.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(player));
+        player.setDeltaMovement(0.0D, 0.0D, 0.0D);
+        player.needsSync = true;
+        player.connection.send(new ClientboundSetEntityMotionPacket(player));
     }
 
-    public static void clampPlayerToStartZoneSpeed(ServerPlayerEntity player) {
+    public static void clampPlayerToStartZoneSpeed(ServerPlayer player) {
         if (player == null) {
             return;
         }
-        Vec3d velocity = player.getVelocity();
-        Vec3d clamped = clampVelocityToStartZoneSpeed(player, velocity);
+        Vec3 velocity = player.getDeltaMovement();
+        Vec3 clamped = clampVelocityToStartZoneSpeed(player, velocity);
         if (clamped == velocity || clamped.equals(velocity)) {
             return;
         }
-        player.setVelocity(clamped.x, clamped.y, clamped.z);
-        player.velocityDirty = true;
-        player.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(player));
+        player.setDeltaMovement(clamped.x, clamped.y, clamped.z);
+        player.needsSync = true;
+        player.connection.send(new ClientboundSetEntityMotionPacket(player));
     }
 
-    public static Vec3d clampVelocityToStartZoneSpeed(ServerPlayerEntity player, Vec3d velocity) {
+    public static Vec3 clampVelocityToStartZoneSpeed(ServerPlayer player, Vec3 velocity) {
         if (player == null || velocity == null) {
             return velocity;
         }
@@ -242,10 +242,10 @@ public class StartEntity extends Zone {
             return velocity;
         }
         double scale = maxHorizontalSpeed / horizontalSpeed;
-        return new Vec3d(velocity.x * scale, velocity.y, velocity.z * scale);
+        return new Vec3(velocity.x * scale, velocity.y, velocity.z * scale);
     }
 
-    public static double getStartZoneSpeedLimit(ServerPlayerEntity player) {
+    public static double getStartZoneSpeedLimit(ServerPlayer player) {
         MinehopConfig config = ConfigWrapper.getEffectiveConfig(player);
         double maxAirSpeed = config == null ? 30.0D : config.movement.sv_maxairspeed;
         double speedCoefficient = config == null ? 1.0D : config.movement.speed_coefficient;
@@ -258,7 +258,7 @@ public class StartEntity extends Zone {
         return Math.max(maxAirSpeed * SOURCE_UNIT_TO_BLOCKS_PER_TICK * Math.max(speedCoefficient, 0.0D), 0.0D);
     }
 
-    private Box getBoundsBox() {
+    private AABB getBoundsBox() {
         double minX = Math.min(this.corner1.getX(), this.corner2.getX());
         double minY = Math.min(this.corner1.getY(), this.corner2.getY());
         double minZ = Math.min(this.corner1.getZ(), this.corner2.getZ());
@@ -274,6 +274,6 @@ public class StartEntity extends Zone {
         if (maxZ <= minZ) {
             maxZ = minZ + 1.0D;
         }
-        return new Box(minX, minY, minZ, maxX, maxY, maxZ);
+        return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }
 }

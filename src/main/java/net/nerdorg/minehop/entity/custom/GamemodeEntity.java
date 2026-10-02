@@ -1,29 +1,28 @@
 package net.nerdorg.minehop.entity.custom;
 
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.attribute.DefaultAttributeContainer;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.world.World;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.level.Level;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.PacketHandler;
 
 public class GamemodeEntity extends Zone {
-    public GamemodeEntity(EntityType<? extends MobEntity> entityType, World world) {
+    public GamemodeEntity(EntityType<? extends Mob> entityType, Level world) {
         super(entityType, world);
     }
 
-    public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
-        return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+    public static AttributeSupplier.Builder createResetEntityAttributes() {
+        return Mob.createMobAttributes()
+                .add(Attributes.MAX_HEALTH, 1000000);
     }
 
     @Override
     public void tick() {
-        World world = this.getWorld();
-        if (world instanceof ServerWorld serverWorld) {
+        Level world = this.level();
+        if (world instanceof ServerLevel serverWorld) {
             DataManager.MapData pairedMap = DataManager.getMap(this.getPairedMap());
             if (pairedMap == null) {
                 this.kill(serverWorld);

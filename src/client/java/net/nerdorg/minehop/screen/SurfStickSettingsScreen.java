@@ -1,33 +1,34 @@
 package net.nerdorg.minehop.screen;
 
-import com.mojang.blaze3d.systems.RenderSystem;
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.model.BakedModel;
-import net.minecraft.client.texture.Sprite;
-import net.minecraft.client.texture.SpriteAtlasTexture;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.registry.Registries;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.RotationAxis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.nerdorg.minehop.networking.ClientPacketHandler;
+import net.nerdorg.minehop.client.RampPreviewGuiElementRenderState;
 import net.nerdorg.minehop.render.ModRenderLayer;
 import net.nerdorg.minehop.util.SurfRampVisualStyle;
 import org.joml.Matrix4f;
-
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.math.Axis;
 import java.util.Locale;
 
 @Environment(EnvType.CLIENT)
@@ -45,17 +46,17 @@ public class SurfStickSettingsScreen extends Screen {
     private final int initialWireframeFillColor;
     private final int initialWireframeFillAlpha;
 
-    private TextFieldWidget widthField;
-    private TextFieldWidget dropField;
-    private TextFieldWidget textureField;
-    private TextFieldWidget wireColorField;
-    private TextFieldWidget fillColorField;
-    private TextFieldWidget fillAlphaField;
-    private ButtonWidget sidesButton;
-    private ButtonWidget curveFaceButton;
-    private ButtonWidget modeButton;
-    private ButtonWidget fillToggleButton;
-    private ButtonWidget deleteButton;
+    private EditBox widthField;
+    private EditBox dropField;
+    private EditBox textureField;
+    private EditBox wireColorField;
+    private EditBox fillColorField;
+    private EditBox fillAlphaField;
+    private Button sidesButton;
+    private Button curveFaceButton;
+    private Button modeButton;
+    private Button fillToggleButton;
+    private Button deleteButton;
 
     private String selectedRenderMode;
     private boolean selectedOneSided;
@@ -82,7 +83,7 @@ public class SurfStickSettingsScreen extends Screen {
             int wireframeFillAlpha,
             boolean editingExisting
     ) {
-        super(Text.translatable("screen.minehop.surf_stick_settings.title"));
+        super(Component.translatable("screen.minehop.surf_stick_settings.title"));
         this.initialWidth = width;
         this.initialDrop = drop;
         this.initialTextureBlockId = textureBlockId == null || textureBlockId.isBlank()
@@ -108,11 +109,11 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void extractBlurredBackground(GuiGraphicsExtractor context) {
     }
 
     @Override
-    public void blur() {
+    public void clearFocus() {
     }
 
     @Override
@@ -137,108 +138,108 @@ public class SurfStickSettingsScreen extends Screen {
         int fillRow = panelY + 212;
         int fillAlphaRow = panelY + 238;
 
-        this.widthField = new TextFieldWidget(this.textRenderer, fieldX, widthRow, fieldWidth, 18, Text.translatable("screen.minehop.surf_stick_settings.width"));
-        this.widthField.setText(String.format(Locale.ROOT, "%.2f", this.initialWidth));
+        this.widthField = new EditBox(this.font, fieldX, widthRow, fieldWidth, 18, Component.translatable("screen.minehop.surf_stick_settings.width"));
+        this.widthField.setValue(String.format(Locale.ROOT, "%.2f", this.initialWidth));
         this.widthField.setMaxLength(16);
-        this.addDrawableChild(this.widthField);
+        this.addRenderableWidget(this.widthField);
 
-        this.dropField = new TextFieldWidget(this.textRenderer, fieldX, dropRow, fieldWidth, 18, Text.translatable("screen.minehop.surf_stick_settings.drop"));
-        this.dropField.setText(String.format(Locale.ROOT, "%.2f", this.initialDrop));
+        this.dropField = new EditBox(this.font, fieldX, dropRow, fieldWidth, 18, Component.translatable("screen.minehop.surf_stick_settings.drop"));
+        this.dropField.setValue(String.format(Locale.ROOT, "%.2f", this.initialDrop));
         this.dropField.setMaxLength(16);
-        this.addDrawableChild(this.dropField);
+        this.addRenderableWidget(this.dropField);
 
-        this.textureField = new TextFieldWidget(this.textRenderer, fieldX, textureRow, fieldWidth, 18, Text.translatable("screen.minehop.surf_stick_settings.texture"));
-        this.textureField.setText(this.initialTextureBlockId);
+        this.textureField = new EditBox(this.font, fieldX, textureRow, fieldWidth, 18, Component.translatable("screen.minehop.surf_stick_settings.texture"));
+        this.textureField.setValue(this.initialTextureBlockId);
         this.textureField.setMaxLength(128);
-        this.addDrawableChild(this.textureField);
+        this.addRenderableWidget(this.textureField);
 
-        this.sidesButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.toggleSides())
-                        .dimensions(fieldX, sidesRow, fieldWidth, 20)
+        this.sidesButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.toggleSides())
+                        .bounds(fieldX, sidesRow, fieldWidth, 20)
                         .build()
         );
 
-        this.curveFaceButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.toggleCurveFace())
-                        .dimensions(fieldX, curveRow, fieldWidth, 20)
+        this.curveFaceButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.toggleCurveFace())
+                        .bounds(fieldX, curveRow, fieldWidth, 20)
                         .build()
         );
 
-        this.modeButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.cycleRenderMode())
-                        .dimensions(fieldX, modeRow, fieldWidth, 20)
+        this.modeButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.cycleRenderMode())
+                        .bounds(fieldX, modeRow, fieldWidth, 20)
                         .build()
         );
 
-        this.wireColorField = new TextFieldWidget(
-                this.textRenderer,
+        this.wireColorField = new EditBox(
+                this.font,
                 fieldX,
                 wireColorRow,
                 fieldWidth,
                 18,
-                Text.translatable("screen.minehop.surf_stick_settings.wire_color")
+                Component.translatable("screen.minehop.surf_stick_settings.wire_color")
         );
-        this.wireColorField.setText(this.formatColor(this.initialWireframeColor));
+        this.wireColorField.setValue(this.formatColor(this.initialWireframeColor));
         this.wireColorField.setMaxLength(9);
-        this.addDrawableChild(this.wireColorField);
+        this.addRenderableWidget(this.wireColorField);
 
-        this.fillToggleButton = this.addDrawableChild(
-                ButtonWidget.builder(Text.empty(), button -> this.toggleFill())
-                        .dimensions(fieldX, fillRow, 82, 20)
+        this.fillToggleButton = this.addRenderableWidget(
+                Button.builder(Component.empty(), button -> this.toggleFill())
+                        .bounds(fieldX, fillRow, 82, 20)
                         .build()
         );
 
-        this.fillColorField = new TextFieldWidget(
-                this.textRenderer,
+        this.fillColorField = new EditBox(
+                this.font,
                 fieldX + 88,
                 fillRow + 1,
                 Math.max(24, fieldWidth - 88),
                 18,
-                Text.translatable("screen.minehop.surf_stick_settings.fill_color")
+                Component.translatable("screen.minehop.surf_stick_settings.fill_color")
         );
-        this.fillColorField.setText(this.formatColor(this.initialWireframeFillColor));
+        this.fillColorField.setValue(this.formatColor(this.initialWireframeFillColor));
         this.fillColorField.setMaxLength(9);
-        this.addDrawableChild(this.fillColorField);
+        this.addRenderableWidget(this.fillColorField);
 
-        this.fillAlphaField = new TextFieldWidget(
-                this.textRenderer,
+        this.fillAlphaField = new EditBox(
+                this.font,
                 fieldX,
                 fillAlphaRow,
                 fieldWidth,
                 18,
-                Text.translatable("screen.minehop.surf_stick_settings.fill_alpha")
+                Component.translatable("screen.minehop.surf_stick_settings.fill_alpha")
         );
-        this.fillAlphaField.setText(Integer.toString(this.initialWireframeFillAlpha));
+        this.fillAlphaField.setValue(Integer.toString(this.initialWireframeFillAlpha));
         this.fillAlphaField.setMaxLength(3);
-        this.addDrawableChild(this.fillAlphaField);
+        this.addRenderableWidget(this.fillAlphaField);
 
         int buttonY = panelY + panelHeight - 24;
         if (this.editingExisting) {
             int actionX = panelX + 16;
             int actionGap = 6;
             int actionWidth = Math.max(54, (panelWidth - 32 - actionGap * 2) / 3);
-            this.addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), button -> this.applyAndClose())
-                    .dimensions(actionX, buttonY, actionWidth, 20)
+            this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> this.applyAndClose())
+                    .bounds(actionX, buttonY, actionWidth, 20)
                     .build());
-            this.deleteButton = this.addDrawableChild(
-                    ButtonWidget.builder(
-                                    Text.translatable("screen.minehop.surf_stick_settings.delete"),
+            this.deleteButton = this.addRenderableWidget(
+                    Button.builder(
+                                    Component.translatable("screen.minehop.surf_stick_settings.delete"),
                                     button -> this.deleteAndClose()
                             )
-                            .dimensions(actionX + actionWidth + actionGap, buttonY, actionWidth, 20)
+                            .bounds(actionX + actionWidth + actionGap, buttonY, actionWidth, 20)
                             .build()
             );
-            this.addDrawableChild(ButtonWidget.builder(Text.translatable("gui.cancel"), button -> this.cancelAndClose())
-                    .dimensions(actionX + (actionWidth + actionGap) * 2, buttonY, actionWidth, 20)
+            this.addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), button -> this.cancelAndClose())
+                    .bounds(actionX + (actionWidth + actionGap) * 2, buttonY, actionWidth, 20)
                     .build());
         } else {
             int actionGap = 10;
             int actionWidth = Math.max(80, (panelWidth - 40 - actionGap) / 2);
-            this.addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), button -> this.applyAndClose())
-                    .dimensions(panelX + 20, buttonY, actionWidth, 20)
+            this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> this.applyAndClose())
+                    .bounds(panelX + 20, buttonY, actionWidth, 20)
                     .build());
-            this.addDrawableChild(ButtonWidget.builder(Text.translatable("gui.cancel"), button -> this.cancelAndClose())
-                    .dimensions(panelX + 20 + actionWidth + actionGap, buttonY, actionWidth, 20)
+            this.addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), button -> this.cancelAndClose())
+                    .bounds(panelX + 20 + actionWidth + actionGap, buttonY, actionWidth, 20)
                     .build());
         }
 
@@ -251,31 +252,31 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     @Override
-    public void resize(MinecraftClient client, int width, int height) {
-        String widthText = this.widthField == null ? String.format(Locale.ROOT, "%.2f", this.initialWidth) : this.widthField.getText();
-        String dropText = this.dropField == null ? String.format(Locale.ROOT, "%.2f", this.initialDrop) : this.dropField.getText();
-        String textureText = this.textureField == null ? this.initialTextureBlockId : this.textureField.getText();
-        String wireColorText = this.wireColorField == null ? this.formatColor(this.initialWireframeColor) : this.wireColorField.getText();
-        String fillColorText = this.fillColorField == null ? this.formatColor(this.initialWireframeFillColor) : this.fillColorField.getText();
-        String fillAlphaText = this.fillAlphaField == null ? Integer.toString(this.initialWireframeFillAlpha) : this.fillAlphaField.getText();
-        super.resize(client, width, height);
+    public void resize(int width, int height) {
+        String widthText = this.widthField == null ? String.format(Locale.ROOT, "%.2f", this.initialWidth) : this.widthField.getValue();
+        String dropText = this.dropField == null ? String.format(Locale.ROOT, "%.2f", this.initialDrop) : this.dropField.getValue();
+        String textureText = this.textureField == null ? this.initialTextureBlockId : this.textureField.getValue();
+        String wireColorText = this.wireColorField == null ? this.formatColor(this.initialWireframeColor) : this.wireColorField.getValue();
+        String fillColorText = this.fillColorField == null ? this.formatColor(this.initialWireframeFillColor) : this.fillColorField.getValue();
+        String fillAlphaText = this.fillAlphaField == null ? Integer.toString(this.initialWireframeFillAlpha) : this.fillAlphaField.getValue();
+        super.resize(width, height);
         if (this.widthField != null) {
-            this.widthField.setText(widthText);
+            this.widthField.setValue(widthText);
         }
         if (this.dropField != null) {
-            this.dropField.setText(dropText);
+            this.dropField.setValue(dropText);
         }
         if (this.textureField != null) {
-            this.textureField.setText(textureText);
+            this.textureField.setValue(textureText);
         }
         if (this.wireColorField != null) {
-            this.wireColorField.setText(wireColorText);
+            this.wireColorField.setValue(wireColorText);
         }
         if (this.fillColorField != null) {
-            this.fillColorField.setText(fillColorText);
+            this.fillColorField.setValue(fillColorText);
         }
         if (this.fillAlphaField != null) {
-            this.fillAlphaField.setText(fillAlphaText);
+            this.fillAlphaField.setValue(fillAlphaText);
         }
         this.updateSidesButtonText();
         this.updateCurveFaceButtonText();
@@ -286,8 +287,8 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        this.extractBackground(context, mouseX, mouseY, delta);
 
         int panelWidth = this.panelWidth;
         int panelHeight = this.panelHeight;
@@ -296,57 +297,57 @@ public class SurfStickSettingsScreen extends Screen {
         int labelX = panelX + 18;
 
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xD0101010);
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, 0xFFFFFF);
+        context.outline(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
+        context.centeredText(this.font, this.title, this.width / 2, panelY + 10, GuiColors.text(0xFFFFFF));
 
         int normalLabelColor = 0xE0E0E0;
         int disabledLabelColor = 0x808080;
         boolean wireMode = SurfRampVisualStyle.MODE_WIREFRAME.equals(this.selectedRenderMode);
 
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.width"), labelX, panelY + 35, normalLabelColor);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.drop"), labelX, panelY + 61, normalLabelColor);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.texture"), labelX, panelY + 87, normalLabelColor);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.sides"), labelX, panelY + 113, normalLabelColor);
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.surf_stick_settings.curve_face"),
+        context.text(this.font, Component.translatable("screen.minehop.surf_stick_settings.width"), labelX, panelY + 35, GuiColors.text(normalLabelColor));
+        context.text(this.font, Component.translatable("screen.minehop.surf_stick_settings.drop"), labelX, panelY + 61, GuiColors.text(normalLabelColor));
+        context.text(this.font, Component.translatable("screen.minehop.surf_stick_settings.texture"), labelX, panelY + 87, GuiColors.text(normalLabelColor));
+        context.text(this.font, Component.translatable("screen.minehop.surf_stick_settings.sides"), labelX, panelY + 113, GuiColors.text(normalLabelColor));
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.surf_stick_settings.curve_face"),
                 labelX,
                 panelY + 139,
-                this.selectedOneSided ? normalLabelColor : disabledLabelColor
+                GuiColors.text(this.selectedOneSided ? normalLabelColor : disabledLabelColor)
         );
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.render_mode"), labelX, panelY + 165, normalLabelColor);
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.surf_stick_settings.wire_color"),
+        context.text(this.font, Component.translatable("screen.minehop.surf_stick_settings.render_mode"), labelX, panelY + 165, GuiColors.text(normalLabelColor));
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.surf_stick_settings.wire_color"),
                 labelX,
                 panelY + 191,
-                wireMode ? normalLabelColor : disabledLabelColor
+                GuiColors.text(wireMode ? normalLabelColor : disabledLabelColor)
         );
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.surf_stick_settings.fill"),
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.surf_stick_settings.fill"),
                 labelX,
                 panelY + 217,
-                wireMode ? normalLabelColor : disabledLabelColor
+                GuiColors.text(wireMode ? normalLabelColor : disabledLabelColor)
         );
-        context.drawTextWithShadow(
-                this.textRenderer,
-                Text.translatable("screen.minehop.surf_stick_settings.fill_alpha"),
+        context.text(
+                this.font,
+                Component.translatable("screen.minehop.surf_stick_settings.fill_alpha"),
                 labelX,
                 panelY + 243,
-                wireMode && this.wireframeFillEnabled ? normalLabelColor : disabledLabelColor
+                GuiColors.text(wireMode && this.wireframeFillEnabled ? normalLabelColor : disabledLabelColor)
         );
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.preview"), labelX, panelY + 264, 0xFFFFFF);
+        context.text(this.font, Component.translatable("screen.minehop.surf_stick_settings.preview"), labelX, panelY + 264, GuiColors.text(0xFFFFFF));
 
         int previewY = panelY + 276;
         int previewBottom = panelY + panelHeight - 30;
         int previewHeight = Math.max(52, previewBottom - previewY);
         this.drawRampPreview(context, panelX + 18, previewY, panelWidth - 36, previewHeight);
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
@@ -360,7 +361,7 @@ public class SurfStickSettingsScreen extends Screen {
         }
 
         int step = 26;
-        int nextOffset = MathHelper.clamp(
+        int nextOffset = Mth.clamp(
                 this.panelScrollOffset - (int) Math.signum(verticalAmount) * step,
                 0,
                 this.panelMaxScroll
@@ -370,8 +371,8 @@ public class SurfStickSettingsScreen extends Screen {
         }
 
         this.panelScrollOffset = nextOffset;
-        if (this.client != null) {
-            this.resize(this.client, this.width, this.height);
+        if (this.minecraft != null) {
+            this.resize(this.width, this.height);
         }
         return true;
     }
@@ -384,7 +385,7 @@ public class SurfStickSettingsScreen extends Screen {
         this.panelWidth = Math.min(desiredWidth, maxPanelWidth);
         this.panelHeight = BASE_PANEL_HEIGHT;
         this.panelMaxScroll = Math.max(0, this.panelHeight - availableHeight);
-        this.panelScrollOffset = MathHelper.clamp(this.panelScrollOffset, 0, this.panelMaxScroll);
+        this.panelScrollOffset = Mth.clamp(this.panelScrollOffset, 0, this.panelMaxScroll);
 
         this.panelX = (this.width - this.panelWidth) / 2;
         if (this.panelMaxScroll > 0) {
@@ -409,9 +410,9 @@ public class SurfStickSettingsScreen extends Screen {
         if (this.sidesButton == null) {
             return;
         }
-        Text modeLabel = this.selectedOneSided
-                ? Text.translatable("screen.minehop.surf_stick_settings.sides.one")
-                : Text.translatable("screen.minehop.surf_stick_settings.sides.two");
+        Component modeLabel = this.selectedOneSided
+                ? Component.translatable("screen.minehop.surf_stick_settings.sides.one")
+                : Component.translatable("screen.minehop.surf_stick_settings.sides.two");
         this.sidesButton.setMessage(modeLabel);
     }
 
@@ -419,9 +420,9 @@ public class SurfStickSettingsScreen extends Screen {
         if (this.curveFaceButton == null) {
             return;
         }
-        Text faceLabel = this.selectedOutsideCurve
-                ? Text.translatable("screen.minehop.surf_stick_settings.curve_face.outside")
-                : Text.translatable("screen.minehop.surf_stick_settings.curve_face.inside");
+        Component faceLabel = this.selectedOutsideCurve
+                ? Component.translatable("screen.minehop.surf_stick_settings.curve_face.outside")
+                : Component.translatable("screen.minehop.surf_stick_settings.curve_face.inside");
         this.curveFaceButton.setMessage(faceLabel);
     }
 
@@ -450,9 +451,9 @@ public class SurfStickSettingsScreen extends Screen {
         if (this.modeButton == null) {
             return;
         }
-        Text modeLabel = SurfRampVisualStyle.MODE_WIREFRAME.equals(this.selectedRenderMode)
-                ? Text.translatable("screen.minehop.surf_stick_settings.render_mode.wireframe")
-                : Text.translatable("screen.minehop.surf_stick_settings.render_mode.block");
+        Component modeLabel = SurfRampVisualStyle.MODE_WIREFRAME.equals(this.selectedRenderMode)
+                ? Component.translatable("screen.minehop.surf_stick_settings.render_mode.wireframe")
+                : Component.translatable("screen.minehop.surf_stick_settings.render_mode.block");
         this.modeButton.setMessage(modeLabel);
     }
 
@@ -460,9 +461,9 @@ public class SurfStickSettingsScreen extends Screen {
         if (this.fillToggleButton == null) {
             return;
         }
-        Text fillLabel = this.wireframeFillEnabled
-                ? Text.translatable("screen.minehop.surf_stick_settings.fill.on")
-                : Text.translatable("screen.minehop.surf_stick_settings.fill.off");
+        Component fillLabel = this.wireframeFillEnabled
+                ? Component.translatable("screen.minehop.surf_stick_settings.fill.on")
+                : Component.translatable("screen.minehop.surf_stick_settings.fill.off");
         this.fillToggleButton.setMessage(fillLabel);
     }
 
@@ -487,17 +488,17 @@ public class SurfStickSettingsScreen extends Screen {
         }
     }
 
-    private void drawRampPreview(DrawContext context, int x, int y, int width, int height) {
+    private void drawRampPreview(GuiGraphicsExtractor context, int x, int y, int width, int height) {
         context.fill(x, y, x + width, y + height, 0xCC050505);
-        context.drawBorder(x, y, width, height, 0xFF4A4A4A);
+        context.outline(x, y, width, height, 0xFF4A4A4A);
 
-        double rampWidth = MathHelper.clamp(this.parseDouble(this.widthField, this.initialWidth), 0.15D, 64.0D);
-        double rampDrop = MathHelper.clamp(this.parseDouble(this.dropField, this.initialDrop), 0.1D, 64.0D);
+        double rampWidth = Mth.clamp(this.parseDouble(this.widthField, this.initialWidth), 0.15D, 64.0D);
+        double rampDrop = Mth.clamp(this.parseDouble(this.dropField, this.initialDrop), 0.1D, 64.0D);
         float visualLength = 6.0F;
-        float visualWidth = (float) MathHelper.clamp(0.30D + rampWidth * 0.34D, 0.30D, 2.60D);
-        float visualDrop = (float) MathHelper.clamp(0.14D + rampDrop * 0.30D, 0.14D, 2.40D);
+        float visualWidth = (float) Mth.clamp(0.30D + rampWidth * 0.34D, 0.30D, 2.60D);
+        float visualDrop = (float) Mth.clamp(0.14D + rampDrop * 0.30D, 0.14D, 2.40D);
 
-        Sprite sprite = this.resolvePreviewSprite();
+        TextureAtlasSprite sprite = this.resolvePreviewSprite();
         int wireColor = this.parseHexColor(this.wireColorField, this.initialWireframeColor);
         int fillColor = this.parseHexColor(this.fillColorField, this.initialWireframeFillColor);
         int fillAlpha = this.parseFillAlpha(this.fillAlphaField, this.initialWireframeFillAlpha);
@@ -505,43 +506,35 @@ public class SurfStickSettingsScreen extends Screen {
         boolean oneSided = this.selectedOneSided;
         int sideSign = this.selectedOutsideCurve ? -1 : 1;
 
-        MatrixStack matrices = context.getMatrices();
-        context.enableScissor(x + 1, y + 1, x + width - 1, y + height - 1);
-        matrices.push();
-        matrices.translate(x + width * 0.50F, y + height * 0.62F, 160.0F);
-        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-26.0F));
-        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-46.0F));
+        boolean fillEnabled = this.wireframeFillEnabled;
         float scale = Math.min(width, height) * 0.13F;
-        matrices.scale(scale, -scale, scale);
-
-        context.draw();
-        RenderSystem.enableDepthTest();
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-
-        context.draw(vertexConsumers -> {
+        context.enableScissor(x + 1, y + 1, x + width - 1, y + height - 1);
+        // 1.21.6+: 3D geometry in a screen goes through a special GUI element (own depth-tested texture).
+        // The drawer receives a stack already at the 1.21.4 origin (x + width/2, y + 0.62 * height).
+        context.guiRenderState.addPicturesInPictureState(new RampPreviewGuiElementRenderState((matrices, vertexConsumers) -> {
+            matrices.pushPose();
+            matrices.mulPose(Axis.XP.rotationDegrees(-26.0F));
+            matrices.mulPose(Axis.YP.rotationDegrees(-46.0F));
+            matrices.scale(scale, -scale, scale);
             if (wireMode) {
-                if (this.wireframeFillEnabled) {
+                if (fillEnabled) {
                     VertexConsumer fillConsumer = vertexConsumers.getBuffer(ModRenderLayer.getTranslucentColorQuads());
                     this.renderStraightRampPreviewFill(matrices, fillConsumer, visualLength, visualWidth, visualDrop, oneSided, sideSign, fillColor, fillAlpha);
                 }
-                VertexConsumer lineConsumer = vertexConsumers.getBuffer(RenderLayer.getLines());
+                VertexConsumer lineConsumer = vertexConsumers.getBuffer(RenderTypes.lines());
                 this.renderStraightRampPreviewWire(matrices, lineConsumer, visualLength, visualWidth, visualDrop, oneSided, sideSign, wireColor, 255);
             } else {
-                VertexConsumer texturedConsumer = vertexConsumers.getBuffer(RenderLayer.getEntityCutoutNoCull(SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE));
+                VertexConsumer texturedConsumer = vertexConsumers.getBuffer(RenderTypes.entityCutout(TextureAtlas.LOCATION_BLOCKS));
                 this.renderStraightRampPreviewMesh(matrices, texturedConsumer, sprite, visualLength, visualWidth, visualDrop, oneSided, sideSign);
             }
-        });
-        context.draw();
-
-        RenderSystem.disableDepthTest();
-        matrices.pop();
+            matrices.popPose();
+        }, x + 1, y + 1, x + width - 1, y + height - 1, context.scissorStack.peek()));
         context.disableScissor();
     }
 
     private void applyAndClose() {
-        double width = MathHelper.clamp(this.parseDouble(this.widthField, this.initialWidth), 0.15D, 64.0D);
-        double drop = MathHelper.clamp(this.parseDouble(this.dropField, this.initialDrop), 0.1D, 64.0D);
+        double width = Mth.clamp(this.parseDouble(this.widthField, this.initialWidth), 0.15D, 64.0D);
+        double drop = Mth.clamp(this.parseDouble(this.dropField, this.initialDrop), 0.1D, 64.0D);
         String textureId = this.resolveTextureId();
         int wireColor = this.parseHexColor(this.wireColorField, this.initialWireframeColor);
         int fillColor = this.parseHexColor(this.fillColorField, this.initialWireframeFillColor);
@@ -558,75 +551,75 @@ public class SurfStickSettingsScreen extends Screen {
                 fillColor,
                 fillAlpha
         );
-        this.close();
+        this.onClose();
     }
 
     private void cancelAndClose() {
         ClientPacketHandler.sendSurfStickCancel();
-        this.close();
+        this.onClose();
     }
 
     private void deleteAndClose() {
         ClientPacketHandler.sendSurfStickDelete();
-        this.close();
+        this.onClose();
     }
 
-    private double parseDouble(TextFieldWidget field, double fallback) {
+    private double parseDouble(EditBox field, double fallback) {
         if (field == null) {
             return fallback;
         }
         try {
-            return Double.parseDouble(field.getText().trim());
+            return Double.parseDouble(field.getValue().trim());
         } catch (NumberFormatException ignored) {
             return fallback;
         }
     }
 
     private String resolveTextureId() {
-        String raw = this.textureField == null ? this.initialTextureBlockId : this.textureField.getText().trim();
+        String raw = this.textureField == null ? this.initialTextureBlockId : this.textureField.getValue().trim();
         Identifier parsed = Identifier.tryParse(raw);
-        if (parsed == null || !Registries.BLOCK.containsId(parsed)) {
+        if (parsed == null || !BuiltInRegistries.BLOCK.containsKey(parsed)) {
             return DEFAULT_TEXTURE_ID;
         }
-        Block block = Registries.BLOCK.get(parsed);
+        Block block = BuiltInRegistries.BLOCK.getValue(parsed);
         if (block == Blocks.AIR) {
             return DEFAULT_TEXTURE_ID;
         }
         return parsed.toString();
     }
 
-    private Sprite resolvePreviewSprite() {
-        MinecraftClient client = MinecraftClient.getInstance();
+    private TextureAtlasSprite resolvePreviewSprite() {
+        Minecraft client = Minecraft.getInstance();
         BlockState state = this.resolveTextureBlockState();
-        BakedModel model = client.getBlockRenderManager().getModel(state);
-        Sprite sprite = model.getParticleSprite();
+        BlockStateModel model = client.getModelManager().getBlockStateModelSet().get(state);
+        TextureAtlasSprite sprite = model.particleMaterial().sprite();
         if (sprite != null) {
             return sprite;
         }
-        return client.getBlockRenderManager().getModel(Blocks.SMOOTH_STONE.getDefaultState()).getParticleSprite();
+        return client.getModelManager().getBlockStateModelSet().get(Blocks.SMOOTH_STONE.defaultBlockState()).particleMaterial().sprite();
     }
 
     private BlockState resolveTextureBlockState() {
         Identifier parsed = Identifier.tryParse(this.resolveTextureId());
-        if (parsed == null || !Registries.BLOCK.containsId(parsed)) {
-            return Blocks.SMOOTH_STONE.getDefaultState();
+        if (parsed == null || !BuiltInRegistries.BLOCK.containsKey(parsed)) {
+            return Blocks.SMOOTH_STONE.defaultBlockState();
         }
-        Block block = Registries.BLOCK.get(parsed);
+        Block block = BuiltInRegistries.BLOCK.getValue(parsed);
         if (block == Blocks.AIR) {
-            return Blocks.SMOOTH_STONE.getDefaultState();
+            return Blocks.SMOOTH_STONE.defaultBlockState();
         }
-        return block.getDefaultState();
+        return block.defaultBlockState();
     }
 
     private String formatColor(int rgb) {
         return String.format(Locale.ROOT, "#%06X", rgb & 0xFFFFFF);
     }
 
-    private int parseHexColor(TextFieldWidget field, int fallback) {
+    private int parseHexColor(EditBox field, int fallback) {
         if (field == null) {
             return fallback;
         }
-        return parseHexColor(field.getText(), fallback);
+        return parseHexColor(field.getValue(), fallback);
     }
 
     private int parseHexColor(String raw, int fallback) {
@@ -649,11 +642,11 @@ public class SurfStickSettingsScreen extends Screen {
         }
     }
 
-    private int parseFillAlpha(TextFieldWidget field, int fallback) {
+    private int parseFillAlpha(EditBox field, int fallback) {
         if (field == null) {
             return SurfRampVisualStyle.sanitizeAlpha(fallback, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
         }
-        String raw = field.getText();
+        String raw = field.getValue();
         if (raw == null) {
             return SurfRampVisualStyle.sanitizeAlpha(fallback, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
         }
@@ -666,9 +659,9 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     private void renderStraightRampPreviewMesh(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
-            Sprite sprite,
+            TextureAtlasSprite sprite,
             float length,
             float width,
             float drop,
@@ -694,7 +687,7 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     private void renderStraightRampPreviewFill(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             float length,
             float width,
@@ -727,7 +720,7 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     private void renderStraightRampPreviewWire(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             float length,
             float width,
@@ -778,13 +771,13 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     private void drawTiledTexturedQuad(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             PreviewVertex a,
             PreviewVertex b,
             PreviewVertex c,
             PreviewVertex d,
-            Sprite sprite,
+            TextureAtlasSprite sprite,
             int shade,
             double u0,
             double u1,
@@ -848,13 +841,13 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     private void drawTexturedQuadSegment(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             PreviewVertex a,
             PreviewVertex b,
             PreviewVertex c,
             PreviewVertex d,
-            Sprite sprite,
+            TextureAtlasSprite sprite,
             int shade,
             double u0,
             double u1,
@@ -862,9 +855,9 @@ public class SurfStickSettingsScreen extends Screen {
             float v1
     ) {
         double tileBase = Math.floor(u0);
-        float localU0 = MathHelper.clamp((float) (u0 - tileBase), 0.0F, 1.0F);
-        float localU1 = MathHelper.clamp((float) (u1 - tileBase), 0.0F, 1.0F);
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
+        float localU0 = Mth.clamp((float) (u0 - tileBase), 0.0F, 1.0F);
+        float localU1 = Mth.clamp((float) (u1 - tileBase), 0.0F, 1.0F);
+        Matrix4f matrix = matrices.last().pose();
         float[] normal = this.computeNormal(a, b, d);
         this.putTexturedVertex(consumer, matrix, a, localU0, v0, sprite, shade, normal);
         this.putTexturedVertex(consumer, matrix, b, localU1, v0, sprite, shade, normal);
@@ -873,12 +866,12 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     private void drawDoubleSidedTexturedTriangle(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             PreviewVertex a,
             PreviewVertex b,
             PreviewVertex c,
-            Sprite sprite,
+            TextureAtlasSprite sprite,
             int shade
     ) {
         this.drawTexturedTriangle(matrices, consumer, a, b, c, sprite, shade);
@@ -886,15 +879,15 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     private void drawTexturedTriangle(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             PreviewVertex a,
             PreviewVertex b,
             PreviewVertex c,
-            Sprite sprite,
+            TextureAtlasSprite sprite,
             int shade
     ) {
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
+        Matrix4f matrix = matrices.last().pose();
         float[] normal = this.computeNormal(a, b, c);
         this.putTexturedVertex(consumer, matrix, a, 0.0F, 0.0F, sprite, shade, normal);
         this.putTexturedVertex(consumer, matrix, b, 1.0F, 0.0F, sprite, shade, normal);
@@ -908,24 +901,24 @@ public class SurfStickSettingsScreen extends Screen {
             PreviewVertex pos,
             float u,
             float v,
-            Sprite sprite,
+            TextureAtlasSprite sprite,
             int shade,
             float[] normal
     ) {
-        float wrappedU = MathHelper.clamp(u, 0.0F, 1.0F);
-        float wrappedV = MathHelper.clamp(v, 0.0F, 1.0F);
-        float atlasU = MathHelper.lerp(wrappedU, sprite.getMinU(), sprite.getMaxU());
-        float atlasV = MathHelper.lerp(wrappedV, sprite.getMinV(), sprite.getMaxV());
-        consumer.vertex(matrix, pos.x, pos.y, pos.z)
-                .color(shade, shade, shade, 255)
-                .texture(atlasU, atlasV)
-                .overlay(OverlayTexture.DEFAULT_UV)
-                .light(PREVIEW_LIGHT)
-                .normal(normal[0], normal[1], normal[2]);
+        float wrappedU = Mth.clamp(u, 0.0F, 1.0F);
+        float wrappedV = Mth.clamp(v, 0.0F, 1.0F);
+        float atlasU = Mth.lerp(wrappedU, sprite.getU0(), sprite.getU1());
+        float atlasV = Mth.lerp(wrappedV, sprite.getV0(), sprite.getV1());
+        consumer.addVertex(matrix, pos.x, pos.y, pos.z)
+                .setColor(shade, shade, shade, 255)
+                .setUv(atlasU, atlasV)
+                .setOverlay(OverlayTexture.NO_OVERLAY)
+                .setLight(PREVIEW_LIGHT)
+                .setNormal(normal[0], normal[1], normal[2]);
     }
 
     private void drawColoredQuadDoubleSided(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             PreviewVertex a,
             PreviewVertex b,
@@ -941,7 +934,7 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     private void drawColoredQuad(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             PreviewVertex a,
             PreviewVertex b,
@@ -952,7 +945,7 @@ public class SurfStickSettingsScreen extends Screen {
             int bColor,
             int alpha
     ) {
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
+        Matrix4f matrix = matrices.last().pose();
         this.putColorVertex(consumer, matrix, a, r, g, bColor, alpha);
         this.putColorVertex(consumer, matrix, b, r, g, bColor, alpha);
         this.putColorVertex(consumer, matrix, c, r, g, bColor, alpha);
@@ -960,7 +953,7 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     private void drawColoredTriangleDoubleSided(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             PreviewVertex a,
             PreviewVertex b,
@@ -975,7 +968,7 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     private void drawColoredTriangle(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             PreviewVertex a,
             PreviewVertex b,
@@ -985,7 +978,7 @@ public class SurfStickSettingsScreen extends Screen {
             int bColor,
             int alpha
     ) {
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
+        Matrix4f matrix = matrices.last().pose();
         this.putColorVertex(consumer, matrix, a, r, g, bColor, alpha);
         this.putColorVertex(consumer, matrix, b, r, g, bColor, alpha);
         this.putColorVertex(consumer, matrix, c, r, g, bColor, alpha);
@@ -1001,11 +994,11 @@ public class SurfStickSettingsScreen extends Screen {
             int b,
             int alpha
     ) {
-        consumer.vertex(matrix, pos.x, pos.y, pos.z).color(r, g, b, alpha);
+        consumer.addVertex(matrix, pos.x, pos.y, pos.z).setColor(r, g, b, alpha);
     }
 
     private void drawColoredLine(
-            MatrixStack matrices,
+            PoseStack matrices,
             VertexConsumer consumer,
             PreviewVertex a,
             PreviewVertex b,
@@ -1014,9 +1007,11 @@ public class SurfStickSettingsScreen extends Screen {
             int bColor,
             int alpha
     ) {
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
-        consumer.vertex(matrix, a.x, a.y, a.z).color(r, g, bColor, alpha).normal(0.0F, 1.0F, 0.0F);
-        consumer.vertex(matrix, b.x, b.y, b.z).color(r, g, bColor, alpha).normal(0.0F, 1.0F, 0.0F);
+        Matrix4f matrix = matrices.last().pose();
+        // Line width is per-vertex since 1.21.11; 1.21.4's lines layer used the window-scaled default.
+        float lineWidth = Minecraft.getInstance().getWindow().getAppropriateLineWidth();
+        consumer.addVertex(matrix, a.x, a.y, a.z).setColor(r, g, bColor, alpha).setNormal(0.0F, 1.0F, 0.0F).setLineWidth(lineWidth);
+        consumer.addVertex(matrix, b.x, b.y, b.z).setColor(r, g, bColor, alpha).setNormal(0.0F, 1.0F, 0.0F).setLineWidth(lineWidth);
     }
 
     private float[] computeNormal(PreviewVertex a, PreviewVertex b, PreviewVertex c) {
@@ -1030,7 +1025,7 @@ public class SurfStickSettingsScreen extends Screen {
         float nx = uy * vz - uz * vy;
         float ny = uz * vx - ux * vz;
         float nz = ux * vy - uy * vx;
-        float length = MathHelper.sqrt(nx * nx + ny * ny + nz * nz);
+        float length = Mth.sqrt(nx * nx + ny * ny + nz * nz);
         if (length < 1.0E-6F) {
             return new float[]{0.0F, 1.0F, 0.0F};
         }
@@ -1039,9 +1034,9 @@ public class SurfStickSettingsScreen extends Screen {
 
     private PreviewVertex lerp(PreviewVertex from, PreviewVertex to, double t) {
         return new PreviewVertex(
-                (float) MathHelper.lerp((float) t, from.x, to.x),
-                (float) MathHelper.lerp((float) t, from.y, to.y),
-                (float) MathHelper.lerp((float) t, from.z, to.z)
+                (float) Mth.lerp((float) t, from.x, to.x),
+                (float) Mth.lerp((float) t, from.y, to.y),
+                (float) Mth.lerp((float) t, from.z, to.z)
         );
     }
 

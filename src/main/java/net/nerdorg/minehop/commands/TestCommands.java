@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.authlib.AuthenticationService;
@@ -11,20 +13,11 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.FakePlayer;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.SpawnReason;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket;
-import net.minecraft.network.packet.s2c.play.PlayerListS2CPacket;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Uuids;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.server.level.ServerPlayer;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ResetEntity;
@@ -37,8 +30,8 @@ public class TestCommands {
 
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("mtest")
-                .requires(source -> source.hasPermissionLevel(4))
+            LiteralArgumentBuilder.<CommandSourceStack>literal("mtest")
+                .requires(source -> PermissionUtil.hasLevel(source, 4))
                     .executes(context -> {
                         handleTest(context);
                         return Command.SINGLE_SUCCESS;
@@ -46,8 +39,8 @@ public class TestCommands {
             ));
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("mdebug")
-                .requires(source -> source.hasPermissionLevel(4))
+            LiteralArgumentBuilder.<CommandSourceStack>literal("mdebug")
+                .requires(source -> PermissionUtil.hasLevel(source, 4))
                     .executes(context -> {
                         handleDebugToggle(context, context.getSource().getPlayer());
                         return Command.SINGLE_SUCCESS;
@@ -55,22 +48,22 @@ public class TestCommands {
                     // Targeted form so the server console (or another admin) can enable debug logging
                     // for a NON-op player — an op-4 player is anticheat-exempt, so self-toggling then
                     // testing as that same op captures nothing.
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, net.minecraft.command.EntitySelector>argument(
-                                    "player", net.minecraft.command.argument.EntityArgumentType.player())
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, net.minecraft.commands.arguments.selector.EntitySelector>argument(
+                                    "player", net.minecraft.commands.arguments.EntityArgument.player())
                             .executes(context -> {
                                 handleDebugToggle(context,
-                                        net.minecraft.command.argument.EntityArgumentType.getPlayer(context, "player"));
+                                        net.minecraft.commands.arguments.EntityArgument.getPlayer(context, "player"));
                                 return Command.SINGLE_SUCCESS;
                             }))
             ));
     }
 
-    private static void handleDebugToggle(CommandContext<ServerCommandSource> context, ServerPlayerEntity target) {
+    private static void handleDebugToggle(CommandContext<CommandSourceStack> context, ServerPlayer target) {
         if (target == null) {
-            context.getSource().sendFeedback(() -> net.minecraft.text.Text.literal("Usage from console: mdebug <player>"), false);
+            context.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("Usage from console: mdebug <player>"), false);
             return;
         }
-        UUID uuid = target.getUuid();
+        UUID uuid = target.getUUID();
         boolean enabled;
         if (net.nerdorg.minehop.Minehop.surfDebugPlayers.remove(uuid)) {
             enabled = false;
@@ -78,30 +71,30 @@ public class TestCommands {
             net.nerdorg.minehop.Minehop.surfDebugPlayers.add(uuid);
             enabled = true;
         }
-        String name = target.getNameForScoreboard();
-        context.getSource().sendFeedback(() -> net.minecraft.text.Text.literal(
+        String name = target.getScoreboardName();
+        context.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal(
                 "Movement debug logging " + (enabled ? "ON" : "OFF") + " for " + name
                         + (enabled ? ". Check latest.log for [ACDBG]/[M1PROBE] lines." : ".")), true);
     }
 
-    private static void handleTest(CommandContext<ServerCommandSource> context) {
+    private static void handleTest(CommandContext<CommandSourceStack> context) {
         MinecraftServer server = context.getSource().getServer();
-        FakePlayer fakePlayer = FakePlayer.get(context.getSource().getWorld(), new GameProfile(UUID.randomUUID(), "Replay"));
+        FakePlayer fakePlayer = FakePlayer.get(context.getSource().getLevel(), new GameProfile(UUID.randomUUID(), "Replay"));
         fakePlayer.setInvisible(false);
-        server.getPlayerManager().sendToAll(new PlayerListS2CPacket(PlayerListS2CPacket.Action.ADD_PLAYER, fakePlayer));
+        server.getPlayerList().broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, fakePlayer));
 
-        context.getSource().getWorld().spawnEntity(fakePlayer);
-        server.getPlayerManager().sendToAll(new EntitySpawnS2CPacket(
+        context.getSource().getLevel().addFreshEntity(fakePlayer);
+        server.getPlayerList().broadcastAll(new ClientboundAddEntityPacket(
                 fakePlayer.getId(),
-                fakePlayer.getUuid(),
+                fakePlayer.getUUID(),
                 fakePlayer.getX(),
                 fakePlayer.getY(),
                 fakePlayer.getZ(),
-                fakePlayer.getPitch(),
-                fakePlayer.getYaw(),
+                fakePlayer.getXRot(),
+                fakePlayer.getYRot(),
                 fakePlayer.getType(),
                 0,
-                fakePlayer.getVelocity(),
-                fakePlayer.getHeadYaw()));
+                fakePlayer.getDeltaMovement(),
+                fakePlayer.getYHeadRot()));
     }
 }

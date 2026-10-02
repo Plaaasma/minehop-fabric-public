@@ -1,10 +1,7 @@
 package net.nerdorg.minehop.mixin.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.server.world.ServerWorld;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.config.ConfigWrapper;
@@ -16,18 +13,18 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.HashMap;
 import java.util.List;
 
-@Mixin(KeyBinding.class)
+@Mixin(KeyMapping.class)
 public abstract class KeyBindingMixin {
-    @Shadow @Final private InputUtil.Key boundKey;
+    @Shadow @Final private InputConstants.Key key;
 
-    @Shadow private boolean pressed;
-    private static KeyBinding leftKey;
-    private static KeyBinding rightKey;
-    private static KeyBinding sneakKey;
+    @Shadow private boolean isDown;
+    private static KeyMapping leftKey;
+    private static KeyMapping rightKey;
+    private static KeyMapping sneakKey;
 
     private static boolean isLeftKeyPressed = false;
     private static boolean isRightKeyPressed = false;
@@ -37,20 +34,23 @@ public abstract class KeyBindingMixin {
     private static final int RIGHT = 2;
     private static int lastKeyPressed = NONE;
 
+    // 1.21.9+ constructors take a KeyBinding.Category instead of a String; the binding id is read back
+    // from the constructed instance so one handler fits every constructor.
     @Inject(method = "<init>*", at = @At("RETURN"))
-    private void onInit(String translationKey, int code, String category, CallbackInfo ci) {
+    private void onInit(CallbackInfo ci) {
+        String translationKey = ((KeyMapping) (Object) this).getName();
         if (translationKey.equals("key.left")) {
-            leftKey = (KeyBinding)(Object)this;
+            leftKey = (KeyMapping)(Object)this;
         } else if (translationKey.equals("key.right")) {
-            rightKey = (KeyBinding)(Object)this;
+            rightKey = (KeyMapping)(Object)this;
         } else if (translationKey.equals("key.sneak")) {
-            sneakKey = (KeyBinding)(Object)this;
+            sneakKey = (KeyMapping)(Object)this;
         }
     }
 
-    @Inject(method = "setPressed", at = @At("HEAD"))
+    @Inject(method = "setDown", at = @At("HEAD"))
     private void onSetPressed(boolean value, CallbackInfo ci) {
-        if ((this.boundKey.getTranslationKey().equals(leftKey.getBoundKeyTranslationKey()))) {
+        if ((this.key.getName().equals(leftKey.saveString()))) {
             if (value) {
                 lastKeyPressed = LEFT;
                 isLeftKeyPressed = true;
@@ -59,7 +59,7 @@ public abstract class KeyBindingMixin {
                 lastKeyPressed = RIGHT;
                 isLeftKeyPressed = false;
             }
-        } else if (this.boundKey.getTranslationKey().equals(rightKey.getBoundKeyTranslationKey())) {
+        } else if (this.key.getName().equals(rightKey.saveString())) {
             if (value) {
                 lastKeyPressed = RIGHT;
                 isRightKeyPressed = true;
@@ -71,7 +71,7 @@ public abstract class KeyBindingMixin {
         }
     }
 
-    @Inject(method = "isPressed", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isDown", at = @At("HEAD"), cancellable = true)
     private void isPressed(CallbackInfoReturnable<Boolean> cir) {
         MinehopConfig config;
         if (Minehop.override_config) {
@@ -96,9 +96,9 @@ public abstract class KeyBindingMixin {
             config = ConfigWrapper.config;
         }
 
-        if (sneakKey != null && this.boundKey.getTranslationKey().equals(sneakKey.getBoundKeyTranslationKey())) {
-            if (MinecraftClient.getInstance().player != null) {
-                if (MinecraftClient.getInstance().player.isSpectator()) {
+        if (sneakKey != null && this.key.getName().equals(sneakKey.saveString())) {
+            if (Minecraft.getInstance().player != null) {
+                if (Minecraft.getInstance().player.isSpectator()) {
                     cir.setReturnValue(false);
                     return;
                 }
@@ -106,13 +106,13 @@ public abstract class KeyBindingMixin {
         }
 
         if (config.nulls) {
-            if (this.boundKey.getTranslationKey().equals(leftKey.getBoundKeyTranslationKey())) {
+            if (this.key.getName().equals(leftKey.saveString())) {
                 if (lastKeyPressed == LEFT && isLeftKeyPressed) {
                     cir.setReturnValue(true);
                 } else {
                     cir.setReturnValue(false);
                 }
-            } else if (this.boundKey.getTranslationKey().equals(rightKey.getBoundKeyTranslationKey())) {
+            } else if (this.key.getName().equals(rightKey.saveString())) {
                 if (lastKeyPressed == RIGHT && isRightKeyPressed) {
                     cir.setReturnValue(true);
                 } else {

@@ -1,10 +1,10 @@
 package net.nerdorg.minehop.util;
 
-import net.minecraft.entity.SpawnReason;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
@@ -30,11 +30,11 @@ public final class MapCreationManager {
     private MapCreationManager() {
     }
 
-    public static void openGui(ServerPlayerEntity player) {
+    public static void openGui(ServerPlayer player) {
         openGuiForMap(player, null);
     }
 
-    public static void openGuiForMap(ServerPlayerEntity player, String requestedMapName) {
+    public static void openGuiForMap(ServerPlayer player, String requestedMapName) {
         if (player == null) {
             return;
         }
@@ -55,7 +55,7 @@ public final class MapCreationManager {
         }
 
         if (initialMap == null) {
-            Zone currentZone = Minehop.playerMapLocation.get(player.getUuidAsString());
+            Zone currentZone = Minehop.playerMapLocation.get(player.getStringUUID());
             if (currentZone != null) {
                 String pairedMap = currentZone.getPairedMap();
                 if (pairedMap != null && !pairedMap.isBlank()) {
@@ -65,7 +65,7 @@ public final class MapCreationManager {
         }
 
         if (initialMap == null) {
-            DataManager.MapData ownedPlot = UserPlotManager.getOwnedPlotAt(player, player.getPos());
+            DataManager.MapData ownedPlot = UserPlotManager.getOwnedPlotAt(player, player.position());
             if (ownedPlot != null) {
                 initialMap = ownedPlot;
             }
@@ -116,7 +116,7 @@ public final class MapCreationManager {
     }
 
     public static void handleAction(
-            ServerPlayerEntity player,
+            ServerPlayer player,
             String action,
             String rawMapName,
             int difficulty,
@@ -156,7 +156,7 @@ public final class MapCreationManager {
         }
 
         DataManager.MapData existingMap = DataManager.getMap(mapName);
-        if (!player.hasPermissionLevel(4)) {
+        if (!PermissionUtil.hasLevel(player, 4)) {
             if (UserPlotManager.isReservedMapName(mapName)) {
                 Logger.logFailure(player, "That map name is reserved.");
                 return;
@@ -212,7 +212,7 @@ public final class MapCreationManager {
     }
 
     private static void createOrUpdateMap(
-            ServerPlayerEntity player,
+            ServerPlayer player,
             String mapName,
             int difficulty,
             boolean arena,
@@ -235,7 +235,7 @@ public final class MapCreationManager {
             boolean movementDisableSprint,
             boolean movementFallDamage
     ) {
-        ServerWorld world = player.getServerWorld();
+        ServerLevel world = player.level();
         DataManager.MapData mapData = DataManager.getMap(mapName);
 
         if (mapData == null) {
@@ -244,9 +244,9 @@ public final class MapCreationManager {
                     player.getX(),
                     player.getY(),
                     player.getZ(),
-                    player.getPitch(),
-                    player.getYaw(),
-                    world.getRegistryKey().toString(),
+                    player.getXRot(),
+                    player.getYRot(),
+                    world.dimension().toString(),
                     arena,
                     hns,
                     surf,
@@ -277,9 +277,9 @@ public final class MapCreationManager {
             mapData.x = player.getX();
             mapData.y = player.getY();
             mapData.z = player.getZ();
-            mapData.xrot = player.getPitch();
-            mapData.yrot = player.getYaw();
-            mapData.worldKey = world.getRegistryKey().toString();
+            mapData.xrot = player.getXRot();
+            mapData.yrot = player.getYRot();
+            mapData.worldKey = world.dimension().toString();
             mapData.difficulty = difficulty;
             mapData.arena = arena;
             mapData.hns = hns;
@@ -309,15 +309,15 @@ public final class MapCreationManager {
         syncMaps(world);
     }
 
-    private static void setSpawn(ServerPlayerEntity player, String mapName) {
+    private static void setSpawn(ServerPlayer player, String mapName) {
         DataManager.MapData mapData = DataManager.getMap(mapName);
         if (mapData == null) {
             Logger.logFailure(player, "There is no map called " + mapName + ".");
             return;
         }
 
-        ServerWorld world = player.getServerWorld();
-        if (mapData.userMap && !player.hasPermissionLevel(4)) {
+        ServerLevel world = player.level();
+        if (mapData.userMap && !PermissionUtil.hasLevel(player, 4)) {
             if (!UserPlotManager.canManageMap(player, mapData)) {
                 Logger.logFailure(player, "Stand inside your plot to set its spawn.");
                 return;
@@ -326,23 +326,23 @@ public final class MapCreationManager {
         mapData.x = player.getX();
         mapData.y = player.getY();
         mapData.z = player.getZ();
-        mapData.xrot = player.getPitch();
-        mapData.yrot = player.getYaw();
-        mapData.worldKey = world.getRegistryKey().toString();
+        mapData.xrot = player.getXRot();
+        mapData.yrot = player.getYRot();
+        mapData.worldKey = world.dimension().toString();
 
         DataManager.saveData(world, DataManager.mapListLocation, Minehop.mapList);
         syncMaps(world);
         Logger.logSuccess(player, "Set spawn for '" + mapName + "' to your current location.");
     }
 
-    private static void addCheckpoint(ServerPlayerEntity player, String mapName) {
+    private static void addCheckpoint(ServerPlayer player, String mapName) {
         DataManager.MapData mapData = DataManager.getMap(mapName);
         if (mapData == null) {
             Logger.logFailure(player, "There is no map called " + mapName + ".");
             return;
         }
 
-        if (mapData.userMap && !player.hasPermissionLevel(4)) {
+        if (mapData.userMap && !PermissionUtil.hasLevel(player, 4)) {
             if (!UserPlotManager.canManageMap(player, mapData)) {
                 Logger.logFailure(player, "Stand inside your plot to add a checkpoint.");
                 return;
@@ -354,17 +354,17 @@ public final class MapCreationManager {
         }
         mapData.checkpointPositions.add(
                 new ArrayList<>(Arrays.asList(
-                        player.getPos(),
-                        new Vec3d(player.getPitch(), player.getYaw(), 0.0D)
+                        player.position(),
+                        new Vec3(player.getXRot(), player.getYRot(), 0.0D)
                 ))
         );
 
-        DataManager.saveData(player.getServerWorld(), DataManager.mapListLocation, Minehop.mapList);
-        syncMaps(player.getServerWorld());
+        DataManager.saveData(player.level(), DataManager.mapListLocation, Minehop.mapList);
+        syncMaps(player.level());
         Logger.logSuccess(player, "Added checkpoint " + mapData.checkpointPositions.size() + " to '" + mapName + "'.");
     }
 
-    private static void addStartZone(ServerPlayerEntity player, String mapName) {
+    private static void addStartZone(ServerPlayer player, String mapName) {
         DataManager.MapData mapData = DataManager.getMap(mapName);
         if (mapData == null) {
             Logger.logFailure(player, "There is no map called " + mapName + ".");
@@ -376,8 +376,8 @@ public final class MapCreationManager {
             return;
         }
 
-        ServerWorld world = player.getServerWorld();
-        StartEntity startEntity = ModEntities.START_ENTITY.spawn(world, corners[0], SpawnReason.NATURAL);
+        ServerLevel world = player.level();
+        StartEntity startEntity = ModEntities.START_ENTITY.spawn(world, corners[0], EntitySpawnReason.NATURAL);
         if (startEntity == null) {
             Logger.logFailure(player, "Failed to create start zone entity.");
             return;
@@ -386,14 +386,14 @@ public final class MapCreationManager {
         startEntity.setCorner2(corners[1]);
         startEntity.setPairedMap(mapName);
 
-        for (ServerPlayerEntity worldPlayer : world.getPlayers()) {
+        for (ServerPlayer worldPlayer : world.players()) {
             PacketHandler.updateZone(worldPlayer, startEntity.getId(), corners[0], corners[1], mapName, 0);
         }
         BoundsStickItem.clearSelection(player);
         Logger.logSuccess(player, "Created start zone for '" + mapName + "'.");
     }
 
-    private static void addEndZone(ServerPlayerEntity player, String mapName) {
+    private static void addEndZone(ServerPlayer player, String mapName) {
         DataManager.MapData mapData = DataManager.getMap(mapName);
         if (mapData == null) {
             Logger.logFailure(player, "There is no map called " + mapName + ".");
@@ -405,8 +405,8 @@ public final class MapCreationManager {
             return;
         }
 
-        ServerWorld world = player.getServerWorld();
-        EndEntity endEntity = ModEntities.END_ENTITY.spawn(world, corners[0], SpawnReason.NATURAL);
+        ServerLevel world = player.level();
+        EndEntity endEntity = ModEntities.END_ENTITY.spawn(world, corners[0], EntitySpawnReason.NATURAL);
         if (endEntity == null) {
             Logger.logFailure(player, "Failed to create end zone entity.");
             return;
@@ -415,14 +415,14 @@ public final class MapCreationManager {
         endEntity.setCorner2(corners[1]);
         endEntity.setPairedMap(mapName);
 
-        for (ServerPlayerEntity worldPlayer : world.getPlayers()) {
+        for (ServerPlayer worldPlayer : world.players()) {
             PacketHandler.updateZone(worldPlayer, endEntity.getId(), corners[0], corners[1], mapName, 0);
         }
         BoundsStickItem.clearSelection(player);
         Logger.logSuccess(player, "Created end zone for '" + mapName + "'.");
     }
 
-    private static void addResetZone(ServerPlayerEntity player, String mapName, int checkpointIndex) {
+    private static void addResetZone(ServerPlayer player, String mapName, int checkpointIndex) {
         DataManager.MapData mapData = DataManager.getMap(mapName);
         if (mapData == null) {
             Logger.logFailure(player, "There is no map called " + mapName + ".");
@@ -437,8 +437,8 @@ public final class MapCreationManager {
             return;
         }
 
-        ServerWorld world = player.getServerWorld();
-        ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(world, corners[0], SpawnReason.NATURAL);
+        ServerLevel world = player.level();
+        ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(world, corners[0], EntitySpawnReason.NATURAL);
         if (resetEntity == null) {
             Logger.logFailure(player, "Failed to create reset zone entity.");
             return;
@@ -449,7 +449,7 @@ public final class MapCreationManager {
         resetEntity.setCheckIndex(Math.max(0, checkpointIndex));
         resetEntity.setPreserveSpeed(true);
 
-        for (ServerPlayerEntity worldPlayer : world.getPlayers()) {
+        for (ServerPlayer worldPlayer : world.players()) {
             PacketHandler.updateZone(worldPlayer, resetEntity.getId(), corners[0], corners[1], mapName, Math.max(0, checkpointIndex));
         }
         BoundsStickItem.clearSelection(player);
@@ -460,15 +460,15 @@ public final class MapCreationManager {
         }
     }
 
-    private static BlockPos[] getBoundsCorners(ServerPlayerEntity player) {
-        BlockPos[] corners = BoundsStickItem.playerPositions.get(player.getNameForScoreboard());
+    private static BlockPos[] getBoundsCorners(ServerPlayer player) {
+        BlockPos[] corners = BoundsStickItem.playerPositions.get(player.getScoreboardName());
         if (corners == null || corners.length < 2 || corners[0] == null || corners[1] == null) {
             Logger.logFailure(player, "Set both zone corners with the zone stick before adding zones.");
             return null;
         }
-        if (!player.hasPermissionLevel(4) && player.getWorld() instanceof ServerWorld serverWorld) {
-            BlockPos minCorner = corners[0].toImmutable();
-            BlockPos maxCornerExclusive = corners[1].toImmutable();
+        if (!PermissionUtil.hasLevel(player, 4) && player.level() instanceof ServerLevel serverWorld) {
+            BlockPos minCorner = corners[0].immutable();
+            BlockPos maxCornerExclusive = corners[1].immutable();
             BlockPos maxCornerInclusive = new BlockPos(
                     maxCornerExclusive.getX() - 1,
                     maxCornerExclusive.getY() - 1,
@@ -480,7 +480,7 @@ public final class MapCreationManager {
                 return null;
             }
         }
-        return new BlockPos[]{corners[0].toImmutable(), corners[1].toImmutable()};
+        return new BlockPos[]{corners[0].immutable(), corners[1].immutable()};
     }
 
     private static String sanitizeMapName(String rawName) {
@@ -549,7 +549,7 @@ public final class MapCreationManager {
         return copy;
     }
 
-    private static boolean validateResetCheckpointTarget(ServerPlayerEntity player, DataManager.MapData mapData, int checkpointIndex) {
+    private static boolean validateResetCheckpointTarget(ServerPlayer player, DataManager.MapData mapData, int checkpointIndex) {
         if (mapData == null || checkpointIndex <= 0) {
             return true;
         }
@@ -566,8 +566,8 @@ public final class MapCreationManager {
         return true;
     }
 
-    private static void syncMaps(ServerWorld world) {
-        for (ServerPlayerEntity worldPlayer : world.getPlayers()) {
+    private static void syncMaps(ServerLevel world) {
+        for (ServerPlayer worldPlayer : world.players()) {
             PacketHandler.sendMaps(worldPlayer);
         }
     }
