@@ -73,7 +73,8 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Shadow public abstract float getHeadYaw();
 
-    @Shadow public abstract boolean isGliding();
+    // 1.21.1: elytra gliding is isFallFlying() (renamed isGliding() in 1.21.2).
+    @Shadow public abstract boolean isFallFlying();
 
     private boolean wasOnGround;
     @Unique private boolean cssCrouchOffsetApplied;
@@ -380,7 +381,8 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Inject(method = "damage", at = @At("HEAD"), cancellable = true)
-    public void onDamage(ServerWorld world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+    // 1.21.1: damage(DamageSource, float) has no ServerWorld parameter (added in 1.21.2).
+    public void onDamage(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         MinehopConfig config = this.getType() == EntityType.PLAYER
                 ? ConfigWrapper.getEffectiveConfig(this)
                 : ConfigWrapper.config;
@@ -459,7 +461,7 @@ public abstract class LivingEntityMixin extends Entity {
 
         if (!this.canMoveVoluntarily() && !this.isLogicalSideForUpdatingMovement()) { return; }
 
-        if (this.isTouchingWater() || this.isInLava() || this.isGliding()) { return; }
+        if (this.isTouchingWater() || this.isInLava() || this.isFallFlying()) { return; }
 
         LivingEntity self = (LivingEntity) this.getWorld().getEntityById(this.getId());
         PlayerEntity debugPlayer = self instanceof PlayerEntity playerEntity ? playerEntity : null;
@@ -575,7 +577,7 @@ public abstract class LivingEntityMixin extends Entity {
                 && this.minehop$descendedSinceJump
                 && this.minehop$jumpHeldFromGround
                 && !this.isClimbing()
-                && !this.isTouchingWater() && !this.isInLava() && !this.isGliding()
+                && !this.isTouchingWater() && !this.isInLava() && !this.isFallFlying()
                 && this.getVelocity().y <= 0.10D
                 && groundedishForCoyote
                 && preMoveSurfContact == null
@@ -4044,7 +4046,7 @@ public abstract class LivingEntityMixin extends Entity {
                 && !this.isClimbing()
                 && !this.isTouchingWater()
                 && !this.isInLava()
-                && !this.isGliding();
+                && !this.isFallFlying();
 
         if (cssCrouchEnabled
                 && airborneForSprintCarry
@@ -4078,7 +4080,7 @@ public abstract class LivingEntityMixin extends Entity {
                 && !this.isClimbing()
                 && !this.isTouchingWater()
                 && !this.isInLava()
-                && !this.isGliding();
+                && !this.isFallFlying();
 
         if (canApply && !this.cssCrouchOffsetApplied) {
             Box upBox = this.getBoundingBox().offset(0.0D, crouchDelta, 0.0D);
@@ -4304,7 +4306,7 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
 
-        if (this.isClimbing() || this.isTouchingWater() || this.isInLava() || this.isGliding()) {
+        if (this.isClimbing() || this.isTouchingWater() || this.isInLava() || this.isFallFlying()) {
             return;
         }
 
@@ -4325,7 +4327,7 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
 
-        if (this.isClimbing() || this.isTouchingWater() || this.isInLava() || this.isGliding()) {
+        if (this.isClimbing() || this.isTouchingWater() || this.isInLava() || this.isFallFlying()) {
             return;
         }
 

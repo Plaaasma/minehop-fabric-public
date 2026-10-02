@@ -15,7 +15,8 @@ public class ModDamageSources {
     public static DamageSource instagib;
 
     public ModDamageSources(DynamicRegistryManager registryManager) {
-        registryWrapper = registryManager.getOptional(RegistryKeys.DAMAGE_TYPE).get();
+        // 1.21.1: getOptional() returns the Registry itself; take its read-only wrapper.
+        registryWrapper = registryManager.getOptionalWrapper(RegistryKeys.DAMAGE_TYPE).get();
         instagib = create(ModDamageTypes.INSTAGIB);
     }
 

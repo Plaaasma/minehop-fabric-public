@@ -106,7 +106,7 @@ public class SurfRampEntity extends MobEntity {
 
     public static DefaultAttributeContainer.Builder createSurfRampAttributes() {
         return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 20.0D);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 20.0D);
     }
 
     @Override
@@ -189,6 +189,16 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
+    protected boolean updateWaterState() {
+        // Ramps ignore fluids, but vanilla's baseTick still sweeps every block inside the bounding box
+        // for water and lava each tick. With full-size ramp boxes that is thousands of block lookups per
+        // ramp per tick (hundreds of ramps froze a server), so skip it: never in water or lava.
+        // (1.21.1: same protected boolean updateWaterState() in Entity.baseTick; it is the only
+        // full-box sweep a ramp's baseTick-only tick() reaches here.)
+        return false;
+    }
+
+    @Override
     public boolean cannotDespawn() {
         return true;
     }
@@ -199,16 +209,16 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
-    public boolean damage(ServerWorld world, DamageSource source, float amount) {
+    public boolean damage(DamageSource source, float amount) {
         if (source.isOf(DamageTypes.GENERIC_KILL) || source.isOf(DamageTypes.OUT_OF_WORLD)) {
-            this.kill(world);
+            this.kill();
             return true;
         }
         return false;
     }
 
     @Override
-    public void kill(ServerWorld world) {
+    public void kill() {
         this.remove(Entity.RemovalReason.KILLED);
     }
 
@@ -259,6 +269,10 @@ public class SurfRampEntity extends MobEntity {
             this.setWireframeFillAlpha(SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
         }
         this.refreshBounds();
+        // Entity.readNbt calls refreshPosition() AFTER this method, which resets the bounding box to
+        // the type's 1x1 dimensions. Rebuild it on the next tick, or a ramp loaded from disk only
+        // "exists" (surf detection, anticheat surf exemption) around its midpoint on the server.
+        this.boundsDirty = true;
     }
 
     @Override

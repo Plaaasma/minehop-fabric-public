@@ -12,7 +12,7 @@ public record SetCheaterPayload(String uuid, boolean isCheater) implements Custo
     public static final Id<SetCheaterPayload> ID = new Id<>(HANDSHAKE_ID);
     public static final PacketCodec<PacketByteBuf, SetCheaterPayload> CODEC = PacketCodec.tuple(
             PacketCodecs.STRING, SetCheaterPayload::uuid,
-            PacketCodecs.BOOLEAN, SetCheaterPayload::isCheater,
+            PacketCodecs.BOOL, SetCheaterPayload::isCheater,
             SetCheaterPayload::new);
 
     @Override

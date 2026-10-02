@@ -24,6 +24,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
+import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
@@ -158,19 +159,20 @@ public final class UserPlotManager {
         return ActionResult.PASS;
     }
 
-    private static ActionResult onUseItem(PlayerEntity player, World world, Hand hand) {
+    // 1.21.1: UseItemCallback returns TypedActionResult<ItemStack> (plain ActionResult since 1.21.2).
+    private static TypedActionResult<ItemStack> onUseItem(PlayerEntity player, World world, Hand hand) {
         if (world.isClient || !(player instanceof ServerPlayerEntity serverPlayer) || !(world instanceof ServerWorld serverWorld)) {
-            return ActionResult.PASS;
+            return TypedActionResult.pass(ItemStack.EMPTY);
         }
         if (isSpawnEggUsageBlocked(serverPlayer, serverWorld, hand)) {
-            return ActionResult.FAIL;
+            return TypedActionResult.fail(player.getStackInHand(hand));
         }
         if (isPlotsWorld(serverWorld) && !serverPlayer.hasPermissionLevel(4)
                 && isIllegalPlotItem(serverPlayer.getStackInHand(hand))) {
             Logger.logActionBar(serverPlayer, "That item is disabled in plot worlds.");
-            return ActionResult.FAIL;
+            return TypedActionResult.fail(player.getStackInHand(hand));
         }
-        return ActionResult.PASS;
+        return TypedActionResult.pass(ItemStack.EMPTY);
     }
 
     private static ActionResult onUseEntity(PlayerEntity player, World world, Hand hand, Entity entity, EntityHitResult hitResult) {
@@ -889,7 +891,7 @@ public final class UserPlotManager {
             }
 
             for (Entity entity : toRemove) {
-                entity.kill(world);
+                entity.kill();
                 removedCount++;
             }
         }

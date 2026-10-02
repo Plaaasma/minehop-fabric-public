@@ -52,7 +52,8 @@ public class ModItems {
 
     public static Item registerItem(String path, Function<Item.Settings, Item> factory, Item.Settings settings) {
         final RegistryKey<Item> registryKey = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(Minehop.MOD_ID, path));
-        Item item = factory.apply(settings.registryKey(registryKey));
+        // 1.21.1: settings carry no registry key (added in 1.21.2).
+        Item item = factory.apply(settings);
 
         Registry.register(Registries.ITEM, registryKey, item);
 

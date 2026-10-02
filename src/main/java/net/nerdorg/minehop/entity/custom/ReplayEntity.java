@@ -48,7 +48,7 @@ public class ReplayEntity extends MobEntity {
 
     public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
         return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 1000000);
     }
 
     public ReplayEntity(EntityType<? extends MobEntity> entityType, World world) {
@@ -114,9 +114,9 @@ public class ReplayEntity extends MobEntity {
     }
 
     @Override
-    public boolean damage(ServerWorld world, DamageSource source, float amount) {
+    public boolean damage(DamageSource source, float amount) {
         if (source.isOf(DamageTypes.GENERIC_KILL)) {
-            return super.damage(world, source, amount);
+            return super.damage(source, amount);
         }
         else {
             return false;
@@ -172,7 +172,7 @@ public class ReplayEntity extends MobEntity {
     public void tick() {
         if (this.getWorld() instanceof ServerWorld) {
             if (temporary && !SpectateCommands.spectatorList.containsKey(this.getNameForScoreboard())) {
-                this.kill((ServerWorld) this.getWorld());
+                this.kill();
                 super.tick();
                 return;
             }

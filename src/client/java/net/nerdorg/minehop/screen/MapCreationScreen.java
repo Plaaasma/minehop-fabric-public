@@ -112,7 +112,7 @@ public class MapCreationScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void applyBlur(float delta) {
     }
 
     @Override

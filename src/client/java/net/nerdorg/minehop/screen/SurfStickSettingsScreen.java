@@ -14,6 +14,7 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.model.BakedModel;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.texture.SpriteAtlasTexture;
@@ -108,7 +109,7 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void applyBlur(float delta) {
     }
 
     @Override
@@ -519,7 +520,9 @@ public class SurfStickSettingsScreen extends Screen {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
 
-        context.draw(vertexConsumers -> {
+        // 1.21.1: no DrawContext#draw(Consumer); draw into its provider and flush it, as that did.
+        {
+            VertexConsumerProvider.Immediate vertexConsumers = context.getVertexConsumers();
             if (wireMode) {
                 if (this.wireframeFillEnabled) {
                     VertexConsumer fillConsumer = vertexConsumers.getBuffer(ModRenderLayer.getTranslucentColorQuads());
@@ -531,7 +534,8 @@ public class SurfStickSettingsScreen extends Screen {
                 VertexConsumer texturedConsumer = vertexConsumers.getBuffer(RenderLayer.getEntityCutoutNoCull(SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE));
                 this.renderStraightRampPreviewMesh(matrices, texturedConsumer, sprite, visualLength, visualWidth, visualDrop, oneSided, sideSign);
             }
-        });
+            vertexConsumers.draw();
+        }
         context.draw();
 
         RenderSystem.disableDepthTest();

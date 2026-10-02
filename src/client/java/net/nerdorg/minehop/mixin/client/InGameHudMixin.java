@@ -60,7 +60,7 @@ public abstract class InGameHudMixin {
                 context.getMatrices().pop();
             }
 
-            context.drawStackOverlay(this.client.textRenderer, stack, x, y);
+            context.drawItemInSlot(this.client.textRenderer, stack, x, y);
         }
     }
 
@@ -139,19 +139,21 @@ public abstract class InGameHudMixin {
                 ItemStack itemStack = playerEntity.getOffHandStack();
                 Arm arm = playerEntity.getMainArm().getOpposite();
                 int i = context.getScaledWindowWidth() / 2;
+                RenderSystem.enableBlend();
                 context.getMatrices().push();
                 context.getMatrices().translate(0.0F, 0.0F, -90.0F);
-                context.drawGuiTexture(RenderLayer::getGuiTextured, HOTBAR_TEXTURE, i - 91, context.getScaledWindowHeight() - 22, 182, 22);
-                context.drawGuiTexture(RenderLayer::getGuiTextured,HOTBAR_SELECTION_TEXTURE, i - 91 - 1 + playerEntity.getInventory().selectedSlot * 20, context.getScaledWindowHeight() - 22 - 1, 24, 23);
+                context.drawGuiTexture(HOTBAR_TEXTURE, i - 91, context.getScaledWindowHeight() - 22, 182, 22);
+                context.drawGuiTexture(HOTBAR_SELECTION_TEXTURE, i - 91 - 1 + playerEntity.getInventory().selectedSlot * 20, context.getScaledWindowHeight() - 22 - 1, 24, 23);
                 if (!itemStack.isEmpty()) {
                     if (arm == Arm.LEFT) {
-                        context.drawGuiTexture(RenderLayer::getGuiTextured,HOTBAR_OFFHAND_LEFT_TEXTURE, i - 91 - 29, context.getScaledWindowHeight() - 23, 29, 24);
+                        context.drawGuiTexture(HOTBAR_OFFHAND_LEFT_TEXTURE, i - 91 - 29, context.getScaledWindowHeight() - 23, 29, 24);
                     } else {
-                        context.drawGuiTexture(RenderLayer::getGuiTextured,HOTBAR_OFFHAND_RIGHT_TEXTURE, i + 91, context.getScaledWindowHeight() - 23, 29, 24);
+                        context.drawGuiTexture(HOTBAR_OFFHAND_RIGHT_TEXTURE, i + 91, context.getScaledWindowHeight() - 23, 29, 24);
                     }
                 }
 
                 context.getMatrices().pop();
+                RenderSystem.disableBlend();
                 int l = 1;
 
                 int m;
@@ -183,8 +185,8 @@ public abstract class InGameHudMixin {
                         }
 
                         int p = (int)(f * 19.0F);
-                        context.drawGuiTexture(RenderLayer::getGuiTextured, HOTBAR_ATTACK_INDICATOR_BACKGROUND_TEXTURE, o, n, 18, 18);
-                        context.drawGuiTexture(RenderLayer::getGuiTextured, HOTBAR_ATTACK_INDICATOR_PROGRESS_TEXTURE, 18, 18, 0, 18 - p, o, n + 18 - p, 18, p);
+                        context.drawGuiTexture(HOTBAR_ATTACK_INDICATOR_BACKGROUND_TEXTURE, o, n, 18, 18);
+                        context.drawGuiTexture(HOTBAR_ATTACK_INDICATOR_PROGRESS_TEXTURE, 18, 18, 0, 18 - p, o, n + 18 - p, 18, p);
                     }
                 }
 

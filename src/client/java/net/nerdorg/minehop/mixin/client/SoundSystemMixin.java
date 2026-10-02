@@ -18,7 +18,7 @@ public class SoundSystemMixin {
         if (MinecraftClient.getInstance().player != null) {
             DataManager.MapData currentMap = ZoneUtil.getCurrentMap(MinecraftClient.getInstance().player);
             if (currentMap != null && currentMap.hns) {
-                if (soundInstance.getId().equals(SoundEvents.ENTITY_PLAYER_ATTACK_NODAMAGE.id())) {
+                if (soundInstance.getId().equals(SoundEvents.ENTITY_PLAYER_ATTACK_NODAMAGE.getId())) {
                     ci.cancel();
                 }
             }

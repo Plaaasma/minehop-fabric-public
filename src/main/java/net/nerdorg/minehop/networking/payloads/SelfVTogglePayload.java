@@ -11,7 +11,7 @@ public record SelfVTogglePayload(boolean test) implements CustomPayload {
     public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "self_v_toggle");
     public static final Id<SelfVTogglePayload> ID = new Id<>(HANDSHAKE_ID);
     public static final PacketCodec<PacketByteBuf, SelfVTogglePayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.BOOLEAN, SelfVTogglePayload::test,
+            PacketCodecs.BOOL, SelfVTogglePayload::test,
             SelfVTogglePayload::new);
 
     @Override

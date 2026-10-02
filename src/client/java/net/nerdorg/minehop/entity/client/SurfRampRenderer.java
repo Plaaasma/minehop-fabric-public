@@ -29,7 +29,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Arrays;
 import java.util.List;
 
-public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRampEntityRenderState, SurfRampModel> {
+// 1.21.1: no render state; render() receives the entity directly.
+public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRampModel> {
     private static final double UV_SCALE = 0.5D;
     private static final float HORIZONTAL_TEXTURE_INSET_PIXELS = 1.0F;
     private static final double UV_SPLIT_EPSILON = 1.0E-7D;
@@ -55,23 +56,12 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     }
 
     @Override
-    public SurfRampEntityRenderState createRenderState() {
-        return new SurfRampEntityRenderState();
-    }
-
-    @Override
     public boolean shouldRender(SurfRampEntity entity, Frustum frustum, double x, double y, double z) {
         return super.shouldRender(entity, frustum, x, y, z);
     }
 
     @Override
-    public void updateRenderState(SurfRampEntity entity, SurfRampEntityRenderState state, float tickDelta) {
-        state.surfRampEntity = entity;
-    }
-
-    @Override
-    public void render(SurfRampEntityRenderState renderState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int light) {
-        SurfRampEntity entity = renderState.surfRampEntity;
+    public void render(SurfRampEntity entity, float yaw, float tickDelta, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int light) {
         if (entity == null) {
             return;
         }
@@ -1384,7 +1374,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     }
 
     @Override
-    public Identifier getTexture(SurfRampEntityRenderState state) {
+    public Identifier getTexture(SurfRampEntity entity) {
         return SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE;
     }
 }

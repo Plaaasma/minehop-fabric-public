@@ -164,7 +164,7 @@ public final class ZonePlacementManager {
             return;
         }
         if (zone.getWorld() instanceof ServerWorld serverWorld) {
-            zone.kill(serverWorld);
+            zone.kill();
         } else {
             zone.remove(Entity.RemovalReason.KILLED);
         }

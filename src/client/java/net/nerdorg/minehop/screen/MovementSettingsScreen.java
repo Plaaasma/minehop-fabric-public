@@ -40,7 +40,7 @@ public class MovementSettingsScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void applyBlur(float delta) {
     }
 
     @Override

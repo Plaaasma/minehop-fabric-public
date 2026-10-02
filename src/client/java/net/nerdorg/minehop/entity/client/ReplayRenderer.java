@@ -8,7 +8,8 @@ import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.entity.custom.ReplayEntity;
 
-public class ReplayRenderer extends MobEntityRenderer<ReplayEntity, ReplayEntityRenderState, ReplayModel> {
+// 1.21.1: no render state; ReplayModel.setAngles reads shouldRenderHead() from the entity.
+public class ReplayRenderer extends MobEntityRenderer<ReplayEntity, ReplayModel> {
     private static final Identifier TEXTURE = Identifier.of(Minehop.MOD_ID, "textures/entity/replay_texture.png");
 
     public ReplayRenderer(EntityRendererFactory.Context context) {
@@ -16,24 +17,12 @@ public class ReplayRenderer extends MobEntityRenderer<ReplayEntity, ReplayEntity
     }
 
     @Override
-    public Identifier getTexture(ReplayEntityRenderState entity) {
+    public Identifier getTexture(ReplayEntity entity) {
         return TEXTURE;
     }
 
     @Override
     public boolean shouldRender(ReplayEntity mobEntity, Frustum frustum, double d, double e, double f) {
         return !ConfigWrapper.config.hideReplay;
-    }
-
-    @Override
-    public ReplayEntityRenderState createRenderState() {
-        return new ReplayEntityRenderState();
-    }
-
-    @Override
-    public void updateRenderState(ReplayEntity replayEntity, ReplayEntityRenderState state, float tickDelta) {
-        super.updateRenderState(replayEntity, state, tickDelta);
-        state.replayEntity = replayEntity;
-        state.renderHead = replayEntity.shouldRenderHead();
     }
 }

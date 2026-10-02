@@ -6,13 +6,14 @@ import net.minecraft.client.model.ModelPartBuilder;
 import net.minecraft.client.model.ModelPartData;
 import net.minecraft.client.model.ModelTransform;
 import net.minecraft.client.model.TexturedModelData;
-import net.minecraft.client.render.entity.model.EntityModel;
+import net.minecraft.client.render.entity.model.SinglePartEntityModel;
+import net.nerdorg.minehop.entity.custom.SurfRampEntity;
 
-public class SurfRampModel extends EntityModel<SurfRampEntityRenderState> {
+// 1.21.1: typed by the entity (no render state).
+public class SurfRampModel extends SinglePartEntityModel<SurfRampEntity> {
     private final ModelPart root;
 
     public SurfRampModel(ModelPart root) {
-        super(root);
         this.root = root;
     }
 
@@ -24,6 +25,11 @@ public class SurfRampModel extends EntityModel<SurfRampEntityRenderState> {
     }
 
     @Override
-    public void setAngles(SurfRampEntityRenderState state) {
+    public ModelPart getPart() {
+        return this.root;
+    }
+
+    @Override
+    public void setAngles(SurfRampEntity entity, float limbAngle, float limbDistance, float animationProgress, float headYaw, float headPitch) {
     }
 }

@@ -63,7 +63,7 @@ public class StartEntity extends Zone {
 
     public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
         return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 1000000);
     }
 
     @Override
@@ -180,7 +180,7 @@ public class StartEntity extends Zone {
                     }
                 }
                 else {
-                    this.kill(serverWorld);
+                    this.kill();
                 }
             }
         }

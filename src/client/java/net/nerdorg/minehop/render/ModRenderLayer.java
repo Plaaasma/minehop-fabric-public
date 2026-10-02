@@ -16,7 +16,7 @@ public class ModRenderLayer extends RenderLayer {
             VertexFormat.DrawMode.QUADS,
             1536,
             RenderLayer.MultiPhaseParameters.builder()
-                    .program(POSITION_COLOR_PROGRAM)
+                    .program(COLOR_PROGRAM) // 1.21.1 name of the position_color program
                     .layering(VIEW_OFFSET_Z_LAYERING)
                     .transparency(TRANSLUCENT_TRANSPARENCY)
                     .target(ITEM_ENTITY_TARGET)

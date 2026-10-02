@@ -9,7 +9,6 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.entity.player.PlayerPosition;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.anticheat.checks.NoClipCheck;
 import net.nerdorg.minehop.anticheat.stream.MovementValidator;
@@ -137,8 +136,9 @@ public final class AntiCheatManager {
                 "[AC] %s LAGBACK (%s) from=(%.2f,%.2f,%.2f) to=(%.2f,%.2f,%.2f)",
                 player.getNameForScoreboard(), checkName, pos.x, pos.y, pos.z, target.x, target.y, target.z));
         MovementValidator.onLagbackIssued(player);
-        player.networkHandler.requestTeleport(
-                new PlayerPosition(target, Vec3d.ZERO, player.getYaw(), player.getPitch()), Collections.emptySet());
+        // 1.21.1: no PlayerPosition overload; an absolute teleport also zeroes the client's velocity.
+        player.networkHandler.requestTeleport(target.x, target.y, target.z, player.getYaw(), player.getPitch(),
+                Collections.emptySet());
         player.setVelocity(Vec3d.ZERO);
         int consecutive = state.consecutiveLagbacks();
         if (consecutive == 10 || consecutive == 25 || consecutive == 50 || (consecutive > 50 && consecutive % 50 == 0)) {
@@ -500,7 +500,7 @@ public final class AntiCheatManager {
     ) {
         double speed = postMoveVelocity == null ? 0.0D : Math.hypot(postMoveVelocity.x, postMoveVelocity.z);
         double movedHoriz = Math.hypot(postMovePos.x - preMovePos.x, postMovePos.z - preMovePos.z);
-        boolean vehicle = player.hasVehicle() || player.isGliding();
+        boolean vehicle = player.hasVehicle() || player.isFallFlying();
 
         AntiCheatAllowLog.Reason reason = null;
         if (surfing && speed > ALLOW_LOG_SPEED_FLOOR) {

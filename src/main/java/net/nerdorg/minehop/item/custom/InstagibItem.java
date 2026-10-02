@@ -11,6 +11,8 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.ActionResult;
+import net.minecraft.util.TypedActionResult;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
@@ -79,7 +81,7 @@ public class InstagibItem extends Item {
     }
 
     @Override
-    public ActionResult use(World world, PlayerEntity user, Hand hand) {
+    public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
         if (world instanceof ServerWorld serverWorld) {
             ServerPlayerEntity serverPlayerEntity = (ServerPlayerEntity) user;
             if (!gibDelayList.containsKey(user.getNameForScoreboard()) || serverWorld.getServer().getTicks() > gibDelayList.get(user.getNameForScoreboard()) + 15) {
@@ -107,9 +109,9 @@ public class InstagibItem extends Item {
 
                 gibDelayList.put(user.getNameForScoreboard(), serverWorld.getServer().getTicks());
             }
-            return ActionResult.CONSUME;// (user.getStackInHand(hand));
+            return TypedActionResult.consume(user.getStackInHand(hand));
         }
-        return ActionResult.CONSUME; //TypedActionResult.consume(user.getStackInHand(hand));
+        return TypedActionResult.consume(user.getStackInHand(hand));
     }
 
     private void handleGibParticles(ServerWorld world, Vec3d startPos, Vec3d endPos) {

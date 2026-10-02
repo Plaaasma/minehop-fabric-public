@@ -1,13 +1,16 @@
 package net.nerdorg.minehop.entity.client;
 
 import net.minecraft.client.model.*;
-import net.minecraft.client.render.entity.model.EntityModel;
+import net.minecraft.client.render.entity.model.SinglePartEntityModel;
+import net.nerdorg.minehop.entity.custom.EndEntity;
 
-public class EndModel extends EntityModel<EndEntityRenderState> {
+// 1.21.1: models are typed by the entity and render a single root part (SinglePartEntityModel is the
+// pre-1.21.2 equivalent of EntityModel(ModelPart root), which renders the whole root).
+public class EndModel extends SinglePartEntityModel<EndEntity> {
+	private final ModelPart root;
 	private final ModelPart bb_main;
-
 	public EndModel(ModelPart root) {
-		super(root);
+		this.root = root;
 		this.bb_main = root.getChild("bb_main");
 	}
 	public static TexturedModelData getTexturedModelData() {
@@ -18,7 +21,11 @@ public class EndModel extends EntityModel<EndEntityRenderState> {
 	}
 
 	@Override
-	public void setAngles(EndEntityRenderState state) {
+	public ModelPart getPart() {
+		return this.root;
 	}
 
+	@Override
+	public void setAngles(EndEntity entity, float limbAngle, float limbDistance, float animationProgress, float headYaw, float headPitch) {
+	}
 }

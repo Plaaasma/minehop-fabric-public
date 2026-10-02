@@ -118,7 +118,7 @@ public class ResetEntity extends Zone {
 
     public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
         return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 1000000);
     }
 
     // Keep the preserved SPEED but point it along the spawn/checkpoint facing (what a bhop/surf
@@ -330,7 +330,10 @@ public class ResetEntity extends Zone {
                                         preservedVelocity,
                                         targetRot.y,
                                         targetRot.x,
-                                        Set.of(),
+                                        // 1.21.1: no relatives set (absolute only). Vanilla 1.21.1 doesn't send
+                                        // the target velocity with the teleport (the client zeroes it); the
+                                        // preserved velocity still arrives via applyPreservedVelocity's
+                                        // velocity packet + the carry payload below, as on 1.21.4.
                                         (playerEntity) -> {
                                             if (playerEntity instanceof ServerPlayerEntity serverPlayerEntity) {
                                                 // Authorized server teleport: grants the anticheat
@@ -350,7 +353,7 @@ public class ResetEntity extends Zone {
                     }
                 }
                 else {
-                    this.kill(serverWorld);
+                    this.kill();
                 }
             }
         }

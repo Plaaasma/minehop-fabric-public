@@ -13,8 +13,8 @@ public record ZoneSyncIDPayload(int entityId, Vector3f pos1, Vector3f pos2, Stri
     public static final Id<ZoneSyncIDPayload> ID = new Id<>(HANDSHAKE_ID);
     public static final PacketCodec<PacketByteBuf, ZoneSyncIDPayload> CODEC = PacketCodec.tuple(
             PacketCodecs.INTEGER, ZoneSyncIDPayload::entityId,
-            PacketCodecs.VECTOR_3F, ZoneSyncIDPayload::pos1,
-            PacketCodecs.VECTOR_3F, ZoneSyncIDPayload::pos2,
+            PacketCodecs.VECTOR3F, ZoneSyncIDPayload::pos1,
+            PacketCodecs.VECTOR3F, ZoneSyncIDPayload::pos2,
             PacketCodecs.STRING, ZoneSyncIDPayload::name,
             PacketCodecs.INTEGER, ZoneSyncIDPayload::check_index,
             ZoneSyncIDPayload::new);

@@ -304,7 +304,7 @@ public class ReplayCommands {
         }
         for (ReplayEntity replayEntity : toRemove) {
             SpectateCommands.spectatorList.remove(replayEntity.getNameForScoreboard());
-            replayEntity.kill(world);
+            replayEntity.kill();
         }
         return toRemove.size();
     }
@@ -333,7 +333,7 @@ public class ReplayCommands {
                 if (watching != null) {
                     spectators.addAll(watching);
                 }
-                replayEntity.kill(world);
+                replayEntity.kill();
             }
         }
         return spectators;

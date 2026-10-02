@@ -76,7 +76,7 @@ public class EndEntity extends Zone {
 
     public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
         return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 1000000);
     }
 
     @Override
@@ -96,7 +96,7 @@ public class EndEntity extends Zone {
             if (this.corner1 != null && this.corner2 != null) {
                 DataManager.MapData pairedMap = DataManager.getMap(this.getPairedMap());
                 if (pairedMap == null) {
-                    this.kill(serverWorld);
+                    this.kill();
                 } else {
                     Box endBox = this.getBoundsBox();
                     String mapName = this.getPairedMap();

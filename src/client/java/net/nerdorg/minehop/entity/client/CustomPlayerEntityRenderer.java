@@ -4,7 +4,6 @@ import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.Frustum;
 import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.render.entity.PlayerEntityRenderer;
-import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
 import net.minecraft.util.Identifier;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
@@ -26,23 +25,26 @@ public class CustomPlayerEntityRenderer extends PlayerEntityRenderer {
         super(ctx, slim);
     }
 
+    // 1.21.1: takes the player (no render state). Keyed by the profile name, which is what 1.21.4's
+    // PlayerEntityRenderState.name holds.
     @Override
-    public Identifier getTexture(PlayerEntityRenderState entity) {
+    public Identifier getTexture(AbstractClientPlayerEntity entity) {
+        String name = entity.getGameProfile().getName();
 
-        PlayerModels.putIfAbsent(entity.name, PlayerModel.Player);
-        PlayerModel model = PlayerModels.get(entity.name);
+        PlayerModels.putIfAbsent(name, PlayerModel.Player);
+        PlayerModel model = PlayerModels.get(name);
 
         switch (model){
 
             case Player -> {
-                return entity.skinTextures.texture();
+                return entity.getSkinTextures().texture();
             }
             case Cheater -> {
                 return TEXTURE;
             }
         }
 
-        return entity.skinTextures.texture();
+        return entity.getSkinTextures().texture();
     }
 
     public static void setPlayerModel(PlayerModel playerModel, String UUID) {

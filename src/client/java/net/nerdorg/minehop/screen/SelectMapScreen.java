@@ -72,7 +72,7 @@ public class SelectMapScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void applyBlur(float delta) {
     }
 
     @Override
@@ -585,7 +585,7 @@ public class SelectMapScreen extends Screen {
         if (listWidget == null || tab == null || listWidget.mapCount() <= 0) {
             return;
         }
-        double scrollY = listWidget.getScrollY();
+        double scrollY = listWidget.getScrollAmount();
         switch (tab) {
             case BHOP -> this.bhopScrollY = scrollY;
             case SURF -> this.surfScrollY = scrollY;
@@ -609,7 +609,7 @@ public class SelectMapScreen extends Screen {
             case USER -> this.userScrollY;
         };
         if (scrollY > 0.0D) {
-            listWidget.setScrollY(scrollY);
+            listWidget.setScrollAmount(scrollY);
         }
     }
 
