@@ -373,7 +373,7 @@ public abstract class EntityCollisionMixin {
                     Minehop.LOGGER.info(
                             "SurfPerf side={} player={} tick={} {}",
                             "client",
-                            player.getNameForScoreboard(),
+                            player.getEntityName(),
                             accumulator[PERF_TICK],
                             message
                     );

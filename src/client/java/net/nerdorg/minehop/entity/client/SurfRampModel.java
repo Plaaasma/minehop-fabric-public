@@ -7,12 +7,17 @@ import net.minecraft.client.model.ModelPartData;
 import net.minecraft.client.model.ModelTransform;
 import net.minecraft.client.model.TexturedModelData;
 import net.minecraft.client.render.entity.model.EntityModel;
+import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.render.VertexConsumer;
+import net.nerdorg.minehop.entity.custom.SurfRampEntity;
 
-public class SurfRampModel extends EntityModel<SurfRampEntityRenderState> {
+public class SurfRampModel extends EntityModel<SurfRampEntity> {
+    // 1.20.1: the root part the 1.21.2+ Model base class used to hold.
+    private final ModelPart modelRoot;
     private final ModelPart root;
 
     public SurfRampModel(ModelPart root) {
-        super(root);
+        this.modelRoot = root;
         this.root = root;
     }
 
@@ -24,6 +29,12 @@ public class SurfRampModel extends EntityModel<SurfRampEntityRenderState> {
     }
 
     @Override
-    public void setAngles(SurfRampEntityRenderState state) {
+    public void setAngles(SurfRampEntity entity, float limbAngle, float limbDistance, float animationProgress, float headYaw, float headPitch) {
+    }
+
+    // 1.20.1: EntityModel has no root part to render implicitly (1.21.2+); render the whole tree.
+    @Override
+    public void render(MatrixStack matrices, VertexConsumer vertices, int light, int overlay, float red, float green, float blue, float alpha) {
+        this.modelRoot.render(matrices, vertices, light, overlay, red, green, blue, alpha);
     }
 }

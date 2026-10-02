@@ -9,7 +9,6 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.entity.player.PlayerPosition;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.anticheat.checks.NoClipCheck;
 import net.nerdorg.minehop.anticheat.stream.MovementValidator;
@@ -75,7 +74,7 @@ public final class AntiCheatManager {
             ServerPlayerEntity player = handler.player;
             if (player != null) {
                 AntiCheatPlayerState state = stateOf(player);
-                state.setLastKnownName(player.getNameForScoreboard());
+                state.setLastKnownName(player.getEntityName());
                 state.setLastVerifiedPos(player.getPos());
                 state.setLastReportedPos(player.getPos());
                 state.markAuthorizedTeleport(currentServerTick);
@@ -135,15 +134,17 @@ public final class AntiCheatManager {
         state.markLagback(currentServerTick);
         Minehop.LOGGER.info(String.format(Locale.ROOT,
                 "[AC] %s LAGBACK (%s) from=(%.2f,%.2f,%.2f) to=(%.2f,%.2f,%.2f)",
-                player.getNameForScoreboard(), checkName, pos.x, pos.y, pos.z, target.x, target.y, target.z));
+                player.getEntityName(), checkName, pos.x, pos.y, pos.z, target.x, target.y, target.z));
         MovementValidator.onLagbackIssued(player);
-        player.networkHandler.requestTeleport(
-                new PlayerPosition(target, Vec3d.ZERO, player.getYaw(), player.getPitch()), Collections.emptySet());
+        // 1.20.1: teleports carry no velocity; an absolute teleport zeroes it on the client (and the
+        // server velocity is zeroed right below), matching the 1.21.4 PlayerPosition(target, ZERO).
+        player.networkHandler.requestTeleport(target.x, target.y, target.z, player.getYaw(), player.getPitch(),
+                Collections.emptySet());
         player.setVelocity(Vec3d.ZERO);
         int consecutive = state.consecutiveLagbacks();
         if (consecutive == 10 || consecutive == 25 || consecutive == 50 || (consecutive > 50 && consecutive % 50 == 0)) {
             Minehop.LOGGER.warn("[AC] {} has {} consecutive lagbacks (persistent invalid movement)",
-                    player.getNameForScoreboard(), consecutive);
+                    player.getEntityName(), consecutive);
         }
         return true;
     }
@@ -159,7 +160,7 @@ public final class AntiCheatManager {
     /** A run finished with anticheat flags: tell the console and every verbose admin. */
     public static void announceFlaggedRun(ServerPlayerEntity player, String mapName, double time, String flags) {
         String line = String.format(Locale.ROOT, "%s finished %s in %.5fs with anticheat flags: %s",
-                player.getNameForScoreboard(), mapName, time, flags);
+                player.getEntityName(), mapName, time, flags);
         Minehop.LOGGER.info("[AC] {}", line);
         if (serverInstance == null) {
             return;
@@ -186,7 +187,7 @@ public final class AntiCheatManager {
         }
         return PLAYER_STATES.computeIfAbsent(player.getUuid(), uuid -> {
             AntiCheatPlayerState state = new AntiCheatPlayerState(uuid);
-            state.setLastKnownName(player.getNameForScoreboard());
+            state.setLastKnownName(player.getEntityName());
             return state;
         });
     }
@@ -239,7 +240,7 @@ public final class AntiCheatManager {
         String status = exemptReason(player);
         String previous = LAST_AC_STATUS.put(player.getUuid(), status);
         if (!status.equals(previous)) {
-            Minehop.LOGGER.info("[AC] {} status {} -> {}", player.getNameForScoreboard(),
+            Minehop.LOGGER.info("[AC] {} status {} -> {}", player.getEntityName(),
                     previous == null ? "none" : previous, status);
         }
     }
@@ -367,7 +368,7 @@ public final class AntiCheatManager {
         if (state == null) {
             return;
         }
-        state.setLastKnownName(player.getNameForScoreboard());
+        state.setLastKnownName(player.getEntityName());
 
         MinehopConfig config = ConfigWrapper.config;
         boolean usingPlotCreative = player.isCreative();
@@ -427,7 +428,7 @@ public final class AntiCheatManager {
                 if (Minehop.surfDebugPlayers.contains(player.getUuid())) {
                     Minehop.LOGGER.info(String.format(Locale.ROOT,
                             "[ACDBG] %s FLAG %s vl=%.1f thr=%.1f surfing=%b onGround=%b wasOnGround=%b airTicks=%d pos=(%.2f,%.2f,%.2f) %s",
-                            player.getNameForScoreboard(), check.name(), level, check.lagbackThreshold(),
+                            player.getEntityName(), check.name(), level, check.lagbackThreshold(),
                             surfing, onGround, wasOnGround, state.airborneTicks(),
                             postMovePos.x, postMovePos.y, postMovePos.z, result.details));
                 }
@@ -447,7 +448,7 @@ public final class AntiCheatManager {
             Vec3d t = state.lastVerifiedPos();
             Minehop.LOGGER.info(String.format(Locale.ROOT,
                     "[AC] %s LAGBACK from=(%.2f,%.2f,%.2f) to=(%.2f,%.2f,%.2f) surfing=%b onGround=%b airTicks=%d",
-                    player.getNameForScoreboard(), postMovePos.x, postMovePos.y, postMovePos.z,
+                    player.getEntityName(), postMovePos.x, postMovePos.y, postMovePos.z,
                     t == null ? 0 : t.x, t == null ? 0 : t.y, t == null ? 0 : t.z,
                     surfing, onGround, state.airborneTicks()));
             triggerLagback(player, state);
@@ -500,7 +501,7 @@ public final class AntiCheatManager {
     ) {
         double speed = postMoveVelocity == null ? 0.0D : Math.hypot(postMoveVelocity.x, postMoveVelocity.z);
         double movedHoriz = Math.hypot(postMovePos.x - preMovePos.x, postMovePos.z - preMovePos.z);
-        boolean vehicle = player.hasVehicle() || player.isGliding();
+        boolean vehicle = player.hasVehicle() || player.isFallFlying();
 
         AntiCheatAllowLog.Reason reason = null;
         if (surfing && speed > ALLOW_LOG_SPEED_FLOOR) {
@@ -546,7 +547,7 @@ public final class AntiCheatManager {
         int consecutive = state.consecutiveLagbacks();
         if (consecutive == 10 || consecutive == 25 || consecutive == 50 || (consecutive > 50 && consecutive % 50 == 0)) {
             Minehop.LOGGER.warn("[AC] {} has {} consecutive lagbacks (persistent invalid movement)",
-                    player.getNameForScoreboard(), consecutive);
+                    player.getEntityName(), consecutive);
         }
     }
 
@@ -570,7 +571,7 @@ public final class AntiCheatManager {
         slot[1] = 0L;
         Minehop.LOGGER.info(String.format(Locale.ROOT,
                 "[AC] %s FLAG %s vl=%.1f/%.1f pos=(%.2f,%.2f,%.2f) %s%s",
-                player.getNameForScoreboard(), checkName, level, lagbackThreshold,
+                player.getEntityName(), checkName, level, lagbackThreshold,
                 pos.x, pos.y, pos.z, details == null ? "" : details,
                 suppressed > 0 ? " (+" + suppressed + " suppressed)" : ""));
     }
@@ -584,7 +585,7 @@ public final class AntiCheatManager {
         if (VERBOSE_LISTENERS.isEmpty() || serverInstance == null) {
             return;
         }
-        String offenderName = offender.getNameForScoreboard();
+        String offenderName = offender.getEntityName();
         String preview = details == null || details.isEmpty() ? "" : (" " + details);
         Text msg = Text.literal("[AC] ")
                 .formatted(Formatting.RED)

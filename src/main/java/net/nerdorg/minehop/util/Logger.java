@@ -9,13 +9,13 @@ import net.minecraft.util.Formatting;
 import java.util.List;
 
 public class Logger {
-    private static Text prefix = Text.literal("NerdOrg ").withColor(Formatting.GREEN.getColorValue()).append(Text.literal("(").withColor(Formatting.GRAY.getColorValue())).append(Text.literal("Minehop").withColor(Formatting.LIGHT_PURPLE.getColorValue()).formatted(Formatting.ITALIC)).append(Text.literal(") ").withColor(Formatting.GRAY.getColorValue())).append(Text.literal("-> ").withColor(Formatting.DARK_GRAY.getColorValue()));
+    private static Text prefix = Text.literal("NerdOrg ").styled(s -> s.withColor(Formatting.GREEN.getColorValue())).append(Text.literal("(").styled(s -> s.withColor(Formatting.GRAY.getColorValue()))).append(Text.literal("Minehop").styled(s -> s.withColor(Formatting.LIGHT_PURPLE.getColorValue())).formatted(Formatting.ITALIC)).append(Text.literal(") ").styled(s -> s.withColor(Formatting.GRAY.getColorValue()))).append(Text.literal("-> ").styled(s -> s.withColor(Formatting.DARK_GRAY.getColorValue())));
 
     public static void logGlobal(MinecraftServer server, String message) {
         List<ServerPlayerEntity> playerEntities = server.getPlayerManager().getPlayerList();
 
         for (ServerPlayerEntity playerEntity : playerEntities) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.AQUA.getColorValue())));
+            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).styled(s -> s.withColor(Formatting.AQUA.getColorValue()))));
         }
     }
 
@@ -23,7 +23,7 @@ public class Logger {
         List<ServerPlayerEntity> playerEntities = server.getPlayerManager().getPlayerList();
 
         for (ServerPlayerEntity playerEntity : playerEntities) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(color.getColorValue())));
+            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).styled(s -> s.withColor(color.getColorValue()))));
         }
     }
 
@@ -31,23 +31,23 @@ public class Logger {
         List<ServerPlayerEntity> playerEntities = server.getPlayerManager().getPlayerList();
 
         for (ServerPlayerEntity playerEntity : playerEntities) {
-            playerEntity.sendMessage(prefix.copy().append(message.copy().withColor(Formatting.AQUA.getColorValue())));
+            playerEntity.sendMessage(prefix.copy().append(message.copy().styled(s -> s.withColor(Formatting.AQUA.getColorValue()))));
         }
     }
 
     public static void logServer(MinecraftServer server, String message) {
-        server.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.AQUA.getColorValue())));
+        server.sendMessage(prefix.copy().append(Text.literal(message).styled(s -> s.withColor(Formatting.AQUA.getColorValue()))));
     }
 
     public static void logActionBar(PlayerEntity playerEntity, String message) {
         if (playerEntity != null) {
-            playerEntity.sendMessage(Text.literal(message).withColor(Formatting.AQUA.getColorValue()), true);
+            playerEntity.sendMessage(Text.literal(message).styled(s -> s.withColor(Formatting.AQUA.getColorValue())), true);
         }
     }
 
     public static void logSuccess(PlayerEntity playerEntity, String message) {
         if (playerEntity != null) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.GOLD.getColorValue())), false);
+            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).styled(s -> s.withColor(Formatting.GOLD.getColorValue()))), false);
         }
     }
 
@@ -59,7 +59,7 @@ public class Logger {
 
     public static void logFailure(PlayerEntity playerEntity, String message) {
         if (playerEntity != null) {
-            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).withColor(Formatting.RED.getColorValue())), false);
+            playerEntity.sendMessage(prefix.copy().append(Text.literal(message).styled(s -> s.withColor(Formatting.RED.getColorValue()))), false);
         }
     }
 }

@@ -18,15 +18,15 @@ import net.nerdorg.minehop.networking.ClientPacketHandler;
 import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Vector3f;
 
-public class GamemodeRenderer extends MobEntityRenderer<GamemodeEntity, GamemodeEntityRenderState, GamemodeModel> {
-    private static final Identifier TEXTURE = Identifier.of(Minehop.MOD_ID, "textures/entity/zone.png");
+public class GamemodeRenderer extends MobEntityRenderer<GamemodeEntity, GamemodeModel> {
+    private static final Identifier TEXTURE = new Identifier(Minehop.MOD_ID, "textures/entity/zone.png");
 
     public GamemodeRenderer(EntityRendererFactory.Context context) {
         super(context, new GamemodeModel(context.getPart(ModModelLayers.GAMEMODE_ENTITY)), 0.001f);
     }
 
     @Override
-    public Identifier getTexture(GamemodeEntityRenderState state) {
+    public Identifier getTexture(GamemodeEntity entity) {
         return TEXTURE;
     }
 
@@ -35,12 +35,10 @@ public class GamemodeRenderer extends MobEntityRenderer<GamemodeEntity, Gamemode
         return true;
     }
 
-    @Override
     public GamemodeEntityRenderState createRenderState() {
         return new GamemodeEntityRenderState();
     }
 
-    @Override
     public void updateRenderState(GamemodeEntity gamemodeEntity, GamemodeEntityRenderState state, float tickDelta) {
         state.gamemodeEntity = gamemodeEntity;
     }

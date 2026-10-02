@@ -1,8 +1,9 @@
 package net.nerdorg.minehop.networking.payloads;
 
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
+import net.nerdorg.minehop.networking.codec.PacketCodec;
+import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+import net.fabricmc.fabric.api.networking.v1.PacketType;
 import net.minecraft.util.Identifier;
 import net.nerdorg.minehop.Minehop;
 
@@ -30,7 +31,7 @@ public record MapCreatorActionPayload(
         boolean movementDisableSprint,
         boolean movementFallDamage,
         int checkpointIndex
-) implements CustomPayload {
+) implements FabricPacket {
     public static final String ACTION_CREATE_OR_UPDATE = "create_or_update";
     public static final String ACTION_SET_SPAWN = "set_spawn";
     public static final String ACTION_ADD_CHECKPOINT = "add_checkpoint";
@@ -40,8 +41,8 @@ public record MapCreatorActionPayload(
 
     private static final int MAX_ACTION_LENGTH = 48;
     private static final int MAX_MAP_NAME_LENGTH = 128;
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "map_creator_action");
-    public static final Id<MapCreatorActionPayload> ID = new Id<>(HANDSHAKE_ID);
+    public static final Identifier HANDSHAKE_ID = new Identifier(Minehop.MOD_ID, "map_creator_action");
+    public static final PacketType<MapCreatorActionPayload> ID = PacketType.create(HANDSHAKE_ID, buf -> MapCreatorActionPayload.CODEC.decode(buf));
     public static final PacketCodec<PacketByteBuf, MapCreatorActionPayload> CODEC = PacketCodec.of(
             (value, buf) -> {
                 buf.writeString(value.action == null ? "" : value.action, MAX_ACTION_LENGTH);
@@ -96,7 +97,12 @@ public record MapCreatorActionPayload(
     );
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public void write(PacketByteBuf buf) {
+        CODEC.encode(buf, this);
+    }
+
+    @Override
+    public PacketType<?> getType() {
         return ID;
     }
 }

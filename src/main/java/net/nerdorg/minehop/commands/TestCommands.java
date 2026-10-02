@@ -78,7 +78,7 @@ public class TestCommands {
             net.nerdorg.minehop.Minehop.surfDebugPlayers.add(uuid);
             enabled = true;
         }
-        String name = target.getNameForScoreboard();
+        String name = target.getEntityName();
         context.getSource().sendFeedback(() -> net.minecraft.text.Text.literal(
                 "Movement debug logging " + (enabled ? "ON" : "OFF") + " for " + name
                         + (enabled ? ". Check latest.log for [ACDBG]/[M1PROBE] lines." : ".")), true);

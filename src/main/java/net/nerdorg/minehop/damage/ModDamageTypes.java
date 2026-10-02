@@ -10,7 +10,7 @@ import net.minecraft.registry.RegistryKeys;
 import net.minecraft.util.Identifier;
 
 public class ModDamageTypes {
-    public static RegistryKey<DamageType> INSTAGIB = RegistryKey.of(RegistryKeys.DAMAGE_TYPE, Identifier.of("instagib"));
+    public static RegistryKey<DamageType> INSTAGIB = RegistryKey.of(RegistryKeys.DAMAGE_TYPE, new Identifier("instagib"));
 
     public static void bootstrap(Registerable<DamageType> damageTypeRegisterable) {
         damageTypeRegisterable.register(INSTAGIB, new DamageType("instagib", 0.0F));

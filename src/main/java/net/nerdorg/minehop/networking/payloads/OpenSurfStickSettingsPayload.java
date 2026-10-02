@@ -1,8 +1,9 @@
 package net.nerdorg.minehop.networking.payloads;
 
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
+import net.nerdorg.minehop.networking.codec.PacketCodec;
+import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+import net.fabricmc.fabric.api.networking.v1.PacketType;
 import net.minecraft.util.Identifier;
 import net.nerdorg.minehop.Minehop;
 
@@ -18,11 +19,11 @@ public record OpenSurfStickSettingsPayload(
         int wireframeFillColor,
         int wireframeFillAlpha,
         boolean editingExisting
-) implements CustomPayload {
+) implements FabricPacket {
     private static final int MAX_TEXTURE_ID_LENGTH = 128;
     private static final int MAX_RENDER_MODE_LENGTH = 24;
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "open_surf_stick_settings");
-    public static final Id<OpenSurfStickSettingsPayload> ID = new Id<>(HANDSHAKE_ID);
+    public static final Identifier HANDSHAKE_ID = new Identifier(Minehop.MOD_ID, "open_surf_stick_settings");
+    public static final PacketType<OpenSurfStickSettingsPayload> ID = PacketType.create(HANDSHAKE_ID, buf -> OpenSurfStickSettingsPayload.CODEC.decode(buf));
     public static final PacketCodec<PacketByteBuf, OpenSurfStickSettingsPayload> CODEC = PacketCodec.of(
             (value, buf) -> {
                 buf.writeFloat(value.width);
@@ -53,7 +54,12 @@ public record OpenSurfStickSettingsPayload(
     );
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public void write(PacketByteBuf buf) {
+        CODEC.encode(buf, this);
+    }
+
+    @Override
+    public PacketType<?> getType() {
         return ID;
     }
 }

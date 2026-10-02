@@ -14,14 +14,13 @@ import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Vector3f;
 
-public class EndRenderer extends MobEntityRenderer<EndEntity, EndEntityRenderState, EndModel> {
-    private static final Identifier TEXTURE = Identifier.of(Minehop.MOD_ID, "textures/entity/zone.png");
+public class EndRenderer extends MobEntityRenderer<EndEntity, EndModel> {
+    private static final Identifier TEXTURE = new Identifier(Minehop.MOD_ID, "textures/entity/zone.png");
 
     public EndRenderer(EntityRendererFactory.Context context) {
         super(context, new EndModel(context.getPart(ModModelLayers.START_ENTITY)), 0.001f);
     }
 
-    @Override
     public EndEntityRenderState createRenderState() {
         return new EndEntityRenderState();
     }
@@ -31,14 +30,15 @@ public class EndRenderer extends MobEntityRenderer<EndEntity, EndEntityRenderSta
         return true;
     }
 
-    @Override
     public void updateRenderState(EndEntity endEntity, EndEntityRenderState state, float tickDelta) {
         state.endEntity = endEntity;
     }
 
 
     @Override
-    public void render(EndEntityRenderState renderState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
+    public void render(EndEntity entity, float yaw, float tickDelta, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
+        EndEntityRenderState renderState = this.createRenderState();
+        this.updateRenderState(entity, renderState, tickDelta);
         BlockPos corner1 = renderState.endEntity.getCorner1();
         BlockPos corner2 = renderState.endEntity.getCorner2();
         if (corner1 != null && corner2 != null) {
@@ -47,11 +47,11 @@ public class EndRenderer extends MobEntityRenderer<EndEntity, EndEntityRenderSta
 
             RenderUtil.drawCuboid(vertexConsumerProvider, matrixStack, new Vector3f((float) corner1Offset.getX(), (float) corner1Offset.getY(), (float) corner1Offset.getZ()), new Vector3f((float) corner2Offset.getX(), (float) corner2Offset.getY(), (float) corner2Offset.getZ()), 1, 255, 255, 0, 0);
         }
-        super.render(renderState, matrixStack, vertexConsumerProvider, i);
+        super.render(entity, yaw, tickDelta, matrixStack, vertexConsumerProvider, i);
     }
 
     @Override
-    public Identifier getTexture(EndEntityRenderState state) {
+    public Identifier getTexture(EndEntity entity) {
         return TEXTURE;
     }
 }

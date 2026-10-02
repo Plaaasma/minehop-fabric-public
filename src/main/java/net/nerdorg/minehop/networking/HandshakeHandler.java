@@ -75,7 +75,7 @@ public class HandshakeHandler {
     }
 
     private static void registerReceivers() {
-        ServerPlayNetworking.registerGlobalReceiver(HandshakeIDPayload.ID, (payload, ctx) -> {
+        net.nerdorg.minehop.networking.codec.ServerPayloads.registerGlobalReceiver(HandshakeIDPayload.ID, (payload, ctx) -> {
             int mod_version = payload.mod_version();
             ServerPlayerEntity player = ctx.player();
             ctx.server().execute(() -> {

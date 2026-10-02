@@ -461,7 +461,7 @@ public final class MapCreationManager {
     }
 
     private static BlockPos[] getBoundsCorners(ServerPlayerEntity player) {
-        BlockPos[] corners = BoundsStickItem.playerPositions.get(player.getNameForScoreboard());
+        BlockPos[] corners = BoundsStickItem.playerPositions.get(player.getEntityName());
         if (corners == null || corners.length < 2 || corners[0] == null || corners[1] == null) {
             Logger.logFailure(player, "Set both zone corners with the zone stick before adding zones.");
             return null;

@@ -120,7 +120,7 @@ public final class ZonePlacementManager {
         }
 
         if (applyBounds) {
-            BlockPos[] positions = BoundsStickItem.playerPositions.get(player.getNameForScoreboard());
+            BlockPos[] positions = BoundsStickItem.playerPositions.get(player.getEntityName());
             if (positions == null || positions.length < 2 || positions[0] == null || positions[1] == null) {
                 Logger.logFailure(player, "Set both zone corners with the zone stick first.");
                 return;
@@ -164,7 +164,7 @@ public final class ZonePlacementManager {
             return;
         }
         if (zone.getWorld() instanceof ServerWorld serverWorld) {
-            zone.kill(serverWorld);
+            zone.kill();
         } else {
             zone.remove(Entity.RemovalReason.KILLED);
         }

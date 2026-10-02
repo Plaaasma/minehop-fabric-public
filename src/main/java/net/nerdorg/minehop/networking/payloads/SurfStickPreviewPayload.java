@@ -1,8 +1,9 @@
 package net.nerdorg.minehop.networking.payloads;
 
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
+import net.nerdorg.minehop.networking.codec.PacketCodec;
+import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+import net.fabricmc.fabric.api.networking.v1.PacketType;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.nerdorg.minehop.Minehop;
@@ -17,10 +18,10 @@ public record SurfStickPreviewPayload(
         boolean oneSided,
         boolean outsideCurve,
         List<BlockPos> points
-) implements CustomPayload {
+) implements FabricPacket {
     private static final int MAX_POINTS = 512;
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "surf_stick_preview");
-    public static final Id<SurfStickPreviewPayload> ID = new Id<>(HANDSHAKE_ID);
+    public static final Identifier HANDSHAKE_ID = new Identifier(Minehop.MOD_ID, "surf_stick_preview");
+    public static final PacketType<SurfStickPreviewPayload> ID = PacketType.create(HANDSHAKE_ID, buf -> SurfStickPreviewPayload.CODEC.decode(buf));
     public static final PacketCodec<PacketByteBuf, SurfStickPreviewPayload> CODEC = PacketCodec.of(
             (value, buf) -> {
                 buf.writeBoolean(value.clear);
@@ -52,7 +53,12 @@ public record SurfStickPreviewPayload(
     );
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public void write(PacketByteBuf buf) {
+        CODEC.encode(buf, this);
+    }
+
+    @Override
+    public PacketType<?> getType() {
         return ID;
     }
 }

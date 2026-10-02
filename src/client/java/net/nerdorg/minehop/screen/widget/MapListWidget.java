@@ -34,9 +34,13 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
             int rowWidth,
             int scrollbarX
     ) {
-        // EntryListWidget's 3rd arg is HEIGHT, not the bottom coordinate — convert so the list clips
-        // to [top, bottom] instead of overflowing past the panel's bottom edge.
-        super(client, width, Math.max(0, bottom - top), top, itemHeight);
+        // 1.20.1: EntryListWidget takes explicit top AND bottom coordinates (the list clips to
+        // [top, bottom]); its "height" is only used for the header/footer shadows, which are off.
+        super(client, width, bottom, top, bottom, itemHeight);
+        // 1.20.1 equivalents of the 1.21.4 drawMenuListBackground / drawHeaderAndFooterSeparators
+        // no-op overrides: SelectMapScreen draws the list panel background itself.
+        this.setRenderBackground(false);
+        this.setRenderHorizontalShadows(false);
         this.rowWidth = Math.max(220, rowWidth);
         this.scrollbarX = scrollbarX;
     }
@@ -72,7 +76,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
     }
 
     @Override
-    protected int getScrollbarX() {
+    protected int getScrollbarPositionX() {
         return this.scrollbarX;
     }
 
@@ -87,17 +91,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
     }
 
     @Override
-    protected void drawMenuListBackground(DrawContext context) {
-        // SelectMapScreen draws the list panel background itself.
-    }
-
-    @Override
-    protected void drawHeaderAndFooterSeparators(DrawContext context) {
-        // Suppress default separators to avoid dark overlays outside our custom panel.
-    }
-
-    @Override
-    protected void appendClickableNarrations(NarrationMessageBuilder builder) {
+    public void appendNarrations(NarrationMessageBuilder builder) {
     }
 
     public int mapCount() {

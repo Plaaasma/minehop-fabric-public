@@ -298,7 +298,7 @@ public class HudEditorScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(DrawContext ctx, int mouseX, int mouseY, float delta) {
+    public void renderBackground(DrawContext ctx) {
         // keep the world visible behind the editor; render() draws its own light shade
     }
 
@@ -353,13 +353,13 @@ public class HudEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mx, double my, double hAmount, double vAmount) {
+    public boolean mouseScrolled(double mx, double my, double vAmount) {
         Kind k = hit(mx, my);
         if (k != null && vAmount != 0) {
             setScale(k, scale(k) + vAmount * 0.1D);
             return true;
         }
-        return super.mouseScrolled(mx, my, hAmount, vAmount);
+        return super.mouseScrolled(mx, my, vAmount);
     }
 
     @Override

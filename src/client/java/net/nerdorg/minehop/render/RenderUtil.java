@@ -15,12 +15,12 @@ public class RenderUtil {
 
         vertexBuilder.vertex(positionMatrix, startPoint.x(), startPoint.y(), startPoint.z())
                 .color(r, g, b, alpha)
-                .normal(1, 1, 1); // Adjusted normal for clarity
+                .normal(1, 1, 1).next(); // Adjusted normal for clarity
                 //.notifyAll();
 
         vertexBuilder.vertex(positionMatrix, endPoint.x(), endPoint.y(), endPoint.z())
                 .color(r, g, b, alpha)
-                .normal(1, 1, 1); // Adjusted normal for clarity
+                .normal(1, 1, 1).next(); // Adjusted normal for clarity
                // .notifyAll();
     }
 

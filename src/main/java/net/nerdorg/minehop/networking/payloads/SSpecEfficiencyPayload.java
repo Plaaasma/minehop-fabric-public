@@ -1,15 +1,16 @@
 package net.nerdorg.minehop.networking.payloads;
 
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
+import net.nerdorg.minehop.networking.codec.PacketCodec;
+import net.nerdorg.minehop.networking.codec.PacketCodecs;
+import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+import net.fabricmc.fabric.api.networking.v1.PacketType;
 import net.minecraft.util.Identifier;
 import net.nerdorg.minehop.Minehop;
 
-public record SSpecEfficiencyPayload(double last_jump_speed, double jump_count, double last_efficiency) implements CustomPayload {
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "server_spec_efficiency");
-    public static final Id<SSpecEfficiencyPayload> ID = new Id<>(HANDSHAKE_ID);
+public record SSpecEfficiencyPayload(double last_jump_speed, double jump_count, double last_efficiency) implements FabricPacket {
+    public static final Identifier HANDSHAKE_ID = new Identifier(Minehop.MOD_ID, "server_spec_efficiency");
+    public static final PacketType<SSpecEfficiencyPayload> ID = PacketType.create(HANDSHAKE_ID, buf -> SSpecEfficiencyPayload.CODEC.decode(buf));
     public static final PacketCodec<PacketByteBuf, SSpecEfficiencyPayload> CODEC = PacketCodec.tuple(
             PacketCodecs.DOUBLE, SSpecEfficiencyPayload::last_jump_speed,
             PacketCodecs.DOUBLE, SSpecEfficiencyPayload::jump_count,
@@ -17,7 +18,12 @@ public record SSpecEfficiencyPayload(double last_jump_speed, double jump_count, 
             SSpecEfficiencyPayload::new);
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public void write(PacketByteBuf buf) {
+        CODEC.encode(buf, this);
+    }
+
+    @Override
+    public PacketType<?> getType() {
         return ID;
     }
 }

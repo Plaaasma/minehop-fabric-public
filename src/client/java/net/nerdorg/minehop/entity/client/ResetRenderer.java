@@ -14,15 +14,15 @@ import net.nerdorg.minehop.entity.custom.ResetEntity;
 import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Vector3f;
 
-public class ResetRenderer extends MobEntityRenderer<ResetEntity, ResetEntityRenderState, ResetModel> {
-    private static final Identifier TEXTURE = Identifier.of(Minehop.MOD_ID, "textures/entity/zone.png");
+public class ResetRenderer extends MobEntityRenderer<ResetEntity, ResetModel> {
+    private static final Identifier TEXTURE = new Identifier(Minehop.MOD_ID, "textures/entity/zone.png");
 
     public ResetRenderer(EntityRendererFactory.Context context) {
         super(context, new ResetModel(context.getPart(ModModelLayers.RESET_ENTITY)), 0.001f);
     }
 
     @Override
-    public Identifier getTexture(ResetEntityRenderState entity) {
+    public Identifier getTexture(ResetEntity entity) {
         return TEXTURE;
     }
 
@@ -31,13 +31,14 @@ public class ResetRenderer extends MobEntityRenderer<ResetEntity, ResetEntityRen
         return true;
     }
 
-    @Override
     public void updateRenderState(ResetEntity resetEntity, ResetEntityRenderState state, float tickDelta) {
         state.resetEntity = resetEntity;
     }
 
     @Override
-    public void render(ResetEntityRenderState renderState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
+    public void render(ResetEntity entity, float yaw, float tickDelta, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
+        ResetEntityRenderState renderState = this.createRenderState();
+        this.updateRenderState(entity, renderState, tickDelta);
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player.isCreative()) {
             BlockPos corner1 = renderState.resetEntity.getCorner1();
@@ -48,10 +49,9 @@ public class ResetRenderer extends MobEntityRenderer<ResetEntity, ResetEntityRen
                 RenderUtil.drawCuboid(vertexConsumerProvider, matrixStack, new Vector3f((float) corner1Offset.getX(), (float) corner1Offset.getY(), (float) corner1Offset.getZ()), new Vector3f((float) corner2Offset.getX(), (float) corner2Offset.getY(), (float) corner2Offset.getZ()), 1, 255, 140, 140, 140);
             }
         }
-        super.render(renderState, matrixStack, vertexConsumerProvider, i);
+        super.render(entity, yaw, tickDelta, matrixStack, vertexConsumerProvider, i);
     }
 
-    @Override
     public ResetEntityRenderState createRenderState() {
         return new ResetEntityRenderState();
     }

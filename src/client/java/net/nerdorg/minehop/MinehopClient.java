@@ -86,7 +86,7 @@ public class MinehopClient implements ClientModInitializer {
 			ServerList serverList = new ServerList(minecraft);
 			serverList.loadFile();
 			if (!isServerInList(serverList, "play.minehop.net")) {
-				serverList.add(new ServerInfo("§c§l§nOfficial Minehop Server", "play.minehop.net", ServerInfo.ServerType.OTHER), false);
+				serverList.add(new ServerInfo("§c§l§nOfficial Minehop Server", "play.minehop.net", false), false);
 				serverList.swapEntries(0, serverList.size() - 1);
 				serverList.saveFile();
 			}
@@ -351,7 +351,7 @@ public class MinehopClient implements ClientModInitializer {
 		if (client == null || client.player == null) {
 			return null;
 		}
-		float tickDelta = client.getRenderTickCounter().getTickDelta(true);
+		float tickDelta = client.getTickDelta(); // 1.20.1: no RenderTickCounter accessor
 		return new Vec3d(
 				MathHelper.lerp((double) tickDelta, client.player.prevX, client.player.getX()),
 				MathHelper.lerp((double) tickDelta, client.player.prevY, client.player.getY()),

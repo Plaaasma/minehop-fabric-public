@@ -586,7 +586,7 @@ public class MapUtilCommands {
                     Minehop.mapList.add(currentMapData);
                     DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
                 }
-                Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+                Minehop.timerManager.remove(serverPlayerEntity.getEntityName());
                 ServerWorld foundWorld = null;
                 for (ServerWorld svrWorld : context.getSource().getServer().getWorlds()) {
                     if (svrWorld.getRegistryKey().toString().equals(currentMapData.worldKey)) {
@@ -600,11 +600,11 @@ public class MapUtilCommands {
                         if (!serverPlayerEntity.isCreative()) {
                             serverPlayerEntity.getInventory().clear();
                         }
-                        serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget(foundWorld, new Vec3d(currentMapData.x, currentMapData.y, currentMapData.z), (float) currentMapData.yrot, (float) currentMapData.xrot));
-                        if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                            List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                        ZoneUtil.teleportTo(serverPlayerEntity, ZoneUtil.makeTeleportTarget(foundWorld, new Vec3d(currentMapData.x, currentMapData.y, currentMapData.z), (float) currentMapData.yrot, (float) currentMapData.xrot));
+                        if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getEntityName())) {
+                            List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getEntityName());
                             for (String spectator : spectators) {
-                                if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
+                                if (!spectator.equals(serverPlayerEntity.getEntityName())) {
                                     ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
                                     if (spectatorPlayer == null) {
                                         continue;
@@ -613,7 +613,7 @@ public class MapUtilCommands {
                                     if (!spectatorPlayer.isCreative()) {
                                         spectatorPlayer.getInventory().clear();
                                     }
-                                    spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
+                                    ZoneUtil.teleportTo(spectatorPlayer, ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
                                     spectatorPlayer.setCameraEntity(serverPlayerEntity);
                                 }
                             }
@@ -693,11 +693,11 @@ public class MapUtilCommands {
                     if (!serverPlayerEntity.isCreative()) {
                         serverPlayerEntity.getInventory().clear();
                     }
-                    serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget(foundWorld, targetPos, (float) rotPos.getY(), (float) rotPos.getX()));
-                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                    ZoneUtil.teleportTo(serverPlayerEntity, ZoneUtil.makeTeleportTarget(foundWorld, targetPos, (float) rotPos.getY(), (float) rotPos.getX()));
+                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getEntityName())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getEntityName());
                         for (String spectator : spectators) {
-                            if (!spectator.equals(serverPlayerEntity.getNameForScoreboard())) {
+                            if (!spectator.equals(serverPlayerEntity.getEntityName())) {
                                 ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
                                 if (spectatorPlayer == null) {
                                     continue;
@@ -706,7 +706,7 @@ public class MapUtilCommands {
                                 if (!spectatorPlayer.isCreative()) {
                                     spectatorPlayer.getInventory().clear();
                                 }
-                                spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
+                                ZoneUtil.teleportTo(spectatorPlayer, ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
                                 spectatorPlayer.setCameraEntity(serverPlayerEntity);
                             }
                         }
@@ -1092,8 +1092,8 @@ public class MapUtilCommands {
         Set<String> playerNames = new LinkedHashSet<>();
         if (source != null && source.getServer() != null) {
             for (ServerPlayerEntity player : source.getServer().getPlayerManager().getPlayerList()) {
-                if (player != null && player.getNameForScoreboard() != null && !player.getNameForScoreboard().isBlank()) {
-                    playerNames.add(player.getNameForScoreboard());
+                if (player != null && player.getEntityName() != null && !player.getEntityName().isBlank()) {
+                    playerNames.add(player.getEntityName());
                 }
             }
         }

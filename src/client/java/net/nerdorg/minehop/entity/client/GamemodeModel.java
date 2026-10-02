@@ -2,14 +2,19 @@ package net.nerdorg.minehop.entity.client;
 
 import net.minecraft.client.model.*;
 import net.minecraft.client.render.entity.model.EntityModel;
+import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.render.VertexConsumer;
+import net.nerdorg.minehop.entity.custom.GamemodeEntity;
 
 // Made with Blockbench 4.9.4
 // Exported for Minecraft version 1.17+ for Yarn
 // Paste this class into your mod and generate all required imports
-public class GamemodeModel extends EntityModel<GamemodeEntityRenderState> {
+public class GamemodeModel extends EntityModel<GamemodeEntity> {
+	// 1.20.1: the root part the 1.21.2+ Model base class used to hold.
+	private final ModelPart modelRoot;
 	private final ModelPart bb_main;
 	public GamemodeModel(ModelPart root) {
-		super(root);
+		this.modelRoot = root;
 		this.bb_main = root.getChild("bb_main");
 	}
 	public static TexturedModelData getTexturedModelData() {
@@ -19,6 +24,12 @@ public class GamemodeModel extends EntityModel<GamemodeEntityRenderState> {
 		return TexturedModelData.of(modelData, 16, 16);
 	}
 	@Override
-	public void setAngles(GamemodeEntityRenderState state) {
+	public void setAngles(GamemodeEntity entity, float limbAngle, float limbDistance, float animationProgress, float headYaw, float headPitch) {
+	}
+
+	// 1.20.1: EntityModel has no root part to render implicitly (1.21.2+); render the whole tree.
+	@Override
+	public void render(MatrixStack matrices, VertexConsumer vertices, int light, int overlay, float red, float green, float blue, float alpha) {
+		this.modelRoot.render(matrices, vertices, light, overlay, red, green, blue, alpha);
 	}
 }

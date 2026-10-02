@@ -266,8 +266,13 @@ public class ReplayManager {
         saveRecordReplays(world, Minehop.replayList);
     }
 
-    /** Atomic, backed-up, version-enveloped write (see JsonStorage). Returns false if it failed. */
-    public static boolean saveRecordReplays(ServerWorld world, List<Replay> replays) {
+    /** Atomic, backed-up, version-enveloped write (see JsonStorage). Signature kept for other mods. */
+    public static void saveRecordReplays(ServerWorld world, List<Replay> replays) {
+        saveRecordReplaysChecked(world, replays);
+    }
+
+    /** Same as {@link #saveRecordReplays}, returning false if the write failed. */
+    public static boolean saveRecordReplaysChecked(ServerWorld world, List<Replay> replays) {
         if (world == null) {
             return false;
         }
@@ -356,8 +361,9 @@ public class ReplayManager {
         if (server == null || Minehop.replayList == null) {
             return false;
         }
-        net.minecraft.util.UserCache cache = server.getUserCache();
-        if (cache == null) {
+        // Same cache-only lookup as the record backfill: no Mojang round trips on the server thread.
+        java.util.Map<String, String> cachedUuids = net.nerdorg.minehop.data.DataManager.loadCachedUuidsByName(server);
+        if (cachedUuids.isEmpty()) {
             return false;
         }
         boolean changed = false;
@@ -368,9 +374,9 @@ public class ReplayManager {
             if (replay.player_uuid != null && !replay.player_uuid.isBlank()) {
                 continue;
             }
-            java.util.Optional<com.mojang.authlib.GameProfile> profile = cache.findByName(replay.player_name);
-            if (profile.isPresent() && profile.get().getId() != null) {
-                replay.player_uuid = profile.get().getId().toString();
+            String uuid = cachedUuids.get(replay.player_name.toLowerCase(java.util.Locale.ROOT));
+            if (uuid != null) {
+                replay.player_uuid = uuid;
                 changed = true;
             }
         }

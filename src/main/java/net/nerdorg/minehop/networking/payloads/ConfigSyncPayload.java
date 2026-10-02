@@ -1,9 +1,10 @@
 package net.nerdorg.minehop.networking.payloads;
 
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
+import net.nerdorg.minehop.networking.codec.PacketCodec;
+import net.nerdorg.minehop.networking.codec.PacketCodecs;
+import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+import net.fabricmc.fabric.api.networking.v1.PacketType;
 import net.minecraft.util.Identifier;
 import net.nerdorg.minehop.Minehop;
 
@@ -11,9 +12,9 @@ public record ConfigSyncPayload(double sv_friction, double sv_accelerate,
                                 double sv_airaccelerate, double sv_maxairspeed, double sv_jump_impulse,
                                 double speed_mul, double sv_gravity, double speedCoef, double speedCap, boolean autoStepUp,
                                 boolean cssCrouchJump, boolean isHNS, boolean isKZ, boolean isEnabled, boolean fallDamage,
-                                double sv_stopspeed, boolean disableSprint) implements CustomPayload {
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "config");
-    public static final Id<ConfigSyncPayload> ID = new Id<>(HANDSHAKE_ID);
+                                double sv_stopspeed, boolean disableSprint) implements FabricPacket {
+    public static final Identifier HANDSHAKE_ID = new Identifier(Minehop.MOD_ID, "config");
+    public static final PacketType<ConfigSyncPayload> ID = PacketType.create(HANDSHAKE_ID, buf -> ConfigSyncPayload.CODEC.decode(buf));
     public static final PacketCodec<PacketByteBuf, ConfigSyncPayload> CODEC = PacketCodec.of(
             (buf, value) -> {
                 value.writeDouble(buf.sv_friction);
@@ -56,7 +57,12 @@ public record ConfigSyncPayload(double sv_friction, double sv_accelerate,
     );
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public void write(PacketByteBuf buf) {
+        CODEC.encode(buf, this);
+    }
+
+    @Override
+    public PacketType<?> getType() {
         return ID;
     }
 }

@@ -76,12 +76,12 @@ public class BoundsStickItem extends Item {
         if (player == null) {
             return;
         }
-        playerPositions.remove(player.getNameForScoreboard());
+        playerPositions.remove(player.getEntityName());
         PacketHandler.sendBoundsStickSelection(player, null, null);
     }
 
     private static BlockPos[] updateSelection(PlayerEntity player, BlockPos clickedPos) {
-        String playerName = player.getNameForScoreboard();
+        String playerName = player.getEntityName();
         BlockPos[] positions = playerPositions.getOrDefault(playerName, new BlockPos[2]);
 
         if (positions[0] == null || positions[1] != null) {

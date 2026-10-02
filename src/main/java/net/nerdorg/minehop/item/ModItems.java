@@ -27,7 +27,7 @@ public class ModItems {
     public static final Item INSTAGIB_GUN = registerItem("instagib_gun", InstagibItem::new, new Item.Settings());
     public static final RegistryKey<ItemGroup> MINEHOP_ITEM_GROUP_KEY = RegistryKey.of(
             RegistryKeys.ITEM_GROUP,
-            Identifier.of(Minehop.MOD_ID, "minehop")
+            new Identifier(Minehop.MOD_ID, "minehop")
     );
     public static final ItemGroup MINEHOP_ITEM_GROUP = FabricItemGroup.builder()
             .icon(() -> new ItemStack(SURF_STICK))
@@ -51,8 +51,8 @@ public class ModItems {
     }
 
     public static Item registerItem(String path, Function<Item.Settings, Item> factory, Item.Settings settings) {
-        final RegistryKey<Item> registryKey = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(Minehop.MOD_ID, path));
-        Item item = factory.apply(settings.registryKey(registryKey));
+        final RegistryKey<Item> registryKey = RegistryKey.of(RegistryKeys.ITEM, new Identifier(Minehop.MOD_ID, path));
+        Item item = factory.apply(settings); // 1.20.1: no registry key in Item.Settings (1.21.2+)
 
         Registry.register(Registries.ITEM, registryKey, item);
 

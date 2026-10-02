@@ -43,11 +43,11 @@ public class SpectateCommands {
                         Iterable<Entity> entities = context.getSource().getWorld().iterateEntities();
                         for (Entity entity : entities) {
                             if (entity instanceof ReplayEntity) {
-                                builder.suggest(entity.getNameForScoreboard(), new LiteralMessage(entity.getName().getString()));
+                                builder.suggest(entity.getEntityName(), new LiteralMessage(entity.getName().getString()));
                             }
                             else if (entity instanceof PlayerEntity) {
                                 if (!((PlayerEntity) entity).isCreative() && !entity.isSpectator()) {
-                                    builder.suggest(entity.getNameForScoreboard(), new LiteralMessage(entity.getName().getString()));
+                                    builder.suggest(entity.getEntityName(), new LiteralMessage(entity.getName().getString()));
                                 }
                             }
                         }
@@ -74,10 +74,10 @@ public class SpectateCommands {
                         Iterable<Entity> entities = context.getSource().getWorld().iterateEntities();
                         for (Entity entity : entities) {
                             if (entity instanceof ReplayEntity) {
-                                builder.suggest(entity.getNameForScoreboard(), new LiteralMessage(entity.getName().getString()));
+                                builder.suggest(entity.getEntityName(), new LiteralMessage(entity.getName().getString()));
                             }
                             else if (entity instanceof PlayerEntity) {
-                                builder.suggest(entity.getNameForScoreboard(), new LiteralMessage(entity.getName().getString()));
+                                builder.suggest(entity.getEntityName(), new LiteralMessage(entity.getName().getString()));
                             }
                         }
                         suggestSavedReplayNames(context, builder);
@@ -110,8 +110,8 @@ public class SpectateCommands {
 
         removeFromCurrentSpectateTarget(serverPlayerEntity);
 
-        if (Minehop.timerManager.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-            Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+        if (Minehop.timerManager.containsKey(serverPlayerEntity.getEntityName())) {
+            Minehop.timerManager.remove(serverPlayerEntity.getEntityName());
         }
 
         serverPlayerEntity.setCameraEntity(serverPlayerEntity);
@@ -140,12 +140,12 @@ public class SpectateCommands {
         removeFromCurrentSpectateTarget(serverPlayerEntity);
         PacketHandler.clearReplayPath(serverPlayerEntity);
 
-        if (Minehop.timerManager.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-            Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+        if (Minehop.timerManager.containsKey(serverPlayerEntity.getEntityName())) {
+            Minehop.timerManager.remove(serverPlayerEntity.getEntityName());
         }
 
-        if (Minehop.timerManager.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-            Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+        if (Minehop.timerManager.containsKey(serverPlayerEntity.getEntityName())) {
+            Minehop.timerManager.remove(serverPlayerEntity.getEntityName());
         }
 
         Entity entity = context.getSource().getServer().getPlayerManager().getPlayer(nameString);
@@ -153,7 +153,7 @@ public class SpectateCommands {
             Iterable<Entity> entities = context.getSource().getWorld().iterateEntities();
             for (Entity iterEntity : entities) {
                 if (iterEntity instanceof ReplayEntity) {
-                    if (iterEntity.getNameForScoreboard().equals(nameString)) {
+                    if (iterEntity.getEntityName().equals(nameString)) {
                         entity = iterEntity;
                         break;
                     }
@@ -167,18 +167,18 @@ public class SpectateCommands {
 
         if (entity instanceof ReplayEntity replayEntity) {
             String mapName = ZoneUtil.getCurrentMapName(serverPlayerEntity);
-            String replayName = replayEntity.getNameForScoreboard();
+            String replayName = replayEntity.getEntityName();
             if (mapName != null) {
                 if (replayName.startsWith(mapName)) {
                     serverPlayerEntity.setCameraEntity(serverPlayerEntity);
-                    Logger.logSuccess(serverPlayerEntity, "Now spectating " + replayEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
+                    Logger.logSuccess(serverPlayerEntity, "Now spectating " + replayEntity.getEntityName() + ". Use /unspec to stop spectating.");
                     serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
                     if (!serverPlayerEntity.isCreative()) {
                         serverPlayerEntity.getInventory().clear();
                     }
-                    serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget((ServerWorld) replayEntity.getWorld(), new Vec3d(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ()), replayEntity.getYaw(), replayEntity.getPitch()));
+                    ZoneUtil.teleportTo(serverPlayerEntity, ZoneUtil.makeTeleportTarget((ServerWorld) replayEntity.getWorld(), new Vec3d(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ()), replayEntity.getYaw(), replayEntity.getPitch()));
                     serverPlayerEntity.setCameraEntity(replayEntity);
-                    addSpectator(replayEntity.getNameForScoreboard(), serverPlayerEntity.getNameForScoreboard());
+                    addSpectator(replayEntity.getEntityName(), serverPlayerEntity.getEntityName());
                 } else {
                     Logger.logSuccess(serverPlayerEntity, "Please teleport to the map before viewing it's replay.");
                 }
@@ -203,14 +203,14 @@ public class SpectateCommands {
                 }
                 if (mapName.equals(targetMapName)) {
                     serverPlayerEntity.setCameraEntity(serverPlayerEntity);
-                    Logger.logSuccess(serverPlayerEntity, "Now spectating " + playerEntity.getNameForScoreboard() + ". Use /unspec to stop spectating.");
+                    Logger.logSuccess(serverPlayerEntity, "Now spectating " + playerEntity.getEntityName() + ". Use /unspec to stop spectating.");
                     serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
                     if (!serverPlayerEntity.isCreative()) {
                         serverPlayerEntity.getInventory().clear();
                     }
-                    serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget(playerEntity.getServerWorld(), new Vec3d(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ()), playerEntity.getYaw(), playerEntity.getPitch()));
+                    ZoneUtil.teleportTo(serverPlayerEntity, ZoneUtil.makeTeleportTarget(playerEntity.getServerWorld(), new Vec3d(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ()), playerEntity.getYaw(), playerEntity.getPitch()));
                     serverPlayerEntity.setCameraEntity(playerEntity);
-                    addSpectator(playerEntity.getNameForScoreboard(), serverPlayerEntity.getNameForScoreboard());
+                    addSpectator(playerEntity.getEntityName(), serverPlayerEntity.getEntityName());
                 }
                 else {
                     Logger.logSuccess(serverPlayerEntity, "Please teleport to " + targetMapName + " before spectating this player.");
@@ -249,7 +249,7 @@ public class SpectateCommands {
         Entity entity = context.getSource().getServer().getPlayerManager().getPlayer(requestedName);
         if (entity == null) {
             for (Entity iterEntity : context.getSource().getWorld().iterateEntities()) {
-                if (iterEntity instanceof ReplayEntity && requestedName.equals(iterEntity.getNameForScoreboard())) {
+                if (iterEntity instanceof ReplayEntity && requestedName.equals(iterEntity.getEntityName())) {
                     entity = iterEntity;
                     break;
                 }
@@ -375,12 +375,12 @@ public class SpectateCommands {
         if (spectator == null || spectator.getCameraEntity() == null) {
             return;
         }
-        String currentTarget = spectator.getCameraEntity().getNameForScoreboard();
+        String currentTarget = spectator.getCameraEntity().getEntityName();
         List<String> spectators = spectatorList.get(currentTarget);
         if (spectators == null) {
             return;
         }
-        spectators.remove(spectator.getNameForScoreboard());
+        spectators.remove(spectator.getEntityName());
         if (spectators.size() <= 1) {
             spectatorList.remove(currentTarget);
         }

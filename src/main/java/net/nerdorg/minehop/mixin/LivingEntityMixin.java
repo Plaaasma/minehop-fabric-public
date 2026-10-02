@@ -61,8 +61,8 @@ public abstract class LivingEntityMixin extends Entity {
     @Shadow protected boolean jumping;
 
     @Shadow protected abstract float getJumpVelocity();
-    @Shadow public abstract boolean hasStatusEffect(RegistryEntry<StatusEffect> effect);
-    @Shadow public abstract StatusEffectInstance getStatusEffect(RegistryEntry<StatusEffect> effect);
+    @Shadow public abstract boolean hasStatusEffect(StatusEffect effect);
+    @Shadow public abstract StatusEffectInstance getStatusEffect(StatusEffect effect);
     @Shadow public abstract boolean isClimbing();
 
     @Shadow public abstract float getYaw(float tickDelta);
@@ -73,7 +73,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Shadow public abstract float getHeadYaw();
 
-    @Shadow public abstract boolean isGliding();
+    @Shadow public abstract boolean isFallFlying();
 
     private boolean wasOnGround;
     @Unique private boolean cssCrouchOffsetApplied;
@@ -355,7 +355,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Inject(method = "teleport", at = @At("HEAD"))
     public void onTeleport(double x, double y, double z, boolean particleEffects, CallbackInfoReturnable<Boolean> cir) {
-        HNSManager.taggedMap.remove(this.getNameForScoreboard());
+        HNSManager.taggedMap.remove(this.getEntityName());
         this.minehop$hasLastTravelYaw = false;
         this.minehop$descendedSinceJump = true; // don't carry a stale rising-state across a teleport
         this.minehop$jumpHeldFromGround = false;
@@ -380,7 +380,12 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Inject(method = "damage", at = @At("HEAD"), cancellable = true)
-    public void onDamage(ServerWorld world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+    public void onDamage(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+        // 1.20.1: damage(DamageSource, float) also runs client-side (fall damage, attack prediction);
+        // the 1.21.4 hook is damage(ServerWorld, ...), i.e. server-only. Keep it server-only.
+        if (this.getWorld().isClient) {
+            return;
+        }
         MinehopConfig config = this.getType() == EntityType.PLAYER
                 ? ConfigWrapper.getEffectiveConfig(this)
                 : ConfigWrapper.config;
@@ -390,7 +395,7 @@ public abstract class LivingEntityMixin extends Entity {
                 if (mapData != null && mapData.hns) {
                     BlockState belowState = this.getWorld().getBlockState(this.getBlockPos().offset(Direction.DOWN, 1));
                     if (amount >= 20 && !(belowState.getBlock() instanceof StairsBlock)) {
-                        HNSManager.taggedMap.put(player.getNameForScoreboard(), true);
+                        HNSManager.taggedMap.put(player.getEntityName(), true);
                         Logger.logFailure(player, "You were tagged because you fell too far. You can break your fall by landing on stairs.");
                     }
                 }
@@ -459,7 +464,7 @@ public abstract class LivingEntityMixin extends Entity {
 
         if (!this.canMoveVoluntarily() && !this.isLogicalSideForUpdatingMovement()) { return; }
 
-        if (this.isTouchingWater() || this.isInLava() || this.isGliding()) { return; }
+        if (this.isTouchingWater() || this.isInLava() || this.isFallFlying()) { return; }
 
         LivingEntity self = (LivingEntity) this.getWorld().getEntityById(this.getId());
         PlayerEntity debugPlayer = self instanceof PlayerEntity playerEntity ? playerEntity : null;
@@ -575,7 +580,7 @@ public abstract class LivingEntityMixin extends Entity {
                 && this.minehop$descendedSinceJump
                 && this.minehop$jumpHeldFromGround
                 && !this.isClimbing()
-                && !this.isTouchingWater() && !this.isInLava() && !this.isGliding()
+                && !this.isTouchingWater() && !this.isInLava() && !this.isFallFlying()
                 && this.getVelocity().y <= 0.10D
                 && groundedishForCoyote
                 && preMoveSurfContact == null
@@ -826,12 +831,12 @@ public abstract class LivingEntityMixin extends Entity {
                 ? 0.0D
                 : speedCap;
         if (useGroundMovement) {
-            if (!Minehop.groundedList.contains(this.getNameForScoreboard())) {
-                Minehop.groundedList.add(this.getNameForScoreboard());
+            if (!Minehop.groundedList.contains(this.getEntityName())) {
+                Minehop.groundedList.add(this.getEntityName());
             }
         }
         else {
-            Minehop.groundedList.remove(this.getNameForScoreboard());
+            Minehop.groundedList.remove(this.getEntityName());
         }
         if (useGroundMovement) {
             this.setVelocity(applySourceFriction(this.getVelocity(), config.movement.sv_friction, config.movement.sv_stopspeed, 1.0D));
@@ -851,7 +856,7 @@ public abstract class LivingEntityMixin extends Entity {
             // Jump arc ended: latch the per-jump strafe summary (sync/efficiency/strafes) and reset
             // accumulators for the next jump. Client-only so it isn't double-driven by the server tick
             // (shared static map keyed by name) which would reset mid-jump and flash a bogus 100%.
-            net.nerdorg.minehop.util.StrafeStats landedStats = Minehop.strafeStatsMap.get(this.getNameForScoreboard());
+            net.nerdorg.minehop.util.StrafeStats landedStats = Minehop.strafeStatsMap.get(this.getEntityName());
             if (landedStats != null && landedStats.measuredTicks > 0) {
                 landedStats.latchAndReset();
             }
@@ -918,11 +923,11 @@ public abstract class LivingEntityMixin extends Entity {
                     int strafeSign = sI > 0.0F ? 1 : (sI < 0.0F ? -1 : 0);
 
                     net.nerdorg.minehop.util.StrafeStats stats = Minehop.strafeStatsMap
-                            .computeIfAbsent(this.getNameForScoreboard(), k -> new net.nerdorg.minehop.util.StrafeStats());
+                            .computeIfAbsent(this.getEntityName(), k -> new net.nerdorg.minehop.util.StrafeStats());
                     stats.recordTick(measured, good, effTick, gaugeRatio, strafeSign);
 
                     // Legacy/compat live maps (read by the HUD via shared statics in SP).
-                    Minehop.efficiencyMap.put(this.getNameForScoreboard(), stats.liveEfficiency);
+                    Minehop.efficiencyMap.put(this.getEntityName(), stats.liveEfficiency);
                 }
 
                 this.setVelocity(new Vec3d(newHorizontalVelocity.getX(), newVelocity.getY(), newHorizontalVelocity.getZ()));
@@ -2715,7 +2720,7 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
         Minehop.LOGGER.info(
-                "SurfDebug player=" + player.getNameForScoreboard()
+                "SurfDebug player=" + player.getEntityName()
                         + " tick=" + this.getWorld().getTime()
                         + " preContact=" + (preMoveSurfContact != null)
                         + " postContact=" + (postMoveSurfContact != null)
@@ -2776,7 +2781,7 @@ public abstract class LivingEntityMixin extends Entity {
         }
         this.surfStopLogTick = tick;
         String side = world.isClient ? "client" : "server";
-        String playerName = player != null ? player.getNameForScoreboard() : ("entity#" + this.getId());
+        String playerName = player != null ? player.getEntityName() : ("entity#" + this.getId());
         Minehop.LOGGER.warn(
                 "SurfStop side={} player={} tick={} pos=({},{},{}) collapse={} stall={} drop={} softStall={} contactLoss={} edgeRisk={} hIn={} hPreG={} hOut={} moved={} "
                         + "nearPre={} nearPost={} nearSupportPost={} preC={} postC={} hardPre={} hardPost={} "
@@ -4044,7 +4049,7 @@ public abstract class LivingEntityMixin extends Entity {
                 && !this.isClimbing()
                 && !this.isTouchingWater()
                 && !this.isInLava()
-                && !this.isGliding();
+                && !this.isFallFlying();
 
         if (cssCrouchEnabled
                 && airborneForSprintCarry
@@ -4078,7 +4083,7 @@ public abstract class LivingEntityMixin extends Entity {
                 && !this.isClimbing()
                 && !this.isTouchingWater()
                 && !this.isInLava()
-                && !this.isGliding();
+                && !this.isFallFlying();
 
         if (canApply && !this.cssCrouchOffsetApplied) {
             Box upBox = this.getBoundingBox().offset(0.0D, crouchDelta, 0.0D);
@@ -4119,8 +4124,8 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private double minehop$getCssCrouchDelta() {
-        double standingHeight = this.getDimensions(EntityPose.STANDING).height();
-        double crouchingHeight = this.getDimensions(EntityPose.CROUCHING).height();
+        double standingHeight = this.getDimensions(EntityPose.STANDING).height;
+        double crouchingHeight = this.getDimensions(EntityPose.CROUCHING).height;
         if (!Double.isFinite(standingHeight) || !Double.isFinite(crouchingHeight)) {
             return 0.0D;
         }
@@ -4304,7 +4309,7 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
 
-        if (this.isClimbing() || this.isTouchingWater() || this.isInLava() || this.isGliding()) {
+        if (this.isClimbing() || this.isTouchingWater() || this.isInLava() || this.isFallFlying()) {
             return;
         }
 
@@ -4325,7 +4330,7 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
 
-        if (this.isClimbing() || this.isTouchingWater() || this.isInLava() || this.isGliding()) {
+        if (this.isClimbing() || this.isTouchingWater() || this.isInLava() || this.isFallFlying()) {
             return;
         }
 

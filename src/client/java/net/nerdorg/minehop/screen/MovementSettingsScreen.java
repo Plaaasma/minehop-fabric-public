@@ -40,14 +40,6 @@ public class MovementSettingsScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
-    }
-
-    @Override
-    public void blur() {
-    }
-
-    @Override
     protected void init() {
         super.init();
         int panelWidth = 460;
@@ -130,7 +122,7 @@ public class MovementSettingsScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+        this.renderBackground(context);
 
         int panelWidth = 460;
         int panelHeight = 406;

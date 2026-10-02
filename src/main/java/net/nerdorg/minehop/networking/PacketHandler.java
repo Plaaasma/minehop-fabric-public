@@ -3,10 +3,11 @@ package net.nerdorg.minehop.networking;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.netty.buffer.Unpooled;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.packet.CustomPayload;
+import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+import net.fabricmc.fabric.api.networking.v1.PacketType;
+import net.nerdorg.minehop.networking.codec.ServerPayloads;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
@@ -51,56 +52,16 @@ public class PacketHandler {
         registerS2C();
     }
 
+    // 1.20.1 backport: Fabric's FabricPacket/PacketType API (the pre-1.20.5 networking) has no payload
+    // type registry. A payload is (de)serialized by its own PacketType, and a C2S payload is only ever
+    // decoded when a receiver for its channel is registered (registerReceivers below), so the
+    // "only decode what the client genuinely sends" property of the 1.21.4 C2S registry still holds:
+    // the client-sendable set = the receivers registered in registerReceivers() + AntiCheatCommands
+    // (AntiCheatActionPayload) + HandshakeHandler (HandshakeIDPayload).
     private static void registerS2C() {
-        // server to client
-        PayloadTypeRegistry.playS2C().register(AntiCheatPayload.ID, AntiCheatPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(BoundsStickSelectionPayload.ID, BoundsStickSelectionPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(ConfigSyncPayload.ID, ConfigSyncPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(CSpecEfficiencyPayload.ID, CSpecEfficiencyPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(HandshakeIDPayload.ID, HandshakeIDPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(MapFinishPayload.ID, MapFinishPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenMapCreatorScreenPayload.ID, OpenMapCreatorScreenPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenMapScreenPayload.ID, OpenMapScreenPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OtherVTogglePayload.ID, OtherVTogglePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(ResetVelocityCarryPayload.ID, ResetVelocityCarryPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(ReplayVTogglePayload.ID, ReplayVTogglePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(ReplayPathPayload.ID, ReplayPathPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(RunTimerHudPayload.ID, RunTimerHudPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SelfVTogglePayload.ID, SelfVTogglePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendEfficiencyPayload.ID, SendEfficiencyPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendMapPayload.ID, SendMapPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendPersonalRecordPayload.ID, SendPersonalRecordPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendRecordPayload.ID, SendRecordPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendSpectatorsPayload.ID, SendSpectatorsPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SendTimePayload.ID, SendTimePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SetCheaterPayload.ID, SetCheaterPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SSpecEfficiencyPayload.ID, SSpecEfficiencyPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenSurfStickSettingsPayload.ID, OpenSurfStickSettingsPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenZoneStickSettingsPayload.ID, OpenZoneStickSettingsPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SurfStickPreviewPayload.ID, SurfStickPreviewPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(UpdatePowerPayload.ID, UpdatePowerPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(ZoneSyncIDPayload.ID, ZoneSyncIDPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenAntiCheatScreenPayload.ID, OpenAntiCheatScreenPayload.CODEC);
     }
 
     private static void registerC2S() {
-        // client to server — ONLY payloads the client actually sends. S2C-only payloads were
-        // previously also registered C2S, so a malicious client could send those (some with
-        // unbounded strings) and have netty decode then drop them. Keep this list = what the client
-        // genuinely sends (see ClientPacketHandler / AntiCheatScreen).
-        PayloadTypeRegistry.playC2S().register(AntiCheatPayload.ID, AntiCheatPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(HandshakeIDPayload.ID, HandshakeIDPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(MapCreatorActionPayload.ID, MapCreatorActionPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(MapFinishPayload.ID, MapFinishPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SendTimePayload.ID, SendTimePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SSpecEfficiencyPayload.ID, SSpecEfficiencyPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SurfStickCancelPayload.ID, SurfStickCancelPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SurfStickDeletePayload.ID, SurfStickDeletePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SurfStickSettingsPayload.ID, SurfStickSettingsPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ZoneStickCancelPayload.ID, ZoneStickCancelPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ZoneStickDeletePayload.ID, ZoneStickDeletePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ZoneStickSettingsPayload.ID, ZoneStickSettingsPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(AntiCheatActionPayload.ID, AntiCheatActionPayload.CODEC);
     }
 
     public static void sendConfigToClient(ServerPlayerEntity player, MinehopConfig config) {
@@ -207,13 +168,13 @@ public class PacketHandler {
     }
 
     public static void sendSpectators(ServerPlayerEntity player) {
-        if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
-            List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
+        if (SpectateCommands.spectatorList.containsKey(player.getEntityName())) {
+            List<String> spectators = SpectateCommands.spectatorList.get(player.getEntityName());
             if (spectators.size() > 1) {
                 String buff = "";
                 buff += (spectators.size() - 1);
                 for (String spectator : spectators) {
-                    if (!spectator.equals(player.getNameForScoreboard())) {
+                    if (!spectator.equals(player.getEntityName())) {
                         buff += ("~" + spectator);
                     }
                 }
@@ -327,7 +288,7 @@ public class PacketHandler {
     }
 
     private static double allowedClientFinishDistance(ServerPlayerEntity player) {
-        int latencyMs = player == null || player.networkHandler == null ? 0 : Math.max(0, player.networkHandler.getLatency());
+        int latencyMs = player == null || player.networkHandler == null ? 0 : Math.max(0, player.pingMilliseconds);
         double latencyTicks = Math.min(20.0D, (latencyMs / 50.0D) + 3.0D);
         Vec3d velocity = player == null ? Vec3d.ZERO : player.getVelocity();
         double speedPerTick = velocity == null ? 0.0D : Math.sqrt((velocity.x * velocity.x) + (velocity.y * velocity.y) + (velocity.z * velocity.z));
@@ -393,12 +354,12 @@ public class PacketHandler {
         if (server == null) {
             return;
         }
-        List<String> spectators = SpectateCommands.spectatorList.get(runner.getNameForScoreboard());
+        List<String> spectators = SpectateCommands.spectatorList.get(runner.getEntityName());
         if (spectators == null || spectators.isEmpty()) {
             return;
         }
         for (String spectatorName : spectators) {
-            if (spectatorName == null || spectatorName.equals(runner.getNameForScoreboard())) {
+            if (spectatorName == null || spectatorName.equals(runner.getEntityName())) {
                 continue;
             }
             ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
@@ -410,7 +371,7 @@ public class PacketHandler {
         if (player == null) {
             return;
         }
-        String playerName = player.getNameForScoreboard();
+        String playerName = player.getEntityName();
         Minehop.timerManager.remove(playerName);
         Minehop.finishTimeManager.remove(playerName);
         Minehop.runSignatureManager.remove(playerName);
@@ -433,7 +394,7 @@ public class PacketHandler {
             clearFinishedRunState(player, server);
             return;
         }
-        HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
+        HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getEntityName());
         if (timerMap == null || timerMap.isEmpty()) {
             clearFinishedRunState(player, server);
             return;
@@ -445,12 +406,12 @@ public class PacketHandler {
             return;
         }
         if (mapName != null && !mapName.isBlank() && !activeMapName.equals(mapName)) {
-            Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " due to map mismatch (" + mapName + " vs " + activeMapName + ").");
+            Logger.logServer(server, "Rejected map finish from " + player.getEntityName() + " due to map mismatch (" + mapName + " vs " + activeMapName + ").");
             clearFinishedRunState(player, server);
             return;
         }
         if (DataManager.getMap(activeMapName) == null) {
-            Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " because active map " + activeMapName + " no longer exists.");
+            Logger.logServer(server, "Rejected map finish from " + player.getEntityName() + " because active map " + activeMapName + " no longer exists.");
             clearFinishedRunState(player, server);
             return;
         }
@@ -460,7 +421,7 @@ public class PacketHandler {
             return;
         }
         if (!Double.isFinite(time) || time <= 0.0D) {
-            Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " due to invalid time value.");
+            Logger.logServer(server, "Rejected map finish from " + player.getEntityName() + " due to invalid time value.");
             clearFinishedRunState(player, server);
             return;
         }
@@ -468,14 +429,14 @@ public class PacketHandler {
         // if that stamp exists OR the player is still inside the zone now — a fast bhop/surf finish
         // can carry the player THROUGH the thin end zone before this packet is processed, which made
         // the "currently inside" check falsely reject legit runs.
-        HashMap<String, Long> finishMap = Minehop.finishTimeManager.get(player.getNameForScoreboard());
+        HashMap<String, Long> finishMap = Minehop.finishTimeManager.get(player.getEntityName());
         Long finishStamp = finishMap == null ? null : finishMap.get(activeMapName);
         boolean validFinishPosition = finishStamp != null
                 || isPlayerInsideMatchingEndZone(player, activeMapName)
                 || didServerMovementIntersectMatchingEndZone(player, activeMapName)
                 || isValidClientFinishAtMatchingEndZone(player, activeMapName, clientFinishPos);
         if (!validFinishPosition) {
-            Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard() + " because they were not inside an end zone for " + activeMapName + ".");
+            Logger.logServer(server, "Rejected map finish from " + player.getEntityName() + " because they were not inside an end zone for " + activeMapName + ".");
             clearFinishedRunState(player, server);
             return;
         }
@@ -496,7 +457,7 @@ public class PacketHandler {
                     ? TIMER_VALIDATION_TOLERANCE_SECONDS
                     : TIMER_VALIDATION_TOLERANCE_SECONDS + 0.25D;
             if (!Double.isFinite(serverSpan) || serverSpan <= 0.0D || Math.abs(time - serverSpan) > tolerance) {
-                Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard()
+                Logger.logServer(server, "Rejected map finish from " + player.getEntityName()
                         + " on " + activeMapName + ": client time " + String.format("%.5f", time)
                         + "s diverges from server-measured " + String.format("%.5f", serverSpan)
                         + "s (tolerance " + String.format("%.2f", tolerance) + "s).");
@@ -506,16 +467,16 @@ public class PacketHandler {
             // The run can't contain more client ticks than the real time it took allows. Catches a
             // timer cheat that banked lag credit before launch and spent it during the run (the
             // timer check alone can't see that, and the client simply reports the server span).
-            Long startTicks = Minehop.runStartClientTicks.get(player.getNameForScoreboard());
+            Long startTicks = Minehop.runStartClientTicks.get(player.getEntityName());
             Long endTicks = haveServerFinish
-                    ? Minehop.runFinishClientTicks.get(player.getNameForScoreboard())
+                    ? Minehop.runFinishClientTicks.get(player.getEntityName())
                     : Long.valueOf(net.nerdorg.minehop.anticheat.stream.MovementValidator.clientTicks(player));
             if (startTicks != null && endTicks != null && startTicks >= 0L && endTicks >= startTicks) {
-                double secondsPerTick = server.getTickManager().getMillisPerTick() / 1000.0D;
+                double secondsPerTick = 50.0D / 1000.0D; // 1.20.1: fixed 20 TPS (no tick-rate manager)
                 long runTicks = endTicks - startTicks;
                 double maxTicks = (serverSpan + tolerance) / secondsPerTick + 2.0D;
                 if (runTicks > maxTicks) {
-                    Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard()
+                    Logger.logServer(server, "Rejected map finish from " + player.getEntityName()
                             + " on " + activeMapName + ": " + runTicks + " client ticks in "
                             + String.format("%.3f", serverSpan) + "s of real time (max "
                             + String.format("%.0f", maxTicks) + ") — client ran faster than real time.");
@@ -529,11 +490,11 @@ public class PacketHandler {
         }
 
         // L6: reject if the map's physics/geometry changed (or it was edited) after this run started.
-        Long runSignature = Minehop.runSignatureManager.get(player.getNameForScoreboard());
+        Long runSignature = Minehop.runSignatureManager.get(player.getEntityName());
         if (runSignature != null) {
             long currentSignature = DataManager.computeRunSignature(DataManager.getMap(activeMapName));
             if (currentSignature != runSignature) {
-                Logger.logServer(server, "Rejected map finish from " + player.getNameForScoreboard()
+                Logger.logServer(server, "Rejected map finish from " + player.getEntityName()
                         + " on " + activeMapName + ": map was modified mid-run.");
                 clearFinishedRunState(player, server);
                 return;
@@ -541,7 +502,7 @@ public class PacketHandler {
         }
 
         String formattedNumber = String.format("%.5f", time);
-        String playerName = player.getNameForScoreboard();
+        String playerName = player.getEntityName();
         String playerUuid = player.getUuidAsString();
         // Evidence for later review: anticheat flags raised during this run travel with its replay,
         // PB and WR rows (see /map manage history and /map manage flagged).
@@ -977,9 +938,9 @@ public class PacketHandler {
     private static final int RL_FINISH = 200;
 
     /** Register a C2S receiver that drops packets exceeding the per-player rate for its channel. */
-    private static <T extends CustomPayload> void registerLimited(CustomPayload.Id<T> id, int minIntervalMs, ServerPlayNetworking.PlayPayloadHandler<T> handler) {
-        ServerPlayNetworking.registerGlobalReceiver(id, (payload, ctx) -> {
-            if (!PacketRateLimiter.allow(ctx.player(), id.id().toString(), minIntervalMs)) {
+    private static <T extends FabricPacket> void registerLimited(PacketType<T> id, int minIntervalMs, ServerPayloads.Handler<T> handler) {
+        ServerPayloads.registerGlobalReceiver(id, (payload, ctx) -> {
+            if (!PacketRateLimiter.allow(ctx.player(), id.getId().toString(), minIntervalMs)) {
                 return;
             }
             handler.receive(payload, ctx);
@@ -1000,23 +961,23 @@ public class PacketHandler {
                 if (player == null || player.isSpectator() || !Float.isFinite(time)) {
                     return;
                 }
-                HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getNameForScoreboard());
+                HashMap<String, Long> timerMap = Minehop.timerManager.get(player.getEntityName());
                 String mapName = resolveActiveMapName(timerMap);
                 if (mapName == null) {
                     clearRunTimerHudForRunnerAndSpectators(player, server);
                     return;
                 }
-                DataManager.RecordData personalRecordData = DataManager.getPersonalRecord(player.getNameForScoreboard(), player.getUuidAsString(), mapName);
+                DataManager.RecordData personalRecordData = DataManager.getPersonalRecord(player.getEntityName(), player.getUuidAsString(), mapName);
                 double personalRecord = 0;
                 if (personalRecordData != null) {
                     personalRecord = personalRecordData.time;
                 }
                 float safeTime = Math.max(0.0F, time);
                 float safePb = (float) Math.max(0.0D, personalRecord);
-                if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
+                if (SpectateCommands.spectatorList.containsKey(player.getEntityName())) {
+                    List<String> spectators = SpectateCommands.spectatorList.get(player.getEntityName());
                     for (String spectatorName : spectators) {
-                        if (!spectatorName.equals(player.getNameForScoreboard())) {
+                        if (!spectatorName.equals(player.getEntityName())) {
                             ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectatorName);
                             if (spectatorPlayer == null) {
                                 continue;
@@ -1024,7 +985,7 @@ public class PacketHandler {
                             if (!spectatorPlayer.isCreative()) {
                                 spectatorPlayer.getInventory().clear();
                             }
-                            spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(player.getServerWorld(), new Vec3d(player.getX(), player.getY(), player.getZ()), player.getYaw(), player.getPitch()));
+                            ZoneUtil.teleportTo(spectatorPlayer, ZoneUtil.makeTeleportTarget(player.getServerWorld(), new Vec3d(player.getX(), player.getY(), player.getZ()), player.getYaw(), player.getPitch()));
                             spectatorPlayer.setCameraEntity(player);
                             sendRunTimerHud(spectatorPlayer, safeTime, safePb);
                         }
@@ -1134,14 +1095,14 @@ public class PacketHandler {
                 if (player == null || !Double.isFinite(last_jump_speed) || !Double.isFinite(last_efficiency)) {
                     return;
                 }
-                Minehop.lastEfficiencyMap.put(player.getNameForScoreboard(), new ReplayManager.SSJEntry(jump_count, last_jump_speed, last_efficiency));
+                Minehop.lastEfficiencyMap.put(player.getEntityName(), new ReplayManager.SSJEntry(jump_count, last_jump_speed, last_efficiency));
 
-                if (SpectateCommands.spectatorList.containsKey(player.getNameForScoreboard())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(player.getNameForScoreboard());
+                if (SpectateCommands.spectatorList.containsKey(player.getEntityName())) {
+                    List<String> spectators = SpectateCommands.spectatorList.get(player.getEntityName());
                     for (String spectator : spectators) {
                         ServerPlayerEntity spectatorPlayer = server.getPlayerManager().getPlayer(spectator);
                         if (spectatorPlayer != null) {
-                            if (!spectatorPlayer.getNameForScoreboard().equals(player.getNameForScoreboard())) {
+                            if (!spectatorPlayer.getEntityName().equals(player.getEntityName())) {
                                 sendSpecEfficiency(spectatorPlayer, last_jump_speed, jump_count, last_efficiency);
                             }
                         }

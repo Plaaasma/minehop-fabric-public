@@ -106,34 +106,34 @@ public class SurfRampEntity extends MobEntity {
 
     public static DefaultAttributeContainer.Builder createSurfRampAttributes() {
         return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 20.0D);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 20.0D);
     }
 
     @Override
-    protected void initDataTracker(DataTracker.Builder builder) {
-        super.initDataTracker(builder);
-        builder.add(START_X, 0.5F);
-        builder.add(START_Y, 0.0F);
-        builder.add(START_Z, 0.5F);
-        builder.add(END_X, 1.5F);
-        builder.add(END_Y, 0.0F);
-        builder.add(END_Z, 0.5F);
-        builder.add(DROP, 1.0F);
-        builder.add(WIDTH, 1.0F);
-        builder.add(TWO_SIDED, false);
-        builder.add(SIDE_SIGN, 1);
-        builder.add(TEXTURE_BLOCK_ID, DEFAULT_TEXTURE_BLOCK_ID);
-        builder.add(RENDER_MODE, SurfRampVisualStyle.MODE_BLOCK);
-        builder.add(WIREFRAME_COLOR_RGB, SurfRampVisualStyle.DEFAULT_WIREFRAME_COLOR);
-        builder.add(WIREFRAME_FILL, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL);
-        builder.add(WIREFRAME_FILL_COLOR_RGB, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_COLOR);
-        builder.add(WIREFRAME_FILL_ALPHA, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
-        builder.add(PATH_POINTS, "");
-        builder.add(PATH_T_START, 0.0F);
-        builder.add(PATH_T_END, 1.0F);
-        builder.add(LINKED_START, false);
-        builder.add(LINKED_END, false);
-        builder.add(CHAIN_ID, DEFAULT_CHAIN_ID);
+    protected void initDataTracker() {
+        super.initDataTracker();
+        this.dataTracker.startTracking(START_X, 0.5F);
+        this.dataTracker.startTracking(START_Y, 0.0F);
+        this.dataTracker.startTracking(START_Z, 0.5F);
+        this.dataTracker.startTracking(END_X, 1.5F);
+        this.dataTracker.startTracking(END_Y, 0.0F);
+        this.dataTracker.startTracking(END_Z, 0.5F);
+        this.dataTracker.startTracking(DROP, 1.0F);
+        this.dataTracker.startTracking(WIDTH, 1.0F);
+        this.dataTracker.startTracking(TWO_SIDED, false);
+        this.dataTracker.startTracking(SIDE_SIGN, 1);
+        this.dataTracker.startTracking(TEXTURE_BLOCK_ID, DEFAULT_TEXTURE_BLOCK_ID);
+        this.dataTracker.startTracking(RENDER_MODE, SurfRampVisualStyle.MODE_BLOCK);
+        this.dataTracker.startTracking(WIREFRAME_COLOR_RGB, SurfRampVisualStyle.DEFAULT_WIREFRAME_COLOR);
+        this.dataTracker.startTracking(WIREFRAME_FILL, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL);
+        this.dataTracker.startTracking(WIREFRAME_FILL_COLOR_RGB, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_COLOR);
+        this.dataTracker.startTracking(WIREFRAME_FILL_ALPHA, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
+        this.dataTracker.startTracking(PATH_POINTS, "");
+        this.dataTracker.startTracking(PATH_T_START, 0.0F);
+        this.dataTracker.startTracking(PATH_T_END, 1.0F);
+        this.dataTracker.startTracking(LINKED_START, false);
+        this.dataTracker.startTracking(LINKED_END, false);
+        this.dataTracker.startTracking(CHAIN_ID, DEFAULT_CHAIN_ID);
     }
 
     @Override
@@ -189,6 +189,16 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
+    protected boolean updateWaterState() {
+        // Ramps ignore fluids, but vanilla's baseTick still sweeps every block inside the bounding box
+        // for water and lava each tick. With full-size ramp boxes that is thousands of block lookups per
+        // ramp per tick (hundreds of ramps froze a server), so skip it: never in water or lava.
+        // (1.20.1: updateWaterState() is the only bounding-box sweep in Entity/LivingEntity/MobEntity
+        // baseTick; the other fluid/suffocation checks there look at single blocks.)
+        return false;
+    }
+
+    @Override
     public boolean cannotDespawn() {
         return true;
     }
@@ -199,16 +209,16 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
-    public boolean damage(ServerWorld world, DamageSource source, float amount) {
+    public boolean damage(DamageSource source, float amount) {
         if (source.isOf(DamageTypes.GENERIC_KILL) || source.isOf(DamageTypes.OUT_OF_WORLD)) {
-            this.kill(world);
+            this.kill();
             return true;
         }
         return false;
     }
 
     @Override
-    public void kill(ServerWorld world) {
+    public void kill() {
         this.remove(Entity.RemovalReason.KILLED);
     }
 
@@ -259,6 +269,12 @@ public class SurfRampEntity extends MobEntity {
             this.setWireframeFillAlpha(SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
         }
         this.refreshBounds();
+        // Entity.readNbt calls refreshPosition() AFTER this method, which resets the bounding box to
+        // the type's 1x1 dimensions. Rebuild it on the next tick, or a ramp loaded from disk only
+        // "exists" (surf detection, anticheat surf exemption) around its midpoint on the server.
+        // (1.20.1 Entity.readNbt has the same order: readCustomDataFromNbt, then refreshPosition()
+        // when shouldSetPositionOnLoad().)
+        this.boundsDirty = true;
     }
 
     @Override

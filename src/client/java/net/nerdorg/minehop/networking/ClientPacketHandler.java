@@ -10,7 +10,6 @@ import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -58,7 +57,7 @@ public class ClientPacketHandler {
     }
 
     public static void registerReceivers() {
-        ClientPlayNetworking.registerGlobalReceiver(ConfigSyncPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(ConfigSyncPayload.ID, (payload, ctx) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             ctx.client().execute(() -> {
                 // Assign the read values to your variables or fields here
@@ -84,7 +83,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(SurfStickPreviewPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(SurfStickPreviewPayload.ID, (payload, ctx) -> {
             ctx.client().execute(() -> {
                 if (payload.clear()) {
                     SurfStickPreviewState.clear();
@@ -100,7 +99,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(BoundsStickSelectionPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(BoundsStickSelectionPayload.ID, (payload, ctx) -> {
             ctx.client().execute(() -> {
                 BlockPos first = payload.hasFirst() ? payload.first() : null;
                 BlockPos second = payload.hasSecond() ? payload.second() : null;
@@ -108,7 +107,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(ReplayPathPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(ReplayPathPayload.ID, (payload, ctx) -> {
             ctx.client().execute(() -> {
                 if (payload.clear()) {
                     ReplayPathState.clear();
@@ -117,7 +116,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(OpenAntiCheatScreenPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(OpenAntiCheatScreenPayload.ID, (payload, ctx) -> {
             ctx.client().execute(() -> {
                 MinecraftClient client = ctx.client();
                 if (client == null || client.player == null) {
@@ -131,7 +130,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(OpenSurfStickSettingsPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(OpenSurfStickSettingsPayload.ID, (payload, ctx) -> {
             ctx.client().execute(() -> {
                 MinecraftClient client = ctx.client();
                 if (client.player != null) {
@@ -154,7 +153,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(OpenZoneStickSettingsPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(OpenZoneStickSettingsPayload.ID, (payload, ctx) -> {
             ctx.client().execute(() -> {
                 MinecraftClient client = ctx.client();
                 if (client.player != null) {
@@ -172,7 +171,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(ZoneSyncIDPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(ZoneSyncIDPayload.ID, (payload, ctx) -> {
             BlockPos pos1 = new BlockPos((int) payload.pos1().x, (int) payload.pos1().y, (int) payload.pos1().z);
             BlockPos pos2 = new BlockPos((int) payload.pos2().x, (int) payload.pos2().y, (int) payload.pos2().z);
 
@@ -200,7 +199,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(SelfVTogglePayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(SelfVTogglePayload.ID, (payload, ctx) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             ctx.client().execute(() -> {
               //  MinehopClient.hideSelf = !MinehopClient.hideSelf;
@@ -208,7 +207,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(OtherVTogglePayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(OtherVTogglePayload.ID, (payload, ctx) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             ctx.client().execute(() -> {
              //   MinehopClient.hideOthers = !MinehopClient.hideOthers;
@@ -216,7 +215,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(ReplayVTogglePayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(ReplayVTogglePayload.ID, (payload, ctx) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             ctx.client().execute(() -> {
                 //MinehopClient.hideReplay = !MinehopClient.hideReplay;
@@ -224,7 +223,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(SendSpectatorsPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(SendSpectatorsPayload.ID, (payload, ctx) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             String buff = payload.spectatorBuff();
             ctx.client().execute(() -> {
@@ -242,7 +241,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(SendEfficiencyPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(SendEfficiencyPayload.ID, (payload, ctx) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             double efficiency = payload.efficiency();
 
@@ -252,12 +251,12 @@ public class ClientPacketHandler {
                     MinehopClient.last_efficiency = efficiency;
                 }
                 else {
-                    if (Minehop.efficiencyListMap.containsKey(client.player.getNameForScoreboard())) {
-                        List<Double> efficiencyList = Minehop.efficiencyListMap.get(client.player.getNameForScoreboard());
+                    if (Minehop.efficiencyListMap.containsKey(client.player.getEntityName())) {
+                        List<Double> efficiencyList = Minehop.efficiencyListMap.get(client.player.getEntityName());
                         if (efficiencyList != null && efficiencyList.size() > 1) {
                             double averageEfficiency = efficiencyList.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
                             MinehopClient.last_efficiency = averageEfficiency;
-                            Minehop.efficiencyListMap.put(client.player.getNameForScoreboard(), new ArrayList<>());
+                            Minehop.efficiencyListMap.put(client.player.getEntityName(), new ArrayList<>());
                         }
                     }
                 }
@@ -265,7 +264,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(RunTimerHudPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(RunTimerHudPayload.ID, (payload, ctx) -> {
             MinecraftClient client = ctx.client();
             client.execute(() -> {
                 if (!payload.visible()) {
@@ -279,7 +278,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(ResetVelocityCarryPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(ResetVelocityCarryPayload.ID, (payload, ctx) -> {
             MinecraftClient client = ctx.client();
             client.execute(() -> {
                 MinehopClient.resetCarryX = payload.x();
@@ -293,7 +292,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(CSpecEfficiencyPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(CSpecEfficiencyPayload.ID, (payload, ctx) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             double last_jump_speed = payload.last_jump_speed();
             int jump_count = payload.jump_count();
@@ -306,7 +305,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(OpenMapScreenPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(OpenMapScreenPayload.ID, (payload, ctx) -> {
             String title = payload.title();
             MinecraftClient client = ctx.client();
             client.execute(() -> {
@@ -314,7 +313,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(OpenMapCreatorScreenPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(OpenMapCreatorScreenPayload.ID, (payload, ctx) -> {
             MinecraftClient client = ctx.client();
             client.execute(() -> {
                 if (client.player != null) {
@@ -348,7 +347,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(SendRecordPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(SendRecordPayload.ID, (payload, ctx) -> {
             String buff = payload.buff();
 
             ctx.client().execute(() -> {
@@ -395,7 +394,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(SendMapPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(SendMapPayload.ID, (payload, ctx) -> {
             String raw = payload.buff();
             ctx.client().execute(() -> {
                 if (!shouldApplyAuthoritativeListSync(ctx.client())) {
@@ -513,7 +512,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(SendPersonalRecordPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(SendPersonalRecordPayload.ID, (payload, ctx) -> {
             String buff = payload.buff();
 
             ctx.client().execute(() -> {
@@ -559,7 +558,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(UpdatePowerPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(UpdatePowerPayload.ID, (payload, ctx) -> {
             double power_x = payload.x_power();
             double power_y = payload.y_power();
             double power_z = payload.z_power();
@@ -580,7 +579,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(AntiCheatPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(AntiCheatPayload.ID, (payload, ctx) -> {
             MinecraftClient client = ctx.client();
             client.execute(() -> {
                 new Thread(() -> {
@@ -589,7 +588,7 @@ public class ClientPacketHandler {
             });
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(SetCheaterPayload.ID, (payload, ctx) -> {
+        ClientPayloads.registerGlobalReceiver(SetCheaterPayload.ID, (payload, ctx) -> {
             MinecraftClient client = ctx.client();
             ClientWorld world = ctx.client().world;
             client.execute(() -> {

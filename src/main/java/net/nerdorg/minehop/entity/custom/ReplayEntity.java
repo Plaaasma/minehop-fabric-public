@@ -48,7 +48,7 @@ public class ReplayEntity extends MobEntity {
 
     public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
         return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 1000000);
     }
 
     public ReplayEntity(EntityType<? extends MobEntity> entityType, World world) {
@@ -114,9 +114,9 @@ public class ReplayEntity extends MobEntity {
     }
 
     @Override
-    public boolean damage(ServerWorld world, DamageSource source, float amount) {
+    public boolean damage(DamageSource source, float amount) {
         if (source.isOf(DamageTypes.GENERIC_KILL)) {
-            return super.damage(world, source, amount);
+            return super.damage(source, amount);
         }
         else {
             return false;
@@ -148,7 +148,7 @@ public class ReplayEntity extends MobEntity {
     }
 
     @Override
-    public String getNameForScoreboard() {
+    public String getEntityName() {
         if (map_name == null || map_name.isBlank()) {
             return "replay";
         }
@@ -171,8 +171,8 @@ public class ReplayEntity extends MobEntity {
     @Override
     public void tick() {
         if (this.getWorld() instanceof ServerWorld) {
-            if (temporary && !SpectateCommands.spectatorList.containsKey(this.getNameForScoreboard())) {
-                this.kill((ServerWorld) this.getWorld());
+            if (temporary && !SpectateCommands.spectatorList.containsKey(this.getEntityName())) {
+                this.kill();
                 super.tick();
                 return;
             }
@@ -203,16 +203,16 @@ public class ReplayEntity extends MobEntity {
                 this.setHeadYaw((float) yrot);
                 this.setPitch((float) xrot);
 
-                if (SpectateCommands.spectatorList.containsKey(this.getNameForScoreboard())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(this.getNameForScoreboard());
+                if (SpectateCommands.spectatorList.containsKey(this.getEntityName())) {
+                    List<String> spectators = SpectateCommands.spectatorList.get(this.getEntityName());
                     for (String spectatorName : spectators) {
-                        if (!spectatorName.equals(this.getNameForScoreboard())) {
+                        if (!spectatorName.equals(this.getEntityName())) {
                             ServerPlayerEntity spectatorPlayer = this.getServer().getPlayerManager().getPlayer(spectatorName);
                             if (spectatorPlayer != null) {
                                 if (!spectatorPlayer.isCreative()) {
                                     spectatorPlayer.getInventory().clear();
                                 }
-                                spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget((ServerWorld) this.getWorld(), this.getPos(), this.getYaw(), this.getPitch()));
+                                ZoneUtil.teleportTo(spectatorPlayer, ZoneUtil.makeTeleportTarget((ServerWorld) this.getWorld(), this.getPos(), this.getYaw(), this.getPitch()));
                                 spectatorPlayer.setCameraEntity(this);
                                 PacketHandler.sendSpecEfficiency(spectatorPlayer, last_jump_speed, (int) jump_count, efficiency);
                                 Logger.logActionBar(spectatorPlayer, "End Time: " + String.format("%.5f", replay.time));

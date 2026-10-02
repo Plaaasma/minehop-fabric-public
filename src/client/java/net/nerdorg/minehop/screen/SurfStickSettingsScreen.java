@@ -108,14 +108,6 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
-    }
-
-    @Override
-    public void blur() {
-    }
-
-    @Override
     protected void init() {
         super.init();
         this.updatePanelBounds();
@@ -287,7 +279,7 @@ public class SurfStickSettingsScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+        this.renderBackground(context);
 
         int panelWidth = this.panelWidth;
         int panelHeight = this.panelHeight;
@@ -351,8 +343,8 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount) {
+        if (super.mouseScrolled(mouseX, mouseY, verticalAmount)) {
             return true;
         }
         if (this.panelMaxScroll <= 0 || Math.abs(verticalAmount) < 1.0E-6D) {
@@ -519,7 +511,10 @@ public class SurfStickSettingsScreen extends Screen {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
 
-        context.draw(vertexConsumers -> {
+        // 1.20.1: DrawContext has no draw(Consumer<VertexConsumerProvider>); same as 1.21.4's, the
+        // context's immediate consumers are filled and then flushed.
+        {
+            net.minecraft.client.render.VertexConsumerProvider vertexConsumers = context.getVertexConsumers();
             if (wireMode) {
                 if (this.wireframeFillEnabled) {
                     VertexConsumer fillConsumer = vertexConsumers.getBuffer(ModRenderLayer.getTranslucentColorQuads());
@@ -531,7 +526,7 @@ public class SurfStickSettingsScreen extends Screen {
                 VertexConsumer texturedConsumer = vertexConsumers.getBuffer(RenderLayer.getEntityCutoutNoCull(SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE));
                 this.renderStraightRampPreviewMesh(matrices, texturedConsumer, sprite, visualLength, visualWidth, visualDrop, oneSided, sideSign);
             }
-        });
+        }
         context.draw();
 
         RenderSystem.disableDepthTest();
@@ -921,7 +916,7 @@ public class SurfStickSettingsScreen extends Screen {
                 .texture(atlasU, atlasV)
                 .overlay(OverlayTexture.DEFAULT_UV)
                 .light(PREVIEW_LIGHT)
-                .normal(normal[0], normal[1], normal[2]);
+                .normal(normal[0], normal[1], normal[2]).next();
     }
 
     private void drawColoredQuadDoubleSided(
@@ -1001,7 +996,7 @@ public class SurfStickSettingsScreen extends Screen {
             int b,
             int alpha
     ) {
-        consumer.vertex(matrix, pos.x, pos.y, pos.z).color(r, g, b, alpha);
+        consumer.vertex(matrix, pos.x, pos.y, pos.z).color(r, g, b, alpha).next();
     }
 
     private void drawColoredLine(
@@ -1015,8 +1010,8 @@ public class SurfStickSettingsScreen extends Screen {
             int alpha
     ) {
         Matrix4f matrix = matrices.peek().getPositionMatrix();
-        consumer.vertex(matrix, a.x, a.y, a.z).color(r, g, bColor, alpha).normal(0.0F, 1.0F, 0.0F);
-        consumer.vertex(matrix, b.x, b.y, b.z).color(r, g, bColor, alpha).normal(0.0F, 1.0F, 0.0F);
+        consumer.vertex(matrix, a.x, a.y, a.z).color(r, g, bColor, alpha).normal(0.0F, 1.0F, 0.0F).next();
+        consumer.vertex(matrix, b.x, b.y, b.z).color(r, g, bColor, alpha).normal(0.0F, 1.0F, 0.0F).next();
     }
 
     private float[] computeNormal(PreviewVertex a, PreviewVertex b, PreviewVertex c) {

@@ -17,7 +17,7 @@ public class MobManager {
         ServerTickEvents.END_SERVER_TICK.register((server) -> {
             for (Entity entity : server.getOverworld().iterateEntities()) {
                 if (entity instanceof BatEntity) {
-                    entity.kill(server.getOverworld());
+                    entity.kill();
                 }
             }
         });

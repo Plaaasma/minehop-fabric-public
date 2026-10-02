@@ -27,7 +27,8 @@ public class ModBlocks {
         // Create a registry key for the block
         RegistryKey<Block> blockKey = keyOfBlock(name);
         // Create the block instance
-        Block block = blockFactory.apply(settings.registryKey(blockKey));
+        // 1.20.1: block/item settings carry no registry key (1.21.2+).
+        Block block = blockFactory.apply(settings);
 
         // Sometimes, you may not want to register an item for the block.
         // Eg: if it's a technical block like `minecraft:moving_piston` or `minecraft:end_gateway`
@@ -36,7 +37,7 @@ public class ModBlocks {
             // can be the same.
             RegistryKey<Item> itemKey = keyOfItem(name);
 
-            BlockItem blockItem = new BlockItem(block, new Item.Settings().registryKey(itemKey));
+            BlockItem blockItem = new BlockItem(block, new Item.Settings());
             Registry.register(Registries.ITEM, itemKey, blockItem);
         }
 
@@ -44,10 +45,10 @@ public class ModBlocks {
     }
 
     private static RegistryKey<Block> keyOfBlock(String name) {
-        return RegistryKey.of(RegistryKeys.BLOCK, Identifier.of(Minehop.MOD_ID, name));
+        return RegistryKey.of(RegistryKeys.BLOCK, new Identifier(Minehop.MOD_ID, name));
     }
 
     private static RegistryKey<Item> keyOfItem(String name) {
-        return RegistryKey.of(RegistryKeys.ITEM, Identifier.of(Minehop.MOD_ID, name));
+        return RegistryKey.of(RegistryKeys.ITEM, new Identifier(Minehop.MOD_ID, name));
     }
 }

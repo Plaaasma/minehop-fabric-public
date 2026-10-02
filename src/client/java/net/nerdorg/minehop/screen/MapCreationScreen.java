@@ -112,14 +112,6 @@ public class MapCreationScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
-    }
-
-    @Override
-    public void blur() {
-    }
-
-    @Override
     protected void init() {
         super.init();
         int panelWidth = 380;
@@ -256,7 +248,7 @@ public class MapCreationScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+        this.renderBackground(context);
 
         int panelWidth = 380;
         int panelHeight = 402;

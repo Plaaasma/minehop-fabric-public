@@ -453,7 +453,7 @@ public final class MovementTestHarness {
         double afterUps = horizontalUps(after);
         double velHeading = afterUps > 1.0E-6D ? Math.toDegrees(Math.atan2(after.x, after.z)) : 0.0D;
 
-        net.nerdorg.minehop.util.StrafeStats st = Minehop.strafeStatsMap.get(fakePlayer.getNameForScoreboard());
+        net.nerdorg.minehop.util.StrafeStats st = Minehop.strafeStatsMap.get(fakePlayer.getEntityName());
         String statStr = st != null
                 ? String.format(Locale.ROOT, " eff=%.1f sync=%.1f gauge=%.1f", st.liveEfficiency, st.liveSync, st.liveGauge)
                 : " eff=- sync=- gauge=-";

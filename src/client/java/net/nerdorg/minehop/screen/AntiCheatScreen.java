@@ -69,14 +69,6 @@ public class AntiCheatScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
-    }
-
-    @Override
-    public void blur() {
-    }
-
-    @Override
     public boolean shouldPause() {
         return false;
     }
@@ -141,7 +133,7 @@ public class AntiCheatScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.renderBackground(context, mouseX, mouseY, delta);
+        super.renderBackground(context);
         context.fill(0, 0, this.width, this.height, BG_COLOR);
 
         int titleY = 14;
@@ -308,7 +300,7 @@ public class AntiCheatScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount) {
         int rightX = this.width - RIGHT_PANEL_WIDTH - 18;
         if (mouseX >= rightX) {
             this.rightScroll -= (int) (verticalAmount * 18);

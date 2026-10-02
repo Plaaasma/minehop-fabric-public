@@ -171,7 +171,7 @@ public class ReplayCommands {
         String mapName = mapData.name;
         String targetPlayer = explicitTargetPlayer;
         if (targetPlayer == null || targetPlayer.isBlank()) {
-            targetPlayer = viewer.getNameForScoreboard();
+            targetPlayer = viewer.getEntityName();
         }
 
         ReplayManager.Replay replay = ReplayManager.getReplay(mapName, targetPlayer);
@@ -215,26 +215,26 @@ public class ReplayCommands {
         if (!viewer.isCreative()) {
             viewer.getInventory().clear();
         }
-        viewer.teleportTo(ZoneUtil.makeTeleportTarget(
+        ZoneUtil.teleportTo(viewer, ZoneUtil.makeTeleportTarget(
                 (ServerWorld) replayEntity.getWorld(),
                 new Vec3d(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ()),
                 replayEntity.getYaw(),
                 replayEntity.getPitch()
         ));
         viewer.setCameraEntity(replayEntity);
-        SpectateCommands.addSpectator(replayEntity.getNameForScoreboard(), viewer.getNameForScoreboard());
+        SpectateCommands.addSpectator(replayEntity.getEntityName(), viewer.getEntityName());
     }
 
     private static void removeViewerFromPreviousSpectate(ServerPlayerEntity viewer) {
         if (viewer == null || viewer.getCameraEntity() == null) {
             return;
         }
-        String oldTargetName = viewer.getCameraEntity().getNameForScoreboard();
+        String oldTargetName = viewer.getCameraEntity().getEntityName();
         List<String> oldSpectators = SpectateCommands.spectatorList.get(oldTargetName);
         if (oldSpectators == null) {
             return;
         }
-        oldSpectators.remove(viewer.getNameForScoreboard());
+        oldSpectators.remove(viewer.getEntityName());
         if (oldSpectators.size() <= 1) {
             SpectateCommands.spectatorList.remove(oldTargetName);
         }
@@ -303,8 +303,8 @@ public class ReplayCommands {
             toRemove.add(replayEntity);
         }
         for (ReplayEntity replayEntity : toRemove) {
-            SpectateCommands.spectatorList.remove(replayEntity.getNameForScoreboard());
-            replayEntity.kill(world);
+            SpectateCommands.spectatorList.remove(replayEntity.getEntityName());
+            replayEntity.kill();
         }
         return toRemove.size();
     }
@@ -329,11 +329,11 @@ public class ReplayCommands {
                 }
             }
             for (ReplayEntity replayEntity : toRemove) {
-                List<String> watching = SpectateCommands.spectatorList.remove(replayEntity.getNameForScoreboard());
+                List<String> watching = SpectateCommands.spectatorList.remove(replayEntity.getEntityName());
                 if (watching != null) {
                     spectators.addAll(watching);
                 }
-                replayEntity.kill(world);
+                replayEntity.kill();
             }
         }
         return spectators;

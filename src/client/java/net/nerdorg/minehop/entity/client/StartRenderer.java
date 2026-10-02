@@ -13,15 +13,15 @@ import net.nerdorg.minehop.entity.custom.StartEntity;
 import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Vector3f;
 
-public class StartRenderer extends MobEntityRenderer<StartEntity, StartEntityRenderState, StartModel> {
-    private static final Identifier TEXTURE = Identifier.of(Minehop.MOD_ID, "textures/entity/zone.png");
+public class StartRenderer extends MobEntityRenderer<StartEntity, StartModel> {
+    private static final Identifier TEXTURE = new Identifier(Minehop.MOD_ID, "textures/entity/zone.png");
 
     public StartRenderer(EntityRendererFactory.Context context) {
         super(context, new StartModel(context.getPart(ModModelLayers.START_ENTITY)), 0.001f);
     }
 
     @Override
-    public Identifier getTexture(StartEntityRenderState state) {
+    public Identifier getTexture(StartEntity entity) {
         return TEXTURE;
     }
 
@@ -30,18 +30,18 @@ public class StartRenderer extends MobEntityRenderer<StartEntity, StartEntityRen
         return true;
     }
 
-    @Override
     public StartEntityRenderState createRenderState() {
         return new StartEntityRenderState();
     }
 
-    @Override
     public void updateRenderState(StartEntity startEntity, StartEntityRenderState state, float tickDelta) {
         state.startEntity = startEntity;
     }
 
     @Override
-    public void render(StartEntityRenderState renderState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
+    public void render(StartEntity entity, float yaw, float tickDelta, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
+        StartEntityRenderState renderState = this.createRenderState();
+        this.updateRenderState(entity, renderState, tickDelta);
         BlockPos corner1 = renderState.startEntity.getCorner1();
         BlockPos corner2 = renderState.startEntity.getCorner2();
         if (corner1 != null && corner2 != null) {
@@ -58,6 +58,6 @@ public class StartRenderer extends MobEntityRenderer<StartEntity, StartEntityRen
                             (float) corner2Offset.getZ()),
                     1, 255, 0, 255, 0);
         }
-        super.render(renderState, matrixStack, vertexConsumerProvider, i);
+        super.render(entity, yaw, tickDelta, matrixStack, vertexConsumerProvider, i);
     }
 }

@@ -76,16 +76,16 @@ public class SpawnCommands {
                     foundWorld = context.getSource().getServer().getOverworld();
                 }
                 if (foundWorld != null) {
-                    serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget(
+                    ZoneUtil.teleportTo(serverPlayerEntity, ZoneUtil.makeTeleportTarget(
                             foundWorld,
                             new Vec3d(pairedMap.x, pairedMap.y, pairedMap.z),
                             (float) pairedMap.yrot,
                             (float) pairedMap.xrot
                     ));
-                    Minehop.timerManager.remove(serverPlayerEntity.getNameForScoreboard());
+                    Minehop.timerManager.remove(serverPlayerEntity.getEntityName());
                     Logger.logSuccess(serverPlayerEntity, "Teleporting to spawn.");
-                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getNameForScoreboard());
+                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getEntityName())) {
+                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getEntityName());
                         for (String spectator : spectators) {
                             ServerPlayerEntity spectatorPlayer = context.getSource().getServer().getPlayerManager().getPlayer(spectator);
                             if (spectatorPlayer == null) {
@@ -95,7 +95,7 @@ public class SpawnCommands {
                             if (!spectatorPlayer.isCreative()) {
                                 spectatorPlayer.getInventory().clear();
                             }
-                            spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
+                            ZoneUtil.teleportTo(spectatorPlayer, ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
                             spectatorPlayer.setCameraEntity(serverPlayerEntity);
                         }
                     }

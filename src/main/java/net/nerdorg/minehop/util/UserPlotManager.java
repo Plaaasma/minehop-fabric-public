@@ -54,7 +54,7 @@ import java.util.Map;
 import java.util.Set;
 
 public final class UserPlotManager {
-    public static final Identifier PLOTS_DIMENSION_ID = Identifier.of(Minehop.MOD_ID, "plots");
+    public static final Identifier PLOTS_DIMENSION_ID = new Identifier(Minehop.MOD_ID, "plots");
     public static final RegistryKey<World> PLOTS_WORLD_KEY = RegistryKey.of(RegistryKeys.WORLD, PLOTS_DIMENSION_ID);
 
     private static final int PLOT_SIZE = 512;
@@ -158,19 +158,21 @@ public final class UserPlotManager {
         return ActionResult.PASS;
     }
 
-    private static ActionResult onUseItem(PlayerEntity player, World world, Hand hand) {
+    // 1.20.1: UseItemCallback returns TypedActionResult<ItemStack> (same PASS/FAIL semantics).
+    private static net.minecraft.util.TypedActionResult<ItemStack> onUseItem(PlayerEntity player, World world, Hand hand) {
+        ItemStack stack = player.getStackInHand(hand);
         if (world.isClient || !(player instanceof ServerPlayerEntity serverPlayer) || !(world instanceof ServerWorld serverWorld)) {
-            return ActionResult.PASS;
+            return net.minecraft.util.TypedActionResult.pass(stack);
         }
         if (isSpawnEggUsageBlocked(serverPlayer, serverWorld, hand)) {
-            return ActionResult.FAIL;
+            return net.minecraft.util.TypedActionResult.fail(stack);
         }
         if (isPlotsWorld(serverWorld) && !serverPlayer.hasPermissionLevel(4)
                 && isIllegalPlotItem(serverPlayer.getStackInHand(hand))) {
             Logger.logActionBar(serverPlayer, "That item is disabled in plot worlds.");
-            return ActionResult.FAIL;
+            return net.minecraft.util.TypedActionResult.fail(stack);
         }
-        return ActionResult.PASS;
+        return net.minecraft.util.TypedActionResult.pass(stack);
     }
 
     private static ActionResult onUseEntity(PlayerEntity player, World world, Hand hand, Entity entity, EntityHitResult hitResult) {
@@ -525,7 +527,7 @@ public final class UserPlotManager {
                 0,
                 true,
                 player.getUuidAsString(),
-                player.getNameForScoreboard(),
+                player.getEntityName(),
                 description,
                 minX,
                 PLOT_GROUND_Y,
@@ -542,7 +544,7 @@ public final class UserPlotManager {
         DataManager.saveData(plotsWorld, DataManager.mapListLocation, Minehop.mapList);
         syncMaps(player.getServer());
 
-        player.teleportTo(ZoneUtil.makeTeleportTarget(
+        ZoneUtil.teleportTo(player, ZoneUtil.makeTeleportTarget(
                 plotsWorld,
                 new Vec3d(spawnX, spawnY, spawnZ),
                 0.0F,
@@ -593,7 +595,7 @@ public final class UserPlotManager {
             targetY = minSafeY + 1.0D;
         }
 
-        player.teleportTo(ZoneUtil.makeTeleportTarget(
+        ZoneUtil.teleportTo(player, ZoneUtil.makeTeleportTarget(
                 world,
                 new Vec3d(targetX, targetY, targetZ),
                 (float) mapData.yrot,
@@ -714,7 +716,7 @@ public final class UserPlotManager {
             if (overworld != null) {
                 BlockPos spawnPos = overworld.getSpawnPos();
                 Vec3d spawnCenter = Vec3d.ofBottomCenter(spawnPos).add(0.0D, 1.0D, 0.0D);
-                player.teleportTo(ZoneUtil.makeTeleportTarget(overworld, spawnCenter, player.getYaw(), player.getPitch()));
+                ZoneUtil.teleportTo(player, ZoneUtil.makeTeleportTarget(overworld, spawnCenter, player.getYaw(), player.getPitch()));
             }
         }
 
@@ -889,7 +891,7 @@ public final class UserPlotManager {
             }
 
             for (Entity entity : toRemove) {
-                entity.kill(world);
+                entity.kill();
                 removedCount++;
             }
         }

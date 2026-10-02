@@ -4,7 +4,6 @@ import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.Frustum;
 import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.render.entity.PlayerEntityRenderer;
-import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
 import net.minecraft.util.Identifier;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
@@ -13,7 +12,7 @@ import net.nerdorg.minehop.config.ConfigWrapper;
 import java.util.HashMap;
 
 public class CustomPlayerEntityRenderer extends PlayerEntityRenderer {
-    private static final Identifier TEXTURE = Identifier.of(Minehop.MOD_ID, "textures/entity/cheater_player_model_texture.png");
+    private static final Identifier TEXTURE = new Identifier(Minehop.MOD_ID, "textures/entity/cheater_player_model_texture.png");
     private static final HashMap<String, PlayerModel> PlayerModels = new HashMap<>();
 
     public enum PlayerModel {
@@ -27,22 +26,23 @@ public class CustomPlayerEntityRenderer extends PlayerEntityRenderer {
     }
 
     @Override
-    public Identifier getTexture(PlayerEntityRenderState entity) {
-
-        PlayerModels.putIfAbsent(entity.name, PlayerModel.Player);
-        PlayerModel model = PlayerModels.get(entity.name);
+    public Identifier getTexture(AbstractClientPlayerEntity entity) {
+        // 1.20.1: renderers get the entity (no render state); state.name = the player's name string.
+        String name = entity.getName().getString();
+        PlayerModels.putIfAbsent(name, PlayerModel.Player);
+        PlayerModel model = PlayerModels.get(name);
 
         switch (model){
 
             case Player -> {
-                return entity.skinTextures.texture();
+                return entity.getSkinTexture();
             }
             case Cheater -> {
                 return TEXTURE;
             }
         }
 
-        return entity.skinTextures.texture();
+        return entity.getSkinTexture();
     }
 
     public static void setPlayerModel(PlayerModel playerModel, String UUID) {

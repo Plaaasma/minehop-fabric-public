@@ -72,14 +72,6 @@ public class SelectMapScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
-    }
-
-    @Override
-    public void blur() {
-    }
-
-    @Override
     protected void init() {
         super.init();
         this.computeLayout();
@@ -201,7 +193,7 @@ public class SelectMapScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount) {
         if (this.panelMaxScroll > 0 && this.isMouseInsidePanel(mouseX, mouseY) && Math.abs(verticalAmount) >= 1.0E-6D) {
             int adaptiveStep = MathHelper.clamp((int) Math.round(this.panelMaxScroll / 8.0D), 2, 10);
             int scrollDelta = (int) Math.round(verticalAmount * adaptiveStep);
@@ -218,12 +210,12 @@ public class SelectMapScreen extends Screen {
             }
         }
 
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, verticalAmount);
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+        this.renderBackground(context);
         this.drawPanel(context);
 
         String filterText = this.textFieldWidget == null ? "" : this.textFieldWidget.getText();
@@ -585,7 +577,7 @@ public class SelectMapScreen extends Screen {
         if (listWidget == null || tab == null || listWidget.mapCount() <= 0) {
             return;
         }
-        double scrollY = listWidget.getScrollY();
+        double scrollY = listWidget.getScrollAmount();
         switch (tab) {
             case BHOP -> this.bhopScrollY = scrollY;
             case SURF -> this.surfScrollY = scrollY;
@@ -609,7 +601,7 @@ public class SelectMapScreen extends Screen {
             case USER -> this.userScrollY;
         };
         if (scrollY > 0.0D) {
-            listWidget.setScrollY(scrollY);
+            listWidget.setScrollAmount(scrollY);
         }
     }
 

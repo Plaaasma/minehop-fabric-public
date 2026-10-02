@@ -22,7 +22,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec2f;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.TeleportTarget;
+import net.nerdorg.minehop.util.TeleportTarget;
 import net.minecraft.world.World;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
@@ -118,7 +118,7 @@ public class ResetEntity extends Zone {
 
     public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
         return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 1000000);
     }
 
     // Keep the preserved SPEED but point it along the spawn/checkpoint facing (what a bhop/surf
@@ -297,7 +297,7 @@ public class ResetEntity extends Zone {
                                         targetRot = new Vec2f((float) rotVec3d.getX(), (float) rotVec3d.getY());
                                     }
                                 } else {
-                                    Minehop.timerManager.remove(player.getNameForScoreboard());
+                                    Minehop.timerManager.remove(player.getEntityName());
                                 }
                                 if (!player.isCreative()) {
                                     player.getInventory().clear();
@@ -324,7 +324,7 @@ public class ResetEntity extends Zone {
                                 Vec3d preservedVelocity = preserve
                                         ? redirectToYaw(this.resolvePreservedVelocity(player), targetRot.y)
                                         : Vec3d.ZERO;
-                                player.teleportTo(new TeleportTarget(
+                                net.nerdorg.minehop.util.ZoneUtil.teleportTo(player, new TeleportTarget(
                                         serverWorld,
                                         new Vec3d(targetLocation.getX(), targetLocation.getY(), targetLocation.getZ()),
                                         preservedVelocity,
@@ -350,7 +350,7 @@ public class ResetEntity extends Zone {
                     }
                 }
                 else {
-                    this.kill(serverWorld);
+                    this.kill();
                 }
             }
         }

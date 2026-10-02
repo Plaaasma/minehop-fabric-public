@@ -29,7 +29,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Arrays;
 import java.util.List;
 
-public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRampEntityRenderState, SurfRampModel> {
+public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRampModel> {
     private static final double UV_SCALE = 0.5D;
     private static final float HORIZONTAL_TEXTURE_INSET_PIXELS = 1.0F;
     private static final double UV_SPLIT_EPSILON = 1.0E-7D;
@@ -37,7 +37,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private static final double SEAM_OUTER_JOIN_MIN_DISTANCE = 0.03D;
     private static final double SEAM_SEARCH_RADIUS = 0.55D;
     private static final double SEAM_BRIDGE_DETAIL_DISTANCE_SQ = 32.0D * 32.0D;
-    private static final Identifier WIREFRAME_FILL_TEXTURE = Identifier.of("minehop", "textures/misc/white.png");
+    private static final Identifier WIREFRAME_FILL_TEXTURE = new Identifier("minehop", "textures/misc/white.png");
     private static final int WIREFRAME_LINE_WIDTH = 2;
     private static final int WIREFRAME_LINE_ALPHA = 255;
     private static final double WIREFRAME_RIB_SPACING = 1.65D;
@@ -54,7 +54,6 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         super(context, new SurfRampModel(context.getPart(ModModelLayers.SURF_RAMP_ENTITY)), 0.0F);
     }
 
-    @Override
     public SurfRampEntityRenderState createRenderState() {
         return new SurfRampEntityRenderState();
     }
@@ -64,13 +63,14 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         return super.shouldRender(entity, frustum, x, y, z);
     }
 
-    @Override
     public void updateRenderState(SurfRampEntity entity, SurfRampEntityRenderState state, float tickDelta) {
         state.surfRampEntity = entity;
     }
 
     @Override
-    public void render(SurfRampEntityRenderState renderState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int light) {
+    public void render(SurfRampEntity renderedEntity, float yaw, float tickDelta, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int light) {
+        SurfRampEntityRenderState renderState = this.createRenderState();
+        this.updateRenderState(renderedEntity, renderState, tickDelta);
         SurfRampEntity entity = renderState.surfRampEntity;
         if (entity == null) {
             return;
@@ -850,10 +850,10 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     ) {
         wireConsumer.vertex(positionMatrix, (float) a.x, (float) a.y, (float) a.z)
                 .color(red, green, blue, WIREFRAME_LINE_ALPHA)
-                .normal(1.0F, 1.0F, 1.0F);
+                .normal(1.0F, 1.0F, 1.0F).next();
         wireConsumer.vertex(positionMatrix, (float) b.x, (float) b.y, (float) b.z)
                 .color(red, green, blue, WIREFRAME_LINE_ALPHA)
-                .normal(1.0F, 1.0F, 1.0F);
+                .normal(1.0F, 1.0F, 1.0F).next();
     }
 
     private void drawCollisionLine(
@@ -992,7 +992,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
                 .texture(clamp01(u), clamp01(v))
                 .overlay(OverlayTexture.DEFAULT_UV)
                 .light(light)
-                .normal((float) normal.x, (float) normal.y, (float) normal.z);
+                .normal((float) normal.x, (float) normal.y, (float) normal.z).next();
     }
 
     private void renderCollisionPolygons(
@@ -1330,7 +1330,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
                 .texture(atlasU, atlasV)
                 .overlay(OverlayTexture.DEFAULT_UV)
                 .light(light)
-                .normal((float) normal.x, (float) normal.y, (float) normal.z);
+                .normal((float) normal.x, (float) normal.y, (float) normal.z).next();
     }
 
     private static float clamp01(float value) {
@@ -1384,7 +1384,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     }
 
     @Override
-    public Identifier getTexture(SurfRampEntityRenderState state) {
+    public Identifier getTexture(SurfRampEntity entity) {
         return SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE;
     }
 }

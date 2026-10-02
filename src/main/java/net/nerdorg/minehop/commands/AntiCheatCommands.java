@@ -109,7 +109,7 @@ public final class AntiCheatCommands {
         MinecraftServer server = ctx.getSource().getServer();
         if (server != null) {
             for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                builder.suggest(player.getNameForScoreboard(), new LiteralMessage("online"));
+                builder.suggest(player.getEntityName(), new LiteralMessage("online"));
             }
         }
         for (AntiCheatPlayerState state : AntiCheatManager.allStates().values()) {
@@ -128,7 +128,7 @@ public final class AntiCheatCommands {
         MinecraftServer server = ctx.getSource().getServer();
         if (server != null) {
             for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                builder.suggest(player.getNameForScoreboard(), new LiteralMessage("online"));
+                builder.suggest(player.getEntityName(), new LiteralMessage("online"));
             }
         }
         return builder.buildFuture();
@@ -256,7 +256,7 @@ public final class AntiCheatCommands {
         String displayName;
         if (target != null) {
             uuid = target.getUuid();
-            displayName = target.getNameForScoreboard();
+            displayName = target.getEntityName();
         } else {
             AntiCheatPlayerState state = findStateByName(server, name);
             if (state == null) {
@@ -292,7 +292,7 @@ public final class AntiCheatCommands {
             if (server != null) {
                 ServerPlayerEntity p = server.getPlayerManager().getPlayer(uuid);
                 if (p != null) {
-                    label = p.getNameForScoreboard() + " (" + uuid + ")";
+                    label = p.getEntityName() + " (" + uuid + ")";
                 } else {
                     AntiCheatPlayerState state = AntiCheatManager.stateByUuid(uuid);
                     if (state != null && !state.lastKnownName().isBlank()) {
@@ -356,7 +356,7 @@ public final class AntiCheatCommands {
                 for (AdminPlayerEntry existing : snapshot.players) {
                     if (online.getUuidAsString().equals(existing.uuid)) {
                         existing.online = true;
-                        existing.name = online.getNameForScoreboard();
+                        existing.name = online.getEntityName();
                         exists = true;
                         break;
                     }
@@ -364,7 +364,7 @@ public final class AntiCheatCommands {
                 if (!exists) {
                     AdminPlayerEntry data = new AdminPlayerEntry();
                     data.uuid = online.getUuidAsString();
-                    data.name = online.getNameForScoreboard();
+                    data.name = online.getEntityName();
                     data.online = true;
                     data.exempt = AntiCheatManager.exemptList().contains(online.getUuid());
                     snapshot.players.add(data);
@@ -423,9 +423,9 @@ public final class AntiCheatCommands {
     }
 
     public static void wireServerHandlers() {
-        ServerPlayNetworking.registerGlobalReceiver(net.nerdorg.minehop.networking.payloads.AntiCheatActionPayload.ID, (payload, ctx) -> {
+        net.nerdorg.minehop.networking.codec.ServerPayloads.registerGlobalReceiver(net.nerdorg.minehop.networking.payloads.AntiCheatActionPayload.ID, (payload, ctx) -> {
             // Throttle: ACTION_REFRESH rebuilds a full admin snapshot; don't let it be spammed.
-            if (!net.nerdorg.minehop.util.PacketRateLimiter.allow(ctx.player(), net.nerdorg.minehop.networking.payloads.AntiCheatActionPayload.ID.id().toString(), 100)) {
+            if (!net.nerdorg.minehop.util.PacketRateLimiter.allow(ctx.player(), net.nerdorg.minehop.networking.payloads.AntiCheatActionPayload.ID.getId().toString(), 100)) {
                 return;
             }
             ServerPlayerEntity player = ctx.player();

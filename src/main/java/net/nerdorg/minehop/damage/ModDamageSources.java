@@ -7,11 +7,11 @@ import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.registry.RegistryWrapper;
+import net.minecraft.registry.Registry;
 import org.jetbrains.annotations.Nullable;
 
 public class ModDamageSources {
-    public static RegistryWrapper<DamageType> registryWrapper;
+    public static Registry<DamageType> registryWrapper;
     public static DamageSource instagib;
 
     public ModDamageSources(DynamicRegistryManager registryManager) {
@@ -20,12 +20,12 @@ public class ModDamageSources {
     }
 
     public static DamageSource create(RegistryKey<DamageType> key) {
-        RegistryEntry<DamageType> entry = registryWrapper.getOptional(key).get();
+        RegistryEntry<DamageType> entry = registryWrapper.getEntry(key).get();
         return new DamageSource(entry);
     }
 
     public static DamageSource create(RegistryKey<DamageType> key, @Nullable Entity attacker) {
-        RegistryEntry<DamageType> entry = registryWrapper.getOptional(key).get();
+        RegistryEntry<DamageType> entry = registryWrapper.getEntry(key).get();
         return new DamageSource(entry, attacker);
     }
 }

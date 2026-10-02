@@ -4,6 +4,7 @@ import net.minecraft.block.*;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.s2c.play.PositionFlag;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -12,6 +13,7 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
+import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
@@ -79,10 +81,10 @@ public class InstagibItem extends Item {
     }
 
     @Override
-    public ActionResult use(World world, PlayerEntity user, Hand hand) {
+    public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
         if (world instanceof ServerWorld serverWorld) {
             ServerPlayerEntity serverPlayerEntity = (ServerPlayerEntity) user;
-            if (!gibDelayList.containsKey(user.getNameForScoreboard()) || serverWorld.getServer().getTicks() > gibDelayList.get(user.getNameForScoreboard()) + 15) {
+            if (!gibDelayList.containsKey(user.getEntityName()) || serverWorld.getServer().getTicks() > gibDelayList.get(user.getEntityName()) + 15) {
                 Vec3d startPos = serverPlayerEntity.getCameraPosVec(1.0F);
 
                 // Direction - based on where the player is looking
@@ -90,14 +92,14 @@ public class InstagibItem extends Item {
 
                 // Calculate the end position 64 blocks away in the look direction
                 Vec3d endPos = startPos.add(lookVec.x * 64, lookVec.y * 64, lookVec.z * 64);
-                serverPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_WARDEN_ATTACK_IMPACT, SoundCategory.PLAYERS, 1f, 1f);
+                serverPlayerEntity.playSound(SoundEvents.ENTITY_WARDEN_ATTACK_IMPACT, SoundCategory.PLAYERS, 1f, 1f);
                 serverWorld.playSound(user, user.getBlockPos(), SoundEvents.ENTITY_WARDEN_ATTACK_IMPACT, SoundCategory.PLAYERS, 1f, 1f);
 
                 EntityHitResult entityHitResult = raycastEntities(serverPlayerEntity, startPos, endPos, 64);
                 if (entityHitResult != null) {
                     endPos = entityHitResult.getPos();
                     Entity hitEntity = entityHitResult.getEntity();
-                    serverPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_PLAYER_HURT, SoundCategory.PLAYERS, 1f, 1f);
+                    serverPlayerEntity.playSound(SoundEvents.ENTITY_PLAYER_HURT, SoundCategory.PLAYERS, 1f, 1f);
                     handleInstaGibHit(serverPlayerEntity, hitEntity);
                     handleGibParticles(serverWorld, startPos, endPos);
                 }
@@ -105,11 +107,11 @@ public class InstagibItem extends Item {
                     handleGibParticles(serverWorld, startPos, endPos);
                 }
 
-                gibDelayList.put(user.getNameForScoreboard(), serverWorld.getServer().getTicks());
+                gibDelayList.put(user.getEntityName(), serverWorld.getServer().getTicks());
             }
-            return ActionResult.CONSUME;// (user.getStackInHand(hand));
+            return TypedActionResult.consume(user.getStackInHand(hand));
         }
-        return ActionResult.CONSUME; //TypedActionResult.consume(user.getStackInHand(hand));
+        return TypedActionResult.consume(user.getStackInHand(hand));
     }
 
     private void handleGibParticles(ServerWorld world, Vec3d startPos, Vec3d endPos) {
@@ -159,11 +161,11 @@ public class InstagibItem extends Item {
                     List<Vec3d> randomCheckpoint = checkpointPositions.get(random.nextInt(0, checkpointPositions.size()));
                     Vec3d targetPos = randomCheckpoint.get(0);
                     Vec3d rotPos = randomCheckpoint.get(1);
-                    target.teleportTo(ZoneUtil.makeTeleportTarget(foundWorld, targetPos, (float) rotPos.getY(), (float) rotPos.getX()));
+                    ZoneUtil.teleportTo(target, ZoneUtil.makeTeleportTarget(foundWorld, targetPos, (float) rotPos.getY(), (float) rotPos.getX()));
                     if (target instanceof ServerPlayerEntity targetPlayerEntity) {
-                        Logger.logSuccess(attacker, "You shot " + targetPlayerEntity.getNameForScoreboard() + ".");
-                        Logger.logFailure(targetPlayerEntity, "You were shot by " + attacker.getNameForScoreboard() + ".");
-                        targetPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 1f, 1f);
+                        Logger.logSuccess(attacker, "You shot " + targetPlayerEntity.getEntityName() + ".");
+                        Logger.logFailure(targetPlayerEntity, "You were shot by " + attacker.getEntityName() + ".");
+                        targetPlayerEntity.playSound(SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 1f, 1f);
                     }
                 }
             }

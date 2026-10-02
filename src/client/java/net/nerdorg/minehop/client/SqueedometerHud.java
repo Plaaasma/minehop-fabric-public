@@ -187,7 +187,7 @@ public class SqueedometerHud {
 
         this.drawRunTimerHud(context, config);
 
-        String name = this.client.player.getNameForScoreboard();
+        String name = this.client.player.getEntityName();
         StrafeStats stats = Minehop.strafeStatsMap.get(name);
 
         double gauge = stats != null ? stats.liveGauge : 0.0D;

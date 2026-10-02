@@ -56,9 +56,9 @@ public class Zone extends MobEntity {
     }
 
     @Override
-    public boolean damage(ServerWorld world, DamageSource source, float amount) {
+    public boolean damage(DamageSource source, float amount) {
         if (source.isOf(DamageTypes.GENERIC_KILL)) {
-            return super.damage(world, source, amount);
+            return super.damage(source, amount);
         }
         else {
             return false;

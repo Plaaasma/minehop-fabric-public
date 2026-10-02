@@ -5,7 +5,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.TeleportTarget;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.anticheat.AntiCheatManager;
 import net.nerdorg.minehop.data.DataManager;
@@ -56,6 +55,11 @@ public class ZoneUtil {
         }
 
         return resolveBySpawnProximity(serverWorld, player.getPos(), 8.0D);
+    }
+
+    /** 1.20.1 backport of 1.21.4 {@code entity.teleportTo(target)} (see {@link TeleportTarget#teleport}). */
+    public static net.minecraft.entity.Entity teleportTo(net.minecraft.entity.Entity entity, TeleportTarget target) {
+        return target.teleport(entity);
     }
 
     public static TeleportTarget makeTeleportTarget(ServerWorld serverWorld, Vec3d targetLocation, float yaw, float pitch) {

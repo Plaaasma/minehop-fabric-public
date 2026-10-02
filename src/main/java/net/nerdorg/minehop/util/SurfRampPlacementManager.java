@@ -388,7 +388,7 @@ public class SurfRampPlacementManager {
                 continue;
             }
             if (segment.getWorld() instanceof ServerWorld segmentWorld) {
-                segment.kill(segmentWorld);
+                segment.kill();
             } else {
                 segment.remove(net.minecraft.entity.Entity.RemovalReason.KILLED);
             }
