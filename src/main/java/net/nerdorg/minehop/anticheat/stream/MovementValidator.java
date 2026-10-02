@@ -101,8 +101,12 @@ public final class MovementValidator {
     private static final int CHUNK_LOAD_WINDOW_TICKS = 200;
     private static final int JUMP_INPUT_WINDOW_TICKS = 10;
     private static final int CROUCH_RESTORE_WINDOW_TICKS = 20;
-    /** How close dy must be to "arc minus crouch offset" to count as the delayed uncrouch drop. */
+    /** Slack when matching a dy deficit against the crouch offset still pending a drop. */
     private static final double UNCROUCH_DROP_MATCH = 0.005D;
+    /** Smallest dy deficit treated as an uncrouch drop (anything less is float noise). */
+    private static final double UNCROUCH_DROP_MIN = 0.005D;
+    /** A client stays frozen (dy == 0) until the chunk it was teleported into arrives and is built. */
+    private static final int FROZEN_AFTER_TELEPORT_TICKS = 40;
     // Grace is not a free pass: the per-tick displacement may only grow so much beyond the fastest
     // legit source in play (last step, server-sent velocity, launch blocks).
     private static final double GRACE_GROWTH = 1.25D;
@@ -480,6 +484,11 @@ public final class MovementValidator {
             st.crouchLiftOwed = true;
         }
         st.lastCrouchOffset = crouchOffset;
+        // While sneak is held the client has (or is owed) its crouch offset; after release it drops
+        // up to that much, possibly ticks later and in pieces (see uncrouchDrop).
+        if (input.shift()) {
+            st.pendingCrouchDrop = crouchOffset;
+        }
 
         if (isUnchecked(player) || !config.enabled) {
             st.crouchLiftOwed = true;
@@ -524,10 +533,14 @@ public final class MovementValidator {
         // looks for ground: on the sneak-release tick, or delayed to the first airborne tick when sneak
         // was released while standing (the floor blocked it). If the lowered feet are within ground
         // reach, this tick moves like a ground tick (ground acceleration, jump buffer).
-        boolean uncrouchDropNow = st.ticksSinceSneakChange <= 1
-                || (st.inAir && isUncrouchDrop(input, step.y, st.airVy - effectiveGravity, crouchOffset));
-        boolean groundBelowPrev = supportedPrev || (crouchOffset > 0.0D && !input.shift() && uncrouchDropNow
-                && isSupported(world, player, st.lastPos.add(0.0D, -crouchOffset, 0.0D)));
+        double dropNow = 0.0D;
+        if (crouchOffset > 0.0D && !input.shift()) {
+            dropNow = st.ticksSinceSneakChange <= 1
+                    ? crouchOffset
+                    : st.inAir ? uncrouchDrop(st, step.y, st.airVy - effectiveGravity) : 0.0D;
+        }
+        boolean groundBelowPrev = supportedPrev || (dropNow > 0.0D
+                && isSupported(world, player, st.lastPos.add(0.0D, -dropNow, 0.0D)));
 
         // ---------------- horizontal: speed² gain bound ----------------
         double vRef2 = st.horizontalVelocityBound2;
@@ -619,12 +632,24 @@ public final class MovementValidator {
             double allowed = Math.max(takeoffVy, supportedNow ? stepHeight : 0.0D) + crouchNow + VERTICAL_EPSILON;
             verticalExcess = dy - allowed;
             if (!supportedNow) {
+                // Already airborne (e.g. the rest of a split crouch drop the tick after takeoff): the
+                // arc's own continuation is a legal reference speed too.
+                double arcVy = st.inAir ? st.airVy - effectiveGravity : Double.NaN;
                 st.inAir = true;
-                // A crouch drop on this tick moved the feet, not the velocity: continue from whichever
-                // legal takeoff speed (jump or carried) it exactly matches.
-                st.airVy = isUncrouchDrop(input, dy, takeoffVy, crouchOffset) ? takeoffVy
-                        : isUncrouchDrop(input, dy, carriedVy, crouchOffset) ? carriedVy
-                        : Math.min(dy + crouchNow, takeoffVy);
+                // A crouch drop on this tick moved the feet, not the velocity: continue from the
+                // fastest legal speed (jump, arc, carried) it accounts for.
+                double drop = 0.0D;
+                double dropFrom = takeoffVy;
+                if (!input.shift()) {
+                    for (double ref : new double[]{takeoffVy, arcVy, carriedVy}) {
+                        if (!Double.isNaN(ref) && (drop = uncrouchDrop(st, dy, ref)) > 0.0D) {
+                            dropFrom = ref;
+                            break;
+                        }
+                    }
+                }
+                st.airVy = drop > 0.0D ? dropFrom : Math.min(dy + crouchNow, takeoffVy);
+                st.pendingCrouchDrop = Math.max(0.0D, st.pendingCrouchDrop - drop);
                 st.airExcess = Math.max(0.0D, dy - st.airVy);
             } else {
                 st.inAir = false;
@@ -646,9 +671,9 @@ public final class MovementValidator {
                 double perTick = dy - (expectedDy + crouchNow + VERTICAL_EPSILON);
                 double cumulative = st.airExcess - (crouchHeld + VERTICAL_EPSILON);
                 verticalExcess = Math.max(perTick, cumulative);
-                st.airVy = isUncrouchDrop(input, dy, expectedDy, crouchOffset)
-                        ? expectedDy
-                        : Math.min(dy + crouchNow, expectedDy);
+                double drop = input.shift() ? 0.0D : uncrouchDrop(st, dy, expectedDy);
+                st.airVy = drop > 0.0D ? expectedDy : Math.min(dy + crouchNow, expectedDy);
+                st.pendingCrouchDrop = Math.max(0.0D, st.pendingCrouchDrop - drop);
             }
         } else if (!supportedNow) {
             // Airborne without a known arc (first tick after a rebuilt baseline): start one here.
@@ -668,12 +693,12 @@ public final class MovementValidator {
             // Enough context to tell a missed legit case from a cheat without /mdebug.
             String details = String.format(Locale.ROOT,
                     "dy=%.4f expected=%s excess=%.4f buffer=%.2f %s | prevDy=%s sneak=%s sinceSneak=%d liftOwed=%s"
-                            + " sinceJump=%d sinceTp=%d cg=%s",
+                            + " sinceJump=%d sinceTp=%d cg=%s pendingDrop=%.3f",
                     dy, Double.isNaN(expectedDy) ? "takeoff" : String.format(Locale.ROOT, "%.4f", expectedDy),
                     verticalExcess, st.verticalBuffer, groundBelowPrev ? "fromGround" : "air",
                     st.lastStep == null ? "none" : String.format(Locale.ROOT, "%.4f", st.lastStep.y),
                     input.shift(), st.ticksSinceSneakChange, liftOwedBefore,
-                    st.ticksSinceJumpInput, st.ticksSinceTeleport, st.clientOnGround);
+                    st.ticksSinceJumpInput, st.ticksSinceTeleport, st.clientOnGround, st.pendingCrouchDrop);
             if (AntiCheatManager.reportMovementViolation(player, CHECK_FLY,
                     blatant ? 2.0D : 0.5D, details, wantLagback, st.lastGoodPos)) {
                 lagback = true;
@@ -699,16 +724,17 @@ public final class MovementValidator {
     }
 
     /**
-     * True if dy is exactly the arc's {@code expected} minus the css crouch offset with sneak released:
-     * the client's delayed uncrouch. Releasing sneak while standing can't lower the feet into the floor,
-     * so the client drops the offset on its first tick with room below (usually one tick after a jump).
-     * That is a one-off displacement, not lost upward speed, so the arc keeps its velocity; otherwise
-     * the next tick would look 0.3 too high. Only an exact match counts, and keeping the unmodified
-     * arc never allows more height than it already would.
+     * How far dy falls short of the arc's {@code expected}, if that can be the client's css uncrouch
+     * drop (0 if not). Released sneak lowers the feet by whatever is left of the crouch offset at the
+     * START of the client's first tick with room below: usually one tick after a jump when it was
+     * released while standing (the floor blocked it), and only partly when the floor caught it first
+     * (e.g. a quick crouch tap right before jumping). That moves the feet, not the velocity, so the arc
+     * keeps its speed. Only what is still pending counts, and keeping the unmodified arc never allows
+     * more height than it already would.
      */
-    private static boolean isUncrouchDrop(Input input, double dy, double expected, double crouchOffset) {
-        return crouchOffset > 0.0D && !input.shift()
-                && Math.abs(dy + crouchOffset - expected) <= UNCROUCH_DROP_MATCH;
+    private static double uncrouchDrop(StreamState st, double dy, double expected) {
+        double deficit = expected - dy;
+        return deficit >= UNCROUCH_DROP_MIN && deficit <= st.pendingCrouchDrop + UNCROUCH_DROP_MATCH ? deficit : 0.0D;
     }
 
     /** After a grace or unchecked tick: take the realized movement as the new baseline. */
@@ -852,7 +878,9 @@ public final class MovementValidator {
         if (player.connection.chunkSender.isPending(chunk)) {
             return true;
         }
-        return st.ticksSinceTeleport <= 10 + 2 * latencyTicks(player);
+        // The chunk was sent but the client may still be decoding/building it (seen in production
+        // 11 ticks after a join teleport, before the first latency measurement).
+        return st.ticksSinceTeleport <= FROZEN_AFTER_TELEPORT_TICKS + 2 * latencyTicks(player);
     }
 
     private static double jumpBoost(ServerPlayer player) {

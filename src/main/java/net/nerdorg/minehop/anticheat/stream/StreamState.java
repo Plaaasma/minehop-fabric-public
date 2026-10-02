@@ -66,6 +66,8 @@ final class StreamState {
      */
     boolean crouchLiftOwed;
     double lastCrouchOffset = Double.NaN;
+    /** Crouch offset the client may still drop after releasing sneak (see MovementValidator.uncrouchDrop). */
+    double pendingCrouchDrop;
 
     // --- vertical air phase ---
     boolean inAir;
