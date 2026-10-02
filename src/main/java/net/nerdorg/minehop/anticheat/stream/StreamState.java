@@ -81,6 +81,8 @@ final class StreamState {
     boolean hasLastYaw;
     Input input = Input.DEFAULT;
     Input lastTickInput = Input.DEFAULT;
+    /** Crouch offset the client may still drop after releasing sneak (see MovementValidator.uncrouchDrop). */
+    double pendingCrouchDrop;
     int ticksSinceJumpInput = 1000;
     int ticksSinceSneakChange = 1000;
     /**
