@@ -12,7 +12,7 @@ import net.nerdorg.minehop.config.ConfigWrapper;
 
 import java.util.HashMap;
 
-public class CustomPlayerEntityRenderer extends PlayerEntityRenderer {
+public class CustomPlayerEntityRenderer extends PlayerEntityRenderer<AbstractClientPlayerEntity> {
     private static final Identifier TEXTURE = Identifier.of(Minehop.MOD_ID, "textures/entity/cheater_player_model_texture.png");
     private static final HashMap<String, PlayerModel> PlayerModels = new HashMap<>();
 
@@ -28,21 +28,23 @@ public class CustomPlayerEntityRenderer extends PlayerEntityRenderer {
 
     @Override
     public Identifier getTexture(PlayerEntityRenderState entity) {
-
-        PlayerModels.putIfAbsent(entity.name, PlayerModel.Player);
-        PlayerModel model = PlayerModels.get(entity.name);
+        // 1.21.9+: the player render state no longer carries a plain "name" string; use the rendered
+        // display name (this renderer is not registered anywhere, it only holds the cheater-model map).
+        String name = entity.displayName == null ? "" : entity.displayName.getString();
+        PlayerModels.putIfAbsent(name, PlayerModel.Player);
+        PlayerModel model = PlayerModels.get(name);
 
         switch (model){
 
             case Player -> {
-                return entity.skinTextures.texture();
+                return entity.skinTextures.body().texturePath();
             }
             case Cheater -> {
                 return TEXTURE;
             }
         }
 
-        return entity.skinTextures.texture();
+        return entity.skinTextures.body().texturePath();
     }
 
     public static void setPlayerModel(PlayerModel playerModel, String UUID) {

@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.networking;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -39,14 +41,14 @@ public class JoinLeaveManager {
         }));
 
         ServerPlayConnectionEvents.JOIN.register(((networkHandler, sender, server) -> {
-            if (!networkHandler.player.hasPermissionLevel(4)) {
+            if (!PermissionUtil.hasLevel(networkHandler.player, 4)) {
                 DataManager.MapData mapData = DataManager.getMap("spawn");
                 if (mapData != null) {
                     if (mapData.worldKey == null || mapData.worldKey.equals("")) {
                         Minehop.mapList.remove(mapData);
                         mapData.worldKey = server.getOverworld().getRegistryKey().toString();
                         Minehop.mapList.add(mapData);
-                        DataManager.saveData(networkHandler.player.getServerWorld(), DataManager.mapListLocation, Minehop.mapList);
+                        DataManager.saveData(networkHandler.player.getEntityWorld(), DataManager.mapListLocation, Minehop.mapList);
                     }
                     ServerWorld foundWorld = null;
                     for (ServerWorld serverWorld : server.getWorlds()) {

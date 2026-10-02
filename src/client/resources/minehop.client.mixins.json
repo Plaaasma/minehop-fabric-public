@@ -10,7 +10,8 @@
     "KeyBindingMixin",
     "MultiplayerScreenMixin",
     "SoundSystemMixin",
-    "PlayerEntityRendererMixin"
+    "PlayerEntityRendererMixin",
+    "ExperienceBarMixin"
   ],
   "injectors": {
     "defaultRequire": 1

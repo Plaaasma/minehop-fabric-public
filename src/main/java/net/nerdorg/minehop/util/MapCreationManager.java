@@ -65,7 +65,7 @@ public final class MapCreationManager {
         }
 
         if (initialMap == null) {
-            DataManager.MapData ownedPlot = UserPlotManager.getOwnedPlotAt(player, player.getPos());
+            DataManager.MapData ownedPlot = UserPlotManager.getOwnedPlotAt(player, player.getEntityPos());
             if (ownedPlot != null) {
                 initialMap = ownedPlot;
             }
@@ -156,7 +156,7 @@ public final class MapCreationManager {
         }
 
         DataManager.MapData existingMap = DataManager.getMap(mapName);
-        if (!player.hasPermissionLevel(4)) {
+        if (!PermissionUtil.hasLevel(player, 4)) {
             if (UserPlotManager.isReservedMapName(mapName)) {
                 Logger.logFailure(player, "That map name is reserved.");
                 return;
@@ -235,7 +235,7 @@ public final class MapCreationManager {
             boolean movementDisableSprint,
             boolean movementFallDamage
     ) {
-        ServerWorld world = player.getServerWorld();
+        ServerWorld world = player.getEntityWorld();
         DataManager.MapData mapData = DataManager.getMap(mapName);
 
         if (mapData == null) {
@@ -316,8 +316,8 @@ public final class MapCreationManager {
             return;
         }
 
-        ServerWorld world = player.getServerWorld();
-        if (mapData.userMap && !player.hasPermissionLevel(4)) {
+        ServerWorld world = player.getEntityWorld();
+        if (mapData.userMap && !PermissionUtil.hasLevel(player, 4)) {
             if (!UserPlotManager.canManageMap(player, mapData)) {
                 Logger.logFailure(player, "Stand inside your plot to set its spawn.");
                 return;
@@ -342,7 +342,7 @@ public final class MapCreationManager {
             return;
         }
 
-        if (mapData.userMap && !player.hasPermissionLevel(4)) {
+        if (mapData.userMap && !PermissionUtil.hasLevel(player, 4)) {
             if (!UserPlotManager.canManageMap(player, mapData)) {
                 Logger.logFailure(player, "Stand inside your plot to add a checkpoint.");
                 return;
@@ -354,13 +354,13 @@ public final class MapCreationManager {
         }
         mapData.checkpointPositions.add(
                 new ArrayList<>(Arrays.asList(
-                        player.getPos(),
+                        player.getEntityPos(),
                         new Vec3d(player.getPitch(), player.getYaw(), 0.0D)
                 ))
         );
 
-        DataManager.saveData(player.getServerWorld(), DataManager.mapListLocation, Minehop.mapList);
-        syncMaps(player.getServerWorld());
+        DataManager.saveData(player.getEntityWorld(), DataManager.mapListLocation, Minehop.mapList);
+        syncMaps(player.getEntityWorld());
         Logger.logSuccess(player, "Added checkpoint " + mapData.checkpointPositions.size() + " to '" + mapName + "'.");
     }
 
@@ -376,7 +376,7 @@ public final class MapCreationManager {
             return;
         }
 
-        ServerWorld world = player.getServerWorld();
+        ServerWorld world = player.getEntityWorld();
         StartEntity startEntity = ModEntities.START_ENTITY.spawn(world, corners[0], SpawnReason.NATURAL);
         if (startEntity == null) {
             Logger.logFailure(player, "Failed to create start zone entity.");
@@ -405,7 +405,7 @@ public final class MapCreationManager {
             return;
         }
 
-        ServerWorld world = player.getServerWorld();
+        ServerWorld world = player.getEntityWorld();
         EndEntity endEntity = ModEntities.END_ENTITY.spawn(world, corners[0], SpawnReason.NATURAL);
         if (endEntity == null) {
             Logger.logFailure(player, "Failed to create end zone entity.");
@@ -437,7 +437,7 @@ public final class MapCreationManager {
             return;
         }
 
-        ServerWorld world = player.getServerWorld();
+        ServerWorld world = player.getEntityWorld();
         ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(world, corners[0], SpawnReason.NATURAL);
         if (resetEntity == null) {
             Logger.logFailure(player, "Failed to create reset zone entity.");
@@ -466,7 +466,7 @@ public final class MapCreationManager {
             Logger.logFailure(player, "Set both zone corners with the zone stick before adding zones.");
             return null;
         }
-        if (!player.hasPermissionLevel(4) && player.getWorld() instanceof ServerWorld serverWorld) {
+        if (!PermissionUtil.hasLevel(player, 4) && player.getEntityWorld() instanceof ServerWorld serverWorld) {
             BlockPos minCorner = corners[0].toImmutable();
             BlockPos maxCornerExclusive = corners[1].toImmutable();
             BlockPos maxCornerInclusive = new BlockPos(

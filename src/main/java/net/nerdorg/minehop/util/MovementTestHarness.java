@@ -428,7 +428,7 @@ public final class MovementTestHarness {
         double initBpt = scenario.initSpeedUps / BLOCKS_PER_TICK_TO_UPS;
         fakePlayer.setVelocity(new Vec3d(0.0D, 0.0D, initBpt));
         fakePlayer.setYaw(0.0F);
-        fakePlayer.prevYaw = 0.0F;
+        fakePlayer.lastYaw = 0.0F;
         fakePlayer.setOnGround(!scenario.airborne);
         fakePlayer.changeGameMode(GameMode.SURVIVAL);
         Minehop.LOGGER.info("[MTEST] --- air '{}' start ---", scenario.name);
@@ -437,7 +437,7 @@ public final class MovementTestHarness {
     private static void runScenarioTick(Scenario scenario) {
         float prevYaw = fakePlayer.getYaw();
         float newYaw = prevYaw + (float) scenario.yawDeltaPerTick;
-        fakePlayer.prevYaw = prevYaw;
+        fakePlayer.lastYaw = prevYaw;
         fakePlayer.setYaw(newYaw);
         fakePlayer.setMovementSpeed(0.1F);
         if (!scenario.airborne) {
@@ -527,7 +527,7 @@ public final class MovementTestHarness {
         fakePlayer.refreshPositionAndAngles(sx, sy, sz, s.yawDeg, 0.0F);
         fakePlayer.setVelocity(new Vec3d(svx, svy, svz));
         fakePlayer.setYaw(s.yawDeg);
-        fakePlayer.prevYaw = s.yawDeg;
+        fakePlayer.lastYaw = s.yawDeg;
         fakePlayer.setOnGround(false);
         fakePlayer.changeGameMode(GameMode.SURVIVAL);
         fakePlayer.setMovementSpeed(0.1F);
@@ -538,7 +538,7 @@ public final class MovementTestHarness {
 
     private static void runSurfScenarioTick(SurfScenario s) {
         fakePlayer.setYaw(s.yawDeg);
-        fakePlayer.prevYaw = s.yawDeg;
+        fakePlayer.lastYaw = s.yawDeg;
         fakePlayer.setMovementSpeed(0.1F);
 
         if (s.holdSpace && fakePlayer.isOnGround()) {

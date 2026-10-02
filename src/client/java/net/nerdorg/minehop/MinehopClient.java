@@ -1,17 +1,18 @@
 package net.nerdorg.minehop;
 
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.fabricmc.fabric.api.client.rendering.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ServerInfo;
 import net.minecraft.client.option.ServerList;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.BlockRenderLayer;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -21,6 +22,7 @@ import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.client.SqueedometerHud;
 import net.nerdorg.minehop.client.BoundsStickPreviewRenderer;
 import net.nerdorg.minehop.client.BoundsStickPreviewState;
+import net.nerdorg.minehop.client.RampPreviewGuiElementRenderer;
 import net.nerdorg.minehop.client.ReplayPathRenderer;
 import net.nerdorg.minehop.client.ReplayPathState;
 import net.nerdorg.minehop.client.SurfStickPreviewRenderer;
@@ -126,6 +128,8 @@ public class MinehopClient implements ClientModInitializer {
 		BoundsStickPreviewRenderer.register();
 		ReplayPathRenderer.register();
 		SurfStickPreviewRenderer.register();
+		// 1.21.6+: the surf stick settings screen draws its 3D ramp preview as a special GUI element.
+		SpecialGuiElementRegistry.register(context -> new RampPreviewGuiElementRenderer(context.vertexConsumers()));
 		EntityRendererRegistry.register(ModEntities.GAMEMODE_ENTITY, GamemodeRenderer::new);
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.GAMEMODE_ENTITY, GamemodeModel::getTexturedModelData);
 		EntityRendererRegistry.register(ModEntities.RESET_ENTITY, ResetRenderer::new);
@@ -200,7 +204,7 @@ public class MinehopClient implements ClientModInitializer {
 		});
 
 		final long[] lastRenderFrameNanos = {-1L};
-		WorldRenderEvents.END.register(context -> {
+		WorldRenderEvents.END_MAIN.register(context -> {
 			long now = System.nanoTime();
 			long previous = lastRenderFrameNanos[0];
 			if (previous > 0L) {
@@ -216,7 +220,7 @@ public class MinehopClient implements ClientModInitializer {
 			updateRunTimerFinishZones(MinecraftClient.getInstance(), now);
 		});
 
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.BOOSTER_BLOCK, RenderLayer.getTranslucent());
+		BlockRenderLayerMap.putBlock(ModBlocks.BOOSTER_BLOCK, BlockRenderLayer.TRANSLUCENT);
 	}
 
 	private static void updateRunTimerStartZones(MinecraftClient client) {
@@ -228,7 +232,7 @@ public class MinehopClient implements ClientModInitializer {
 			return;
 		}
 
-		Vec3d playerPos = client.player.getPos();
+		Vec3d playerPos = client.player.getEntityPos();
 		boolean grounded = client.player.isOnGround();
 
 		boolean insideStartZone = false;
@@ -351,11 +355,11 @@ public class MinehopClient implements ClientModInitializer {
 		if (client == null || client.player == null) {
 			return null;
 		}
-		float tickDelta = client.getRenderTickCounter().getTickDelta(true);
+		float tickDelta = client.getRenderTickCounter().getTickProgress(true);
 		return new Vec3d(
-				MathHelper.lerp((double) tickDelta, client.player.prevX, client.player.getX()),
-				MathHelper.lerp((double) tickDelta, client.player.prevY, client.player.getY()),
-				MathHelper.lerp((double) tickDelta, client.player.prevZ, client.player.getZ())
+				MathHelper.lerp((double) tickDelta, client.player.lastX, client.player.getX()),
+				MathHelper.lerp((double) tickDelta, client.player.lastY, client.player.getY()),
+				MathHelper.lerp((double) tickDelta, client.player.lastZ, client.player.getZ())
 		);
 	}
 

@@ -570,7 +570,7 @@ public class ClientPacketHandler {
             client.execute(() -> {
                 // Assign the read values to your variables or fields here
                 new Thread(() -> {
-                    BlockEntity blockEntity = client.player.getWorld().getBlockEntity(boosterPos);
+                    BlockEntity blockEntity = client.player.getEntityWorld().getBlockEntity(boosterPos);
                     if (blockEntity instanceof BoostBlockEntity boostBlockEntity) {
                         boostBlockEntity.setXPower(power_x);
                         boostBlockEntity.setYPower(power_y);
@@ -602,7 +602,7 @@ public class ClientPacketHandler {
 
                     if (isCheater) {
                         if (client.player.getUuidAsString().equals(UUID)) {
-                                client.getNetworkHandler().sendCommand("map restart");
+                                client.getNetworkHandler().sendChatCommand("map restart");
                         }
                         CustomPlayerEntityRenderer.setPlayerModel(CustomPlayerEntityRenderer.PlayerModel.Cheater, UUID);
                         Minehop.currentCheaters.add(world.getPlayerByUuid(java.util.UUID.fromString(UUID)));

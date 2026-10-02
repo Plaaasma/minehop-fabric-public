@@ -13,7 +13,8 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -189,6 +190,16 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
+    protected boolean updateWaterState() {
+        // Ramps ignore fluids, but vanilla's baseTick still sweeps every block inside the bounding box
+        // for water and lava each tick. With full-size ramp boxes that is thousands of block lookups per
+        // ramp per tick (hundreds of ramps froze a server), so skip it: never in water or lava.
+        // (1.21.11: same as 1.21.4, updateWaterState -> checkWaterState/updateMovementInFluid is the only
+        // per-tick box sweep reached from SurfRampEntity.tick(); isInsideWall is off via noClip.)
+        return false;
+    }
+
+    @Override
     public boolean cannotDespawn() {
         return true;
     }
@@ -213,56 +224,42 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
+    public void readCustomData(ReadView nbt) {
+        // 1.21.6+: entity data goes through ReadView/WriteView. Same keys and the same defaults
+        // the 1.21.4 NbtCompound getters produced for missing entries (still no super call, as before).
         this.setGeometry(
-                new Vec3d(nbt.getDouble("startX"), nbt.getDouble("startY"), nbt.getDouble("startZ")),
-                new Vec3d(nbt.getDouble("endX"), nbt.getDouble("endY"), nbt.getDouble("endZ")),
-                nbt.getDouble("drop"),
-                nbt.getDouble("width"),
-                nbt.getBoolean("twoSided"),
-                nbt.getInt("sideSign")
+                new Vec3d(nbt.getDouble("startX", 0.0D), nbt.getDouble("startY", 0.0D), nbt.getDouble("startZ", 0.0D)),
+                new Vec3d(nbt.getDouble("endX", 0.0D), nbt.getDouble("endY", 0.0D), nbt.getDouble("endZ", 0.0D)),
+                nbt.getDouble("drop", 0.0D),
+                nbt.getDouble("width", 0.0D),
+                nbt.getBoolean("twoSided", false),
+                nbt.getInt("sideSign", 0)
         );
-        this.setPathPointsEncoded(nbt.contains("pathPoints") ? nbt.getString("pathPoints") : "");
+        this.setPathPointsEncoded(nbt.getString("pathPoints", ""));
         this.setPathTRange(
-                nbt.contains("pathTStart") ? nbt.getDouble("pathTStart") : 0.0D,
-                nbt.contains("pathTEnd") ? nbt.getDouble("pathTEnd") : 1.0D
+                nbt.getDouble("pathTStart", 0.0D),
+                nbt.getDouble("pathTEnd", 1.0D)
         );
         this.setLinkedSeams(
-                nbt.contains("linkedStart") && nbt.getBoolean("linkedStart"),
-                nbt.contains("linkedEnd") && nbt.getBoolean("linkedEnd")
+                nbt.getBoolean("linkedStart", false),
+                nbt.getBoolean("linkedEnd", false)
         );
-        this.setChainId(nbt.contains("chainId") ? nbt.getString("chainId") : DEFAULT_CHAIN_ID);
-        if (nbt.contains("textureBlockId")) {
-            this.setTextureBlockId(nbt.getString("textureBlockId"));
-        } else {
-            this.setTextureBlockId(DEFAULT_TEXTURE_BLOCK_ID);
-        }
-        if (nbt.contains("renderMode")) {
-            this.setRenderMode(nbt.getString("renderMode"));
-        } else {
-            this.setRenderMode(SurfRampVisualStyle.MODE_BLOCK);
-        }
-        if (nbt.contains("wireframeColorRgb")) {
-            this.setWireframeColorRgb(nbt.getInt("wireframeColorRgb"));
-        } else {
-            this.setWireframeColorRgb(SurfRampVisualStyle.DEFAULT_WIREFRAME_COLOR);
-        }
-        this.setWireframeFillEnabled(nbt.contains("wireframeFill") && nbt.getBoolean("wireframeFill"));
-        if (nbt.contains("wireframeFillColorRgb")) {
-            this.setWireframeFillColorRgb(nbt.getInt("wireframeFillColorRgb"));
-        } else {
-            this.setWireframeFillColorRgb(SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_COLOR);
-        }
-        if (nbt.contains("wireframeFillAlpha")) {
-            this.setWireframeFillAlpha(nbt.getInt("wireframeFillAlpha"));
-        } else {
-            this.setWireframeFillAlpha(SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
-        }
+        this.setChainId(nbt.getString("chainId", DEFAULT_CHAIN_ID));
+        this.setTextureBlockId(nbt.getString("textureBlockId", DEFAULT_TEXTURE_BLOCK_ID));
+        this.setRenderMode(nbt.getString("renderMode", SurfRampVisualStyle.MODE_BLOCK));
+        this.setWireframeColorRgb(nbt.getInt("wireframeColorRgb", SurfRampVisualStyle.DEFAULT_WIREFRAME_COLOR));
+        this.setWireframeFillEnabled(nbt.getBoolean("wireframeFill", false));
+        this.setWireframeFillColorRgb(nbt.getInt("wireframeFillColorRgb", SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_COLOR));
+        this.setWireframeFillAlpha(nbt.getInt("wireframeFillAlpha", SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA));
         this.refreshBounds();
+        // Entity.readData calls refreshPosition() AFTER this method, which resets the bounding box to
+        // the type's 1x1 dimensions. Rebuild it on the next tick, or a ramp loaded from disk only
+        // "exists" (surf detection, anticheat surf exemption) around its midpoint on the server.
+        this.boundsDirty = true;
     }
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
+    public void writeCustomData(WriteView nbt) {
         Vec3d start = this.getStart();
         Vec3d end = this.getEnd();
 
@@ -468,7 +465,7 @@ public class SurfRampEntity extends MobEntity {
     public ActionResult interactMob(PlayerEntity player, Hand hand) {
         ItemStack held = player.getStackInHand(hand);
         if (held.isOf(ModItems.SURF_STICK)) {
-            if (!this.getWorld().isClient && player instanceof ServerPlayerEntity serverPlayer) {
+            if (!this.getEntityWorld().isClient() && player instanceof ServerPlayerEntity serverPlayer) {
                 SurfRampPlacementManager.openEditor(serverPlayer, this);
             }
             return ActionResult.SUCCESS;
@@ -487,7 +484,7 @@ public class SurfRampEntity extends MobEntity {
             return ActionResult.PASS;
         }
         String newTextureId = sanitizeTextureBlockId(blockId.toString());
-        if (!this.getWorld().isClient) {
+        if (!this.getEntityWorld().isClient()) {
             this.setTextureBlockId(newTextureId);
             player.sendMessage(Text.literal("Ramp texture set to " + newTextureId), true);
         }
@@ -657,7 +654,7 @@ public class SurfRampEntity extends MobEntity {
     }
 
     private void registerActiveRamp() {
-        World world = this.getWorld();
+        World world = this.getEntityWorld();
         if (world == null) {
             return;
         }
@@ -669,7 +666,7 @@ public class SurfRampEntity extends MobEntity {
     }
 
     private void unregisterActiveRamp() {
-        World world = this.getWorld();
+        World world = this.getEntityWorld();
         if (world == null) {
             return;
         }

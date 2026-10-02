@@ -39,6 +39,7 @@ import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.MovementUtil;
 import net.nerdorg.minehop.util.SurfContact;
 import net.nerdorg.minehop.util.ZoneUtil;
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -69,7 +70,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Shadow public abstract void updateLimbs(boolean flutter);
 
-    @Shadow public float prevHeadYaw;
+    @Shadow public float lastHeadYaw;
 
     @Shadow public abstract float getHeadYaw();
 
@@ -346,6 +347,15 @@ public abstract class LivingEntityMixin extends Entity {
         super(type, world);
     }
 
+    // 1.21.5+ tickMovement zeroes a PLAYER's horizontal velocity only when its whole horizontal speed is
+    // tiny (|v_h|^2 < 9e-6); 1.21.4 (and non-players still) zero each axis separately when |v| < 0.003.
+    // That runs every tick right before travel(), so keep the 1.21.4 per-axis rule for players to keep
+    // Minehop's movement identical. The only Object#equals in tickMovement is the EntityType.PLAYER check.
+    @ModifyExpressionValue(method = "tickMovement", at = @At(value = "INVOKE", target = "Ljava/lang/Object;equals(Ljava/lang/Object;)Z", ordinal = 0))
+    private boolean minehop$legacyPerAxisVelocityCutoff(boolean isPlayer) {
+        return false;
+    }
+
     @Inject(method = "isPushable", at = @At("HEAD"), cancellable = true)
     public void isPushable(CallbackInfoReturnable<Boolean> cir) {
         if (!Minehop.o_hns) {
@@ -385,10 +395,10 @@ public abstract class LivingEntityMixin extends Entity {
                 ? ConfigWrapper.getEffectiveConfig(this)
                 : ConfigWrapper.config;
         if (source.isOf(DamageTypes.FALL)) {
-            if (this.getWorld().getEntityById(this.getId()) instanceof PlayerEntity player) {
+            if (this.getEntityWorld().getEntityById(this.getId()) instanceof PlayerEntity player) {
                 DataManager.MapData mapData = ZoneUtil.getCurrentMap(player);
                 if (mapData != null && mapData.hns) {
-                    BlockState belowState = this.getWorld().getBlockState(this.getBlockPos().offset(Direction.DOWN, 1));
+                    BlockState belowState = this.getEntityWorld().getBlockState(this.getBlockPos().offset(Direction.DOWN, 1));
                     if (amount >= 20 && !(belowState.getBlock() instanceof StairsBlock)) {
                         HNSManager.taggedMap.put(player.getNameForScoreboard(), true);
                         Logger.logFailure(player, "You were tagged because you fell too far. You can break your fall by landing on stairs.");
@@ -405,10 +415,10 @@ public abstract class LivingEntityMixin extends Entity {
 
                 if (mapData != null && mapData.hns) {
                     if (sourceEntity instanceof PlayerEntity player) {
-                        if (player.getEyePos().distanceTo(this.getEyePos()) > 3.5 && player.getEyePos().distanceTo(this.getPos()) > 3.5) {
+                        if (player.getEyePos().distanceTo(this.getEyePos()) > 3.5 && player.getEyePos().distanceTo(this.getEntityPos()) > 3.5) {
                             cir.cancel();
                         }
-                        if (player.getEyePos().getY() <= this.getPos().getY() - 1) {
+                        if (player.getEyePos().getY() <= this.getEntityPos().getY() - 1) {
                             cir.cancel();
                         }
                     }
@@ -461,9 +471,9 @@ public abstract class LivingEntityMixin extends Entity {
 
         if (this.isTouchingWater() || this.isInLava() || this.isGliding()) { return; }
 
-        LivingEntity self = (LivingEntity) this.getWorld().getEntityById(this.getId());
+        LivingEntity self = (LivingEntity) this.getEntityWorld().getEntityById(this.getId());
         PlayerEntity debugPlayer = self instanceof PlayerEntity playerEntity ? playerEntity : null;
-        ServerPlayerEntity startZonePlayer = !this.getWorld().isClient && self instanceof ServerPlayerEntity serverPlayer ? serverPlayer : null;
+        ServerPlayerEntity startZonePlayer = !this.getEntityWorld().isClient() && self instanceof ServerPlayerEntity serverPlayer ? serverPlayer : null;
         StartEntity activeStartZone = startZonePlayer == null ? null : StartEntity.getStartZoneForPlayer(startZonePlayer);
         boolean inStartZone = activeStartZone != null;
         if (inStartZone) {
@@ -476,7 +486,7 @@ public abstract class LivingEntityMixin extends Entity {
         }
         boolean surfDebug = debugPlayer != null
                 && Minehop.surfDebugPlayers.contains(debugPlayer.getUuid())
-                && !this.getWorld().isClient;
+                && !this.getEntityWorld().isClient();
         boolean broadIncomingFallbackUsed = false;
         boolean groundedReacquireApplied = false;
         boolean endpointDisableTriggered = false;
@@ -847,7 +857,7 @@ public abstract class LivingEntityMixin extends Entity {
         // M5: mirror the wasOnGround update with server ground truth for next tick's friction decision.
         this.minehop$wasServerGrounded = (surfing || pseudoSurfing || surfGroundSuppressed) ? false : realGroundBelow;
 
-        if (this.isOnGround() && !surfing && this.getWorld().isClient && ((Object) this) instanceof PlayerEntity) {
+        if (this.isOnGround() && !surfing && this.getEntityWorld().isClient() && ((Object) this) instanceof PlayerEntity) {
             // Jump arc ended: latch the per-jump strafe summary (sync/efficiency/strafes) and reset
             // accumulators for the next jump. Client-only so it isn't double-driven by the server tick
             // (shared static map keyed by name) which would reset mid-jump and flash a bogus 100%.
@@ -882,7 +892,7 @@ public abstract class LivingEntityMixin extends Entity {
                 }
                 newHorizontalVelocity = this.minehop$applySpeedCap(newHorizontalVelocity, activeHardSpeedCap);
 
-                if (!useGroundMovement && this.getWorld().isClient && ((Object) this) instanceof PlayerEntity) {
+                if (!useGroundMovement && this.getEntityWorld().isClient() && ((Object) this) instanceof PlayerEntity) {
                     // Faithful Source/bhop strafe stats, measured from the ACTUAL before/after
                     // (CLIENT-ONLY: the side that renders the HUD; identical predicted physics, and
                     // avoids the server tick double-recording the same shared StrafeStats / racing).
@@ -932,7 +942,7 @@ public abstract class LivingEntityMixin extends Entity {
                     Minehop.LOGGER.info(String.format(java.util.Locale.ROOT,
                             "[ACDBG] branch=%s sI=%.2f fI=%.2f yaw=%.1f prevYaw=%.1f onGround=%b useGround=%b surfing=%b preContact=%b nearRamp=%b cap=%.1f wishSpeed=%.1f beforeAccel=%.1f afterAccel=%.1f u/s",
                             useGroundMovement ? "GROUND" : "AIR",
-                            sI, fI, this.getYaw(), this.prevYaw,
+                            sI, fI, this.getYaw(), this.lastYaw,
                             this.isOnGround(), useGroundMovement, surfing,
                             preMoveSurfContact != null, nearSurfRampPre,
                             airWishSpeedCap * 800.0D, wishSpeed * 800.0D,
@@ -959,7 +969,7 @@ public abstract class LivingEntityMixin extends Entity {
             Vec3d ladderNormalH = this.getLadderNormal();
             this.setVelocity(applySourceLadderMove(this.getVelocity(), fI, sI, ladderNormalH));
             Vec3d velBeforeMoveH = this.getVelocity();
-            Vec3d posBeforeMoveH = this.getPos();
+            Vec3d posBeforeMoveH = this.getEntityPos();
             boolean handledH = this.minehop$surfMoveAndCollide(velBeforeMoveH);
             if (!handledH) {
                 this.move(MovementType.SELF, velBeforeMoveH);
@@ -967,8 +977,8 @@ public abstract class LivingEntityMixin extends Entity {
             if (config.movement.auto_step_up) {
                 this.minehop$tryForcedAutoStepUp(velBeforeMoveH, posBeforeMoveH, null);
             }
-            if (!this.getWorld().isClient && self instanceof ServerPlayerEntity speH) {
-                ResetEntity.recordObservedVelocity(speH, this.getPos().subtract(posBeforeMoveH));
+            if (!this.getEntityWorld().isClient() && self instanceof ServerPlayerEntity speH) {
+                ResetEntity.recordObservedVelocity(speH, this.getEntityPos().subtract(posBeforeMoveH));
             }
             boolean onRampH = handledH && this.minehop$hullOnRamp;
             if (onRampH && !this.minehop$hasRealGroundBelow()) {
@@ -988,7 +998,7 @@ public abstract class LivingEntityMixin extends Entity {
             if (this.hasStatusEffect(StatusEffects.LEVITATION)) {
                 yVelH += (0.05D * (this.getStatusEffect(StatusEffects.LEVITATION).getAmplifier() + 1) - preVelH.y) * 0.2D;
                 this.fallDistance = 0.0F;
-            } else if (this.getWorld().isClient && !this.getWorld().isChunkLoaded(blockPos)) {
+            } else if (this.getEntityWorld().isClient() && !this.getEntityWorld().isChunkLoaded(blockPos)) {
                 yVelH = 0.0D;
             } else if (!this.hasNoGravity() && !(this.isClimbing() && ladderNormalH != null)) {
                 yVelH -= gravityH;
@@ -1003,10 +1013,10 @@ public abstract class LivingEntityMixin extends Entity {
                     afterGravH = StartEntity.clampVelocityToStartZoneSpeed(startZonePlayer, afterGravH);
                 }
             }
-            BlockState belowStateH = this.getWorld().getBlockState(this.getBlockPos());
-            if (belowStateH.isOf(ModBlocks.BOOSTER_BLOCK) && (this.getWorld().getTime() > this.boostTime + 5 || this.getWorld().getTime() < this.boostTime)) {
-                this.boostTime = this.getWorld().getTime();
-                BoostBlockEntity boostBlockEntityH = (BoostBlockEntity) this.getWorld().getBlockEntity(this.getBlockPos());
+            BlockState belowStateH = this.getEntityWorld().getBlockState(this.getBlockPos());
+            if (belowStateH.isOf(ModBlocks.BOOSTER_BLOCK) && (this.getEntityWorld().getTime() > this.boostTime + 5 || this.getEntityWorld().getTime() < this.boostTime)) {
+                this.boostTime = this.getEntityWorld().getTime();
+                BoostBlockEntity boostBlockEntityH = (BoostBlockEntity) this.getEntityWorld().getBlockEntity(this.getBlockPos());
                 afterGravH = this.minehop$applyBoostPad(afterGravH, boostBlockEntityH);
             }
             if (inStartZone && startZonePlayer != null) {
@@ -1019,7 +1029,7 @@ public abstract class LivingEntityMixin extends Entity {
             } else if (this.minehop$nearRampAcGraceTicks > 0) {
                 this.minehop$nearRampAcGraceTicks--;
             }
-            if (!this.getWorld().isClient && self instanceof ServerPlayerEntity acPlayerH) {
+            if (!this.getEntityWorld().isClient() && self instanceof ServerPlayerEntity acPlayerH) {
                 boolean surfingForAcH = onRampH || nearSurfRampPre || this.minehop$nearRampAcGraceTicks > 0
                         || this.minehop$boostGraceTicks > 0 // M8: don't lagback a legit boost-pad launch
                         || this.minehop$externalVelocityGraceTicks > 0 // M6: nor a legit knockback
@@ -1031,7 +1041,7 @@ public abstract class LivingEntityMixin extends Entity {
                 AntiCheatManager.onMovementTick(
                         acPlayerH,
                         posBeforeMoveH,
-                        this.getPos(),
+                        this.getEntityPos(),
                         velBeforeMoveH,
                         afterGravH,
                         this.isOnGround(),
@@ -1098,7 +1108,7 @@ public abstract class LivingEntityMixin extends Entity {
                 this.setVelocity(velocityBeforeMove);
             }
         }
-        Vec3d posBeforeMove = this.getPos();
+        Vec3d posBeforeMove = this.getEntityPos();
         this.move(MovementType.SELF, velocityBeforeMove);
         StartEntity postMoveStartZone = startZonePlayer == null ? null : StartEntity.getStartZoneForPlayer(startZonePlayer);
         boolean inStartZoneAfterMove = postMoveStartZone != null;
@@ -1108,8 +1118,8 @@ public abstract class LivingEntityMixin extends Entity {
         if (config.movement.auto_step_up) {
             this.minehop$tryForcedAutoStepUp(velocityBeforeMove, posBeforeMove, preMoveSurfContact);
         }
-        if (!this.getWorld().isClient && self instanceof ServerPlayerEntity serverPlayerEntityForSample) {
-            Vec3d movedThisTick = this.getPos().subtract(posBeforeMove);
+        if (!this.getEntityWorld().isClient() && self instanceof ServerPlayerEntity serverPlayerEntityForSample) {
+            Vec3d movedThisTick = this.getEntityPos().subtract(posBeforeMove);
             ResetEntity.recordObservedVelocity(serverPlayerEntityForSample, movedThisTick);
         }
         SurfContact postMoveSurfContact = this.findSurfContact();
@@ -1373,13 +1383,13 @@ public abstract class LivingEntityMixin extends Entity {
                         groundedLandingRestoreDir.z * groundedLandingRestoreHorizontal
                 );
             }
-            Vec3d movedAfterCollision = this.getPos().subtract(posBeforeMove);
+            Vec3d movedAfterCollision = this.getEntityPos().subtract(posBeforeMove);
             double movedHorizontal = Math.hypot(movedAfterCollision.x, movedAfterCollision.z);
             if (movedHorizontal + 1.0E-6D < groundedLandingRestoreHorizontal * 0.35D) {
                 double nudgeDistance = MathHelper.clamp(groundedLandingRestoreHorizontal * 0.20D, 0.04D, 0.16D);
                 Vec3d nudge = groundedLandingRestoreDir.multiply(nudgeDistance);
                 Box nudgedBox = this.getBoundingBox().offset(nudge.x, 0.0D, nudge.z);
-                if (this.getWorld().isSpaceEmpty(this, nudgedBox)) {
+                if (this.getEntityWorld().isSpaceEmpty(this, nudgedBox)) {
                     this.setPosition(this.getX() + nudge.x, this.getY(), this.getZ() + nudge.z);
                 }
             }
@@ -1748,7 +1758,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (this.hasStatusEffect(StatusEffects.LEVITATION)) {
             yVel += (0.05D * (this.getStatusEffect(StatusEffects.LEVITATION).getAmplifier() + 1) - preVel.y) * 0.2D;
             this.fallDistance = 0.0F;
-        } else if (this.getWorld().isClient && !this.getWorld().isChunkLoaded(blockPos)) {
+        } else if (this.getEntityWorld().isClient() && !this.getEntityWorld().isChunkLoaded(blockPos)) {
             yVel = 0.0D;
         } else if (!this.hasNoGravity() && !sourceLadderActive) {
             yVel -= gravity;
@@ -1878,10 +1888,10 @@ public abstract class LivingEntityMixin extends Entity {
             }
         }
 
-        BlockState belowState = this.getWorld().getBlockState(this.getBlockPos());
-        if (belowState.isOf(ModBlocks.BOOSTER_BLOCK) && (this.getWorld().getTime() > this.boostTime + 5 || this.getWorld().getTime() < this.boostTime)) {
-            this.boostTime = this.getWorld().getTime();
-            BoostBlockEntity boostBlockEntity = (BoostBlockEntity) this.getWorld().getBlockEntity(this.getBlockPos());
+        BlockState belowState = this.getEntityWorld().getBlockState(this.getBlockPos());
+        if (belowState.isOf(ModBlocks.BOOSTER_BLOCK) && (this.getEntityWorld().getTime() > this.boostTime + 5 || this.getEntityWorld().getTime() < this.boostTime)) {
+            this.boostTime = this.getEntityWorld().getTime();
+            BoostBlockEntity boostBlockEntity = (BoostBlockEntity) this.getEntityWorld().getBlockEntity(this.getBlockPos());
             velocityAfterGravity = this.minehop$applyBoostPad(velocityAfterGravity, boostBlockEntity);
         }
         if ((inStartZone || inStartZoneAfterMove) && startZonePlayer != null) {
@@ -1894,7 +1904,7 @@ public abstract class LivingEntityMixin extends Entity {
         double incomingHorizontalFinal = this.getHorizontalSpeed(velocityBeforeMove);
         double preGravityHorizontalFinal = this.getHorizontalSpeed(preVel);
         double postGravityHorizontalFinal = this.getHorizontalSpeed(velocityAfterGravity);
-        Vec3d movedSincePreMove = this.getPos().subtract(posBeforeMove);
+        Vec3d movedSincePreMove = this.getEntityPos().subtract(posBeforeMove);
         double movedHorizontalFinal = Math.hypot(movedSincePreMove.x, movedSincePreMove.z);
         boolean speedCollapseEvent = incomingHorizontalFinal >= SURF_CONTACT_SPEED_RESTORE_MIN_HORIZONTAL
                 && postGravityHorizontalFinal + 1.0E-6D < incomingHorizontalFinal * 0.74D;
@@ -1980,7 +1990,7 @@ public abstract class LivingEntityMixin extends Entity {
             this.minehop$nearRampAcGraceTicks--;
         }
 
-        if (!this.getWorld().isClient && self instanceof ServerPlayerEntity acPlayer) {
+        if (!this.getEntityWorld().isClient() && self instanceof ServerPlayerEntity acPlayer) {
             boolean surfingForAc = preMoveSurfContact != null || postMoveSurfContact != null
                     || this.surfContactGraceTicks > 0 || this.surfCollisionBypassGraceTicks > 0
                     || nearSurfRampPre || nearSurfRampPost
@@ -1996,7 +2006,7 @@ public abstract class LivingEntityMixin extends Entity {
             AntiCheatManager.onMovementTick(
                     acPlayer,
                     posBeforeMove,
-                    this.getPos(),
+                    this.getEntityPos(),
                     velocityBeforeMove,
                     velocityAfterGravity,
                     this.isOnGround(),
@@ -2095,7 +2105,7 @@ public abstract class LivingEntityMixin extends Entity {
         double baseWishSpeed = getBaseWishSpeed(config);
         double airWishSpeedCap = getAirWishSpeedCap(config);
 
-        for (double angle = this.prevYaw - 45; angle < this.prevYaw + 45; angle += 1) {
+        for (double angle = this.lastYaw - 45; angle < this.lastYaw + 45; angle += 1) {
             Vec3d wishVector = MovementUtil.movementInputToVelocity(new Vec3d(sI, 0.0F, fI), 1.0F, (float) angle);
             double wishVectorLength = wishVector.horizontalLength();
             if (wishVectorLength <= 0.0D) {
@@ -2692,7 +2702,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private boolean shouldLogSurfDebugTick() {
-        return this.getWorld().getTime() % 4L == 0L;
+        return this.getEntityWorld().getTime() % 4L == 0L;
     }
 
     @Unique
@@ -2711,12 +2721,12 @@ public abstract class LivingEntityMixin extends Entity {
             double preHorizontalSpeed,
             double postHorizontalSpeed
     ) {
-        if (player == null || this.getWorld().isClient) {
+        if (player == null || this.getEntityWorld().isClient()) {
             return;
         }
         Minehop.LOGGER.info(
                 "SurfDebug player=" + player.getNameForScoreboard()
-                        + " tick=" + this.getWorld().getTime()
+                        + " tick=" + this.getEntityWorld().getTime()
                         + " preContact=" + (preMoveSurfContact != null)
                         + " postContact=" + (postMoveSurfContact != null)
                         + " hardEndPre=" + hardEndpointPre
@@ -2766,7 +2776,7 @@ public abstract class LivingEntityMixin extends Entity {
             boolean forceRestorePreApplied,
             boolean forceRestorePostApplied
     ) {
-        World world = this.getWorld();
+        World world = this.getEntityWorld();
         if (world == null) {
             return;
         }
@@ -2775,7 +2785,7 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
         this.surfStopLogTick = tick;
-        String side = world.isClient ? "client" : "server";
+        String side = world.isClient() ? "client" : "server";
         String playerName = player != null ? player.getNameForScoreboard() : ("entity#" + this.getId());
         Minehop.LOGGER.warn(
                 "SurfStop side={} player={} tick={} pos=({},{},{}) collapse={} stall={} drop={} softStall={} contactLoss={} edgeRisk={} hIn={} hPreG={} hOut={} moved={} "
@@ -2825,7 +2835,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private void resetSurfRampQueryCacheIfNeeded() {
-        World world = this.getWorld();
+        World world = this.getEntityWorld();
         long tick = world != null ? world.getTime() : Long.MIN_VALUE;
         if (this.surfRampQueryCacheTick != tick) {
             this.surfRampQueryCacheTick = tick;
@@ -2854,7 +2864,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Unique
     private boolean hasNearbySurfRampCached(Box queryBox, double expand) {
-        World world = this.getWorld();
+        World world = this.getEntityWorld();
         if (world == null || queryBox == null) {
             return false;
         }
@@ -2875,7 +2885,7 @@ public abstract class LivingEntityMixin extends Entity {
     @SuppressWarnings("unchecked")
     @Unique
     private List<SurfRampEntity> collectNearbySurfRampsCached(Box queryBox, double expand) {
-        World world = this.getWorld();
+        World world = this.getEntityWorld();
         if (world == null || queryBox == null) {
             return List.of();
         }
@@ -3348,7 +3358,7 @@ public abstract class LivingEntityMixin extends Entity {
         double edgeX = Math.max((bb.maxX - bb.minX) * 0.5D - SURF_SAMPLE_EDGE_INSET, 0.0D);
         double edgeZ = Math.max((bb.maxZ - bb.minZ) * 0.5D - SURF_SAMPLE_EDGE_INSET, 0.0D);
 
-        Vec3d curFeet = this.getPos();
+        Vec3d curFeet = this.getEntityPos();
         Vec3d disp = Vec3d.ZERO;
         Vec3d vel = velocity;
         this.minehop$hullOnRamp = false;
@@ -3688,7 +3698,7 @@ public abstract class LivingEntityMixin extends Entity {
                 box.minY - 0.001D,
                 box.maxZ - 0.001D
         );
-        return !this.getWorld().isSpaceEmpty(this, below);
+        return !this.getEntityWorld().isSpaceEmpty(this, below);
     }
 
     @Unique
@@ -3849,7 +3859,7 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         BlockPos climbPos = this.getBlockPos();
-        BlockState blockState = this.getWorld().getBlockState(climbPos);
+        BlockState blockState = this.getEntityWorld().getBlockState(climbPos);
         if (!blockState.isIn(BlockTags.CLIMBABLE)) {
             return null;
         }
@@ -3864,8 +3874,8 @@ public abstract class LivingEntityMixin extends Entity {
         boolean[] usedCandidates = new boolean[4];
         for (Direction wallDir : Direction.Type.HORIZONTAL) {
             BlockPos supportPos = climbPos.offset(wallDir);
-            BlockState supportState = this.getWorld().getBlockState(supportPos);
-            if (supportState.isSideSolidFullSquare(this.getWorld(), supportPos, wallDir.getOpposite())) {
+            BlockState supportState = this.getEntityWorld().getBlockState(supportPos);
+            if (supportState.isSideSolidFullSquare(this.getEntityWorld(), supportPos, wallDir.getOpposite())) {
                 this.minehop$addLadderNormalCandidate(normalCandidates, usedCandidates, wallDir.getOpposite());
             }
         }
@@ -3965,7 +3975,7 @@ public abstract class LivingEntityMixin extends Entity {
         this.onLanding();
 
         if (this.jumping) {
-            long now = this.getWorld().getTime();
+            long now = this.getEntityWorld().getTime();
             if (now < this.ladderReleaseTime || now > this.ladderReleaseTime + 4L) {
                 this.ladderReleaseTime = now;
                 return ladderNormal.multiply(ladderJumpDetachSpeed);
@@ -4082,7 +4092,7 @@ public abstract class LivingEntityMixin extends Entity {
 
         if (canApply && !this.cssCrouchOffsetApplied) {
             Box upBox = this.getBoundingBox().offset(0.0D, crouchDelta, 0.0D);
-            if (this.getWorld().isSpaceEmpty(this, upBox)) {
+            if (this.getEntityWorld().isSpaceEmpty(this, upBox)) {
                 this.setPosition(this.getX(), this.getY() + crouchDelta, this.getZ());
                 this.velocityDirty = true;
                 this.cssCrouchOffsetApplied = true;
@@ -4342,7 +4352,7 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
 
-        Vec3d moved = this.getPos().subtract(posBeforeMove);
+        Vec3d moved = this.getEntityPos().subtract(posBeforeMove);
         Vec3d remainder = new Vec3d(attemptedMove.x - moved.x, 0.0D, attemptedMove.z - moved.z);
         double remainderSq = remainder.x * remainder.x + remainder.z * remainder.z;
         if (remainderSq < 1.0E-8D) {
@@ -4389,12 +4399,12 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         Box raisedBox = currentBox.offset(0.0D, stepHeight, 0.0D);
-        if (!this.getWorld().isSpaceEmpty(this, raisedBox)) {
+        if (!this.getEntityWorld().isSpaceEmpty(this, raisedBox)) {
             return false;
         }
 
         Box finalBox = raisedBox.offset(horizontalOffset.x, 0.0D, horizontalOffset.z);
-        if (!this.getWorld().isSpaceEmpty(this, finalBox)) {
+        if (!this.getEntityWorld().isSpaceEmpty(this, finalBox)) {
             return false;
         }
 
@@ -4409,7 +4419,7 @@ public abstract class LivingEntityMixin extends Entity {
         }
 
         Box snappedFinalBox = currentBox.offset(horizontalOffset.x, exactStep, horizontalOffset.z);
-        if (!this.getWorld().isSpaceEmpty(this, snappedFinalBox)) {
+        if (!this.getEntityWorld().isSpaceEmpty(this, snappedFinalBox)) {
             return false;
         }
 
@@ -4445,12 +4455,12 @@ public abstract class LivingEntityMixin extends Entity {
             for (int x = MathHelper.floor(minX); x <= MathHelper.floor(maxX); x++) {
                 for (int z = MathHelper.floor(minZ); z <= MathHelper.floor(maxZ); z++) {
                     BlockPos pos = new BlockPos(x, y, z);
-                    BlockState state = this.getWorld().getBlockState(pos);
+                    BlockState state = this.getEntityWorld().getBlockState(pos);
                     if (state.isAir()) {
                         continue;
                     }
 
-                    VoxelShape shape = state.getCollisionShape(this.getWorld(), pos, shapeContext);
+                    VoxelShape shape = state.getCollisionShape(this.getEntityWorld(), pos, shapeContext);
                     if (shape.isEmpty()) {
                         continue;
                     }

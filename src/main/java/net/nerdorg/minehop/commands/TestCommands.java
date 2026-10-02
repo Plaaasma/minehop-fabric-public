@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.authlib.AuthenticationService;
@@ -38,7 +40,7 @@ public class TestCommands {
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<ServerCommandSource>literal("mtest")
-                .requires(source -> source.hasPermissionLevel(4))
+                .requires(source -> PermissionUtil.hasLevel(source, 4))
                     .executes(context -> {
                         handleTest(context);
                         return Command.SINGLE_SUCCESS;
@@ -47,7 +49,7 @@ public class TestCommands {
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<ServerCommandSource>literal("mdebug")
-                .requires(source -> source.hasPermissionLevel(4))
+                .requires(source -> PermissionUtil.hasLevel(source, 4))
                     .executes(context -> {
                         handleDebugToggle(context, context.getSource().getPlayer());
                         return Command.SINGLE_SUCCESS;

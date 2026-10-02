@@ -1,8 +1,11 @@
 package net.nerdorg.minehop.screen.widget;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.Selectable;
@@ -174,16 +177,17 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
         @Override
         public void render(
                 DrawContext context,
-                int index,
-                int y,
-                int x,
-                int entryWidth,
-                int entryHeight,
                 int mouseX,
                 int mouseY,
                 boolean hovered,
                 float tickDelta
         ) {
+            // 1.21.9+: entries carry their own bounds. Same card geometry as the 1.21.4 renderEntry args
+            // (x = row left, y = row top + 4, width = row width, height = itemHeight - 4).
+            int x = this.getX();
+            int y = this.getContentY();
+            int entryWidth = this.getWidth();
+            int entryHeight = this.getContentHeight();
             this.lastX = x;
             this.lastY = y;
             this.lastWidth = entryWidth;
@@ -195,7 +199,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
             int border = hovered ? 0xFF78B8FF : 0xFF344156;
 
             context.fill(x, y, x + entryWidth, y + cardHeight, background);
-            context.drawBorder(x, y, entryWidth, cardHeight, border);
+            context.drawStrokedRectangle(x, y, entryWidth, cardHeight, border);
 
             int padding = 7;
             int textLeft = x + padding;
@@ -203,11 +207,11 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
 
             String safeName = this.mapName.isBlank() ? "Unnamed Map" : this.mapName;
             String trimmedName = textRenderer.trimToWidth(safeName, entryWidth - 170);
-            context.drawTextWithShadow(textRenderer, trimmedName, textLeft, y + 5, 0xFFFFFF);
+            context.drawTextWithShadow(textRenderer, trimmedName, textLeft, y + 5, GuiColors.text(0xFFFFFF));
 
             String playersText = this.playerCount + " online";
             int playersWidth = textRenderer.getWidth(playersText);
-            context.drawTextWithShadow(textRenderer, playersText, textRight - playersWidth, y + 5, 0x99D5FF);
+            context.drawTextWithShadow(textRenderer, playersText, textRight - playersWidth, y + 5, GuiColors.text(0x99D5FF));
 
             String performanceText;
             if (this.userMap) {
@@ -225,7 +229,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
             }
             int rightReserved = this.userMap ? 92 : 0;
             String perfLine = textRenderer.trimToWidth(performanceText, entryWidth - 170 - rightReserved);
-            context.drawTextWithShadow(textRenderer, perfLine, textLeft, y + 18, 0xD5DCE8);
+            context.drawTextWithShadow(textRenderer, perfLine, textLeft, y + 18, GuiColors.text(0xD5DCE8));
 
             DifficultyVisual difficultyVisual = difficultyVisual(this.difficulty);
             int difficultyWidth = textRenderer.getWidth(difficultyVisual.text);
@@ -234,7 +238,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
                     difficultyVisual.text,
                     textRight - difficultyWidth,
                     y + 18,
-                    difficultyVisual.color
+                    GuiColors.text(difficultyVisual.color)
             );
 
             String ownerPart = this.userMap ? "Owner: " + this.ownerName : "Server Map";
@@ -248,7 +252,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
             }
             String infoText = ownerPart + " | " + descriptionPart;
             String infoLine = textRenderer.trimToWidth(infoText, entryWidth - (padding * 2) - rightReserved);
-            context.drawTextWithShadow(textRenderer, infoLine, textLeft, y + 31, 0xA9B3C6);
+            context.drawTextWithShadow(textRenderer, infoLine, textLeft, y + 31, GuiColors.text(0xA9B3C6));
 
             if (this.userMap) {
                 PendingRating pendingRating = this.getPendingRating();
@@ -258,15 +262,18 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
                 int qualityHover = this.getRatingIndexAt(mouseX, mouseY, true);
                 int difficultyHover = this.getRatingIndexAt(mouseX, mouseY, false);
 
-                context.drawTextWithShadow(textRenderer, "Q", ratingStartX - 8, qualityY - 1, 0x80D4FF);
-                context.drawTextWithShadow(textRenderer, "D", ratingStartX - 8, difficultyY - 1, 0x80D4FF);
+                context.drawTextWithShadow(textRenderer, "Q", ratingStartX - 8, qualityY - 1, GuiColors.text(0x80D4FF));
+                context.drawTextWithShadow(textRenderer, "D", ratingStartX - 8, difficultyY - 1, GuiColors.text(0x80D4FF));
                 this.drawXpRatingRow(context, ratingStartX, qualityY, pendingRating.quality, qualityHover);
                 this.drawXpRatingRow(context, ratingStartX, difficultyY, pendingRating.difficulty, difficultyHover);
             }
         }
 
         @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        public boolean mouseClicked(Click click, boolean doubled) {
+            double mouseX = click.x();
+            double mouseY = click.y();
+            int button = click.button();
             if (button != 0) {
                 return false;
             }
@@ -346,7 +353,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
             }
             String mapArgument = StringArgumentType.escapeIfRequired(this.mapName);
             client.setScreen(null);
-            client.getNetworkHandler().sendCommand("map " + mapArgument);
+            client.getNetworkHandler().sendChatCommand("map " + mapArgument);
         }
 
         private void sendRatingCommand(PendingRating pendingRating) {
@@ -357,7 +364,7 @@ public class MapListWidget extends EntryListWidget<MapListWidget.MapEntry> {
             String mapArgument = StringArgumentType.escapeIfRequired(this.mapName);
             int clampedQuality = clampRating(pendingRating.quality);
             int clampedDifficulty = clampRating(pendingRating.difficulty);
-            client.getNetworkHandler().sendCommand("map rate " + mapArgument + " " + clampedQuality + " " + clampedDifficulty);
+            client.getNetworkHandler().sendChatCommand("map rate " + mapArgument + " " + clampedQuality + " " + clampedDifficulty);
         }
 
         private PendingRating getPendingRating() {

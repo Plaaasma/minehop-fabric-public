@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.anticheat;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -9,7 +11,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.entity.player.PlayerPosition;
+import net.minecraft.entity.EntityPosition;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.anticheat.checks.NoClipCheck;
 import net.nerdorg.minehop.anticheat.stream.MovementValidator;
@@ -76,8 +78,8 @@ public final class AntiCheatManager {
             if (player != null) {
                 AntiCheatPlayerState state = stateOf(player);
                 state.setLastKnownName(player.getNameForScoreboard());
-                state.setLastVerifiedPos(player.getPos());
-                state.setLastReportedPos(player.getPos());
+                state.setLastVerifiedPos(player.getEntityPos());
+                state.setLastReportedPos(player.getEntityPos());
                 state.markAuthorizedTeleport(currentServerTick);
                 state.resetAirborneTicks();
             }
@@ -122,7 +124,7 @@ public final class AntiCheatManager {
         }
         AntiCheatPlayerState state = stateOf(player);
         double level = state.addViolation(checkName, increment);
-        Vec3d pos = player.getPos();
+        Vec3d pos = player.getEntityPos();
         state.addFlag(new AntiCheatFlag(checkName, System.currentTimeMillis(), increment, details, pos.x, pos.y, pos.z));
         broadcastFlag(player, checkName, details, level);
         logFlagToConsole(player, checkName, level, 0.0D, details, pos);
@@ -138,7 +140,7 @@ public final class AntiCheatManager {
                 player.getNameForScoreboard(), checkName, pos.x, pos.y, pos.z, target.x, target.y, target.z));
         MovementValidator.onLagbackIssued(player);
         player.networkHandler.requestTeleport(
-                new PlayerPosition(target, Vec3d.ZERO, player.getYaw(), player.getPitch()), Collections.emptySet());
+                new EntityPosition(target, Vec3d.ZERO, player.getYaw(), player.getPitch()), Collections.emptySet());
         player.setVelocity(Vec3d.ZERO);
         int consecutive = state.consecutiveLagbacks();
         if (consecutive == 10 || consecutive == 25 || consecutive == 50 || (consecutive > 50 && consecutive % 50 == 0)) {
@@ -206,7 +208,7 @@ public final class AntiCheatManager {
         if (player == null) {
             return true;
         }
-        if (player.hasPermissionLevel(4)) {
+        if (PermissionUtil.hasLevel(player, 4)) {
             return true;
         }
         if (player.isCreative() || player.isSpectator()) {
@@ -216,7 +218,7 @@ public final class AntiCheatManager {
     }
 
     private static String exemptReason(ServerPlayerEntity player) {
-        if (player.hasPermissionLevel(4)) {
+        if (PermissionUtil.hasLevel(player, 4)) {
             return "exempt:op4";
         }
         if (player.isCreative()) {
@@ -297,8 +299,8 @@ public final class AntiCheatManager {
         AntiCheatPlayerState state = stateOf(player);
         if (state != null) {
             state.markAuthorizedTeleport(currentServerTick);
-            state.setLastVerifiedPos(player.getPos());
-            state.setLastReportedPos(player.getPos());
+            state.setLastVerifiedPos(player.getEntityPos());
+            state.setLastReportedPos(player.getEntityPos());
             state.resetAirborneTicks();
             state.resetConsecutiveLagbacks();
         }
@@ -338,7 +340,7 @@ public final class AntiCheatManager {
         if (!enabled || player == null || preMovePos == null || postMovePos == null) {
             return;
         }
-        if (player.getWorld() == null || player.getWorld().isClient) {
+        if (player.getEntityWorld() == null || player.getEntityWorld().isClient()) {
             return;
         }
         // Fake players (movement harness, replay stand-ins) are entirely server-driven — there is no
@@ -535,7 +537,7 @@ public final class AntiCheatManager {
         }
         Vec3d target = state.lastVerifiedPos();
         if (target == null) {
-            target = player.getPos();
+            target = player.getEntityPos();
         }
         state.markLagback(currentServerTick);
         player.networkHandler.requestTeleport(target.x, target.y, target.z, player.getYaw(), player.getPitch());

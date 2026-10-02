@@ -269,14 +269,14 @@ public class PacketHandler {
         if (player == null || mapName == null || mapName.isBlank()) {
             return false;
         }
-        return isPositionInsideMatchingEndZone(player, mapName, player.getPos());
+        return isPositionInsideMatchingEndZone(player, mapName, player.getEntityPos());
     }
 
     private static boolean isPositionInsideMatchingEndZone(ServerPlayerEntity player, String mapName, Vec3d pos) {
         if (player == null || mapName == null || mapName.isBlank() || pos == null) {
             return false;
         }
-        for (net.minecraft.entity.Entity entity : player.getServerWorld().iterateEntities()) {
+        for (net.minecraft.entity.Entity entity : player.getEntityWorld().iterateEntities()) {
             if (!(entity instanceof EndEntity endEntity)) {
                 continue;
             }
@@ -294,9 +294,9 @@ public class PacketHandler {
         if (player == null || mapName == null || mapName.isBlank()) {
             return false;
         }
-        Vec3d previousPos = new Vec3d(player.prevX, player.prevY, player.prevZ);
-        Vec3d currentPos = player.getPos();
-        for (net.minecraft.entity.Entity entity : player.getServerWorld().iterateEntities()) {
+        Vec3d previousPos = new Vec3d(player.lastX, player.lastY, player.lastZ);
+        Vec3d currentPos = player.getEntityPos();
+        for (net.minecraft.entity.Entity entity : player.getEntityWorld().iterateEntities()) {
             if (!(entity instanceof EndEntity endEntity)) {
                 continue;
             }
@@ -318,8 +318,8 @@ public class PacketHandler {
         if (!Double.isFinite(clientFinishPos.x) || !Double.isFinite(clientFinishPos.y) || !Double.isFinite(clientFinishPos.z)) {
             return false;
         }
-        Vec3d serverPos = player.getPos();
-        Vec3d previousPos = new Vec3d(player.prevX, player.prevY, player.prevZ);
+        Vec3d serverPos = player.getEntityPos();
+        Vec3d previousPos = new Vec3d(player.lastX, player.lastY, player.lastZ);
         double allowedDistance = allowedClientFinishDistance(player);
         double allowedDistanceSq = allowedDistance * allowedDistance;
         return clientFinishPos.squaredDistanceTo(serverPos) <= allowedDistanceSq
@@ -559,7 +559,7 @@ public class PacketHandler {
                     ReplayManager.copyReplayEntries(replayEntries)
             );
             replay.ac_flags = acFlags;
-            ReplayManager.saveReplay(player.getServerWorld(), replay);
+            ReplayManager.saveReplay(player.getEntityWorld(), replay);
         }
 
         DataManager.RecordData existingPersonalRecord = DataManager.getPersonalRecord(playerName, playerUuid, activeMapName);
@@ -632,10 +632,10 @@ public class PacketHandler {
         // one batch. Each save is atomic (JsonStorage), and the in-memory lists remain the consistent
         // source of truth, so a single failed write self-heals on the next autosave/shutdown.
         if (isNewPersonalRecord) {
-            DataManager.saveData(player.getServerWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
+            DataManager.saveData(player.getEntityWorld(), DataManager.pbListLocation, Minehop.personalRecordList);
         }
         if (newWorldRecord) {
-            DataManager.saveData(player.getServerWorld(), DataManager.recordsListLocation, Minehop.recordList);
+            DataManager.saveData(player.getEntityWorld(), DataManager.recordsListLocation, Minehop.recordList);
         }
 
         Logger.logSuccess(player, "Completed " + activeMapName + " in " + formattedNumber + " seconds.");
@@ -1024,7 +1024,7 @@ public class PacketHandler {
                             if (!spectatorPlayer.isCreative()) {
                                 spectatorPlayer.getInventory().clear();
                             }
-                            spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(player.getServerWorld(), new Vec3d(player.getX(), player.getY(), player.getZ()), player.getYaw(), player.getPitch()));
+                            spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(player.getEntityWorld(), new Vec3d(player.getX(), player.getY(), player.getZ()), player.getYaw(), player.getPitch()));
                             spectatorPlayer.setCameraEntity(player);
                             sendRunTimerHud(spectatorPlayer, safeTime, safePb);
                         }

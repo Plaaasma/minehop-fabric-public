@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
@@ -26,7 +28,7 @@ public class GamemodeCommands {
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<ServerCommandSource>literal("gmc")
-                .requires(source -> source.hasPermissionLevel(4))
+                .requires(source -> PermissionUtil.hasLevel(source, 4))
                 .executes(context -> {
                     handleCreative(context);
                     return Command.SINGLE_SUCCESS;
@@ -41,7 +43,7 @@ public class GamemodeCommands {
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<ServerCommandSource>literal("gmsp")
-                .requires(source -> source.hasPermissionLevel(4))
+                .requires(source -> PermissionUtil.hasLevel(source, 4))
                 .executes(context -> {
                     handleSpectator(context);
                     return Command.SINGLE_SUCCESS;
@@ -56,7 +58,7 @@ public class GamemodeCommands {
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<ServerCommandSource>literal("gms")
-                .requires(source -> source.hasPermissionLevel(4))
+                .requires(source -> PermissionUtil.hasLevel(source, 4))
                 .executes(context -> {
                     handleSurvival(context);
                     return Command.SINGLE_SUCCESS;
@@ -71,7 +73,7 @@ public class GamemodeCommands {
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<ServerCommandSource>literal("gma")
-                .requires(source -> source.hasPermissionLevel(4))
+                .requires(source -> PermissionUtil.hasLevel(source, 4))
                 .executes(context -> {
                     handleAdventure(context);
                     return Command.SINGLE_SUCCESS;
@@ -86,7 +88,7 @@ public class GamemodeCommands {
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<ServerCommandSource>literal("gm")
-                .requires(source -> source.hasPermissionLevel(4))
+                .requires(source -> PermissionUtil.hasLevel(source, 4))
                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("c")
                     .executes(context -> {
                         handleCreative(context);

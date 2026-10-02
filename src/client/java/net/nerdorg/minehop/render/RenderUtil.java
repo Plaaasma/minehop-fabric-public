@@ -1,30 +1,37 @@
 package net.nerdorg.minehop.render;
 
-import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
 import org.joml.Matrix4f;
-import org.joml.Random;
 import org.joml.Vector3f;
 
 public class RenderUtil {
     public static void drawLine(VertexConsumerProvider pBuffer, MatrixStack pPoseStack, Vector3f startPoint, Vector3f endPoint, int width, int alpha, int r, int g, int b) {
-        VertexConsumer vertexBuilder = pBuffer.getBuffer(ModRenderLayer.getLineOfWidth(width));
-        Matrix4f positionMatrix = pPoseStack.peek().getPositionMatrix();
+        drawLine(pBuffer.getBuffer(ModRenderLayer.getLineOfWidth(width)), pPoseStack.peek(), startPoint, endPoint, width, alpha, r, g, b);
+    }
 
+    // Command-queue variant (entity renderers submit custom geometry with a MatrixStack.Entry since 1.21.9).
+    public static void drawLine(VertexConsumer vertexBuilder, MatrixStack.Entry entry, Vector3f startPoint, Vector3f endPoint, int width, int alpha, int r, int g, int b) {
+        Matrix4f positionMatrix = entry.getPositionMatrix();
+
+        // Line width is a per-vertex attribute since 1.21.11.
         vertexBuilder.vertex(positionMatrix, startPoint.x(), startPoint.y(), startPoint.z())
                 .color(r, g, b, alpha)
-                .normal(1, 1, 1); // Adjusted normal for clarity
-                //.notifyAll();
+                .normal(1, 1, 1) // Adjusted normal for clarity
+                .lineWidth(width);
 
         vertexBuilder.vertex(positionMatrix, endPoint.x(), endPoint.y(), endPoint.z())
                 .color(r, g, b, alpha)
-                .normal(1, 1, 1); // Adjusted normal for clarity
-               // .notifyAll();
+                .normal(1, 1, 1) // Adjusted normal for clarity
+                .lineWidth(width);
     }
 
     public static void drawCuboid(VertexConsumerProvider pBuffer, MatrixStack pPoseStack, Vector3f pointA, Vector3f pointB, int width, int alpha, int r, int g, int b) {
+        drawCuboid(pBuffer.getBuffer(ModRenderLayer.getLineOfWidth(width)), pPoseStack.peek(), pointA, pointB, width, alpha, r, g, b);
+    }
+
+    public static void drawCuboid(VertexConsumer vertexBuilder, MatrixStack.Entry entry, Vector3f pointA, Vector3f pointB, int width, int alpha, int r, int g, int b) {
         Vector3f[] points = new Vector3f[8];
 
         points[0] = pointA;
@@ -43,7 +50,7 @@ public class RenderUtil {
         };
 
         for (int i = 0; i < edges.length; i += 2) {
-            drawLine(pBuffer, pPoseStack, points[edges[i]], points[edges[i + 1]], width, alpha, r, g, b);
+            drawLine(vertexBuilder, entry, points[edges[i]], points[edges[i + 1]], width, alpha, r, g, b);
         }
     }
 }

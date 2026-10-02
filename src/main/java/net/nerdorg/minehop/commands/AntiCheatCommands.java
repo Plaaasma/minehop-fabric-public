@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
@@ -40,21 +42,21 @@ public final class AntiCheatCommands {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
                 LiteralArgumentBuilder.<ServerCommandSource>literal("minehop")
                         .then(LiteralArgumentBuilder.<ServerCommandSource>literal("anticheat")
-                                .requires(source -> source.hasPermissionLevel(2))
+                                .requires(source -> PermissionUtil.hasLevel(source, 2))
                                 .executes(AntiCheatCommands::handleHelp)
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("verbose")
                                         .executes(AntiCheatCommands::handleVerbose)
                                 )
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("enable")
-                                        .requires(source -> source.hasPermissionLevel(4))
+                                        .requires(source -> PermissionUtil.hasLevel(source, 4))
                                         .executes(context -> handleSetEnabled(context, true))
                                 )
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("disable")
-                                        .requires(source -> source.hasPermissionLevel(4))
+                                        .requires(source -> PermissionUtil.hasLevel(source, 4))
                                         .executes(context -> handleSetEnabled(context, false))
                                 )
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("lagback")
-                                        .requires(source -> source.hasPermissionLevel(4))
+                                        .requires(source -> PermissionUtil.hasLevel(source, 4))
                                         .then(LiteralArgumentBuilder.<ServerCommandSource>literal("on")
                                                 .executes(context -> handleSetLagbacks(context, true)))
                                         .then(LiteralArgumentBuilder.<ServerCommandSource>literal("off")
@@ -74,14 +76,14 @@ public final class AntiCheatCommands {
                                 )
                                 // Wiping evidence and exempting players defeat the anticheat: admins only.
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("clear")
-                                        .requires(source -> source.hasPermissionLevel(4))
+                                        .requires(source -> PermissionUtil.hasLevel(source, 4))
                                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
                                                 .suggests((ctx, builder) -> suggestKnownPlayers(ctx, builder))
                                                 .executes(AntiCheatCommands::handleClear)
                                         )
                                 )
                                 .then(LiteralArgumentBuilder.<ServerCommandSource>literal("exempt")
-                                        .requires(source -> source.hasPermissionLevel(4))
+                                        .requires(source -> PermissionUtil.hasLevel(source, 4))
                                         .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
                                                 .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
                                                         .suggests((ctx, builder) -> suggestOnlinePlayers(ctx, builder))
@@ -312,7 +314,7 @@ public final class AntiCheatCommands {
             context.getSource().sendError(Text.literal("GUI requires a player."));
             return 0;
         }
-        String json = buildAdminSnapshotJson(player.getServer());
+        String json = buildAdminSnapshotJson(player.getEntityWorld().getServer());
         ServerPlayNetworking.send(player, new OpenAntiCheatScreenPayload(json));
         return Command.SINGLE_SUCCESS;
     }
@@ -436,7 +438,7 @@ public final class AntiCheatCommands {
     }
 
     private static void handleAction(ServerPlayerEntity player, String action, String targetUuidString) {
-        if (player == null || !player.hasPermissionLevel(2)) {
+        if (player == null || !PermissionUtil.hasLevel(player, 2)) {
             return;
         }
         UUID targetUuid = null;
@@ -463,8 +465,8 @@ public final class AntiCheatCommands {
                 }
             }
             case net.nerdorg.minehop.networking.payloads.AntiCheatActionPayload.ACTION_KICK -> {
-                if (targetUuid != null && player.hasPermissionLevel(3)) {
-                    MinecraftServer server = player.getServer();
+                if (targetUuid != null && PermissionUtil.hasLevel(player, 3)) {
+                    MinecraftServer server = player.getEntityWorld().getServer();
                     if (server != null) {
                         ServerPlayerEntity target = server.getPlayerManager().getPlayer(targetUuid);
                         if (target != null) {
@@ -478,6 +480,6 @@ public final class AntiCheatCommands {
             default -> {
             }
         }
-        ServerPlayNetworking.send(player, new OpenAntiCheatScreenPayload(buildAdminSnapshotJson(player.getServer())));
+        ServerPlayNetworking.send(player, new OpenAntiCheatScreenPayload(buildAdminSnapshotJson(player.getEntityWorld().getServer())));
     }
 }

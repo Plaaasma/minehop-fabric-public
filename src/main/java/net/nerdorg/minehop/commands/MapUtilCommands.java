@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
@@ -128,7 +130,7 @@ public class MapUtilCommands {
                 })
             )
             .then(LiteralArgumentBuilder.<ServerCommandSource>literal("manage")
-            .requires(source -> source.hasPermissionLevel(4))
+            .requires(source -> PermissionUtil.hasLevel(source, 4))
                 .executes(context -> {
                     handleOpenMapManageScreen(context);
                     return Command.SINGLE_SUCCESS;
@@ -452,7 +454,7 @@ public class MapUtilCommands {
             return;
         }
 
-        if (!serverPlayerEntity.hasPermissionLevel(4) && !UserPlotManager.canManageMap(serverPlayerEntity, mapData)) {
+        if (!PermissionUtil.hasLevel(serverPlayerEntity, 4) && !UserPlotManager.canManageMap(serverPlayerEntity, mapData)) {
             Logger.logFailure(serverPlayerEntity, "You can only edit your own user plot map from inside your plot.");
             return;
         }
@@ -492,7 +494,7 @@ public class MapUtilCommands {
         );
         DataManager.recalculateMapRatings();
 
-        ServerWorld world = serverPlayerEntity.getServerWorld();
+        ServerWorld world = serverPlayerEntity.getEntityWorld();
         DataManager.saveData(world, DataManager.mapListLocation, Minehop.mapList);
         DataManager.saveData(world, DataManager.mapRatingsLocation, Minehop.mapRatingList);
 
@@ -535,7 +537,7 @@ public class MapUtilCommands {
             }
             Logger.logSuccess(serverPlayerEntity, "Added checkpoint " + (mapToAddTo.checkpointPositions.size() + 1) + " to " + name);
             Minehop.mapList.remove(mapToAddTo);
-            mapToAddTo.checkpointPositions.add(new ArrayList<>(Arrays.asList(serverPlayerEntity.getPos(), new Vec3d(serverPlayerEntity.getRotationClient().x, serverPlayerEntity.getRotationClient().y, 0))));
+            mapToAddTo.checkpointPositions.add(new ArrayList<>(Arrays.asList(serverPlayerEntity.getEntityPos(), new Vec3d(serverPlayerEntity.getRotationClient().x, serverPlayerEntity.getRotationClient().y, 0))));
             Minehop.mapList.add(mapToAddTo);
             DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);
         }
@@ -613,7 +615,7 @@ public class MapUtilCommands {
                                     if (!spectatorPlayer.isCreative()) {
                                         spectatorPlayer.getInventory().clear();
                                     }
-                                    spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
+                                    spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getEntityWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
                                     spectatorPlayer.setCameraEntity(serverPlayerEntity);
                                 }
                             }
@@ -706,7 +708,7 @@ public class MapUtilCommands {
                                 if (!spectatorPlayer.isCreative()) {
                                     spectatorPlayer.getInventory().clear();
                                 }
-                                spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
+                                spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getEntityWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
                                 spectatorPlayer.setCameraEntity(serverPlayerEntity);
                             }
                         }
@@ -745,7 +747,7 @@ public class MapUtilCommands {
         double spawn_xrot = serverPlayerEntity.getPitch();
         double spawn_yrot = serverPlayerEntity.getYaw();
 
-        DataManager.MapData mapData = new DataManager.MapData(name, spawn_x, spawn_y, spawn_z, spawn_xrot, spawn_yrot, serverPlayerEntity.getWorld().getRegistryKey().toString());
+        DataManager.MapData mapData = new DataManager.MapData(name, spawn_x, spawn_y, spawn_z, spawn_xrot, spawn_yrot, serverPlayerEntity.getEntityWorld().getRegistryKey().toString());
         mapData.copyMovementFrom(ConfigWrapper.config, false);
         Minehop.mapList.add(mapData);
         DataManager.saveData(context.getSource().getWorld(), DataManager.mapListLocation, Minehop.mapList);

@@ -42,6 +42,8 @@ public class GamemodeRenderer extends MobEntityRenderer<GamemodeEntity, Gamemode
 
     @Override
     public void updateRenderState(GamemodeEntity gamemodeEntity, GamemodeEntityRenderState state, float tickDelta) {
+        // 1.21.9+: entity position/light are taken from the render state.
+        super.updateRenderState(gamemodeEntity, state, tickDelta);
         state.gamemodeEntity = gamemodeEntity;
     }
 }

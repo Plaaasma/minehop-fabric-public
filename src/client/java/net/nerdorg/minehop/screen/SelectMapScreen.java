@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.screen;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
@@ -72,7 +74,7 @@ public class SelectMapScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void applyBlur(DrawContext context) {
     }
 
     @Override
@@ -181,10 +183,10 @@ public class SelectMapScreen extends Screen {
     }
 
     @Override
-    public void resize(MinecraftClient client, int width, int height) {
+    public void resize(int width, int height) {
         String currentFilter = this.textFieldWidget == null ? this.lastFieldText : this.textFieldWidget.getText();
         String currentAuthor = this.authorFieldWidget == null ? this.lastAuthorText : this.authorFieldWidget.getText();
-        super.resize(client, width, height);
+        super.resize(width, height);
         if (this.textFieldWidget != null) {
             this.textFieldWidget.setText(currentFilter);
         }
@@ -212,7 +214,7 @@ public class SelectMapScreen extends Screen {
             if (nextOffset != this.panelScrollOffset) {
                 this.panelScrollOffset = nextOffset;
                 if (this.client != null) {
-                    this.resize(this.client, this.width, this.height);
+                    this.resize(this.width, this.height);
                 }
                 return true;
             }
@@ -257,28 +259,28 @@ public class SelectMapScreen extends Screen {
 
     private void drawPanel(DrawContext context) {
         context.fill(this.panelX, this.panelY, this.panelX + this.panelWidth, this.panelY + this.panelHeight, 0xD010141D);
-        context.drawBorder(this.panelX, this.panelY, this.panelWidth, this.panelHeight, 0xFF4A5D78);
+        context.drawStrokedRectangle(this.panelX, this.panelY, this.panelWidth, this.panelHeight, 0xFF4A5D78);
         context.fill(this.panelX + 1, this.panelY + 1, this.panelX + this.panelWidth - 1, this.panelY + 26, 0xA0162436);
 
         int listX = this.panelX + 7;
         int listWidth = this.panelWidth - 14;
         int listHeight = this.listBottom - this.listTop;
         context.fill(listX, this.listTop, listX + listWidth, this.listTop + listHeight, 0x8E0C1018);
-        context.drawBorder(listX, this.listTop, listWidth, listHeight, 0xFF30425E);
+        context.drawStrokedRectangle(listX, this.listTop, listWidth, listHeight, 0xFF30425E);
     }
 
     private void drawHeaderText(DrawContext context) {
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Map Browser"), this.panelX + 10, this.panelY + 9, 0xFFFFFF);
+        context.drawTextWithShadow(this.textRenderer, Text.literal("Map Browser"), this.panelX + 10, this.panelY + 9, GuiColors.text(0xFFFFFF));
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.literal("Click a map card to teleport"),
                 this.panelX + 118,
                 this.panelY + 9,
-                0xB7C6DA
+                GuiColors.text(0xB7C6DA)
         );
 
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Map Filter"), this.panelX + 10, this.panelY + 24, 0xC5D4E8);
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Author"), this.panelX + 10, this.panelY + 78, 0xC5D4E8);
+        context.drawTextWithShadow(this.textRenderer, Text.literal("Map Filter"), this.panelX + 10, this.panelY + 24, GuiColors.text(0xC5D4E8));
+        context.drawTextWithShadow(this.textRenderer, Text.literal("Author"), this.panelX + 10, this.panelY + 78, GuiColors.text(0xC5D4E8));
 
         MapListWidget activeList = this.getActiveList();
         int activeCount = activeList == null ? 0 : activeList.mapCount();
@@ -289,7 +291,7 @@ public class SelectMapScreen extends Screen {
                 Text.literal(summary),
                 this.panelX + 10,
                 this.panelY + this.panelHeight - 17,
-                0x96A8C2
+                GuiColors.text(0x96A8C2)
         );
 
         if (this.activeTab == MapTab.USER) {
@@ -307,7 +309,7 @@ public class SelectMapScreen extends Screen {
                     Text.literal(hintText),
                     hintX,
                     this.panelY + 78,
-                    0x89B8FF
+                    GuiColors.text(0x89B8FF)
             );
         }
     }

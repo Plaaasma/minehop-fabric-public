@@ -41,8 +41,8 @@ public class SocialsCommands {
         Text urlText = Text.literal("https://discord.gg/hMs97RHEgF")
                 .styled(style -> style
                         .withColor(Formatting.BLUE)
-                        .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, "https://discord.gg/hMs97RHEgF"))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Join or else....")))
+                        .withClickEvent(new ClickEvent.OpenUrl(java.net.URI.create("https://discord.gg/hMs97RHEgF")))
+                        .withHoverEvent(new HoverEvent.ShowText(Text.literal("Join or else....")))
                         .withUnderline(true));
 
         Logger.log(serverPlayerEntity, urlText);

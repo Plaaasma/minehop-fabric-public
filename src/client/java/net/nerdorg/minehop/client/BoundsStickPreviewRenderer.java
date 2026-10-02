@@ -1,6 +1,6 @@
 package net.nerdorg.minehop.client;
 
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -55,14 +55,14 @@ public final class BoundsStickPreviewRenderer {
                 return;
             }
 
-            MatrixStack matrices = context.matrixStack();
+            MatrixStack matrices = context.matrices();
             VertexConsumerProvider consumers = context.consumers();
-            Camera camera = context.camera();
+            Camera camera = net.minecraft.client.MinecraftClient.getInstance().gameRenderer.getCamera();
             if (matrices == null || consumers == null || camera == null) {
                 return;
             }
 
-            Vec3d cameraPos = camera.getPos();
+            Vec3d cameraPos = camera.getCameraPos();
             Vec3d minCorner = new Vec3d(first.getX() - PREVIEW_EPSILON, first.getY() - PREVIEW_EPSILON, first.getZ() - PREVIEW_EPSILON);
             Vec3d maxCorner = new Vec3d(second.getX() + PREVIEW_EPSILON, second.getY() + PREVIEW_EPSILON, second.getZ() + PREVIEW_EPSILON);
 

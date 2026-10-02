@@ -1,9 +1,8 @@
 package net.nerdorg.minehop.mixin.client;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.AttackIndicator;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.render.entity.PlayerEntityRenderer;
 import net.minecraft.entity.player.PlayerEntity;
@@ -46,18 +45,18 @@ public abstract class InGameHudMixin {
     @Inject(method = "renderHotbarItem", at = @At("HEAD"), cancellable = true)
     private void renderHotbarItem(DrawContext context, int x, int y, RenderTickCounter tickCounter, PlayerEntity player, ItemStack stack, int seed, CallbackInfo ci) {
         if (!stack.isEmpty()) {
-            float f = (float)stack.getBobbingAnimationTime() - tickCounter.getTickDelta(false);
+            float f = (float)stack.getBobbingAnimationTime() - tickCounter.getTickProgress(false);
             if (f > 0.0F) {
                 float g = 1.0F + f / 5.0F;
-                context.getMatrices().push();
-                context.getMatrices().translate((float)(x + 8), (float)(y + 12), 0.0F);
-                context.getMatrices().scale(1.0F / g, (g + 1.0F) / 2.0F, 1.0F);
-                context.getMatrices().translate((float)(-(x + 8)), (float)(-(y + 12)), 0.0F);
+                context.getMatrices().pushMatrix();
+                context.getMatrices().translate((float)(x + 8), (float)(y + 12));
+                context.getMatrices().scale(1.0F / g, (g + 1.0F) / 2.0F);
+                context.getMatrices().translate((float)(-(x + 8)), (float)(-(y + 12)));
             }
 
             context.drawItem(player, stack, x, y, seed);
             if (f > 0.0F) {
-                context.getMatrices().pop();
+                context.getMatrices().popMatrix();
             }
 
             context.drawStackOverlay(this.client.textRenderer, stack, x, y);
@@ -98,12 +97,12 @@ public abstract class InGameHudMixin {
         }
 
         if (config.jHud.speedHud.show_current_speed && config.enabled) {
-            MinehopClient.squeedometerHud.drawMain(context, tickCounter.getTickDelta(true), config);
+            MinehopClient.squeedometerHud.drawMain(context, tickCounter.getTickProgress(true), config);
         }
         if (config.enabled) {
             MinehopClient.squeedometerHud.drawJHUD(context, config);
             if (!MinehopClient.spectatorList.isEmpty()) {
-                MinehopClient.squeedometerHud.drawSpectators(context, tickCounter.getTickDelta(true));
+                MinehopClient.squeedometerHud.drawSpectators(context, tickCounter.getTickProgress(true));
             }
         }
     }
@@ -122,13 +121,6 @@ public abstract class InGameHudMixin {
         }
     }
 
-    @Inject(at = @At("HEAD"), method = "renderExperienceBar", cancellable = true)
-    private void renderExperienceBar(DrawContext context, int x, CallbackInfo ci) {
-        if (ConfigWrapper.config.hideSelf) {
-            ci.cancel();
-        }
-    }
-
 
 
     @Inject(at = @At("HEAD"), method = "renderHotbar", cancellable = true)
@@ -139,19 +131,17 @@ public abstract class InGameHudMixin {
                 ItemStack itemStack = playerEntity.getOffHandStack();
                 Arm arm = playerEntity.getMainArm().getOpposite();
                 int i = context.getScaledWindowWidth() / 2;
-                context.getMatrices().push();
-                context.getMatrices().translate(0.0F, 0.0F, -90.0F);
-                context.drawGuiTexture(RenderLayer::getGuiTextured, HOTBAR_TEXTURE, i - 91, context.getScaledWindowHeight() - 22, 182, 22);
-                context.drawGuiTexture(RenderLayer::getGuiTextured,HOTBAR_SELECTION_TEXTURE, i - 91 - 1 + playerEntity.getInventory().selectedSlot * 20, context.getScaledWindowHeight() - 22 - 1, 24, 23);
+                // 1.21.6+: GUI draws are layered by submission order (no z translate / blend toggles).
+                context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE, i - 91, context.getScaledWindowHeight() - 22, 182, 22);
+                context.drawGuiTexture(RenderPipelines.GUI_TEXTURED,HOTBAR_SELECTION_TEXTURE, i - 91 - 1 + playerEntity.getInventory().getSelectedSlot() * 20, context.getScaledWindowHeight() - 22 - 1, 24, 23);
                 if (!itemStack.isEmpty()) {
                     if (arm == Arm.LEFT) {
-                        context.drawGuiTexture(RenderLayer::getGuiTextured,HOTBAR_OFFHAND_LEFT_TEXTURE, i - 91 - 29, context.getScaledWindowHeight() - 23, 29, 24);
+                        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED,HOTBAR_OFFHAND_LEFT_TEXTURE, i - 91 - 29, context.getScaledWindowHeight() - 23, 29, 24);
                     } else {
-                        context.drawGuiTexture(RenderLayer::getGuiTextured,HOTBAR_OFFHAND_RIGHT_TEXTURE, i + 91, context.getScaledWindowHeight() - 23, 29, 24);
+                        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED,HOTBAR_OFFHAND_RIGHT_TEXTURE, i + 91, context.getScaledWindowHeight() - 23, 29, 24);
                     }
                 }
 
-                context.getMatrices().pop();
                 int l = 1;
 
                 int m;
@@ -160,7 +150,7 @@ public abstract class InGameHudMixin {
                 for(m = 0; m < 9; ++m) {
                     n = i - 90 + m * 20 + 2;
                     o = context.getScaledWindowHeight() - 16 - 3;
-                    this.renderHotbarItem(context, n, o, tickCounter, playerEntity, (ItemStack)playerEntity.getInventory().main.get(m), l++, ci);
+                    this.renderHotbarItem(context, n, o, tickCounter, playerEntity, playerEntity.getInventory().getStack(m), l++, ci);
                 }
 
                 if (!itemStack.isEmpty()) {
@@ -172,7 +162,6 @@ public abstract class InGameHudMixin {
                     }
                 }
 
-                RenderSystem.enableBlend();
                 if (this.client.options.getAttackIndicator().getValue() == AttackIndicator.HOTBAR) {
                     float f = this.client.player.getAttackCooldownProgress(0.0F);
                     if (f < 1.0F) {
@@ -183,12 +172,11 @@ public abstract class InGameHudMixin {
                         }
 
                         int p = (int)(f * 19.0F);
-                        context.drawGuiTexture(RenderLayer::getGuiTextured, HOTBAR_ATTACK_INDICATOR_BACKGROUND_TEXTURE, o, n, 18, 18);
-                        context.drawGuiTexture(RenderLayer::getGuiTextured, HOTBAR_ATTACK_INDICATOR_PROGRESS_TEXTURE, 18, 18, 0, 18 - p, o, n + 18 - p, 18, p);
+                        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_ATTACK_INDICATOR_BACKGROUND_TEXTURE, o, n, 18, 18);
+                        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_ATTACK_INDICATOR_PROGRESS_TEXTURE, 18, 18, 0, 18 - p, o, n + 18 - p, 18, p);
                     }
                 }
 
-                RenderSystem.disableBlend();
             }
         }
         ci.cancel();

@@ -31,7 +31,7 @@ public final class ZonePlacementManager {
             Logger.logFailure(player, "You can only edit zones in your own plot.");
             return;
         }
-        if (!(player.getWorld() instanceof ServerWorld playerWorld) || zone.getWorld() != playerWorld) {
+        if (!(player.getEntityWorld() instanceof ServerWorld playerWorld) || zone.getEntityWorld() != playerWorld) {
             Logger.logFailure(player, "Could not edit that zone in this world.");
             return;
         }
@@ -103,7 +103,7 @@ public final class ZonePlacementManager {
             return;
         }
         DataManager.MapData mapData = DataManager.getMap(mapName);
-        if (!player.hasPermissionLevel(4) && !UserPlotManager.canManageMapByName(player, mapName)) {
+        if (!PermissionUtil.hasLevel(player, 4) && !UserPlotManager.canManageMapByName(player, mapName)) {
             Logger.logFailure(player, "You can only pair zones to your own plot map.");
             return;
         }
@@ -125,7 +125,7 @@ public final class ZonePlacementManager {
                 Logger.logFailure(player, "Set both zone corners with the zone stick first.");
                 return;
             }
-            if (!player.hasPermissionLevel(4) && player.getWorld() instanceof ServerWorld serverWorld) {
+            if (!PermissionUtil.hasLevel(player, 4) && player.getEntityWorld() instanceof ServerWorld serverWorld) {
                 BlockPos maxExclusive = positions[1].toImmutable();
                 BlockPos maxInclusive = new BlockPos(
                         maxExclusive.getX() - 1,
@@ -163,7 +163,7 @@ public final class ZonePlacementManager {
             Logger.logFailure(player, "You can only edit zones in your own plot.");
             return;
         }
-        if (zone.getWorld() instanceof ServerWorld serverWorld) {
+        if (zone.getEntityWorld() instanceof ServerWorld serverWorld) {
             zone.kill(serverWorld);
         } else {
             zone.remove(Entity.RemovalReason.KILLED);
@@ -184,7 +184,7 @@ public final class ZonePlacementManager {
         if (player == null || editState == null) {
             return null;
         }
-        for (ServerWorld serverWorld : player.getServer().getWorlds()) {
+        for (ServerWorld serverWorld : player.getEntityWorld().getServer().getWorlds()) {
             String worldKey = serverWorld.getRegistryKey().getValue().toString();
             if (!worldKey.equals(editState.worldKey)) {
                 continue;

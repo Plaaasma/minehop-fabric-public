@@ -88,7 +88,7 @@ public abstract class EntityCollisionMixin {
                 && minehop$canFastBypassCollisionQuery(entity, movement)) {
             return base;
         }
-        boolean clientSide = world.isClient;
+        boolean clientSide = world.isClient();
         boolean shouldLogPerf = clientSide && Minehop.surfPerfLoggingEnabled;
         int currentFps = shouldLogPerf ? minehop$getClientFps() : -1;
         long currentFrameNanos = shouldLogPerf ? minehop$getClientFrameNanos() : -1L;

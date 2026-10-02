@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.item.custom;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemUsageContext;
 import net.minecraft.entity.player.PlayerEntity;
@@ -25,7 +27,7 @@ public class BoundsStickItem extends Item {
     @Override
     public ActionResult useOnBlock(ItemUsageContext context) {
         World world = context.getWorld();
-        if (!world.isClient) {
+        if (!world.isClient()) {
             if (!(context.getPlayer() instanceof ServerPlayerEntity player)) {
                 return ActionResult.FAIL;
             }
@@ -39,7 +41,7 @@ public class BoundsStickItem extends Item {
                 return ActionResult.SUCCESS;
             }
 
-            if (!player.hasPermissionLevel(4)
+            if (!PermissionUtil.hasLevel(player, 4)
                     && world instanceof ServerWorld serverWorld
                     && !UserPlotManager.canBuildAt(player, serverWorld, context.getBlockPos())) {
                 Logger.logFailure(player, "You can only use the zone stick inside your own plot.");

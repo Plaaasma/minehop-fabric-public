@@ -8,3 +8,9 @@ pluginManagement {
 		gradlePluginPortal()
 	}
 }
+
+plugins {
+	// Toolchain download repository for gradle/gradle-daemon-jvm.properties (Loom 1.18 needs Gradle on
+	// Java 25; Gradle auto-provisions a JDK 25 for the daemon if none is installed).
+	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}

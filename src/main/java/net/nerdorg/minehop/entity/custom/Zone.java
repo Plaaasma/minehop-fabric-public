@@ -6,7 +6,8 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageTypes;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
@@ -66,15 +67,15 @@ public class Zone extends MobEntity {
     }
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
+    public void writeCustomData(WriteView nbt) {
+        super.writeCustomData(nbt);
         nbt.putString("map", paired_map);
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
-        paired_map = nbt.getString("map");
+    public void readCustomData(ReadView nbt) {
+        super.readCustomData(nbt);
+        paired_map = nbt.getString("map", "");
     }
 
     public String getPairedMap() {
@@ -112,7 +113,7 @@ public class Zone extends MobEntity {
 
     protected Vec3d getBoundsCenter(BlockPos corner1, BlockPos corner2) {
         if (corner1 == null || corner2 == null) {
-            return this.getPos();
+            return this.getEntityPos();
         }
         double minX = Math.min(corner1.getX(), corner2.getX());
         double minY = Math.min(corner1.getY(), corner2.getY());
@@ -146,7 +147,7 @@ public class Zone extends MobEntity {
 
     @Override
     public ActionResult interactMob(PlayerEntity player, Hand hand) {
-        if (this.getWorld().isClient) {
+        if (this.getEntityWorld().isClient()) {
             return player.getStackInHand(hand).isOf(ModItems.BOUNDS_STICK) ? ActionResult.SUCCESS : ActionResult.PASS;
         }
         if (!(player instanceof ServerPlayerEntity serverPlayer)) {

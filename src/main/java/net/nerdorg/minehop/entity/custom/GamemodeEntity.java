@@ -22,7 +22,7 @@ public class GamemodeEntity extends Zone {
 
     @Override
     public void tick() {
-        World world = this.getWorld();
+        World world = this.getEntityWorld();
         if (world instanceof ServerWorld serverWorld) {
             DataManager.MapData pairedMap = DataManager.getMap(this.getPairedMap());
             if (pairedMap == null) {

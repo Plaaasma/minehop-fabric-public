@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.screen;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.gui.DrawContext;
@@ -52,7 +54,7 @@ public class ZoneStickSettingsScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void applyBlur(DrawContext context) {
     }
 
     @Override
@@ -158,71 +160,71 @@ public class ZoneStickSettingsScreen extends Screen {
         int disabledColor = 0x808080;
 
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xD0101010);
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, 0xFFFFFF);
+        context.drawStrokedRectangle(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, GuiColors.text(0xFFFFFF));
 
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.zone_stick_settings.zone_type"),
                 labelX,
                 panelY + 31,
-                0xE0E0E0
+                GuiColors.text(0xE0E0E0)
         );
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.literal(this.zoneType.toUpperCase()),
                 valueX,
                 panelY + 31,
-                0xFFFFFF
+                GuiColors.text(0xFFFFFF)
         );
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.zone_stick_settings.map_name"),
                 labelX,
                 panelY + 56,
-                0xE0E0E0
+                GuiColors.text(0xE0E0E0)
         );
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.zone_stick_settings.reset_target"),
                 labelX,
                 panelY + 82,
-                this.checkpointEditable ? 0xE0E0E0 : disabledColor
+                GuiColors.text(this.checkpointEditable ? 0xE0E0E0 : disabledColor)
         );
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.zone_stick_settings.checkpoint_index"),
                 labelX,
                 panelY + 108,
-                this.checkpointEditable && !this.resetToStart ? 0xE0E0E0 : disabledColor
+                GuiColors.text(this.checkpointEditable && !this.resetToStart ? 0xE0E0E0 : disabledColor)
         );
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.literal(this.getCheckpointCountHint()),
                 labelX,
                 panelY + 126,
-                0xB0B0B0
+                GuiColors.text(0xB0B0B0)
         );
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.zone_stick_settings.apply_bounds"),
                 labelX,
                 panelY + 147,
-                0xE0E0E0
+                GuiColors.text(0xE0E0E0)
         );
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.zone_stick_settings.preserve_speed"),
                 labelX,
                 panelY + 183,
-                this.preserveSpeedEditable ? 0xE0E0E0 : disabledColor
+                GuiColors.text(this.preserveSpeedEditable ? 0xE0E0E0 : disabledColor)
         );
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.zone_stick_settings.help"),
                 labelX,
                 panelY + 228,
-                0xC8C8C8
+                GuiColors.text(0xC8C8C8)
         );
 
         super.render(context, mouseX, mouseY, delta);

@@ -36,12 +36,12 @@ public final class NoClipCheck extends AntiCheatCheck {
         if (context.player.noClip || context.player.isSpectator()) {
             return CheckResult.OK;
         }
-        if (context.player.getWorld() == null || context.player.getWorld().isClient) {
+        if (context.player.getEntityWorld() == null || context.player.getEntityWorld().isClient()) {
             return CheckResult.OK;
         }
 
         Box bb = context.player.getBoundingBox();
-        World world = context.player.getWorld();
+        World world = context.player.getEntityWorld();
         SolidCollision collision = getSolidCollision(world, bb, context.player);
         if (collision != SolidCollision.NONE) {
             if (collision == SolidCollision.SHALLOW && hasSneakEdgeGrace(context)) {

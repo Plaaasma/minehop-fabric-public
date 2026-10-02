@@ -3,8 +3,8 @@ package net.nerdorg.minehop.block.entity;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.registry.RegistryWrapper;
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
@@ -67,19 +67,19 @@ public class BoostBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.writeNbt(nbt, registries);
+    protected void writeData(WriteView nbt) {
+        super.writeData(nbt);
         nbt.putDouble("x_power", this.x_power);
         nbt.putDouble("y_power", this.y_power);
         nbt.putDouble("z_power", this.z_power);
     }
 
     @Override
-    protected void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.readNbt(nbt, registries);
-        this.x_power = nbt.getDouble("x_power");
-        this.y_power = nbt.getDouble("y_power");
-        this.z_power = nbt.getDouble("z_power");
+    protected void readData(ReadView nbt) {
+        super.readData(nbt);
+        this.x_power = nbt.getDouble("x_power", 0.0D);
+        this.y_power = nbt.getDouble("y_power", 0.0D);
+        this.z_power = nbt.getDouble("z_power", 0.0D);
         this.markDirty();
     }
 }

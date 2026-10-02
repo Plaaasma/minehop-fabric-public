@@ -8,7 +8,8 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageTypes;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -29,8 +30,8 @@ public class ReplayEntity extends MobEntity {
     private int replayIndex = 0;
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
+    public void writeCustomData(WriteView nbt) {
+        super.writeCustomData(nbt);
         nbt.putString("map", map_name);
         nbt.putString("replay_player", replay_player_name);
         nbt.putBoolean("hide_head", hide_head);
@@ -38,12 +39,12 @@ public class ReplayEntity extends MobEntity {
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
-        map_name = nbt.getString("map");
-        replay_player_name = nbt.getString("replay_player");
-        hide_head = nbt.getBoolean("hide_head");
-        temporary = nbt.getBoolean("temporary");
+    public void readCustomData(ReadView nbt) {
+        super.readCustomData(nbt);
+        map_name = nbt.getString("map", "");
+        replay_player_name = nbt.getString("replay_player", "");
+        hide_head = nbt.getBoolean("hide_head", false);
+        temporary = nbt.getBoolean("temporary", false);
     }
 
     public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
@@ -170,9 +171,9 @@ public class ReplayEntity extends MobEntity {
 
     @Override
     public void tick() {
-        if (this.getWorld() instanceof ServerWorld) {
+        if (this.getEntityWorld() instanceof ServerWorld) {
             if (temporary && !SpectateCommands.spectatorList.containsKey(this.getNameForScoreboard())) {
-                this.kill((ServerWorld) this.getWorld());
+                this.kill((ServerWorld) this.getEntityWorld());
                 super.tick();
                 return;
             }
@@ -207,12 +208,12 @@ public class ReplayEntity extends MobEntity {
                     List<String> spectators = SpectateCommands.spectatorList.get(this.getNameForScoreboard());
                     for (String spectatorName : spectators) {
                         if (!spectatorName.equals(this.getNameForScoreboard())) {
-                            ServerPlayerEntity spectatorPlayer = this.getServer().getPlayerManager().getPlayer(spectatorName);
+                            ServerPlayerEntity spectatorPlayer = this.getEntityWorld().getServer().getPlayerManager().getPlayer(spectatorName);
                             if (spectatorPlayer != null) {
                                 if (!spectatorPlayer.isCreative()) {
                                     spectatorPlayer.getInventory().clear();
                                 }
-                                spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget((ServerWorld) this.getWorld(), this.getPos(), this.getYaw(), this.getPitch()));
+                                spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget((ServerWorld) this.getEntityWorld(), this.getEntityPos(), this.getYaw(), this.getPitch()));
                                 spectatorPlayer.setCameraEntity(this);
                                 PacketHandler.sendSpecEfficiency(spectatorPlayer, last_jump_speed, (int) jump_count, efficiency);
                                 Logger.logActionBar(spectatorPlayer, "End Time: " + String.format("%.5f", replay.time));

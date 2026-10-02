@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
@@ -42,7 +44,7 @@ public class SpawnCommands {
             ));
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-                LiteralArgumentBuilder.<ServerCommandSource>literal("delspawn").requires(source -> source.hasPermissionLevel(4))
+                LiteralArgumentBuilder.<ServerCommandSource>literal("delspawn").requires(source -> PermissionUtil.hasLevel(source, 4))
                         .executes(context -> {
                             removeSpawn(context);
                             return Command.SINGLE_SUCCESS;
@@ -95,7 +97,7 @@ public class SpawnCommands {
                             if (!spectatorPlayer.isCreative()) {
                                 spectatorPlayer.getInventory().clear();
                             }
-                            spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getServerWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
+                            spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget(serverPlayerEntity.getEntityWorld(), new Vec3d(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYaw(), serverPlayerEntity.getPitch()));
                             spectatorPlayer.setCameraEntity(serverPlayerEntity);
                         }
                     }

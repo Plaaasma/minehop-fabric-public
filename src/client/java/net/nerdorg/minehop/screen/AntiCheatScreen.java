@@ -1,10 +1,13 @@
 package net.nerdorg.minehop.screen;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import com.google.gson.Gson;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -69,7 +72,7 @@ public class AntiCheatScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void applyBlur(DrawContext context) {
     }
 
     @Override
@@ -145,8 +148,8 @@ public class AntiCheatScreen extends Screen {
         context.fill(0, 0, this.width, this.height, BG_COLOR);
 
         int titleY = 14;
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Minehop AntiCheat Console").formatted(Formatting.AQUA, Formatting.BOLD), 24, titleY, TEXT_BRIGHT);
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Server tick: " + this.snapshot.serverTick + "   Tracked players: " + this.snapshot.players.size()).formatted(Formatting.GRAY), 24, titleY + 14, TEXT_DIM);
+        context.drawTextWithShadow(this.textRenderer, Text.literal("Minehop AntiCheat Console").formatted(Formatting.AQUA, Formatting.BOLD), 24, titleY, GuiColors.text(TEXT_BRIGHT));
+        context.drawTextWithShadow(this.textRenderer, Text.literal("Server tick: " + this.snapshot.serverTick + "   Tracked players: " + this.snapshot.players.size()).formatted(Formatting.GRAY), 24, titleY + 14, GuiColors.text(TEXT_DIM));
 
         super.render(context, mouseX, mouseY, delta);
 
@@ -164,8 +167,8 @@ public class AntiCheatScreen extends Screen {
 
     private void drawListPanel(DrawContext context, int x, int y, int w, int h, int mouseX, int mouseY) {
         context.fill(x, y, x + w, y + h, PANEL_COLOR);
-        context.drawBorder(x, y, w, h, BORDER_COLOR);
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Tracked Players").formatted(Formatting.GOLD), x + 8, y - 14, TEXT_BRIGHT);
+        context.drawStrokedRectangle(x, y, w, h, BORDER_COLOR);
+        context.drawTextWithShadow(this.textRenderer, Text.literal("Tracked Players").formatted(Formatting.GOLD), x + 8, y - 14, GuiColors.text(TEXT_BRIGHT));
 
         List<PlayerData> filtered = this.filteredPlayers();
         int maxScroll = Math.max(0, filtered.size() * CARD_HEIGHT - h + 8);
@@ -184,7 +187,7 @@ public class AntiCheatScreen extends Screen {
         context.disableScissor();
 
         if (filtered.isEmpty()) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("(no matches)").formatted(Formatting.DARK_GRAY), x + w / 2, y + h / 2 - 4, TEXT_DIM);
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("(no matches)").formatted(Formatting.DARK_GRAY), x + w / 2, y + h / 2 - 4, GuiColors.text(TEXT_DIM));
         }
 
         if (maxScroll > 0) {
@@ -200,48 +203,48 @@ public class AntiCheatScreen extends Screen {
         boolean selected = player.uuid.equals(this.selectedUuid);
         int bg = selected ? CARD_SELECTED_COLOR : (hovered ? CARD_HOVER_COLOR : CARD_COLOR);
         context.fill(x, y, x + w, y + CARD_HEIGHT - 4, bg);
-        context.drawBorder(x, y, w, CARD_HEIGHT - 4, selected ? ACCENT_COLOR : BORDER_COLOR);
+        context.drawStrokedRectangle(x, y, w, CARD_HEIGHT - 4, selected ? ACCENT_COLOR : BORDER_COLOR);
 
         int nameColor = player.online ? TEXT_BRIGHT : TEXT_DIM;
         String name = player.name == null || player.name.isBlank() ? player.uuid.substring(0, Math.min(8, player.uuid.length())) : player.name;
-        context.drawTextWithShadow(this.textRenderer, Text.literal(name), x + 8, y + 5, nameColor);
+        context.drawTextWithShadow(this.textRenderer, Text.literal(name), x + 8, y + 5, GuiColors.text(nameColor));
 
         String statusText = (player.online ? "● online" : "○ offline") + (player.exempt ? "  ✓ exempt" : "");
-        context.drawTextWithShadow(this.textRenderer, Text.literal(statusText).formatted(player.online ? Formatting.GREEN : Formatting.DARK_GRAY), x + 8, y + 18, TEXT_DIM);
+        context.drawTextWithShadow(this.textRenderer, Text.literal(statusText).formatted(player.online ? Formatting.GREEN : Formatting.DARK_GRAY), x + 8, y + 18, GuiColors.text(TEXT_DIM));
 
         int flagColor = player.totalFlags >= 50 ? TEXT_FLAGS_HIGH : (player.totalFlags >= 5 ? TEXT_FLAGS_MED : TEXT_FLAGS_OK);
         String flagText = "flags " + player.totalFlags;
         int flagWidth = this.textRenderer.getWidth(flagText);
-        context.drawTextWithShadow(this.textRenderer, Text.literal(flagText), x + w - flagWidth - 8, y + 5, flagColor);
+        context.drawTextWithShadow(this.textRenderer, Text.literal(flagText), x + w - flagWidth - 8, y + 5, GuiColors.text(flagColor));
         if (player.lagbacks > 0) {
             String lbText = "lagback x" + player.lagbacks;
             int lbWidth = this.textRenderer.getWidth(lbText);
-            context.drawTextWithShadow(this.textRenderer, Text.literal(lbText).formatted(Formatting.RED), x + w - lbWidth - 8, y + 18, TEXT_FLAGS_HIGH);
+            context.drawTextWithShadow(this.textRenderer, Text.literal(lbText).formatted(Formatting.RED), x + w - lbWidth - 8, y + 18, GuiColors.text(TEXT_FLAGS_HIGH));
         }
     }
 
     private void drawDetailPanel(DrawContext context, int x, int y, int w, int h, int mouseX, int mouseY) {
         context.fill(x, y, x + w, y + h, PANEL_COLOR);
-        context.drawBorder(x, y, w, h, BORDER_COLOR);
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Flag Detail").formatted(Formatting.GOLD), x + 8, y - 14, TEXT_BRIGHT);
+        context.drawStrokedRectangle(x, y, w, h, BORDER_COLOR);
+        context.drawTextWithShadow(this.textRenderer, Text.literal("Flag Detail").formatted(Formatting.GOLD), x + 8, y - 14, GuiColors.text(TEXT_BRIGHT));
 
         PlayerData selected = this.selectedPlayer();
         if (selected == null) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Select a player on the left").formatted(Formatting.DARK_GRAY), x + w / 2, y + h / 2 - 8, TEXT_DIM);
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Select a player on the left").formatted(Formatting.DARK_GRAY), x + w / 2, y + h / 2 - 8, GuiColors.text(TEXT_DIM));
             return;
         }
 
         int headerY = y + 8;
-        context.drawTextWithShadow(this.textRenderer, Text.literal(selected.name).formatted(Formatting.AQUA, Formatting.BOLD), x + 10, headerY, TEXT_BRIGHT);
-        context.drawTextWithShadow(this.textRenderer, Text.literal(selected.uuid).formatted(Formatting.DARK_GRAY), x + 10, headerY + 11, TEXT_DIM);
+        context.drawTextWithShadow(this.textRenderer, Text.literal(selected.name).formatted(Formatting.AQUA, Formatting.BOLD), x + 10, headerY, GuiColors.text(TEXT_BRIGHT));
+        context.drawTextWithShadow(this.textRenderer, Text.literal(selected.uuid).formatted(Formatting.DARK_GRAY), x + 10, headerY + 11, GuiColors.text(TEXT_DIM));
         String summary = String.format(Locale.ROOT, "Total: %d   Recent: %d   Lagbacks: %d   %s",
                 selected.totalFlags, selected.recentFlagCount, selected.lagbacks, selected.exempt ? "EXEMPT" : "active");
-        context.drawTextWithShadow(this.textRenderer, Text.literal(summary).formatted(selected.exempt ? Formatting.GRAY : Formatting.YELLOW), x + 10, headerY + 24, TEXT_DIM);
+        context.drawTextWithShadow(this.textRenderer, Text.literal(summary).formatted(selected.exempt ? Formatting.GRAY : Formatting.YELLOW), x + 10, headerY + 24, GuiColors.text(TEXT_DIM));
 
         int listY = headerY + 42;
         int listHeight = h - (listY - y) - 8;
         context.fill(x + 8, listY, x + w - 8, listY + listHeight, 0x99090E16);
-        context.drawBorder(x + 8, listY, w - 16, listHeight, 0xFF263041);
+        context.drawStrokedRectangle(x + 8, listY, w - 16, listHeight, 0xFF263041);
 
         List<FlagData> flags = selected.flags == null ? new ArrayList<>() : selected.flags;
         int rowHeight = 22;
@@ -258,14 +261,14 @@ public class AntiCheatScreen extends Screen {
             String timeStr = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date(flag.timestamp));
             String line1 = "[" + timeStr + "] " + flag.check + " vl=" + String.format(Locale.ROOT, "%.1f", flag.severity);
             String line2 = flag.details;
-            context.drawTextWithShadow(this.textRenderer, Text.literal(line1).formatted(severityFormatting(flag.severity)), rowX, rowY, TEXT_BRIGHT);
+            context.drawTextWithShadow(this.textRenderer, Text.literal(line1).formatted(severityFormatting(flag.severity)), rowX, rowY, GuiColors.text(TEXT_BRIGHT));
             String trimmed = this.textRenderer.trimToWidth(line2, rowWidth - 4);
-            context.drawTextWithShadow(this.textRenderer, Text.literal(trimmed).formatted(Formatting.GRAY), rowX, rowY + 10, TEXT_DIM);
+            context.drawTextWithShadow(this.textRenderer, Text.literal(trimmed).formatted(Formatting.GRAY), rowX, rowY + 10, GuiColors.text(TEXT_DIM));
         }
         context.disableScissor();
 
         if (flags.isEmpty()) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("No recent flags").formatted(Formatting.DARK_GRAY), x + w / 2, listY + listHeight / 2 - 4, TEXT_DIM);
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("No recent flags").formatted(Formatting.DARK_GRAY), x + w / 2, listY + listHeight / 2 - 4, GuiColors.text(TEXT_DIM));
         }
 
         if (maxScroll > 0) {
@@ -283,8 +286,12 @@ public class AntiCheatScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (super.mouseClicked(mouseX, mouseY, button)) {
+    public boolean mouseClicked(Click click, boolean doubled) {
+        // 1.21.9+: mouse events arrive as Click records.
+        double mouseX = click.x();
+        double mouseY = click.y();
+        int button = click.button();
+        if (super.mouseClicked(click, doubled)) {
             return true;
         }
         if (button == 0) {

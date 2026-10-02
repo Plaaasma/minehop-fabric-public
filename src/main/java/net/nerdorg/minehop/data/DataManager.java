@@ -764,17 +764,17 @@ public class DataManager {
         if (server == null) {
             return false;
         }
-        net.minecraft.util.UserCache cache = server.getUserCache();
-        if (cache == null) {
+        Map<String, String> cachedUuids = loadCachedUuidsByName(server);
+        if (cachedUuids.isEmpty()) {
             return false;
         }
         boolean changed = false;
-        changed |= backfillRecordList(Minehop.personalRecordList, cache);
-        changed |= backfillRecordList(Minehop.recordList, cache);
+        changed |= backfillRecordList(Minehop.personalRecordList, cachedUuids);
+        changed |= backfillRecordList(Minehop.recordList, cachedUuids);
         return changed;
     }
 
-    private static boolean backfillRecordList(List<RecordData> list, net.minecraft.util.UserCache cache) {
+    private static boolean backfillRecordList(List<RecordData> list, Map<String, String> cachedUuids) {
         if (list == null) {
             return false;
         }
@@ -786,13 +786,60 @@ public class DataManager {
             if (recordData.uuid != null && !recordData.uuid.isBlank()) {
                 continue;
             }
-            java.util.Optional<com.mojang.authlib.GameProfile> profile = cache.findByName(recordData.name);
-            if (profile.isPresent() && profile.get().getId() != null) {
-                recordData.uuid = profile.get().getId().toString();
+            String uuid = cachedUuids.get(recordData.name.toLowerCase(Locale.ROOT));
+            if (uuid != null) {
+                recordData.uuid = uuid;
                 changed = true;
             }
         }
         return changed;
+    }
+
+    /**
+     * Lowercase name -> UUID for every account in the server's usercache.json, read straight from the
+     * file. Not UserCache.findByName: it treats entries older than a month as misses and then asks
+     * Mojang, which blocks the server thread once per name and answers with whoever owns the name
+     * NOW. The cached entry is the account that actually joined this server under that name, and
+     * nothing here touches the network.
+     */
+    public static Map<String, String> loadCachedUuidsByName(MinecraftServer server) {
+        Map<String, String> byName = new HashMap<>();
+        if (server == null) {
+            return byName;
+        }
+        Path file = server.getPath("usercache.json");
+        if (!Files.isRegularFile(file)) {
+            return byName;
+        }
+        try (java.io.Reader reader = Files.newBufferedReader(file, java.nio.charset.StandardCharsets.UTF_8)) {
+            com.google.gson.JsonElement root = com.google.gson.JsonParser.parseReader(reader);
+            if (root == null || !root.isJsonArray()) {
+                return byName;
+            }
+            // Saved most-recently-used first, so the first entry for a name wins.
+            for (com.google.gson.JsonElement element : root.getAsJsonArray()) {
+                if (!element.isJsonObject()) {
+                    continue;
+                }
+                com.google.gson.JsonObject entry = element.getAsJsonObject();
+                if (!entry.has("name") || !entry.has("uuid")) {
+                    continue;
+                }
+                String name = entry.get("name").getAsString();
+                String uuid;
+                try {
+                    uuid = UUID.fromString(entry.get("uuid").getAsString()).toString();
+                } catch (IllegalArgumentException e) {
+                    continue;
+                }
+                if (!name.isBlank()) {
+                    byName.putIfAbsent(name.toLowerCase(Locale.ROOT), uuid);
+                }
+            }
+        } catch (Exception e) {
+            Minehop.LOGGER.warn("Could not read usercache.json for the record UUID backfill", e);
+        }
+        return byName;
     }
 
     public static RecordData getRecord(String mapName) {
@@ -909,8 +956,16 @@ public class DataManager {
         }
     }
 
-    /** Atomic, backed-up, version-enveloped write (see JsonStorage). Returns false if it failed. */
-    public static <T> boolean saveData(ServerWorld world, String location, List<T> data) {
+    /**
+     * Atomic, backed-up, version-enveloped write (see JsonStorage). Keep this signature (void): the
+     * minehop-server companion mod calls it through ServerDataManager and is compiled against it.
+     */
+    public static <T> void saveData(ServerWorld world, String location, List<T> data) {
+        saveDataChecked(world, location, data);
+    }
+
+    /** Same as {@link #saveData}, returning false if the write failed. */
+    public static <T> boolean saveDataChecked(ServerWorld world, String location, List<T> data) {
         MinecraftServer server = world.getServer();
         Path worldDir = server.getSavePath(WorldSavePath.ROOT);
         folderCheck(worldDir);

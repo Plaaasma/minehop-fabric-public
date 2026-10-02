@@ -41,7 +41,7 @@ public class ZoneUtil {
     }
 
     public static DataManager.MapData getCurrentMapForPlayerCount(ServerPlayerEntity player) {
-        if (player == null || !(player.getWorld() instanceof ServerWorld serverWorld)) {
+        if (player == null || !(player.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return null;
         }
 
@@ -50,12 +50,12 @@ public class ZoneUtil {
             return zoneTracked;
         }
 
-        DataManager.MapData insidePlot = resolveUserPlotByPosition(serverWorld, player.getPos());
+        DataManager.MapData insidePlot = resolveUserPlotByPosition(serverWorld, player.getEntityPos());
         if (insidePlot != null) {
             return insidePlot;
         }
 
-        return resolveBySpawnProximity(serverWorld, player.getPos(), 8.0D);
+        return resolveBySpawnProximity(serverWorld, player.getEntityPos(), 8.0D);
     }
 
     public static TeleportTarget makeTeleportTarget(ServerWorld serverWorld, Vec3d targetLocation, float yaw, float pitch) {

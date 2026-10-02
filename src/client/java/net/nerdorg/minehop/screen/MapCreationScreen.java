@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.screen;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.gui.DrawContext;
@@ -112,7 +114,7 @@ public class MapCreationScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void applyBlur(DrawContext context) {
     }
 
     @Override
@@ -266,27 +268,27 @@ public class MapCreationScreen extends Screen {
         int disabledColor = 0x808080;
 
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xD0101010);
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, 0xFFFFFF);
+        context.drawStrokedRectangle(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, GuiColors.text(0xFFFFFF));
 
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.map_name"), labelX, panelY + 35, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.difficulty"), labelX, panelY + 61, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.arena"), labelX, panelY + 87, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.hns"), labelX, panelY + 113, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.surf"), labelX, panelY + 139, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.kz"), labelX, panelY + 165, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.movement"), labelX, panelY + 191, 0xE0E0E0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.reset_target"), labelX, panelY + 217, 0xE0E0E0);
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.map_name"), labelX, panelY + 35, GuiColors.text(0xE0E0E0));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.difficulty"), labelX, panelY + 61, GuiColors.text(0xE0E0E0));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.arena"), labelX, panelY + 87, GuiColors.text(0xE0E0E0));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.hns"), labelX, panelY + 113, GuiColors.text(0xE0E0E0));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.surf"), labelX, panelY + 139, GuiColors.text(0xE0E0E0));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.kz"), labelX, panelY + 165, GuiColors.text(0xE0E0E0));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.movement"), labelX, panelY + 191, GuiColors.text(0xE0E0E0));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.reset_target"), labelX, panelY + 217, GuiColors.text(0xE0E0E0));
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.map_creator.checkpoint_index"),
                 labelX,
                 panelY + 243,
-                this.selectedResetToStart ? disabledColor : 0xE0E0E0
+                GuiColors.text(this.selectedResetToStart ? disabledColor : 0xE0E0E0)
         );
-        context.drawTextWithShadow(this.textRenderer, Text.literal(this.getCheckpointCountHint()), labelX, panelY + 261, 0xB0B0B0);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.help.bounds"), labelX, panelY + 350, 0xC8C8C8);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.help.reopen"), labelX, panelY + 362, 0xC8C8C8);
+        context.drawTextWithShadow(this.textRenderer, Text.literal(this.getCheckpointCountHint()), labelX, panelY + 261, GuiColors.text(0xB0B0B0));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.help.bounds"), labelX, panelY + 350, GuiColors.text(0xC8C8C8));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.map_creator.help.reopen"), labelX, panelY + 362, GuiColors.text(0xC8C8C8));
 
         super.render(context, mouseX, mouseY, delta);
     }

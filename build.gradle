@@ -1,5 +1,5 @@
 plugins {
-	id 'fabric-loom' version '1.10-SNAPSHOT'
+	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
 	id 'maven-publish'
 	id 'java'
 }
@@ -18,8 +18,8 @@ repositories {
 	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
 	// for more information about repositories.
 	mavenCentral()
-	maven { url "https://maven.shedaniel.me/" }
-	maven {	url "https://maven.terraformersmc.com/releases/"}
+	maven { url = "https://maven.shedaniel.me/" }
+	maven {	url = "https://maven.terraformersmc.com/releases/"}
 }
 
 loom {
@@ -97,11 +97,11 @@ tasks.named("runServer") {
 	}
 }
 
-task jarWithType(type: Jar) {
+def jarWithType = tasks.register("jarWithType", Jar) {
 	archiveClassifier = 'all'
 	from sourceSets.main.output
 	dependsOn configurations.runtimeClasspath
-	duplicatesStrategy = 'exclude'  // Handling duplicate entries strategy
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE  // Handling duplicate entries strategy
 	doFirst {
 		from(configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) })
 	}
@@ -126,7 +126,7 @@ jar {
 // configure the maven publication
 publishing {
 	publications {
-		mavenJava(MavenPublication) {
+		create("mavenJava", MavenPublication) {
 			from components.java
 
 			artifact jarWithType
@@ -135,7 +135,7 @@ publishing {
 
 	repositories {
 		maven {
-			url = uri("file://${System.getProperty('user.home')}/.m2/repository")
+			url = new File(System.getProperty('user.home'), ".m2/repository").toURI()
 		}
 	}
 }

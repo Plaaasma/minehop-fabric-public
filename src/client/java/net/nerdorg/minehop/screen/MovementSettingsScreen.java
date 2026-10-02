@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.screen;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.gui.DrawContext;
@@ -40,7 +42,7 @@ public class MovementSettingsScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void applyBlur(DrawContext context) {
     }
 
     @Override
@@ -140,8 +142,8 @@ public class MovementSettingsScreen extends Screen {
         int y = panelY + 37;
 
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xD0101010);
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, 0xFFFFFF);
+        context.drawStrokedRectangle(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, GuiColors.text(0xFFFFFF));
 
         this.drawLabel(context, "Use Custom Movement", labelX, y);
         y += 24;
@@ -177,7 +179,7 @@ public class MovementSettingsScreen extends Screen {
     }
 
     private void drawLabel(DrawContext context, String label, int x, int y) {
-        context.drawTextWithShadow(this.textRenderer, Text.literal(label), x, y, 0xE0E0E0);
+        context.drawTextWithShadow(this.textRenderer, Text.literal(label), x, y, GuiColors.text(0xE0E0E0));
     }
 
     private void updateButtonText() {

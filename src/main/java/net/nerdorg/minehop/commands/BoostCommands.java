@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
@@ -28,7 +30,7 @@ public class BoostCommands {
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<ServerCommandSource>literal("booster")
-                .requires(source -> source.hasPermissionLevel(4))
+                .requires(source -> PermissionUtil.hasLevel(source, 4))
                 .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("x_power", DoubleArgumentType.doubleArg())
                     .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("y_power", DoubleArgumentType.doubleArg())
                         .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("z_power", DoubleArgumentType.doubleArg())
@@ -53,7 +55,7 @@ public class BoostCommands {
         Vec3d traceEnd = eyePosition.add(viewVector.x * 5, viewVector.y * 5, viewVector.z * 5);
 
         RaycastContext clipContext = new RaycastContext(eyePosition, traceEnd, RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE, serverPlayerEntity);
-        BlockHitResult blockHitResult = serverPlayerEntity.getServerWorld().raycast(clipContext);
+        BlockHitResult blockHitResult = serverPlayerEntity.getEntityWorld().raycast(clipContext);
         BlockPos hitPos = blockHitResult.getBlockPos();
         BlockEntity blockEntityAtHitPos = context.getSource().getWorld().getBlockEntity(hitPos);
         if (blockEntityAtHitPos instanceof BoostBlockEntity boostBlockEntity) {

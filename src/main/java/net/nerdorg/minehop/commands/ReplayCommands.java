@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.LiteralMessage;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -66,7 +68,7 @@ public class ReplayCommands {
                                 )
                         )
                         .then(LiteralArgumentBuilder.<ServerCommandSource>literal("remove")
-                                .requires(source -> source.hasPermissionLevel(4))
+                                .requires(source -> PermissionUtil.hasLevel(source, 4))
                                 .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
                                         .suggests((context, builder) -> {
                                             for (DataManager.MapData mapData : Minehop.mapList) {
@@ -83,7 +85,7 @@ public class ReplayCommands {
                                 )
                         )
                         .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
-                                .requires(source -> source.hasPermissionLevel(4))
+                                .requires(source -> PermissionUtil.hasLevel(source, 4))
                                 .suggests((context, builder) -> {
                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                         if (mapData != null && mapData.name != null) {
@@ -216,7 +218,7 @@ public class ReplayCommands {
             viewer.getInventory().clear();
         }
         viewer.teleportTo(ZoneUtil.makeTeleportTarget(
-                (ServerWorld) replayEntity.getWorld(),
+                (ServerWorld) replayEntity.getEntityWorld(),
                 new Vec3d(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ()),
                 replayEntity.getYaw(),
                 replayEntity.getPitch()

@@ -1,5 +1,7 @@
 package net.nerdorg.minehop.commands;
 
+import net.nerdorg.minehop.util.PermissionUtil;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
@@ -46,7 +48,7 @@ public class ZoneManagementCommands {
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
                 LiteralArgumentBuilder.<ServerCommandSource>literal("zone")
-                        .requires(source -> source.hasPermissionLevel(4))
+                        .requires(source -> PermissionUtil.hasLevel(source, 4))
                         .then(LiteralArgumentBuilder.<ServerCommandSource>literal("kill")
                                 .executes(context -> {
                                     handleKill(context);
@@ -108,7 +110,7 @@ public class ZoneManagementCommands {
 
     private static void handleKill(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
-        ServerWorld serverWorld = serverPlayerEntity.getServerWorld();
+        ServerWorld serverWorld = serverPlayerEntity.getEntityWorld();
         List<Zone> zoneEntities = new ArrayList<>();
         for (Entity entity : serverWorld.iterateEntities()) {
             if (entity instanceof Zone zone) {

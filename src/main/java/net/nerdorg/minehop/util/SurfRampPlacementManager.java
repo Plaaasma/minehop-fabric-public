@@ -46,8 +46,8 @@ public class SurfRampPlacementManager {
         if (player == null || point == null) {
             return;
         }
-        if (!player.hasPermissionLevel(4)
-                && player.getWorld() instanceof ServerWorld serverWorld
+        if (!PermissionUtil.hasLevel(player, 4)
+                && player.getEntityWorld() instanceof ServerWorld serverWorld
                 && !UserPlotManager.canBuildAt(player, serverWorld, point)) {
             Logger.logFailure(player, "You can only place surf ramps inside your own plot.");
             return;
@@ -62,7 +62,7 @@ public class SurfRampPlacementManager {
         }
 
         state.points.add(immutablePoint);
-        state.playerDecisionPosition = player.getPos();
+        state.playerDecisionPosition = player.getEntityPos();
         if (state.points.size() == 1) {
             Logger.logSuccess(player, "Surf point 1 set to " + immutablePoint.toShortString());
             Logger.log(player, Text.literal("Surf stick: adjust drop/width/texture in the opened GUI, then right click more blocks."));
@@ -116,7 +116,7 @@ public class SurfRampPlacementManager {
         PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUuid(), key -> new PlacementState());
         PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
         options.outsideCurve = !playerSide;
-        state.playerDecisionPosition = player.getPos();
+        state.playerDecisionPosition = player.getEntityPos();
         Logger.logSuccess(player, "One-sided face set to " + (playerSide ? "my side / inside" : "other side / outside") + ".");
         syncPreview(player, state);
         return 1;
@@ -133,11 +133,11 @@ public class SurfRampPlacementManager {
             return 0;
         }
 
-        if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld serverWorld)) {
             Logger.logFailure(player, "Could not create ramp in this world.");
             return 0;
         }
-        if (!player.hasPermissionLevel(4)) {
+        if (!PermissionUtil.hasLevel(player, 4)) {
             for (BlockPos selectedPoint : state.points) {
                 if (selectedPoint == null) {
                     continue;
@@ -150,7 +150,7 @@ public class SurfRampPlacementManager {
         }
 
         PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
-        Vec3d decisionPosition = state.playerDecisionPosition != null ? state.playerDecisionPosition : player.getPos();
+        Vec3d decisionPosition = state.playerDecisionPosition != null ? state.playerDecisionPosition : player.getEntityPos();
 
         List<Vec3d> centerlinePoints = toCenterlinePoints(state.points);
         if (centerlinePoints.size() < 2) {
@@ -191,7 +191,7 @@ public class SurfRampPlacementManager {
 
         DataManager.MapData targetPlot = UserPlotManager.getPlotAt(serverWorld, centerlinePoints.get(0));
         if (targetPlot != null) {
-            if (!player.hasPermissionLevel(4)
+            if (!PermissionUtil.hasLevel(player, 4)
                     && !rampFitsInPlot(targetPlot, centerlinePoints, options.width, twoSided, sideSign)) {
                 Logger.logFailure(player, "The ramp (including its width) must stay fully inside your plot.");
                 return 0;
@@ -208,7 +208,7 @@ public class SurfRampPlacementManager {
                 );
                 return 0;
             }
-        } else if (!player.hasPermissionLevel(4)) {
+        } else if (!PermissionUtil.hasLevel(player, 4)) {
             Logger.logFailure(player, "Surf ramps can only be placed inside your plot.");
             return 0;
         }
@@ -309,7 +309,7 @@ public class SurfRampPlacementManager {
             Logger.logFailure(player, "You can only edit surf ramps in your own plot.");
             return;
         }
-        if (!(player.getWorld() instanceof ServerWorld serverWorld) || ramp.getWorld() != serverWorld) {
+        if (!(player.getEntityWorld() instanceof ServerWorld serverWorld) || ramp.getEntityWorld() != serverWorld) {
             Logger.logFailure(player, "Could not edit that surf ramp in this world.");
             return;
         }
@@ -387,7 +387,7 @@ public class SurfRampPlacementManager {
             if (segment == null || segment.isRemoved()) {
                 continue;
             }
-            if (segment.getWorld() instanceof ServerWorld segmentWorld) {
+            if (segment.getEntityWorld() instanceof ServerWorld segmentWorld) {
                 segment.kill(segmentWorld);
             } else {
                 segment.remove(net.minecraft.entity.Entity.RemovalReason.KILLED);
@@ -586,7 +586,7 @@ public class SurfRampPlacementManager {
         if (player == null || editState == null) {
             return List.of();
         }
-        if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return List.of();
         }
         String currentWorldKey = serverWorld.getRegistryKey().getValue().toString();
@@ -638,7 +638,7 @@ public class SurfRampPlacementManager {
         if (candidates == null || candidates.isEmpty()) {
             return List.of();
         }
-        if (player == null || player.hasPermissionLevel(4)) {
+        if (player == null || PermissionUtil.hasLevel(player, 4)) {
             return candidates;
         }
         List<SurfRampEntity> filtered = new ArrayList<>();
@@ -657,7 +657,7 @@ public class SurfRampPlacementManager {
         if (sourceRamp == null) {
             return List.of();
         }
-        if (!(sourceRamp.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(sourceRamp.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return List.of(sourceRamp);
         }
 

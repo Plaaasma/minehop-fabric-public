@@ -1,8 +1,11 @@
 package net.nerdorg.minehop.client;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
@@ -205,11 +208,11 @@ public class HudEditorScreen extends Screen {
     }
 
     private void scaledText(DrawContext ctx, String text, int cx, int y, double s, int color) {
-        ctx.getMatrices().push();
-        ctx.getMatrices().translate(cx, y, 0);
-        ctx.getMatrices().scale((float) s, (float) s, 1f);
-        ctx.drawTextWithShadow(this.textRenderer, text, -this.textRenderer.getWidth(text) / 2, 0, color);
-        ctx.getMatrices().pop();
+        ctx.getMatrices().pushMatrix();
+        ctx.getMatrices().translate(cx, y);
+        ctx.getMatrices().scale((float) s, (float) s);
+        ctx.drawTextWithShadow(this.textRenderer, text, -this.textRenderer.getWidth(text) / 2, 0, GuiColors.text(color));
+        ctx.getMatrices().popMatrix();
     }
 
     private void drawElement(DrawContext ctx, Kind k) {
@@ -231,7 +234,7 @@ public class HudEditorScreen extends Screen {
                 int thick = Math.max(3, (int) Math.round(SqueedometerHud.GAUGE_THICK * s));
                 SqueedometerHud.gaugeBar(ctx, ax, ay, len, thick, 72.0D, !horiz);
                 int ly = horiz ? ay - LABEL_GAP : ay - len / 2 - LABEL_GAP;
-                ctx.drawTextWithShadow(this.textRenderer, "GAUGE", ax - this.textRenderer.getWidth("GAUGE") / 2, ly, 0xFFB0B0B0 & alpha);
+                ctx.drawTextWithShadow(this.textRenderer, "GAUGE", ax - this.textRenderer.getWidth("GAUGE") / 2, ly, GuiColors.text(0xFFB0B0B0 & alpha));
             }
             case EFFICIENCY -> {
                 boolean vert = jhud().efficiencyHud.vertical_efficiency;
@@ -242,11 +245,11 @@ public class HudEditorScreen extends Screen {
                 String effL = EFF_SAMPLE;
                 String syncL = SYNC_SAMPLE;
                 if (!vert) {
-                    ctx.drawTextWithShadow(this.textRenderer, effL, ax - this.textRenderer.getWidth(effL) / 2, ay - LABEL_GAP, effColor);
-                    ctx.drawTextWithShadow(this.textRenderer, syncL, ax - this.textRenderer.getWidth(syncL) / 2, ay + thick + 3, 0xFF55FF55);
+                    ctx.drawTextWithShadow(this.textRenderer, effL, ax - this.textRenderer.getWidth(effL) / 2, ay - LABEL_GAP, GuiColors.text(effColor));
+                    ctx.drawTextWithShadow(this.textRenderer, syncL, ax - this.textRenderer.getWidth(syncL) / 2, ay + thick + 3, GuiColors.text(0xFF55FF55));
                 } else {
-                    ctx.drawTextWithShadow(this.textRenderer, effL, ax - this.textRenderer.getWidth(effL) / 2, ay - len / 2 - LABEL_GAP, effColor);
-                    ctx.drawTextWithShadow(this.textRenderer, syncL, ax - this.textRenderer.getWidth(syncL) / 2, ay + len / 2 + 3, 0xFF55FF55);
+                    ctx.drawTextWithShadow(this.textRenderer, effL, ax - this.textRenderer.getWidth(effL) / 2, ay - len / 2 - LABEL_GAP, GuiColors.text(effColor));
+                    ctx.drawTextWithShadow(this.textRenderer, syncL, ax - this.textRenderer.getWidth(syncL) / 2, ay + len / 2 + 3, GuiColors.text(0xFF55FF55));
                 }
             }
         }
@@ -283,18 +286,18 @@ public class HudEditorScreen extends Screen {
             boolean hidden = !show(k);
             int border = hidden ? C_BORDER_HIDDEN : (hit(mouseX, mouseY) == k || dragging == k ? C_BORDER : 0x88FFFFFF);
             // border
-            ctx.drawBorder(r[0] - 1, r[1] - 1, r[2] + 2, r[3] + 2, border);
+            ctx.drawStrokedRectangle(r[0] - 1, r[1] - 1, r[2] + 2, r[3] + 2, border);
             // resize handle: small square inside the bottom-right corner
             ctx.fill(r[0] + r[2] - HANDLE_DRAW, r[1] + r[3] - HANDLE_DRAW, r[0] + r[2], r[1] + r[3], C_HANDLE);
             // name tag
             String tag = k.name().toLowerCase(Locale.ROOT) + (hidden ? " (off)" : "");
-            ctx.drawTextWithShadow(this.textRenderer, tag, r[0], r[1] - 10, hidden ? 0xFF888888 : 0xFFFFFFFF);
+            ctx.drawTextWithShadow(this.textRenderer, tag, r[0], r[1] - 10, GuiColors.text(hidden ? 0xFF888888 : 0xFFFFFFFF));
         }
 
         // help bar
         int y = 6;
-        ctx.drawTextWithShadow(this.textRenderer, "HUD Editor — drag to move, drag corner / scroll to resize", this.width / 2 - 150, y, 0xFFFFFFFF);
-        ctx.drawTextWithShadow(this.textRenderer, "right-click to toggle an element on/off   •   ESC to save & close", this.width / 2 - 150, y + 11, 0xFFB0B0B0);
+        ctx.drawTextWithShadow(this.textRenderer, "HUD Editor — drag to move, drag corner / scroll to resize", this.width / 2 - 150, y, GuiColors.text(0xFFFFFFFF));
+        ctx.drawTextWithShadow(this.textRenderer, "right-click to toggle an element on/off   •   ESC to save & close", this.width / 2 - 150, y + 11, GuiColors.text(0xFFB0B0B0));
     }
 
     @Override
@@ -303,10 +306,14 @@ public class HudEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int button) {
+    public boolean mouseClicked(Click click, boolean doubled) {
+        // 1.21.9+: mouse events arrive as Click records.
+        double mx = click.x();
+        double my = click.y();
+        int button = click.button();
         Kind k = hit(mx, my);
         if (k == null) {
-            return super.mouseClicked(mx, my, button);
+            return super.mouseClicked(click, doubled);
         }
         if (button == 1) { // right-click toggles visibility
             toggleShow(k);
@@ -326,11 +333,13 @@ public class HudEditorScreen extends Screen {
             }
             return true;
         }
-        return super.mouseClicked(mx, my, button);
+        return super.mouseClicked(click, doubled);
     }
 
     @Override
-    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+    public boolean mouseDragged(Click click, double dx, double dy) {
+        double mx = click.x();
+        double my = click.y();
         if (this.dragging != null) {
             if (this.resizing) {
                 double curDist = Math.hypot(mx - anchorX(this.dragging), my - anchorY(this.dragging));
@@ -342,14 +351,14 @@ public class HudEditorScreen extends Screen {
             }
             return true;
         }
-        return super.mouseDragged(mx, my, button, dx, dy);
+        return super.mouseDragged(click, dx, dy);
     }
 
     @Override
-    public boolean mouseReleased(double mx, double my, int button) {
+    public boolean mouseReleased(Click click) {
         this.dragging = null;
         this.resizing = false;
-        return super.mouseReleased(mx, my, button);
+        return super.mouseReleased(click);
     }
 
     @Override

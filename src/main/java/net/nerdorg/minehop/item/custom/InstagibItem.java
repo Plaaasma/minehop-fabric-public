@@ -4,11 +4,15 @@ import net.minecraft.block.*;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
+import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket;
 import net.minecraft.network.packet.s2c.play.PositionFlag;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
@@ -33,7 +37,7 @@ public class InstagibItem extends Item {
     }
 
     private EntityHitResult raycastEntities(ServerPlayerEntity player, Vec3d startPos, Vec3d endPos, double maxDistance) {
-        ServerWorld world = player.getServerWorld();
+        ServerWorld world = player.getEntityWorld();
         EntityHitResult nearestHitResult = null;
         double nearestDistanceSquared = maxDistance * maxDistance;
 
@@ -90,14 +94,14 @@ public class InstagibItem extends Item {
 
                 // Calculate the end position 64 blocks away in the look direction
                 Vec3d endPos = startPos.add(lookVec.x * 64, lookVec.y * 64, lookVec.z * 64);
-                serverPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_WARDEN_ATTACK_IMPACT, SoundCategory.PLAYERS, 1f, 1f);
+                playSoundToPlayer(serverPlayerEntity, SoundEvents.ENTITY_WARDEN_ATTACK_IMPACT, SoundCategory.PLAYERS, 1f, 1f);
                 serverWorld.playSound(user, user.getBlockPos(), SoundEvents.ENTITY_WARDEN_ATTACK_IMPACT, SoundCategory.PLAYERS, 1f, 1f);
 
                 EntityHitResult entityHitResult = raycastEntities(serverPlayerEntity, startPos, endPos, 64);
                 if (entityHitResult != null) {
                     endPos = entityHitResult.getPos();
                     Entity hitEntity = entityHitResult.getEntity();
-                    serverPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_PLAYER_HURT, SoundCategory.PLAYERS, 1f, 1f);
+                    playSoundToPlayer(serverPlayerEntity, SoundEvents.ENTITY_PLAYER_HURT, SoundCategory.PLAYERS, 1f, 1f);
                     handleInstaGibHit(serverPlayerEntity, hitEntity);
                     handleGibParticles(serverWorld, startPos, endPos);
                 }
@@ -139,7 +143,7 @@ public class InstagibItem extends Item {
             DataManager.MapData mapData = DataManager.getMap(mapName);
             if (mapData != null) {
                 ServerWorld foundWorld = null;
-                for (ServerWorld serverWorld : attacker.getServer().getWorlds()) {
+                for (ServerWorld serverWorld : attacker.getEntityWorld().getServer().getWorlds()) {
                     if (serverWorld.getRegistryKey().toString().equals(mapData.worldKey)) {
                         foundWorld = serverWorld;
                         break;
@@ -163,10 +167,19 @@ public class InstagibItem extends Item {
                     if (target instanceof ServerPlayerEntity targetPlayerEntity) {
                         Logger.logSuccess(attacker, "You shot " + targetPlayerEntity.getNameForScoreboard() + ".");
                         Logger.logFailure(targetPlayerEntity, "You were shot by " + attacker.getNameForScoreboard() + ".");
-                        targetPlayerEntity.playSoundToPlayer(SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 1f, 1f);
+                        playSoundToPlayer(targetPlayerEntity, SoundEvents.ENTITY_ITEM_BREAK, SoundCategory.PLAYERS, 1f, 1f);
                     }
                 }
             }
         }
+    }
+
+    // ServerPlayerEntity#playSoundToPlayer was removed after 1.21.4; same packet it used to send.
+    private static void playSoundToPlayer(ServerPlayerEntity player, SoundEvent sound, SoundCategory category, float volume, float pitch) {
+        playSoundToPlayer(player, Registries.SOUND_EVENT.getEntry(sound), category, volume, pitch);
+    }
+
+    private static void playSoundToPlayer(ServerPlayerEntity player, RegistryEntry<SoundEvent> sound, SoundCategory category, float volume, float pitch) {
+        player.networkHandler.sendPacket(new PlaySoundS2CPacket(sound, category, player.getX(), player.getY(), player.getZ(), volume, pitch, player.getRandom().nextLong()));
     }
 }

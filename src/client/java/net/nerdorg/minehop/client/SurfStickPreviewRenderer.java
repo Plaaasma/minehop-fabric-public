@@ -1,6 +1,6 @@
 package net.nerdorg.minehop.client;
 
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -25,9 +25,9 @@ public final class SurfStickPreviewRenderer {
 
     public static void register() {
         WorldRenderEvents.AFTER_ENTITIES.register(context -> {
-            MatrixStack matrices = context.matrixStack();
+            MatrixStack matrices = context.matrices();
             VertexConsumerProvider consumers = context.consumers();
-            Camera camera = context.camera();
+            Camera camera = net.minecraft.client.MinecraftClient.getInstance().gameRenderer.getCamera();
             if (matrices == null || consumers == null || camera == null) {
                 return;
             }
@@ -38,7 +38,7 @@ public final class SurfStickPreviewRenderer {
                 return;
             }
 
-            Vec3d cameraPos = camera.getPos();
+            Vec3d cameraPos = camera.getCameraPos();
             matrices.push();
             if (confirmedPoints.size() >= 2) {
                 drawPath(
@@ -413,7 +413,7 @@ public final class SurfStickPreviewRenderer {
             return 1;
         }
         MinecraftClient client = MinecraftClient.getInstance();
-        Vec3d playerPos = client.player != null ? client.player.getPos() : Vec3d.ZERO;
+        Vec3d playerPos = client.player != null ? client.player.getEntityPos() : Vec3d.ZERO;
 
         Vec3d start = centerlinePoints.get(0);
         Vec3d end = centerlinePoints.get(centerlinePoints.size() - 1);

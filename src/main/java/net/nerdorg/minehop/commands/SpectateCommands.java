@@ -176,7 +176,7 @@ public class SpectateCommands {
                     if (!serverPlayerEntity.isCreative()) {
                         serverPlayerEntity.getInventory().clear();
                     }
-                    serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget((ServerWorld) replayEntity.getWorld(), new Vec3d(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ()), replayEntity.getYaw(), replayEntity.getPitch()));
+                    serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget((ServerWorld) replayEntity.getEntityWorld(), new Vec3d(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ()), replayEntity.getYaw(), replayEntity.getPitch()));
                     serverPlayerEntity.setCameraEntity(replayEntity);
                     addSpectator(replayEntity.getNameForScoreboard(), serverPlayerEntity.getNameForScoreboard());
                 } else {
@@ -208,7 +208,7 @@ public class SpectateCommands {
                     if (!serverPlayerEntity.isCreative()) {
                         serverPlayerEntity.getInventory().clear();
                     }
-                    serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget(playerEntity.getServerWorld(), new Vec3d(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ()), playerEntity.getYaw(), playerEntity.getPitch()));
+                    serverPlayerEntity.teleportTo(ZoneUtil.makeTeleportTarget(playerEntity.getEntityWorld(), new Vec3d(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ()), playerEntity.getYaw(), playerEntity.getPitch()));
                     serverPlayerEntity.setCameraEntity(playerEntity);
                     addSpectator(playerEntity.getNameForScoreboard(), serverPlayerEntity.getNameForScoreboard());
                 }

@@ -37,8 +37,11 @@ public abstract class KeyBindingMixin {
     private static final int RIGHT = 2;
     private static int lastKeyPressed = NONE;
 
+    // 1.21.9+ constructors take a KeyBinding.Category instead of a String; the binding id is read back
+    // from the constructed instance so one handler fits every constructor.
     @Inject(method = "<init>*", at = @At("RETURN"))
-    private void onInit(String translationKey, int code, String category, CallbackInfo ci) {
+    private void onInit(CallbackInfo ci) {
+        String translationKey = ((KeyBinding) (Object) this).getId();
         if (translationKey.equals("key.left")) {
             leftKey = (KeyBinding)(Object)this;
         } else if (translationKey.equals("key.right")) {

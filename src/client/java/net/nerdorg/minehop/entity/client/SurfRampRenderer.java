@@ -3,12 +3,14 @@ package net.nerdorg.minehop.entity.client;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Frustum;
 import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.command.OrderedRenderCommandQueue;
+import net.minecraft.client.render.state.CameraRenderState;
+import net.minecraft.client.gui.hud.debug.DebugHudEntries;
 import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.render.entity.MobEntityRenderer;
-import net.minecraft.client.render.model.BakedModel;
+import net.minecraft.client.render.model.BlockStateModel;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.texture.SpriteAtlasTexture;
 import net.minecraft.client.util.math.MatrixStack;
@@ -66,37 +68,102 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     @Override
     public void updateRenderState(SurfRampEntity entity, SurfRampEntityRenderState state, float tickDelta) {
+        // 1.21.9+: the dispatcher positions the entity from the render state (x/y/z) and the light
+        // comes from state.light, so the base state must be filled in (1.21.4 passed both separately).
+        super.updateRenderState(entity, state, tickDelta);
         state.surfRampEntity = entity;
     }
 
     @Override
-    public void render(SurfRampEntityRenderState renderState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int light) {
+    public void render(SurfRampEntityRenderState renderState, MatrixStack matrixStack, OrderedRenderCommandQueue queue, CameraRenderState cameraState) {
         SurfRampEntity entity = renderState.surfRampEntity;
         if (entity == null) {
             return;
         }
+        int light = renderState.light;
 
-        Vec3d entityPos = entity.getPos();
+        // 1.21.9+: geometry is submitted to the render command queue per render layer instead of being
+        // written into a VertexConsumerProvider; each callback rebuilds the same vertices as 1.21.4.
+        Vec3d entityPos = entity.getEntityPos();
         Vec3d cameraPos = this.getCameraPos();
         boolean renderUnderside = this.shouldRenderUnderside(entity, cameraPos);
         if (entity.isWireframeMode()) {
             int segments = this.getLodSegmentCount(entity, entityPos, true);
-            this.renderWireframe(entity, entityPos, segments, matrixStack, vertexConsumerProvider, light);
+            queue.submitCustom(matrixStack, ModRenderLayer.getLineOfWidth(WIREFRAME_LINE_WIDTH), (entry, wireConsumer) ->
+                    this.renderWireframe(entity, entityPos, segments, toMatrixStack(entry), wireConsumer, null, light));
+            if (entity.isWireframeFillEnabled()) {
+                queue.submitCustom(matrixStack, RenderLayers.entityTranslucent(WIREFRAME_FILL_TEXTURE), (entry, fillConsumer) ->
+                        this.renderWireframe(entity, entityPos, segments, toMatrixStack(entry), DISCARDING_CONSUMER, fillConsumer, light));
+            }
         } else {
             int segments = this.getLodSegmentCount(entity, entityPos, false);
             Sprite rampSprite = this.resolveRampSprite(entity);
-            VertexConsumer consumer = vertexConsumerProvider.getBuffer(RenderLayer.getEntityCutoutNoCull(SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE));
-            if (entity.isTwoSided()) {
-                this.renderTwoSidedSolid(entity, entityPos, segments, matrixStack, consumer, rampSprite, light, renderUnderside);
-            } else {
-                this.renderOneSidedSolid(entity, entityPos, cameraPos, segments, matrixStack, consumer, rampSprite, light, renderUnderside);
-            }
+            queue.submitCustom(matrixStack, RenderLayers.entityCutoutNoCull(SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE), (entry, consumer) -> {
+                MatrixStack entryStack = toMatrixStack(entry);
+                if (entity.isTwoSided()) {
+                    this.renderTwoSidedSolid(entity, entityPos, segments, entryStack, consumer, rampSprite, light, renderUnderside);
+                } else {
+                    this.renderOneSidedSolid(entity, entityPos, cameraPos, segments, entryStack, consumer, rampSprite, light, renderUnderside);
+                }
+            });
         }
 
-        if (MinecraftClient.getInstance().getEntityRenderDispatcher().shouldRenderHitboxes()) {
-            this.renderCollisionPolygons(entity, matrixStack, vertexConsumerProvider, entityPos);
+        if (MinecraftClient.getInstance().debugHudEntryList.isEntryVisible(DebugHudEntries.ENTITY_HITBOXES)) {
+            queue.submitCustom(matrixStack, ModRenderLayer.getLineOfWidth(COLLISION_DEBUG_LINE_WIDTH), (entry, consumer) ->
+                    this.renderCollisionPolygons(entity, toMatrixStack(entry), consumer, entityPos));
         }
     }
+
+    /** A MatrixStack whose top entry is the queued command's entry, for the MatrixStack-based helpers. */
+    private static MatrixStack toMatrixStack(MatrixStack.Entry entry) {
+        MatrixStack stack = new MatrixStack();
+        stack.peek().getPositionMatrix().set(entry.getPositionMatrix());
+        stack.peek().getNormalMatrix().set(entry.getNormalMatrix());
+        return stack;
+    }
+
+    /** Swallows vertices: the wireframe fill pass reuses the wireframe walker without emitting its lines. */
+    private static final VertexConsumer DISCARDING_CONSUMER = new VertexConsumer() {
+        @Override
+        public VertexConsumer vertex(float x, float y, float z) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer color(int red, int green, int blue, int alpha) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer color(int argb) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer texture(float u, float v) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer overlay(int u, int v) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer light(int u, int v) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer normal(float x, float y, float z) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer lineWidth(float width) {
+            return this;
+        }
+    };
 
     private int getLodSegmentCount(SurfRampEntity entity, Vec3d entityPos, boolean wireframe) {
         int baseSegments;
@@ -121,7 +188,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
         MinecraftClient client = MinecraftClient.getInstance();
         if (client != null && client.gameRenderer != null && client.gameRenderer.getCamera() != null) {
-            Vec3d cameraPos = client.gameRenderer.getCamera().getPos();
+            Vec3d cameraPos = client.gameRenderer.getCamera().getCameraPos();
             if (cameraPos != null) {
                 double distanceSq = cameraPos.squaredDistanceTo(entityPos);
                 if (distanceSq > 4096.0D) {
@@ -310,7 +377,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     @Nullable
     private EndpointConnection findConnectedOneSidedEndpoint(SurfRampEntity entity, Vec3d endpointWorld) {
-        if (entity == null || entity.getWorld() == null || endpointWorld == null) {
+        if (entity == null || entity.getEntityWorld() == null || endpointWorld == null) {
             return null;
         }
         if (entity.isTwoSided()) {
@@ -325,7 +392,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
                 endpointWorld.y + SEAM_SEARCH_RADIUS,
                 endpointWorld.z + SEAM_SEARCH_RADIUS
         );
-        List<SurfRampEntity> nearby = SurfRampEntity.collectNearbyRamps(entity.getWorld(), searchBox, 0.0D);
+        List<SurfRampEntity> nearby = SurfRampEntity.collectNearbyRamps(entity.getEntityWorld(), searchBox, 0.0D);
         if (nearby.isEmpty()) {
             return null;
         }
@@ -373,7 +440,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         if (client == null || client.gameRenderer == null || client.gameRenderer.getCamera() == null) {
             return null;
         }
-        return client.gameRenderer.getCamera().getPos();
+        return client.gameRenderer.getCamera().getCameraPos();
     }
 
     private boolean shouldRenderUnderside(SurfRampEntity entity, @Nullable Vec3d cameraPos) {
@@ -451,7 +518,8 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             Vec3d entityPos,
             int segments,
             MatrixStack matrixStack,
-            VertexConsumerProvider provider,
+            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer fillConsumer,
             int light
     ) {
         int wireRgb = entity.getWireframeColorRgb();
@@ -459,7 +527,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         int wireGreen = (wireRgb >> 8) & 0xFF;
         int wireBlue = wireRgb & 0xFF;
 
-        boolean fillEnabled = entity.isWireframeFillEnabled();
+        boolean fillEnabled = entity.isWireframeFillEnabled() && fillConsumer != null;
         int fillRed = 0;
         int fillGreen = 0;
         int fillBlue = 0;
@@ -473,10 +541,6 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
         }
 
         Matrix4f positionMatrix = matrixStack.peek().getPositionMatrix();
-        VertexConsumer wireConsumer = provider.getBuffer(ModRenderLayer.getLineOfWidth(WIREFRAME_LINE_WIDTH));
-        VertexConsumer fillConsumer = fillEnabled
-                ? provider.getBuffer(RenderLayer.getEntityTranslucent(WIREFRAME_FILL_TEXTURE))
-                : null;
 
         if (entity.isTwoSided()) {
             this.renderTwoSidedWireframe(
@@ -850,21 +914,23 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     ) {
         wireConsumer.vertex(positionMatrix, (float) a.x, (float) a.y, (float) a.z)
                 .color(red, green, blue, WIREFRAME_LINE_ALPHA)
-                .normal(1.0F, 1.0F, 1.0F);
+                .normal(1.0F, 1.0F, 1.0F)
+                .lineWidth(WIREFRAME_LINE_WIDTH);
         wireConsumer.vertex(positionMatrix, (float) b.x, (float) b.y, (float) b.z)
                 .color(red, green, blue, WIREFRAME_LINE_ALPHA)
-                .normal(1.0F, 1.0F, 1.0F);
+                .normal(1.0F, 1.0F, 1.0F)
+                .lineWidth(WIREFRAME_LINE_WIDTH);
     }
 
     private void drawCollisionLine(
-            VertexConsumerProvider provider,
+            VertexConsumer provider,
             MatrixStack matrixStack,
             Vec3d a,
             Vec3d b
     ) {
         RenderUtil.drawLine(
                 provider,
-                matrixStack,
+                matrixStack.peek(),
                 new Vector3f((float) a.x, (float) a.y, (float) a.z),
                 new Vector3f((float) b.x, (float) b.y, (float) b.z),
                 COLLISION_DEBUG_LINE_WIDTH,
@@ -998,7 +1064,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
     private void renderCollisionPolygons(
             SurfRampEntity entity,
             MatrixStack matrixStack,
-            VertexConsumerProvider provider,
+            VertexConsumer provider,
             Vec3d entityPos
     ) {
         int samples = entity.isCurved() ? 60 : 36;
@@ -1014,7 +1080,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             Vec3d entityPos,
             int samples,
             MatrixStack matrixStack,
-            VertexConsumerProvider provider
+            VertexConsumer provider
     ) {
         ArcLengthTable arcLengthTable = this.buildArcLengthTable(entity, samples);
         Vec3d previousTop = null;
@@ -1087,7 +1153,7 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
             Vec3d entityPos,
             int samples,
             MatrixStack matrixStack,
-            VertexConsumerProvider provider
+            VertexConsumer provider
     ) {
         ArcLengthTable arcLengthTable = this.buildArcLengthTable(entity, samples);
         Vec3d previousRidge = null;
@@ -1174,12 +1240,12 @@ public class SurfRampRenderer extends MobEntityRenderer<SurfRampEntity, SurfRamp
 
     private Sprite resolveRampSprite(SurfRampEntity entity) {
         MinecraftClient client = MinecraftClient.getInstance();
-        BakedModel model = client.getBlockRenderManager().getModel(entity.getTextureBlockState());
-        Sprite sprite = model.getParticleSprite();
+        BlockStateModel model = client.getBlockRenderManager().getModel(entity.getTextureBlockState());
+        Sprite sprite = model.particleSprite();
         if (sprite != null) {
             return sprite;
         }
-        return client.getBlockRenderManager().getModel(Blocks.SMOOTH_STONE.getDefaultState()).getParticleSprite();
+        return client.getBlockRenderManager().getModel(Blocks.SMOOTH_STONE.getDefaultState()).particleSprite();
     }
 
     private static void drawTexturedQuad(

@@ -1,6 +1,7 @@
 package net.nerdorg.minehop.screen;
 
-import com.mojang.blaze3d.systems.RenderSystem;
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.block.Block;
@@ -12,9 +13,9 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.model.BakedModel;
+import net.minecraft.client.render.model.BlockStateModel;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.texture.SpriteAtlasTexture;
 import net.minecraft.client.util.math.MatrixStack;
@@ -24,6 +25,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RotationAxis;
 import net.nerdorg.minehop.networking.ClientPacketHandler;
+import net.nerdorg.minehop.client.RampPreviewGuiElementRenderState;
 import net.nerdorg.minehop.render.ModRenderLayer;
 import net.nerdorg.minehop.util.SurfRampVisualStyle;
 import org.joml.Matrix4f;
@@ -108,7 +110,7 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur() {
+    protected void applyBlur(DrawContext context) {
     }
 
     @Override
@@ -251,14 +253,14 @@ public class SurfStickSettingsScreen extends Screen {
     }
 
     @Override
-    public void resize(MinecraftClient client, int width, int height) {
+    public void resize(int width, int height) {
         String widthText = this.widthField == null ? String.format(Locale.ROOT, "%.2f", this.initialWidth) : this.widthField.getText();
         String dropText = this.dropField == null ? String.format(Locale.ROOT, "%.2f", this.initialDrop) : this.dropField.getText();
         String textureText = this.textureField == null ? this.initialTextureBlockId : this.textureField.getText();
         String wireColorText = this.wireColorField == null ? this.formatColor(this.initialWireframeColor) : this.wireColorField.getText();
         String fillColorText = this.fillColorField == null ? this.formatColor(this.initialWireframeFillColor) : this.fillColorField.getText();
         String fillAlphaText = this.fillAlphaField == null ? Integer.toString(this.initialWireframeFillAlpha) : this.fillAlphaField.getText();
-        super.resize(client, width, height);
+        super.resize(width, height);
         if (this.widthField != null) {
             this.widthField.setText(widthText);
         }
@@ -296,47 +298,47 @@ public class SurfStickSettingsScreen extends Screen {
         int labelX = panelX + 18;
 
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xD0101010);
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, 0xFFFFFF);
+        context.drawStrokedRectangle(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, GuiColors.text(0xFFFFFF));
 
         int normalLabelColor = 0xE0E0E0;
         int disabledLabelColor = 0x808080;
         boolean wireMode = SurfRampVisualStyle.MODE_WIREFRAME.equals(this.selectedRenderMode);
 
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.width"), labelX, panelY + 35, normalLabelColor);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.drop"), labelX, panelY + 61, normalLabelColor);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.texture"), labelX, panelY + 87, normalLabelColor);
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.sides"), labelX, panelY + 113, normalLabelColor);
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.width"), labelX, panelY + 35, GuiColors.text(normalLabelColor));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.drop"), labelX, panelY + 61, GuiColors.text(normalLabelColor));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.texture"), labelX, panelY + 87, GuiColors.text(normalLabelColor));
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.sides"), labelX, panelY + 113, GuiColors.text(normalLabelColor));
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.surf_stick_settings.curve_face"),
                 labelX,
                 panelY + 139,
-                this.selectedOneSided ? normalLabelColor : disabledLabelColor
+                GuiColors.text(this.selectedOneSided ? normalLabelColor : disabledLabelColor)
         );
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.render_mode"), labelX, panelY + 165, normalLabelColor);
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.render_mode"), labelX, panelY + 165, GuiColors.text(normalLabelColor));
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.surf_stick_settings.wire_color"),
                 labelX,
                 panelY + 191,
-                wireMode ? normalLabelColor : disabledLabelColor
+                GuiColors.text(wireMode ? normalLabelColor : disabledLabelColor)
         );
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.surf_stick_settings.fill"),
                 labelX,
                 panelY + 217,
-                wireMode ? normalLabelColor : disabledLabelColor
+                GuiColors.text(wireMode ? normalLabelColor : disabledLabelColor)
         );
         context.drawTextWithShadow(
                 this.textRenderer,
                 Text.translatable("screen.minehop.surf_stick_settings.fill_alpha"),
                 labelX,
                 panelY + 243,
-                wireMode && this.wireframeFillEnabled ? normalLabelColor : disabledLabelColor
+                GuiColors.text(wireMode && this.wireframeFillEnabled ? normalLabelColor : disabledLabelColor)
         );
-        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.preview"), labelX, panelY + 264, 0xFFFFFF);
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.minehop.surf_stick_settings.preview"), labelX, panelY + 264, GuiColors.text(0xFFFFFF));
 
         int previewY = panelY + 276;
         int previewBottom = panelY + panelHeight - 30;
@@ -371,7 +373,7 @@ public class SurfStickSettingsScreen extends Screen {
 
         this.panelScrollOffset = nextOffset;
         if (this.client != null) {
-            this.resize(this.client, this.width, this.height);
+            this.resize(this.width, this.height);
         }
         return true;
     }
@@ -489,7 +491,7 @@ public class SurfStickSettingsScreen extends Screen {
 
     private void drawRampPreview(DrawContext context, int x, int y, int width, int height) {
         context.fill(x, y, x + width, y + height, 0xCC050505);
-        context.drawBorder(x, y, width, height, 0xFF4A4A4A);
+        context.drawStrokedRectangle(x, y, width, height, 0xFF4A4A4A);
 
         double rampWidth = MathHelper.clamp(this.parseDouble(this.widthField, this.initialWidth), 0.15D, 64.0D);
         double rampDrop = MathHelper.clamp(this.parseDouble(this.dropField, this.initialDrop), 0.1D, 64.0D);
@@ -505,37 +507,29 @@ public class SurfStickSettingsScreen extends Screen {
         boolean oneSided = this.selectedOneSided;
         int sideSign = this.selectedOutsideCurve ? -1 : 1;
 
-        MatrixStack matrices = context.getMatrices();
-        context.enableScissor(x + 1, y + 1, x + width - 1, y + height - 1);
-        matrices.push();
-        matrices.translate(x + width * 0.50F, y + height * 0.62F, 160.0F);
-        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-26.0F));
-        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-46.0F));
+        boolean fillEnabled = this.wireframeFillEnabled;
         float scale = Math.min(width, height) * 0.13F;
-        matrices.scale(scale, -scale, scale);
-
-        context.draw();
-        RenderSystem.enableDepthTest();
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-
-        context.draw(vertexConsumers -> {
+        context.enableScissor(x + 1, y + 1, x + width - 1, y + height - 1);
+        // 1.21.6+: 3D geometry in a screen goes through a special GUI element (own depth-tested texture).
+        // The drawer receives a stack already at the 1.21.4 origin (x + width/2, y + 0.62 * height).
+        context.state.addSpecialElement(new RampPreviewGuiElementRenderState((matrices, vertexConsumers) -> {
+            matrices.push();
+            matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-26.0F));
+            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-46.0F));
+            matrices.scale(scale, -scale, scale);
             if (wireMode) {
-                if (this.wireframeFillEnabled) {
+                if (fillEnabled) {
                     VertexConsumer fillConsumer = vertexConsumers.getBuffer(ModRenderLayer.getTranslucentColorQuads());
                     this.renderStraightRampPreviewFill(matrices, fillConsumer, visualLength, visualWidth, visualDrop, oneSided, sideSign, fillColor, fillAlpha);
                 }
-                VertexConsumer lineConsumer = vertexConsumers.getBuffer(RenderLayer.getLines());
+                VertexConsumer lineConsumer = vertexConsumers.getBuffer(RenderLayers.lines());
                 this.renderStraightRampPreviewWire(matrices, lineConsumer, visualLength, visualWidth, visualDrop, oneSided, sideSign, wireColor, 255);
             } else {
-                VertexConsumer texturedConsumer = vertexConsumers.getBuffer(RenderLayer.getEntityCutoutNoCull(SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE));
+                VertexConsumer texturedConsumer = vertexConsumers.getBuffer(RenderLayers.entityCutoutNoCull(SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE));
                 this.renderStraightRampPreviewMesh(matrices, texturedConsumer, sprite, visualLength, visualWidth, visualDrop, oneSided, sideSign);
             }
-        });
-        context.draw();
-
-        RenderSystem.disableDepthTest();
-        matrices.pop();
+            matrices.pop();
+        }, x + 1, y + 1, x + width - 1, y + height - 1, context.scissorStack.peekLast()));
         context.disableScissor();
     }
 
@@ -598,12 +592,12 @@ public class SurfStickSettingsScreen extends Screen {
     private Sprite resolvePreviewSprite() {
         MinecraftClient client = MinecraftClient.getInstance();
         BlockState state = this.resolveTextureBlockState();
-        BakedModel model = client.getBlockRenderManager().getModel(state);
-        Sprite sprite = model.getParticleSprite();
+        BlockStateModel model = client.getBlockRenderManager().getModel(state);
+        Sprite sprite = model.particleSprite();
         if (sprite != null) {
             return sprite;
         }
-        return client.getBlockRenderManager().getModel(Blocks.SMOOTH_STONE.getDefaultState()).getParticleSprite();
+        return client.getBlockRenderManager().getModel(Blocks.SMOOTH_STONE.getDefaultState()).particleSprite();
     }
 
     private BlockState resolveTextureBlockState() {
@@ -1015,8 +1009,10 @@ public class SurfStickSettingsScreen extends Screen {
             int alpha
     ) {
         Matrix4f matrix = matrices.peek().getPositionMatrix();
-        consumer.vertex(matrix, a.x, a.y, a.z).color(r, g, bColor, alpha).normal(0.0F, 1.0F, 0.0F);
-        consumer.vertex(matrix, b.x, b.y, b.z).color(r, g, bColor, alpha).normal(0.0F, 1.0F, 0.0F);
+        // Line width is per-vertex since 1.21.11; 1.21.4's lines layer used the window-scaled default.
+        float lineWidth = MinecraftClient.getInstance().getWindow().getMinimumLineWidth();
+        consumer.vertex(matrix, a.x, a.y, a.z).color(r, g, bColor, alpha).normal(0.0F, 1.0F, 0.0F).lineWidth(lineWidth);
+        consumer.vertex(matrix, b.x, b.y, b.z).color(r, g, bColor, alpha).normal(0.0F, 1.0F, 0.0F).lineWidth(lineWidth);
     }
 
     private float[] computeNormal(PreviewVertex a, PreviewVertex b, PreviewVertex c) {

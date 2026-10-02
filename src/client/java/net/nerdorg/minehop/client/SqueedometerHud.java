@@ -2,6 +2,8 @@
 
 package net.nerdorg.minehop.client;
 
+import net.nerdorg.minehop.render.GuiColors;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
@@ -77,15 +79,15 @@ public class SqueedometerHud {
     }
 
     private void centeredText(DrawContext ctx, String text, int cx, int y, int color) {
-        ctx.drawTextWithShadow(this.textRenderer, text, cx - this.textRenderer.getWidth(text) / 2, y, color);
+        ctx.drawTextWithShadow(this.textRenderer, text, cx - this.textRenderer.getWidth(text) / 2, y, GuiColors.text(color));
     }
 
     private void scaledCenteredText(DrawContext ctx, String text, int cx, int y, float scale, int color) {
-        ctx.getMatrices().push();
-        ctx.getMatrices().translate(cx, y, 0);
-        ctx.getMatrices().scale(scale, scale, 1f);
-        ctx.drawTextWithShadow(this.textRenderer, text, -this.textRenderer.getWidth(text) / 2, 0, color);
-        ctx.getMatrices().pop();
+        ctx.getMatrices().pushMatrix();
+        ctx.getMatrices().translate(cx, y);
+        ctx.getMatrices().scale(scale, scale);
+        ctx.drawTextWithShadow(this.textRenderer, text, -this.textRenderer.getWidth(text) / 2, 0, GuiColors.text(color));
+        ctx.getMatrices().popMatrix();
     }
 
     /**
@@ -163,9 +165,9 @@ public class SqueedometerHud {
         this.textRenderer = this.client.textRenderer;
         if (!config.jHud.speedHud.show_current_speed) return;
 
-        Vec3d pos = this.client.player.getPos();
-        double dx = pos.x - this.client.player.prevX;
-        double dz = pos.z - this.client.player.prevZ;
+        Vec3d pos = this.client.player.getEntityPos();
+        double dx = pos.x - this.client.player.lastX;
+        double dz = pos.z - this.client.player.lastZ;
         double speedPerTick = Math.sqrt(dx * dx + dz * dz);
         double bps = blocksPerSecond(speedPerTick);
 
@@ -256,10 +258,10 @@ public class SqueedometerHud {
         }
 
         // PRESPEED -----------------------------------------------------------------------------
-        Vec3d pos = this.client.player.getPos();
+        Vec3d pos = this.client.player.getEntityPos();
         if (config.jHud.prespeedHud.show_prespeed) {
-            double dx = pos.x - this.client.player.prevX;
-            double dz = pos.z - this.client.player.prevZ;
+            double dx = pos.x - this.client.player.lastX;
+            double dz = pos.z - this.client.player.lastZ;
             double speed = Math.sqrt(dx * dx + dz * dz);
             if (MinehopClient.wasOnGround && !this.client.player.isOnGround() && MinehopClient.jump_count == 0) {
                 MinehopClient.start_jump_speed = speed;
@@ -309,10 +311,10 @@ public class SqueedometerHud {
 
         int top = (this.client.getWindow().getScaledHeight() / 2) + (this.textRenderer.fontHeight * 2);
         int left = 6;
-        context.drawTextWithShadow(this.textRenderer, "Spectators \\/", left, top, Formatting.DARK_GRAY.getColorValue());
+        context.drawTextWithShadow(this.textRenderer, "Spectators \\/", left, top, GuiColors.text(Formatting.DARK_GRAY.getColorValue()));
         for (int index = 0; index < MinehopClient.spectatorList.size(); index++) {
             top += this.textRenderer.fontHeight * 2;
-            context.drawTextWithShadow(this.textRenderer, MinehopClient.spectatorList.get(index), left, top, Formatting.RED.getColorValue());
+            context.drawTextWithShadow(this.textRenderer, MinehopClient.spectatorList.get(index), left, top, GuiColors.text(Formatting.RED.getColorValue()));
         }
     }
 }

@@ -13,7 +13,8 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageSources;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.PositionFlag;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -51,8 +52,8 @@ public class ResetEntity extends Zone {
     }
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
+    public void writeCustomData(WriteView nbt) {
+        super.writeCustomData(nbt);
         if (corner1 != null) {
             nbt.putInt("Corner1X", corner1.getX());
             nbt.putInt("Corner1Y", corner1.getY());
@@ -68,20 +69,20 @@ public class ResetEntity extends Zone {
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
-        int x1 = nbt.getInt("Corner1X");
-        int y1 = nbt.getInt("Corner1Y");
-        int z1 = nbt.getInt("Corner1Z");
+    public void readCustomData(ReadView nbt) {
+        super.readCustomData(nbt);
+        int x1 = nbt.getInt("Corner1X", 0);
+        int y1 = nbt.getInt("Corner1Y", 0);
+        int z1 = nbt.getInt("Corner1Z", 0);
         corner1 = new BlockPos(x1, y1, z1);
 
-        int x2 = nbt.getInt("Corner2X");
-        int y2 = nbt.getInt("Corner2Y");
-        int z2 = nbt.getInt("Corner2Z");
+        int x2 = nbt.getInt("Corner2X", 0);
+        int y2 = nbt.getInt("Corner2Y", 0);
+        int z2 = nbt.getInt("Corner2Z", 0);
         corner2 = new BlockPos(x2, y2, z2);
 
-        check_index = nbt.getInt("check_index");
-        preserveSpeed = !nbt.contains("preserve_speed") || nbt.getBoolean("preserve_speed");
+        check_index = nbt.getInt("check_index", 0);
+        preserveSpeed = nbt.getBoolean("preserve_speed", true);
     }
 
     public void setCheckIndex(int check_index) {
@@ -153,9 +154,9 @@ public class ResetEntity extends Zone {
         // observed delta, then the reported velocity, only when the realized delta is missing
         // (e.g. stale around a teleport).
         Vec3d tickDeltaVelocity = sanitizeVelocity(new Vec3d(
-                player.getX() - player.prevX,
-                player.getY() - player.prevY,
-                player.getZ() - player.prevZ
+                player.getX() - player.lastX,
+                player.getY() - player.lastY,
+                player.getZ() - player.lastZ
         ));
         double tickDeltaHorizontalSq = (tickDeltaVelocity.x * tickDeltaVelocity.x) + (tickDeltaVelocity.z * tickDeltaVelocity.z);
 
@@ -199,12 +200,12 @@ public class ResetEntity extends Zone {
         if (sample == null) {
             return Vec3d.ZERO;
         }
-        String worldKey = player.getServerWorld().getRegistryKey().getValue().toString();
+        String worldKey = player.getEntityWorld().getRegistryKey().getValue().toString();
         if (!worldKey.equals(sample.worldKey)) {
             LAST_OBSERVED_VELOCITY.remove(player.getUuid());
             return Vec3d.ZERO;
         }
-        long currentTick = player.getServerWorld().getTime();
+        long currentTick = player.getEntityWorld().getTime();
         if (currentTick - sample.worldTick > Math.max(0L, maxAgeTicks)) {
             LAST_OBSERVED_VELOCITY.remove(player.getUuid());
             return Vec3d.ZERO;
@@ -216,10 +217,10 @@ public class ResetEntity extends Zone {
         if (player == null || player.isRemoved() || !player.isAlive()) {
             return;
         }
-        ServerWorld world = player.getServerWorld();
+        ServerWorld world = player.getEntityWorld();
         String worldKey = world.getRegistryKey().getValue().toString();
         long worldTick = world.getTime();
-        Vec3d currentPos = player.getPos();
+        Vec3d currentPos = player.getEntityPos();
         UUID uuid = player.getUuid();
 
         ObservedPositionSample previous = LAST_OBSERVED_POSITION.get(uuid);
@@ -248,10 +249,10 @@ public class ResetEntity extends Zone {
         if (horizontalSq <= 1.0E-8D) {
             return;
         }
-        String worldKey = player.getServerWorld().getRegistryKey().getValue().toString();
+        String worldKey = player.getEntityWorld().getRegistryKey().getValue().toString();
         LAST_OBSERVED_VELOCITY.put(
                 player.getUuid(),
-                new ObservedVelocitySample(worldKey, sanitized, player.getServerWorld().getTime())
+                new ObservedVelocitySample(worldKey, sanitized, player.getEntityWorld().getTime())
         );
     }
 
@@ -269,7 +270,7 @@ public class ResetEntity extends Zone {
     @Override
     public void tick() {
         this.updateInteractionBounds(this.corner1, this.corner2);
-        World world = this.getWorld();
+        World world = this.getEntityWorld();
         if (world instanceof ServerWorld serverWorld) {
             if (serverWorld.getTime() % 2 == 0) {
                 if (this.corner1 != null && this.corner2 != null) {
@@ -287,7 +288,7 @@ public class ResetEntity extends Zone {
                     List<ServerPlayerEntity> players = serverWorld.getPlayers();
                     for (ServerPlayerEntity player : players) {
                         if (!player.isCreative() && !player.isSpectator()) {
-                            if (colliderBox.contains(player.getPos())) {
+                            if (colliderBox.contains(player.getEntityPos())) {
                                 Vec3d targetLocation = new Vec3d(pairedMap.x, pairedMap.y, pairedMap.z);
                                 Vec2f targetRot = new Vec2f((float) pairedMap.xrot, (float) pairedMap.yrot);
                                 if (pairedMap.checkpointPositions != null) {

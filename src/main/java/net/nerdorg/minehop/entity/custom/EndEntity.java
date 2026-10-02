@@ -6,7 +6,8 @@ import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
@@ -30,8 +31,8 @@ public class EndEntity extends Zone {
     }
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
+    public void writeCustomData(WriteView nbt) {
+        super.writeCustomData(nbt);
         if (corner1 != null) {
             nbt.putInt("Corner1X", corner1.getX());
             nbt.putInt("Corner1Y", corner1.getY());
@@ -45,16 +46,16 @@ public class EndEntity extends Zone {
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
-        int x1 = nbt.getInt("Corner1X");
-        int y1 = nbt.getInt("Corner1Y");
-        int z1 = nbt.getInt("Corner1Z");
+    public void readCustomData(ReadView nbt) {
+        super.readCustomData(nbt);
+        int x1 = nbt.getInt("Corner1X", 0);
+        int y1 = nbt.getInt("Corner1Y", 0);
+        int z1 = nbt.getInt("Corner1Z", 0);
         corner1 = new BlockPos(x1, y1, z1);
 
-        int x2 = nbt.getInt("Corner2X");
-        int y2 = nbt.getInt("Corner2Y");
-        int z2 = nbt.getInt("Corner2Z");
+        int x2 = nbt.getInt("Corner2X", 0);
+        int y2 = nbt.getInt("Corner2Y", 0);
+        int z2 = nbt.getInt("Corner2Z", 0);
         corner2 = new BlockPos(x2, y2, z2);
     }
 
@@ -82,7 +83,7 @@ public class EndEntity extends Zone {
     @Override
     public void tick() {
         this.updateInteractionBounds(this.corner1, this.corner2);
-        World world = this.getWorld();
+        World world = this.getEntityWorld();
         if (world instanceof ServerWorld serverWorld) {
             if (serverWorld.getTime() % 2 == 0) {
                 if (this.corner1 != null && this.corner2 != null) {
@@ -110,7 +111,7 @@ public class EndEntity extends Zone {
                         if (timerMap == null || !timerMap.containsKey(mapName)) {
                             continue;
                         }
-                        if (!endBox.contains(player.getPos())) {
+                        if (!endBox.contains(player.getEntityPos())) {
                             continue;
                         }
                         HashMap<String, Long> finishMap = Minehop.finishTimeManager.computeIfAbsent(playerName, k -> new HashMap<>());
