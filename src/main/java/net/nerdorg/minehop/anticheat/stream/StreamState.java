@@ -37,6 +37,8 @@ final class StreamState {
     }
 
     final TimerBalance timer = new TimerBalance();
+    /** System.nanoTime() of the last teleport request/confirm (any thread reads it). */
+    volatile long lastTeleportNanos;
     final Map<Integer, PendingPing> pendingPings = new ConcurrentHashMap<>();
 
     // --- packet bookkeeping ---
