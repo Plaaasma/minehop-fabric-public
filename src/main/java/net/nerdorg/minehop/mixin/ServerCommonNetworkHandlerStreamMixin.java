@@ -50,9 +50,16 @@ public abstract class ServerCommonNetworkHandlerStreamMixin {
         }
     }
 
+    // 1.20.1: ServerPlayNetworkHandler.onPong has no forceMainThread (it is empty), so this always
+    // runs on the netty thread, in packet order with the move packets' netty-thread pass.
     @Inject(method = "onPong", at = @At("HEAD"))
     private void minehop$onPong(PlayPongC2SPacket packet, CallbackInfo ci) {
         int id = packet.getParameter();
+        if (MovementValidator.isHeartbeatPing(id)) {
+            // Timer heartbeat: timestamp it right here, in order with the tick packets around it.
+            MovementValidator.onHeartbeatPongNetwork(this.player, id);
+            return;
+        }
         if (!MovementValidator.isTransactionPing(id)) {
             return;
         }

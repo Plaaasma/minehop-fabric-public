@@ -18,6 +18,7 @@ import net.minecraft.network.packet.s2c.play.BundleS2CPacket;
 import net.minecraft.network.packet.s2c.play.CustomPayloadS2CPacket;
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.ExplosionS2CPacket;
+import net.minecraft.network.packet.s2c.play.PlayPingS2CPacket;
 import net.minecraft.network.packet.s2c.play.PositionFlag;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.MinecraftServer;
@@ -93,6 +94,11 @@ public final class MovementValidator {
 
     private static final int PING_TAG = 0x4D480000;
     private static final int PING_TAG_MASK = 0xFFFF0000;
+    /** Timer heartbeat pings (see TimerBalance): their own tag so they never start velocity grace. */
+    private static final int HEARTBEAT_TAG = 0x4D490000;
+    private static final int HEARTBEAT_INTERVAL_TICKS = 5;
+    /** Withheld-tick evidence is not reported this soon after a teleport/respawn (world switching). */
+    private static final long WITHHELD_REPORT_QUIET_NANOS = 15_000_000_000L;
     private static final AtomicInteger PING_SEQUENCE = new AtomicInteger();
 
     private static final double SOURCE_UNIT_TO_BLOCKS_PER_TICK = 1.0D / 800.0D;
@@ -264,6 +270,7 @@ public final class MovementValidator {
         }
         StreamState st = state(player);
         st.awaitingTeleport = true;
+        st.lastTeleportNanos = System.nanoTime();
         st.clearTickAccumulation();
         double speed = 0.0D;
         if (flags != null && (flags.contains(PositionFlag.X) || flags.contains(PositionFlag.Y)
@@ -280,6 +287,7 @@ public final class MovementValidator {
         }
         StreamState st = state(player);
         st.awaitingTeleport = false;
+        st.lastTeleportNanos = System.nanoTime();
         st.teleportEchoPending = true;
         st.ticksSinceTeleport = 0;
         st.graceTicks = Math.max(st.graceTicks, TELEPORT_GRACE_TICKS);
@@ -325,6 +333,53 @@ public final class MovementValidator {
 
     public static boolean isTransactionPing(int id) {
         return (id & PING_TAG_MASK) == PING_TAG;
+    }
+
+    public static boolean isHeartbeatPing(int id) {
+        return (id & PING_TAG_MASK) == HEARTBEAT_TAG;
+    }
+
+    /** Netty thread, in packet order: a timer heartbeat was answered. */
+    public static void onHeartbeatPongNetwork(ServerPlayerEntity player, int id) {
+        if (player != null) {
+            state(player).timer.onHeartbeatPong(id, System.nanoTime());
+        }
+    }
+
+    private static int heartbeatCountdown;
+
+    /**
+     * Server thread, every server tick: send the timer heartbeat pings and report clients that keep
+     * answering them while their ticks stop (evidence of withheld ticks, flag only).
+     *
+     * <p>1.20.1 (pre-1.21.2 tick model): the heartbeats are play-phase {@code PlayPingS2CPacket}s. An
+     * idle player sends no move packets (its ticks) while it keeps answering heartbeats, so a tick gap
+     * with pongs inside is normal here and "ticksWithheldWhileAnswering" is never reported.
+     * "heartbeatsUnanswered" is still reported: TimerBalance only raises it from a tick, i.e. while
+     * move packets keep arriving and the heartbeats sent alongside them go unanswered.
+     */
+    public static void onServerTick(MinecraftServer server) {
+        if (--heartbeatCountdown > 0) {
+            return;
+        }
+        heartbeatCountdown = HEARTBEAT_INTERVAL_TICKS;
+        long now = System.nanoTime();
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            if (player.networkHandler == null) {
+                continue;
+            }
+            StreamState st = state(player);
+            int id = HEARTBEAT_TAG | (PING_SEQUENCE.incrementAndGet() & 0xFFFF);
+            st.timer.onHeartbeatSent(id, now);
+            player.networkHandler.sendPacket(new PlayPingS2CPacket(id));
+            st.timer.takeWithheldGaps(); // 1.20.1: an idle player's gaps; not evidence (see above)
+            boolean unanswered = st.timer.takeWithheldHeartbeats();
+            if (unanswered && !isUnchecked(player) && !st.awaitingTeleport
+                    && now - st.lastTeleportNanos > WITHHELD_REPORT_QUIET_NANOS) {
+                AntiCheatManager.reportMovementViolation(player, CHECK_PACKETS, 1.0D,
+                        "heartbeatsUnanswered", false, null);
+            }
+        }
     }
 
     /** Server thread (queued in packet order): the client has applied a server-sent velocity. */
@@ -388,11 +443,14 @@ public final class MovementValidator {
             return;
         }
         StreamState st = state(player);
-        // Right after a stall the "excess" may be the client catching up: evidence only.
-        String details = String.format(Locale.ROOT, "aheadOfRealTime=%dms%s",
-                violation.aheadNanos() / 1_000_000L, violation.afterLagBurst() ? " afterLagBurst" : "");
+        // Right after a stall the "excess" may be the client catching up, and a single violation may
+        // be a one-off network anomaly: both are evidence only. A client that keeps getting ahead of
+        // real time is running a timer and gets lagged back.
+        String details = String.format(Locale.ROOT, "aheadOfRealTime=%dms%s%s",
+                violation.aheadNanos() / 1_000_000L, violation.afterLagBurst() ? " afterLagBurst" : "",
+                violation.sustained() ? " sustained" : "");
         AntiCheatManager.reportMovementViolation(player, CHECK_TIMER, 2.0D, details,
-                !violation.afterLagBurst() && !st.awaitingTeleport, st.lastGoodPos);
+                violation.sustained() && !violation.afterLagBurst() && !st.awaitingTeleport, st.lastGoodPos);
     }
 
     // ------------------------------------------------------------------------------------------
