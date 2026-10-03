@@ -189,6 +189,14 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
+    protected boolean updateWaterState() {
+        // Ramps ignore fluids, but vanilla's baseTick still sweeps every block inside the bounding box
+        // for water and lava each tick. With full-size ramp boxes that is thousands of block lookups per
+        // ramp per tick (hundreds of ramps froze a server), so skip it: never in water or lava.
+        return false;
+    }
+
+    @Override
     public boolean cannotDespawn() {
         return true;
     }
@@ -259,6 +267,10 @@ public class SurfRampEntity extends MobEntity {
             this.setWireframeFillAlpha(SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
         }
         this.refreshBounds();
+        // Entity.readNbt calls refreshPosition() AFTER this method, which resets the bounding box to
+        // the type's 1x1 dimensions. Rebuild it on the next tick, or a ramp loaded from disk only
+        // "exists" (surf detection, anticheat surf exemption) around its midpoint on the server.
+        this.boundsDirty = true;
     }
 
     @Override
