@@ -621,6 +621,7 @@ public final class AntiCheatManager {
         }
         serverInstance = server;
         currentServerTick = server.getOverworld() == null ? currentServerTick + 1 : server.getOverworld().getTime();
+        MovementValidator.onServerTick(server);
         autoSaveCountdown--;
         if (autoSaveCountdown <= 0) {
             autoSaveCountdown = 6000;
