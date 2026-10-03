@@ -48,6 +48,13 @@ public abstract class ServerCommonNetworkHandlerStreamMixin {
     @Inject(method = "onPong", at = @At("HEAD"))
     private void minehop$onPong(CommonPongC2SPacket packet, CallbackInfo ci) {
         int id = packet.getParameter();
+        if (MovementValidator.isHeartbeatPing(id)) {
+            // Timer heartbeat: timestamp it right here, in order with the tick packets around it.
+            if ((Object) this instanceof ServerPlayNetworkHandler handler) {
+                MovementValidator.onHeartbeatPongNetwork(handler.player, id);
+            }
+            return;
+        }
         if (!MovementValidator.isTransactionPing(id)) {
             return;
         }
