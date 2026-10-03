@@ -199,6 +199,10 @@ public final class TimerBalance {
             this.lastArrivalNanos = nowNanos;
             this.lastRealGapNanos = nowNanos;
             this.gapCreditUntilNanos = nowNanos + LAG_BURST_WINDOW_NANOS;
+            // The join credit covers ticks the client queued while it was loading (it already answers
+            // heartbeats on the loading screen, so a round trip exists before the first tick): it is
+            // a backlog like a stall's, so it is paid back and dropped like gap credit.
+            this.gapCreditNanos = Math.max(0L, -this.balanceNanos);
             this.pongsSinceTick.clear();
             return null;
         }
