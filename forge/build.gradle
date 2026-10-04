@@ -1,4 +1,3 @@
-// PHASE 3 SKELETON - this module is not included in settings.gradle yet (see docs/MULTILOADER.md).
 plugins {
     id 'multiloader-loader'
     id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
@@ -7,10 +6,12 @@ plugins {
 mixin {
     config("${mod_id}.mixins.json")
     config("${mod_id}.client.mixins.json")
+    // Forge-only mixins (world-render hooks, game-message hook, typed payload encoding), see docs/MULTILOADER.md.
+    config("${mod_id}.forge.mixins.json")
 }
 jar {
     manifest {
-        attributes["MixinConfigs"] = "${mod_id}.mixins.json,${mod_id}.client.mixins.json"
+        attributes["MixinConfigs"] = "${mod_id}.mixins.json,${mod_id}.client.mixins.json,${mod_id}.forge.mixins.json"
     }
 }
 
@@ -24,17 +25,17 @@ minecraft {
     // Automatically enable forge AccessTransformers if the file exists
     // This location is hardcoded in Forge and can not be changed.
     // https://github.com/MinecraftForge/MinecraftForge/blob/be1698bb1554f9c8fa2f58e32b9ab70bc4385e60/fmlloader/src/main/java/net/minecraftforge/fml/loading/moddiscovery/ModFile.java#L123
-    // Forge still uses SRG names during compile time, so we cannot use the common AT's
-    // TODO(phase 3): create forge/src/main/resources/META-INF/accesstransformer.cfg with the members common needs that
-    //  Forge's own AT does not already open (see docs/MULTILOADER.md, "Access transformers").
+    // Forge still uses SRG names during compile time, so we cannot use the common AT's (in production FML maps the
+    // SRG names of this file to the official runtime names).
     def at = file('src/main/resources/META-INF/accesstransformer.cfg')
     if (at.exists()) {
         accessTransformer = at
     }
 
     runs {
+        // Run dirs: forge/runs/client and forge/runs/server (override with -PforgeClientRunDir / -PforgeServerRunDir).
         client {
-            workingDirectory file('runs/client')
+            workingDirectory file(project.findProperty('forgeClientRunDir') ?: 'runs/client')
             ideaModule "${rootProject.name}.${project.name}.main"
             taskName 'Client'
             mods {
@@ -45,9 +46,10 @@ minecraft {
         }
 
         server {
-            workingDirectory file('runs/server')
+            workingDirectory file(project.findProperty('forgeServerRunDir') ?: 'runs/server')
             ideaModule "${rootProject.name}.${project.name}.main"
             taskName 'Server'
+            args '--nogui'
             mods {
                 modServerRun {
                     source sourceSets.main
@@ -71,6 +73,40 @@ minecraft {
 
 sourceSets.main.resources.srcDir 'src/generated/resources'
 
+// Same dev-run conveniences as the Fabric module (the run tasks keep the template's names: :forge:Client, :forge:Server).
+tasks.matching { it.name == 'Client' }.configureEach {
+    args '--width', '384', '--height', '216'
+    if (project.hasProperty('quickPlay')) {
+        args '--quickPlayMultiplayer', project.property('quickPlay')
+    }
+    if (project.hasProperty('clientUsername')) {
+        args '--username', project.property('clientUsername')
+    }
+}
+tasks.matching { it.name == 'Server' }.configureEach {
+    if (project.hasProperty('movementtest')) {
+        jvmArgs '-Dminehop.movementtest=true'
+    }
+    if (project.hasProperty('surfHull')) {
+        jvmArgs '-Dminehop.surfHullSolver=true'
+    }
+}
+
+def forgeAt = file('src/main/resources/META-INF/accesstransformer.cfg')
+// Common's META-INF/accesstransformer.cfg is in Mojang names (NeoForm/NeoForge); Forge reads this module's own
+// META-INF/accesstransformer.cfg (SRG names) from the jar instead.
+def keepForgeAtOnly = { details ->
+    if (details.path == 'META-INF/accesstransformer.cfg' && details.file.canonicalPath != forgeAt.canonicalPath) {
+        details.exclude()
+    }
+}
+processResources {
+    eachFile keepForgeAtOnly
+}
+tasks.named('sourcesJar', Jar) {
+    eachFile keepForgeAtOnly
+}
+
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     annotationProcessor("org.spongepowered:mixin:0.8.5-SNAPSHOT:processor")
@@ -83,7 +119,7 @@ dependencies {
 
     // Discord bot. Fabric does NOT bundle JDA (see fabric/build.gradle); keep the same packaging here: compile + dev
     // runtime only (`minecraftLibrary` puts a non-mod library on the dev game classpath). To bundle it instead use
-    // ForgeGradle's jarJar.
+    // ForgeGradle's jarJar. Without JDA at runtime the bot is simply unavailable (see DiscordIntegration).
     minecraftLibrary "net.dv8tion:JDA:${jda_version}"
 }
 

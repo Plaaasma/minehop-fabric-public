@@ -8,7 +8,7 @@ Minehop follows jaredlll08's [MultiLoader-Template](https://github.com/jaredlll0
 | `common/` | All game logic, data, anticheat, movement/physics, both mixin configs, payload records/codecs, brigadier commands, screens, renderers, models, HUD drawing, assets and data, the **platform API** (`net.nerdorg.minehop.platform`). No loader imports. | ModDevGradle in vanilla mode (NeoForm `1.21.4-20241203.161809`), i.e. compiled against plain Minecraft. Never shipped on its own. |
 | `fabric/` | `MinehopFabric` (`main`), `MinehopFabricClient` (`client`), `MinehopDataGenerator` (`fabric-datagen`), `ModMenuIntegration` (`modmenu`), `fabric.mod.json`, Fabric implementations of every service (`net.nerdorg.minehop.fabric.platform`). | Fabric Loom 1.10; compiles `common`'s sources together with its own (template convention) and remaps to intermediary. **This is the production jar.** |
 | `neoforge/` | Skeleton: `@Mod` entrypoint calling common, `neoforge.mods.toml`, TODO service stubs. | ModDevGradle, NeoForge 21.4.158. Not in `settings.gradle` yet (phase 3). `:neoforge:compileJava` passed in phase 2 (common + stubs). |
-| `forge/` | Skeleton: `@Mod` entrypoint calling common, `mods.toml`, Forge AT, TODO service stubs. | ForgeGradle 6 + mixingradle, Forge 1.21.4-54.1.18. Not in `settings.gradle` yet (phase 3). `:forge:compileJava` passed in phase 2 (common + stubs). |
+| `forge/` | `MinehopForge` (`@Mod`), `MinehopForgeClient`, every Forge service (`net.nerdorg.minehop.forge.platform`), the Forge-only mixins (`minehop.forge.mixins.json`), the Fabric registry-sync client (`net.nerdorg.minehop.forge.network`), `mods.toml`, Forge AT, `pack.mcmeta`. | ForgeGradle 6 + mixingradle, Forge 1.21.4-54.1.18 (phase 3, implemented). Compiles `common`'s sources together with its own; official names at runtime, no reobf, no refmap. |
 
 Versions live in `gradle.properties` (Fabric API 0.119.2+1.21.4, loader 0.16.13, cloth-config 17.0.144, modmenu 13.0.3,
 NeoForge 21.4.158, Forge 54.1.18, JDA 5.0.0-beta.21).
@@ -25,6 +25,18 @@ gradlew :fabric:runDatagen
 
 The jar name follows the template (`<mod_id>-<loader>-<mc>-<version>.jar`); the single-module build produced
 `minehop-1.21.4-<version>.jar`. Deployment scripts that look for the old name need the new one.
+
+## Building and running (Forge)
+
+```
+gradlew :forge:build                       -> forge/build/libs/minehop-forge-1.21.4-<version>.jar
+gradlew :forge:Server [-Pmovementtest] [-PsurfHull]   (run dir: forge/runs/server, or -PforgeServerRunDir=...)
+gradlew :forge:Client [-PquickPlay=host:port] [-PclientUsername=Name]   (run dir: forge/runs/client, 384x216 window)
+```
+
+The run tasks keep the template's names (`Client`, `Server`, `Data`), so a root-level `gradlew runServer` / `runClient`
+still only starts the Fabric run. Production install: Forge 1.21.4-54.1.18 + `cloth-config-forge-17.0.144` + the Minehop
+jar in `mods/` (JDA is not bundled, like on Fabric).
 
 ## Rules for common code
 
@@ -45,6 +57,12 @@ The jar name follows the template (`<mod_id>-<loader>-<mc>-<version>.jar`); the 
 5. **Mixins** stay in common (`minehop.mixins.json`, `minehop.client.mixins.json`). They reference
    `"refmap": "${mod_id}.refmap.json"` (expanded at build time): Loom generates `minehop.refmap.json` for Fabric;
    NeoForge and Forge run Mojang names and ignore the missing refmap.
+6. **Registry classes must be loaded during the init.** On Fabric a registry factory runs inside `register(...)`, so a
+   factory that reads another registry class loads that class (and registers its entries) right then. Deferred
+   loaders run the factory much later, inside the RegisterEvent of its registry. Today `ModBlocks` is only loaded
+   that way (from the `boost_be` block entity factory) on a dedicated server, which would register the boost pad
+   block/item after their registries closed. The Forge entrypoint therefore touches `ModBlocks` right after
+   `Minehop#onInitialize` (same position as on Fabric, so the raw ids are unchanged); NeoForge needs the same.
 
 ## Platform API (`net.nerdorg.minehop.platform`)
 
@@ -113,19 +131,36 @@ tracking range 5 chunks / update interval 3 by default, the surf ramp 128 chunks
 | `onUseBlock/onUseItem/onUseEntity(...)` | `UseBlockCallback` / `UseItemCallback` / `UseEntityCallback` | `PlayerInteractEvent.RightClickBlock` / `RightClickItem` / `EntityInteract(Specific)` |
 | `onGameMessage(GameMessageListener)` | `ServerMessageEvents.GAME_MESSAGE` | none: loader-side mixin on `PlayerList#broadcastSystemMessage` |
 
+Forge specifics (EventBus 6, `MinecraftForge.EVENT_BUS`): `onServerTickStart/End` = `TickEvent.ServerTickEvent.Pre/Post`
+(fired after the pause-when-empty check, Fabric's START fires before it: no difference with `pause-when-empty-seconds=0`,
+and no Minehop listener uses the tick start); `onAllowDamage` = `LivingAttackEvent`; `onUseEntity` = `EntityInteractSpecific`
+(hit result = local position + entity position, like Fabric) and `EntityInteract`; `onPlayerRespawn` pairs `PlayerEvent.Clone`
+with `PlayerRespawnEvent`; `onGameMessage` = `PlayerListMixin` (tail of the 3-argument `broadcastSystemMessage`).
+Server play connection: INIT = `PlayerLoggedInEvent` at `HIGHEST`, JOIN = `PlayerLoggedInEvent`, DISCONNECT =
+`PlayerLoggedOutEvent`. Client: INIT = `ClientPlayerNetworkEvent.LoggingIn` at `HIGHEST`, JOIN = `LoggingIn`, DISCONNECT =
+`LoggingOut`. (Fabric fires JOIN a little earlier inside `placeNewPlayer` / at the end of `handleLogin`; Minehop's listeners
+do not depend on that.)
+
 ### `IClientHelper` (`ClientServices.CLIENT`)
 | Method | Fabric | NeoForge (Forge differences in the checklist) |
 |---|---|---|
 | `onClientTickStart/End(ClientTickListener)` | `ClientTickEvents.START/END_CLIENT_TICK` | `ClientTickEvent.Pre/Post` |
 | `onWorldRenderAfterEntities(WorldRenderListener)` | `WorldRenderEvents.AFTER_ENTITIES` | `RenderLevelStageEvent` `AFTER_ENTITIES` |
 | `onWorldRenderEnd(WorldRenderListener)` | `WorldRenderEvents.END` | `RenderLevelStageEvent` `AFTER_LEVEL` |
-| `onHudRender(HudRenderListener)` (unused today: the HUD is drawn by `InGameHudMixin`) | `HudRenderCallback` | `RenderGuiEvent.Post` |
+| `onHudRender(HudRenderListener)` (unused today: the HUD is drawn by `InGameHudMixin`) | `HudRenderCallback` | `RenderGuiEvent.Post` (Forge 54 has no `RenderGuiEvent`: a layer added on top of the root in `AddGuiOverlayLayersEvent`) |
 | `registerEntityRenderer(Supplier<EntityType>, EntityRendererProvider)` | `EntityRendererRegistry` | `EntityRenderersEvent.RegisterRenderers` |
 | `registerModelLayer(ModelLayerLocation, Supplier<LayerDefinition>)` | `EntityModelLayerRegistry` | `EntityRenderersEvent.RegisterLayerDefinitions` |
 | `KeyMapping registerKeyMapping(KeyMapping)` | `KeyBindingHelper.registerKeyBinding` | `RegisterKeyMappingsEvent` |
 | `setBlockRenderType(Supplier<Block>, RenderType)` | `BlockRenderLayerMap` | `ItemBlockRenderTypes.setRenderLayer` in `FMLClientSetupEvent#enqueueWork` |
 
 `WorldRenderContext` = `matrixStack()`, `consumers()`, `camera()` (camera-relative drawing).
+
+Forge 54 has no `RenderLevelStageEvent`; `LevelRendererMixin` (forge module) fires AFTER_ENTITIES at the head of
+`LevelRenderer#renderBlockEntities` (called right after `popPush("blockentities")`, i.e. Fabric's injection point, with the
+main pass's pose stack, buffer source and camera) and END at the return of `renderLevel`. Client tick =
+`TickEvent.ClientTickEvent.Pre/Post`; renderers, layers and key mappings are buffered for `EntityRenderersEvent.*` /
+`RegisterKeyMappingsEvent`; the render type is set in `FMLClientSetupEvent` (`ItemBlockRenderTypes.setRenderLayer`,
+deprecated for removal in Forge but working in 54).
 
 ### `IClientNetworkHelper` (`ClientServices.NETWORK`)
 | Method | Fabric |
@@ -208,15 +243,25 @@ in `onPlayConnectionInit`, i.e. before that packet). Keep the default `HandlerTh
 `PacketDistributor.sendToPlayer` / `sendToServer` (verify they do not refuse channels learned ad hoc; fall back to
 `connection.send(payload)`).
 
-### Forge registration
-Forge 54 has three channel kinds. Use **`ChannelBuilder.named(minehop:network).optional().payloadChannel().play()`**
-with `clientbound()` / `serverbound()` / `bidirectional()` `.add(type, codec, handler)` for every payload, then `build()`
-once after the common init: a `PayloadChannel` sends each payload as a vanilla custom payload under its **own** id with
-the codec's bytes (`ForgePayload(id, encoder)`), which is Fabric's format. (Equivalent alternative: one
-`EventNetworkChannel` per payload id, writing/reading the codec on the raw `FriendlyByteBuf`.) Do **not** use
-`SimpleChannel`: it prefixes a discriminator. `optional()` makes the channel acceptable on non-Forge servers. Forge
-invokes handlers on the netty thread: wrap them in `ctx.enqueueWork(...)` and `ctx.setPacketHandled(true)`. The codecs
-are `StreamCodec<FriendlyByteBuf, T>`; adapt them to the channel's `RegistryFriendlyByteBuf` codec type.
+### Forge registration (implemented)
+`ForgeNetworkHelper` records every declared payload and, right after the common init, builds **one
+`ChannelBuilder.named(minehop:network).optional().payloadChannel().play()`** channel: `clientbound()` / `serverbound()` /
+`bidirectional()` (declared both ways) `.add(type, codec, handler)` per payload. A `PayloadChannel` registers each payload
+under its **own** id (`minecraft:register` advertises them, like Fabric) and reads/writes exactly the codec's bytes, no
+discriminator (`SimpleChannel` would add one). `optional()` accepts vanilla/Fabric peers.
+
+- Receiving: Forge decodes the bytes with the declared codec and calls the handler on the netty thread; the handler marks
+  the packet handled and `enqueueWork`s the dispatch (same main-thread queue as vanilla packets, like Fabric's
+  `server.execute`/`client.execute`). The receiver is looked up on the main thread (first registration wins, none =
+  ignored). A payload arriving in the wrong direction is rejected by Forge's channel validation (Fabric would drop it).
+- Sending: **like Fabric**, `player.connection.send(new ClientboundCustomPayloadPacket(payload))` /
+  `getConnection().send(new ServerboundCustomPayloadPacket(payload))` with the payload object itself, not a
+  `ForgePayload`, because Minehop's anticheat inspects outgoing packets (`ResetVelocityCarryPayload` in
+  `MovementValidator#selfVelocity`, through `ServerCommonNetworkHandlerStreamMixin` on `send`). Vanilla's payload codec falls
+  back to `ForgeHooks.getCustomPayloadCodec` for these ids, which only knows how to encode `ForgePayload`;
+  `ForgeHooksMixin` (forge module) wraps the returned codec for Minehop ids so it also encodes the typed payload with
+  its declared codec. Same bytes either way; in-memory (singleplayer) connections are serialized too, so the receiving
+  side always gets bytes.
 
 ### Fabric registry sync (blocks Forge/NeoForge clients on the Fabric server until handled)
 Minehop adds entries to synced registries, so the Fabric server's registry sync
@@ -235,12 +280,22 @@ Wire compatibility of Minehop's own payloads is not enough; the NeoForge and For
    `size` Strings (paths), raw ids consecutive.
 3. Compare every received (id -> raw id) with the client's own registries. Reply `fabric:registry/sync/complete` (empty
    payload) when they all match; otherwise disconnect with a clear message (or remap, which is a much bigger job).
+   Fabric fills each slice from its buffer's whole backing array, so ignore trailing bytes after the structure.
 4. With vanilla + Minehop only, the raw ids match when Minehop registers in the same order on every loader. The phase 2
    dump of the Fabric server (identical before and after the migration) is: entity types
    `gamemode_entity`=149, `reset_entity`=150, `start_entity`=151, `end_entity`=152, `replay_entity`=153,
    `surf_ramp_entity`=154; items `bounds_stick`=1385, `surf_stick`=1386, `instagib_gun`=1387, `boost_pad`=1388; block
    `boost_pad`=1095; block entity type `boost_be`=45; creative tab `minehop:minehop`=14. NeoForge/Forge must produce the
    same numbers (check with their registry dumps).
+
+Forge (implemented, `FabricRegistrySyncClient`, physical client only): an optional configuration-phase `PayloadChannel`
+(`minehop:fabric_registry_sync`) with `fabric:registry/sync/direct` (clientbound) and `fabric:registry/sync/complete`
+(serverbound); Forge's `ChannelListManager` answers the Fabric server's configuration `minecraft:register` with them, so
+`canSend` passes. Slices are collected per connection (channel attribute), compared on the client thread, then
+`complete` is sent or the client disconnects with the list of differences in the log. Verified against the Fabric
+reference server: 4 registries (block, block_entity_type, entity_type, item) / 2686 entries all equal, Minehop's raw ids
+exactly the numbers below. Forge needs nothing else to join a non-Forge server: the connection is treated as VANILLA
+(Fabric ignores the `\0FORGE` host-name marker), and every Minehop channel is optional.
 
 The reverse direction (Fabric client on a NeoForge/Forge server): the NeoForge server treats a Fabric client as an
 "other" connection; it is accepted when all Minehop payloads are `optional()`, but NeoForge does not sync registries
@@ -275,7 +330,10 @@ food there; `renderHearts` is still cancelled. Fix in the neoforge module (`Rend
 
 Forge 54.1.18: every target method exists, the same constants and `INVOKE` targets are present, and `Gui.render` still
 calls `renderPlayerHealth` (no HUD gap). Forge's game jar is recompiled from decompiled sources, so a method-body
-comparison with vanilla is not meaningful there; verify behaviour at runtime (harness, anticheat, HUD).
+comparison with vanilla is not meaningful there; verify behaviour at runtime (harness, anticheat, HUD). Verified in
+phase 3: harness byte-identical, anticheat checked/no flags, hide-self hides hand, hotbar and status bars.
+Note: Forge's `-sources.jar` for 54.1.18 still contains source files of classes that are not in the build (e.g.
+`RenderGuiEvent`); check APIs against the compiled jar (`forge/build/fg_cache/.../forge-...-mapped_official_1.21.4.jar`).
 
 ## Phase 3 checklist
 
@@ -302,7 +360,7 @@ comparison with vanilla is not meaningful there; verify behaviour at runtime (ha
 7. Verify: movement harness byte-identical to the Fabric baseline; NeoForge client joins the Fabric server
    (handshake, run timer, finish, replay); Fabric client joins the NeoForge server; registry raw ids match.
 
-### Forge (`forge/`)
+### Forge (`forge/`) - done in phase 3 (see "Phase 3 results (Forge)" below)
 1. Add `include('forge')` to `settings.gradle` (ForgeGradle 6 + mixingradle, as in the template).
 2. Entrypoint: `MinehopForge(FMLJavaModLoadingContext)` stores the mod bus before the common init;
    `MinehopForgeClient` registers the config screen and runs the common client init from the mod constructor.
@@ -336,3 +394,14 @@ comparison with vanilla is not meaningful there; verify behaviour at runtime (ha
   cloth-config), which also exercises the refmap.
 - Dedicated server + real client, map/zone creation, a run (record, PB, replay written), screens, commands.
 - Registry raw ids and datagen output identical to `cb4118e`.
+
+## Phase 3 results (Forge)
+- `gradlew build` builds `forge/build/libs/minehop-forge-1.21.4-<version>.jar` (cloth-config is a `mods.toml` dependency,
+  JDA not bundled; the Discord bot only touches JDA when a bot token is configured, exactly like on Fabric).
+- Movement harness (`:forge:Server -Pmovementtest`, fresh copy of the cleaned 1.21.4 world, `pause-when-empty-seconds=0`):
+  byte-identical to the 1.21.4 baseline (1692 lines), in the dev run and on a production Forge 54.1.18 install with the
+  built jar.
+- Forge client on the Forge server, Forge client on the Fabric server (registry sync, about 3.5 min connected) and Fabric
+  client on the Forge server: anticheat `none -> checked`, no flags, HUD, commands, screens (map browser, map creator,
+  anticheat console incl. C2S actions, HUD editor, cloth-config screen from the Forge mods list), map runs with records
+  and replays saved on both server types.
