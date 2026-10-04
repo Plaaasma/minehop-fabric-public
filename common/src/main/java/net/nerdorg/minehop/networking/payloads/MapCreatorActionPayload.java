@@ -1,0 +1,102 @@
+package net.nerdorg.minehop.networking.payloads;
+
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.nerdorg.minehop.Minehop;
+
+public record MapCreatorActionPayload(
+        String action,
+        String mapName,
+        int difficulty,
+        boolean arena,
+        boolean hns,
+        boolean surf,
+        boolean kz,
+        boolean movementOverride,
+        double movementSvFriction,
+        double movementSvAccelerate,
+        double movementSvAiraccelerate,
+        double movementSvMaxairspeed,
+        double movementSvJumpImpulse,
+        double movementSpeedMul,
+        double movementSvGravity,
+        double movementSvStopspeed,
+        double movementSpeedCoefficient,
+        double movementSpeedCap,
+        boolean movementAutoStepUp,
+        boolean movementCssCrouchJump,
+        boolean movementDisableSprint,
+        boolean movementFallDamage,
+        int checkpointIndex
+) implements CustomPacketPayload {
+    public static final String ACTION_CREATE_OR_UPDATE = "create_or_update";
+    public static final String ACTION_SET_SPAWN = "set_spawn";
+    public static final String ACTION_ADD_CHECKPOINT = "add_checkpoint";
+    public static final String ACTION_ADD_START_ZONE = "add_start_zone";
+    public static final String ACTION_ADD_END_ZONE = "add_end_zone";
+    public static final String ACTION_ADD_RESET_ZONE = "add_reset_zone";
+
+    private static final int MAX_ACTION_LENGTH = 48;
+    private static final int MAX_MAP_NAME_LENGTH = 128;
+    public static final ResourceLocation HANDSHAKE_ID = ResourceLocation.fromNamespaceAndPath(Minehop.MOD_ID, "map_creator_action");
+    public static final Type<MapCreatorActionPayload> ID = new Type<>(HANDSHAKE_ID);
+    public static final StreamCodec<FriendlyByteBuf, MapCreatorActionPayload> CODEC = StreamCodec.ofMember(
+            (value, buf) -> {
+                buf.writeUtf(value.action == null ? "" : value.action, MAX_ACTION_LENGTH);
+                buf.writeUtf(value.mapName == null ? "" : value.mapName, MAX_MAP_NAME_LENGTH);
+                buf.writeInt(value.difficulty);
+                buf.writeBoolean(value.arena);
+                buf.writeBoolean(value.hns);
+                buf.writeBoolean(value.surf);
+                buf.writeBoolean(value.kz);
+                buf.writeBoolean(value.movementOverride);
+                buf.writeDouble(value.movementSvFriction);
+                buf.writeDouble(value.movementSvAccelerate);
+                buf.writeDouble(value.movementSvAiraccelerate);
+                buf.writeDouble(value.movementSvMaxairspeed);
+                buf.writeDouble(value.movementSvJumpImpulse);
+                buf.writeDouble(value.movementSpeedMul);
+                buf.writeDouble(value.movementSvGravity);
+                buf.writeDouble(value.movementSvStopspeed);
+                buf.writeDouble(value.movementSpeedCoefficient);
+                buf.writeDouble(value.movementSpeedCap);
+                buf.writeBoolean(value.movementAutoStepUp);
+                buf.writeBoolean(value.movementCssCrouchJump);
+                buf.writeBoolean(value.movementDisableSprint);
+                buf.writeBoolean(value.movementFallDamage);
+                buf.writeInt(value.checkpointIndex);
+            },
+            buf -> new MapCreatorActionPayload(
+                    buf.readUtf(MAX_ACTION_LENGTH),
+                    buf.readUtf(MAX_MAP_NAME_LENGTH),
+                    buf.readInt(),
+                    buf.readBoolean(),
+                    buf.readBoolean(),
+                    buf.readBoolean(),
+                    buf.readBoolean(),
+                    buf.readBoolean(),
+                    buf.readDouble(),
+                    buf.readDouble(),
+                    buf.readDouble(),
+                    buf.readDouble(),
+                    buf.readDouble(),
+                    buf.readDouble(),
+                    buf.readDouble(),
+                    buf.readDouble(),
+                    buf.readDouble(),
+                    buf.readDouble(),
+                    buf.readBoolean(),
+                    buf.readBoolean(),
+                    buf.readBoolean(),
+                    buf.readBoolean(),
+                    buf.readInt()
+            )
+    );
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return ID;
+    }
+}
