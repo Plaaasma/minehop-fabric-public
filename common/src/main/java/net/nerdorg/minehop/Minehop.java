@@ -123,6 +123,7 @@ public class Minehop {
 		MobManager.register();
 		AntiCheatManager.register();
 		net.nerdorg.minehop.util.MovementTestHarness.register();
+		net.nerdorg.minehop.util.SurfStressHarness.register();
 
 		HNSManager.register();
 

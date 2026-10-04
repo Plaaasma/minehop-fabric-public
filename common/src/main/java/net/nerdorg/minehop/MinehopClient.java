@@ -213,6 +213,7 @@ public class MinehopClient {
 		});
 
 		ClientServices.CLIENT.setBlockRenderType(ModBlocks.BOOSTER_BLOCK, RenderType.translucent());
+		net.nerdorg.minehop.client.ClientPerfProbe.register();
 	}
 
 	private static void updateRunTimerStartZones(Minecraft client) {
