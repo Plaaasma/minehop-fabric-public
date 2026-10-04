@@ -24,6 +24,7 @@ public final class AntiCheatStorage {
     private static final String FOLDER = "MineHop_Data";
     private static final String FLAGS_PATH = FOLDER + "/anticheat_flags.json";
     private static final String EXEMPT_PATH = FOLDER + "/anticheat_exempt.json";
+    private static final String SETTINGS_PATH = FOLDER + "/anticheat_settings.json";
     // Bump when the persisted anticheat shape changes; migrate in load().
     private static final int SCHEMA_VERSION = 1;
 
@@ -130,6 +131,43 @@ public final class AntiCheatStorage {
         } catch (Exception e) {
             Minehop.LOGGER.warn("Failed to load anticheat exempt list", e);
         }
+    }
+
+    /** Admin switches that must survive restarts (e.g. lagbacks turned off while a false positive is fixed). */
+    public static PersistedSettings loadSettings(MinecraftServer server) {
+        if (server == null) {
+            return new PersistedSettings();
+        }
+        try {
+            PersistedSettings settings = JsonStorage.readData(
+                    server.getSavePath(WorldSavePath.ROOT).resolve(SETTINGS_PATH), PersistedSettings.class);
+            return settings == null ? new PersistedSettings() : settings;
+        } catch (Exception e) {
+            Minehop.LOGGER.warn("Failed to load anticheat settings", e);
+            return new PersistedSettings();
+        }
+    }
+
+    public static void saveSettings(MinecraftServer server, boolean enabled, boolean lagbacks) {
+        if (server == null) {
+            return;
+        }
+        Path savePath = server.getSavePath(WorldSavePath.ROOT);
+        try {
+            Files.createDirectories(savePath.resolve(FOLDER));
+        } catch (IOException e) {
+            Minehop.LOGGER.warn("Failed to create anticheat data folder", e);
+            return;
+        }
+        PersistedSettings settings = new PersistedSettings();
+        settings.enabled = enabled;
+        settings.lagbacks = lagbacks;
+        JsonStorage.writeAtomic(savePath.resolve(SETTINGS_PATH), SCHEMA_VERSION, settings);
+    }
+
+    public static final class PersistedSettings {
+        public boolean enabled = true;
+        public boolean lagbacks = true;
     }
 
     public static final class PersistedPlayerState {
