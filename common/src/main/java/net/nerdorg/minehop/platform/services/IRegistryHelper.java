@@ -49,9 +49,12 @@ public interface IRegistryHelper {
 
     /**
      * Registers the default attributes of a living entity type.
-     * Fabric: {@code FabricDefaultAttributeRegistry}; NeoForge/Forge: {@code EntityAttributeCreationEvent} (mod bus).
+     * Fabric: {@code FabricDefaultAttributeRegistry} (the builder is created immediately); NeoForge/Forge:
+     * {@code EntityAttributeCreationEvent} (mod bus). The builder is supplied lazily because it cannot be created during
+     * mod construction on NeoForge: {@code LivingEntity#createLivingAttributes} adds NeoForge's own attributes, which
+     * are only bound once their registry event fired.
      */
-    void registerEntityAttributes(Supplier<? extends EntityType<? extends LivingEntity>> type, AttributeSupplier.Builder attributes);
+    void registerEntityAttributes(Supplier<? extends EntityType<? extends LivingEntity>> type, Supplier<AttributeSupplier.Builder> attributes);
 
     /**
      * @return a builder for a mod creative tab (vanilla's builder needs a row/column on Fabric's terms; every loader has

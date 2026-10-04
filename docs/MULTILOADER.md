@@ -7,7 +7,7 @@ Minehop follows jaredlll08's [MultiLoader-Template](https://github.com/jaredlll0
 |---|---|---|
 | `common/` | All game logic, data, anticheat, movement/physics, both mixin configs, payload records/codecs, brigadier commands, screens, renderers, models, HUD drawing, assets and data, the **platform API** (`net.nerdorg.minehop.platform`). No loader imports. | ModDevGradle in vanilla mode (NeoForm `1.21.4-20241203.161809`), i.e. compiled against plain Minecraft. Never shipped on its own. |
 | `fabric/` | `MinehopFabric` (`main`), `MinehopFabricClient` (`client`), `MinehopDataGenerator` (`fabric-datagen`), `ModMenuIntegration` (`modmenu`), `fabric.mod.json`, Fabric implementations of every service (`net.nerdorg.minehop.fabric.platform`). | Fabric Loom 1.10; compiles `common`'s sources together with its own (template convention) and remaps to intermediary. **This is the production jar.** |
-| `neoforge/` | Skeleton: `@Mod` entrypoint calling common, `neoforge.mods.toml`, TODO service stubs. | ModDevGradle, NeoForge 21.4.158. Not in `settings.gradle` yet (phase 3). `:neoforge:compileJava` passed in phase 2 (common + stubs). |
+| `neoforge/` | `MinehopNeoForge` (`@Mod`), `MinehopNeoForgeClient` (config screen, hide-self GUI layers, common client init), NeoForge implementations of every service (`net.nerdorg.minehop.neoforge.platform`), the Fabric registry sync client (`net.nerdorg.minehop.neoforge.network.FabricRegistrySync`), NeoForge-only mixins (`minehop.neoforge.mixins.json`), `neoforge.mods.toml`. | ModDevGradle, NeoForge 21.4.158 (phase 3a). |
 | `forge/` | Skeleton: `@Mod` entrypoint calling common, `mods.toml`, Forge AT, TODO service stubs. | ForgeGradle 6 + mixingradle, Forge 1.21.4-54.1.18. Not in `settings.gradle` yet (phase 3). `:forge:compileJava` passed in phase 2 (common + stubs). |
 
 Versions live in `gradle.properties` (Fabric API 0.119.2+1.21.4, loader 0.16.13, cloth-config 17.0.144, modmenu 13.0.3,
@@ -25,6 +25,16 @@ gradlew :fabric:runDatagen
 
 The jar name follows the template (`<mod_id>-<loader>-<mc>-<version>.jar`); the single-module build produced
 `minehop-1.21.4-<version>.jar`. Deployment scripts that look for the old name need the new one.
+
+## Building and running (NeoForge)
+
+```
+gradlew :neoforge:build                    -> neoforge/build/libs/minehop-neoforge-1.21.4-<version>.jar
+gradlew :neoforge:runServer [-Pmovementtest]   (run dir: neoforge/runs/server)
+gradlew :neoforge:runClient                (run dir: neoforge/runs/client)
+```
+
+Production install: the jar plus `cloth-config-neoforge-17.0.144` in `mods/` (JDA is not bundled, see "Packaging").
 
 ## Rules for common code
 
@@ -80,7 +90,7 @@ Contract for every service (the Fabric implementation is the reference, it is wh
 |---|---|
 | `<R, T extends R> RegistryEntry<T> register(ResourceKey<R> key, Supplier<T> factory)` | `Registry.register(BuiltInRegistries.REGISTRY.getValue(key.registry()), key, factory.get())`, immediately |
 | `<T extends BlockEntity> BlockEntityType<T> createBlockEntityType(BlockEntityFactory<T>, Block...)` | `FabricBlockEntityTypeBuilder.create(...).build()` (vanilla constructor is private) |
-| `void registerEntityAttributes(Supplier<EntityType<? extends LivingEntity>>, AttributeSupplier.Builder)` | `FabricDefaultAttributeRegistry.register` |
+| `void registerEntityAttributes(Supplier<EntityType<? extends LivingEntity>>, Supplier<AttributeSupplier.Builder>)` | `FabricDefaultAttributeRegistry.register(type.get(), attributes.get())`, immediately. The builder is supplied lazily because NeoForge's `LivingEntity#createLivingAttributes` adds NeoForge attributes that are unbound during mod construction. |
 | `CreativeModeTab.Builder creativeModeTabBuilder()` | `FabricItemGroup.builder()` |
 | `void modifyCreativeModeTab(ResourceKey<CreativeModeTab>, CreativeTabModifier)` | `ItemGroupEvents.modifyEntriesEvent(tab).register(...)` |
 
@@ -208,6 +218,16 @@ in `onPlayConnectionInit`, i.e. before that packet). Keep the default `HandlerTh
 `PacketDistributor.sendToPlayer` / `sendToServer` (verify they do not refuse channels learned ad hoc; fall back to
 `connection.send(payload)`).
 
+Implemented (phase 3a): NeoForge refuses to send a modded payload on a channel the peer has not announced, while
+Fabric's `ServerPlayNetworking.send` / `ClientPlayNetworking.send` send unconditionally (and Minehop relies on it: a
+Fabric client announces its play channels only after the login packet, while the server's JOIN listeners already
+send payloads). `NeoForgeNetworkHelper.ensureChannel` therefore adds the payload id to the connection's ad-hoc channel
+set (the one `minecraft:register` fills) before sending through the normal listener `send` (so Minehop's stream mixin
+still sees the packet). On NeoForge-NeoForge connections the channels are negotiated and this is a no-op; fake players
+are skipped (their listener drops packets). INIT and JOIN both run from `PlayerLoggedInEvent` (INIT first, and JOIN
+listeners registered during INIT run for that same connection, as on Fabric); DISCONNECT from `PlayerLoggedOutEvent`;
+client INIT/JOIN from `ClientPlayerNetworkEvent.LoggingIn`, DISCONNECT from `LoggingOut`.
+
 ### Forge registration
 Forge 54 has three channel kinds. Use **`ChannelBuilder.named(minehop:network).optional().payloadChannel().play()`**
 with `clientbound()` / `serverbound()` / `bidirectional()` `.add(type, codec, handler)` for every payload, then `build()`
@@ -235,6 +255,17 @@ Wire compatibility of Minehop's own payloads is not enough; the NeoForge and For
    `size` Strings (paths), raw ids consecutive.
 3. Compare every received (id -> raw id) with the client's own registries. Reply `fabric:registry/sync/complete` (empty
    payload) when they all match; otherwise disconnect with a clear message (or remap, which is a much bigger job).
+NeoForge implementation (phase 3a): `FabricRegistrySync` registers both payloads (`optional()`, physical client only),
+decodes the direct packets, checks every received entry and either replies `complete` (ids identical: the normal case,
+logged as "raw ids identical to this client"), remaps the client's registries to the server's ids with NeoForge's own
+`RegistryManager.applySnapshot` (client-only entries moved after the server's ids, like Fabric's client; NeoForge reverts
+to the frozen ids on disconnect), or disconnects with a list of the missing namespaces. A Fabric server decides whether
+the client can receive `fabric:registry/sync/direct` from the client's `minecraft:register` answer to its own first
+`minecraft:register` (before the pong), but NeoForge only announces its channels when the brand arrives (after the
+sync task); `ClientConfigurationPacketListenerImplMixin` (neoforge module) runs NeoForge's own "other connection"
+initialisation early when the server announced `fabric:registry/sync/complete` (Fabric servers only; not for NeoForge
+servers, which also send `minecraft:register` before their query, and not for memory connections).
+
 4. With vanilla + Minehop only, the raw ids match when Minehop registers in the same order on every loader. The phase 2
    dump of the Fabric server (identical before and after the migration) is: entity types
    `gamemode_entity`=149, `reset_entity`=150, `start_entity`=151, `end_entity`=152, `replay_entity`=153,
@@ -256,7 +287,7 @@ single-module build (`cb4118e`) and the multiloader Fabric build.
 |---|---|---|---|
 | cloth-config | `modApi cloth-config-fabric` (not bundled; required in `fabric.mod.json`) | `implementation cloth-config-neoforge`, `cloth_config` dependency in `neoforge.mods.toml` | `implementation cloth-config-forge`, `cloth_config` dependency in `mods.toml` |
 | modmenu | `modImplementation` (optional at runtime) | n/a (`IConfigScreenFactory`) | n/a (`ConfigScreenFactory`) |
-| JDA | `implementation`: compile + dev runtime only, **not** jar-in-jar'd into the mod jar (only the separate `jarWithType` `-all` jar bundles the runtime classpath) | same: `implementation` + `additionalRuntimeClasspath` for dev runs, not bundled (to bundle: `jarJar`) | same: `minecraftLibrary` for dev, not bundled (to bundle: ForgeGradle `jarJar`) |
+| JDA | `implementation`: compile + dev runtime only, **not** jar-in-jar'd into the mod jar (only the separate `jarWithType` `-all` jar bundles the runtime classpath) | same: `implementation` + `additionalRuntimeClasspath` for dev runs, not bundled (to bundle: `jarJar`). Jackson is excluded from JDA: Minecraft's runtime pins it (strictly 2.13.x) and JDA's 2.16 breaks the dev runs. Without JDA (production) a record with a bot token configured kills only the Discord thread (`NoClassDefFoundError`, logged), as on Fabric | same: `minecraftLibrary` for dev, not bundled (to bundle: ForgeGradle `jarJar`) |
 | common | compiled into the Fabric jar (template convention) | compiled into the NeoForge jar | compiled into the Forge jar |
 
 ## Mixin targets on NeoForge (static audit, phase 2)
@@ -270,8 +301,10 @@ in `handleMovePlayer`, 100.0D in `handleMoveVehicle`) and `INVOKE` target (`Pack
 run the movement harness and the anticheat on NeoForge. **Known behaviour gap:** NeoForge renders the HUD through
 `GuiLayerManager` and never calls `Gui.renderPlayerHealth` (it calls `renderHealthLevel`/`renderArmorLevel`/
 `renderFoodLevel` directly), so `InGameHudMixin`'s `renderPlayerHealth` cancel (hide-self) does not hide armor and
-food there; `renderHearts` is still cancelled. Fix in the neoforge module (`RenderGuiLayerEvent.Pre` cancel for
-`VanillaGuiLayers.ARMOR_LEVEL`/`FOOD_LEVEL` while `ConfigWrapper.config.hideSelf`), not in common.
+food there; `renderHearts` is still cancelled. Fixed in the neoforge module: `MinehopNeoForgeClient` cancels
+`RenderGuiLayerEvent.Pre` for `PLAYER_HEALTH`, `ARMOR_LEVEL`, `FOOD_LEVEL` and `AIR_LEVEL` (what `renderPlayerHealth`
+draws) while `ConfigWrapper.config.hideSelf`. Runtime check (phase 3a): the movement harness is byte-identical on
+NeoForge (dev server and a production install), no movement divergence from NeoForge's patches.
 
 Forge 54.1.18: every target method exists, the same constants and `INVOKE` targets are present, and `Gui.render` still
 calls `renderPlayerHealth` (no HUD gap). Forge's game jar is recompiled from decompiled sources, so a method-body
@@ -279,7 +312,12 @@ comparison with vanilla is not meaningful there; verify behaviour at runtime (ha
 
 ## Phase 3 checklist
 
-### NeoForge (`neoforge/`)
+### NeoForge (`neoforge/`) - done in phase 3a
+Notes: `onServerStarting` maps to `ServerAboutToStartEvent` (Fabric's SERVER_STARTING fires before the levels load;
+NeoForge's `ServerStartingEvent` after). `MinehopNeoForge` class-initialises `ModBlocks` right after the common init:
+on Fabric the eager block entity factory does that during `Minehop#onInitialize`, on NeoForge that factory only runs in
+`RegisterEvent`, after the BLOCK and ITEM registries (same registration order, same raw ids).
+
 1. Add `include('neoforge')` to `settings.gradle`.
 2. Entrypoint: keep `MinehopNeoForge` (mod bus stored before common init) and `MinehopNeoForgeClient` (config screen
    extension point; common client init from the mod constructor because `RegisterKeyMappingsEvent` and

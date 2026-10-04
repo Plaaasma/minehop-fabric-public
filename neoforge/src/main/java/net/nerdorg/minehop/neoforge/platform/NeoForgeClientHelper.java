@@ -1,77 +1,153 @@
 package net.nerdorg.minehop.neoforge.platform;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.Camera;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.block.Block;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.event.RenderGuiEvent;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.nerdorg.minehop.Minehop;
+import net.nerdorg.minehop.neoforge.MinehopNeoForge;
 import net.nerdorg.minehop.platform.services.IClientHelper;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * PHASE 3 TODO: NeoForge implementation of {@link IClientHelper} (client only).
+ * NeoForge implementation of {@link IClientHelper} (physical client only).
+ *
+ * <p>The registration methods are called from the common client init, which the NeoForge entrypoint runs from the mod
+ * constructor (see {@code MinehopNeoForgeClient}); they are buffered here and applied in the matching mod-bus events,
+ * which all fire after mod construction.</p>
  */
 public class NeoForgeClientHelper implements IClientHelper {
+    private final List<Consumer<EntityRenderersEvent.RegisterRenderers>> renderers = new ArrayList<>();
+    private final List<Consumer<EntityRenderersEvent.RegisterLayerDefinitions>> layerDefinitions = new ArrayList<>();
+    private final List<KeyMapping> keyMappings = new ArrayList<>();
+    private final List<Runnable> renderTypes = new ArrayList<>();
+    private boolean modBusListenersAdded;
+    private boolean keyMappingsRegistered;
+
+    // ---------------------------------------------------------------------------------------------
+    // Ticks
+    // ---------------------------------------------------------------------------------------------
 
     @Override
     public void onClientTickStart(ClientTickListener listener) {
-        // TODO(phase 3): NeoForge.EVENT_BUS net.neoforged.neoforge.client.event.ClientTickEvent.Pre -> Minecraft.getInstance()
-        throw Todo.notImplemented("IClientHelper.onClientTickStart");
+        NeoForge.EVENT_BUS.addListener(ClientTickEvent.Pre.class, event -> listener.onTick(Minecraft.getInstance()));
     }
 
     @Override
     public void onClientTickEnd(ClientTickListener listener) {
-        // TODO(phase 3): ClientTickEvent.Post -> Minecraft.getInstance()
-        throw Todo.notImplemented("IClientHelper.onClientTickEnd");
+        NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, event -> listener.onTick(Minecraft.getInstance()));
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // Rendering
+    // ---------------------------------------------------------------------------------------------
 
     @Override
     public void onWorldRenderAfterEntities(WorldRenderListener listener) {
-        // TODO(phase 3): RenderLevelStageEvent with event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES;
-        //  context = (event.getPoseStack(), Minecraft.getInstance().renderBuffers().bufferSource(), event.getCamera()).
-        //  Check the drawn lines/quads match Fabric (pose stack state, and flush the buffer source if needed).
-        throw Todo.notImplemented("IClientHelper.onWorldRenderAfterEntities");
+        // Right after LevelRenderer rendered the entities into the main buffer source (Fabric's AFTER_ENTITIES point),
+        // with the same (identity) pose stack and the same buffer source, flushed later in the frame.
+        NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.class, event -> {
+            if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
+                listener.onRender(new Context(event.getPoseStack(), event.getCamera()));
+            }
+        });
     }
 
     @Override
     public void onWorldRenderEnd(WorldRenderListener listener) {
-        // TODO(phase 3): RenderLevelStageEvent with Stage.AFTER_LEVEL (once per frame; used for FPS + finish-zone timing)
-        throw Todo.notImplemented("IClientHelper.onWorldRenderEnd");
+        // Once per frame after the level was rendered (Fabric's END).
+        NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.class, event -> {
+            if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+                listener.onRender(new Context(event.getPoseStack(), event.getCamera()));
+            }
+        });
     }
 
     @Override
     public void onHudRender(HudRenderListener listener) {
-        // TODO(phase 3): net.neoforged.neoforge.client.event.RenderGuiEvent.Post -> (event.getGuiGraphics(), event.getPartialTick())
-        throw Todo.notImplemented("IClientHelper.onHudRender");
+        NeoForge.EVENT_BUS.addListener(RenderGuiEvent.Post.class, event -> listener.onHudRender(event.getGuiGraphics(), event.getPartialTick()));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Registration (buffered until the mod-bus events)
+    // ---------------------------------------------------------------------------------------------
+
+    @Override
+    public synchronized <E extends Entity> void registerEntityRenderer(Supplier<? extends EntityType<? extends E>> type, EntityRendererProvider<E> provider) {
+        this.addModBusListeners();
+        this.renderers.add(event -> event.registerEntityRenderer(type.get(), provider));
     }
 
     @Override
-    public <E extends Entity> void registerEntityRenderer(Supplier<? extends EntityType<? extends E>> type, EntityRendererProvider<E> provider) {
-        // TODO(phase 3): buffer; mod-bus EntityRenderersEvent.RegisterRenderers -> event.registerEntityRenderer(type.get(), provider)
-        throw Todo.notImplemented("IClientHelper.registerEntityRenderer");
+    public synchronized void registerModelLayer(ModelLayerLocation layer, Supplier<LayerDefinition> definition) {
+        this.addModBusListeners();
+        this.layerDefinitions.add(event -> event.registerLayerDefinition(layer, definition));
     }
 
     @Override
-    public void registerModelLayer(ModelLayerLocation layer, Supplier<LayerDefinition> definition) {
-        // TODO(phase 3): buffer; mod-bus EntityRenderersEvent.RegisterLayerDefinitions -> event.registerLayerDefinition(layer, definition)
-        throw Todo.notImplemented("IClientHelper.registerModelLayer");
+    public synchronized KeyMapping registerKeyMapping(KeyMapping mapping) {
+        this.addModBusListeners();
+        if (this.keyMappingsRegistered) {
+            Minehop.LOGGER.error("Key mapping {} registered after RegisterKeyMappingsEvent; it will not show in the controls screen", mapping.getName());
+        }
+        this.keyMappings.add(mapping);
+        return mapping;
     }
 
     @Override
-    public KeyMapping registerKeyMapping(KeyMapping mapping) {
-        // TODO(phase 3): buffer and return the mapping; mod-bus RegisterKeyMappingsEvent -> event.register(mapping)
-        throw Todo.notImplemented("IClientHelper.registerKeyMapping");
+    public synchronized void setBlockRenderType(Supplier<? extends Block> block, RenderType renderType) {
+        this.addModBusListeners();
+        this.renderTypes.add(() -> ItemBlockRenderTypes.setRenderLayer(block.get(), renderType));
     }
 
-    @Override
-    public void setBlockRenderType(Supplier<? extends Block> block, RenderType renderType) {
-        // TODO(phase 3): mod-bus FMLClientSetupEvent -> event.enqueueWork(() ->
-        //  ItemBlockRenderTypes.setRenderLayer(block.get(), renderType)), or "render_type": "minecraft:translucent" in
-        //  assets/minehop/models/block/boost_pad.json (that file is shared with Fabric: keep Fabric output identical).
-        throw Todo.notImplemented("IClientHelper.setBlockRenderType");
+    private void addModBusListeners() {
+        if (this.modBusListenersAdded) {
+            return;
+        }
+        this.modBusListenersAdded = true;
+        IEventBus modBus = MinehopNeoForge.modEventBus();
+        modBus.addListener(EntityRenderersEvent.RegisterRenderers.class, event -> this.renderers.forEach(r -> r.accept(event)));
+        modBus.addListener(EntityRenderersEvent.RegisterLayerDefinitions.class, event -> this.layerDefinitions.forEach(l -> l.accept(event)));
+        modBus.addListener(RegisterKeyMappingsEvent.class, event -> {
+            synchronized (this) {
+                this.keyMappingsRegistered = true;
+                this.keyMappings.forEach(event::register);
+            }
+        });
+        modBus.addListener(FMLClientSetupEvent.class, event -> event.enqueueWork(() -> this.renderTypes.forEach(Runnable::run)));
+    }
+
+    private record Context(PoseStack matrixStack, Camera camera) implements WorldRenderContext {
+        private Context(PoseStack matrixStack, Camera camera) {
+            // AFTER_LEVEL has no pose stack (NeoForge passes null); Minehop's END listener does not draw.
+            this.matrixStack = matrixStack != null ? matrixStack : new PoseStack();
+            this.camera = camera;
+        }
+
+        @Override
+        public MultiBufferSource consumers() {
+            return Minecraft.getInstance().renderBuffers().bufferSource();
+        }
     }
 }

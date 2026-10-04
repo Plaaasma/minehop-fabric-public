@@ -48,7 +48,7 @@ plugins {
 // (https://youtrack.jetbrains.com/issue/IDEA-317606).
 include('common')
 include('fabric')
-// Phase 3 of the multiloader migration: the NeoForge and Forge modules are skeletons (entrypoint + metadata +
-// TODO service stubs). Include them here once their platform services are implemented (see docs/MULTILOADER.md).
-// include('neoforge')
+include('neoforge')
+// Phase 3 of the multiloader migration: the Forge module is a skeleton (entrypoint + metadata + TODO service stubs).
+// Include it here once its platform services are implemented (see docs/MULTILOADER.md).
 // include('forge')

@@ -1,4 +1,4 @@
-// PHASE 3 SKELETON - this module is not included in settings.gradle yet (see docs/MULTILOADER.md).
+// NeoForge loader module (see docs/MULTILOADER.md).
 plugins {
     id 'multiloader-loader'
     id 'net.neoforged.moddev'
@@ -45,9 +45,15 @@ dependencies {
     implementation "me.shedaniel.cloth:cloth-config-neoforge:${cloth_version}"
 
     // Discord bot. Fabric does NOT bundle JDA (see fabric/build.gradle); keep the same packaging here:
-    // compile + dev runtime only. To bundle it instead, use `jarJar(...)` (and keep it on additionalRuntimeClasspath).
-    implementation "net.dv8tion:JDA:${jda_version}"
-    additionalRuntimeClasspath "net.dv8tion:JDA:${jda_version}"
+    // compile + dev runtime only, not in the mod jar. To bundle it instead, use `jarJar(...)` (and keep it on
+    // additionalRuntimeClasspath). Jackson is excluded: Minecraft's runtime pins it (strictly 2.13.x), which conflicts with
+    // JDA's 2.16 and would break the dev runs; JDA uses the game's copy.
+    implementation("net.dv8tion:JDA:${jda_version}") {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
+    additionalRuntimeClasspath("net.dv8tion:JDA:${jda_version}") {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }

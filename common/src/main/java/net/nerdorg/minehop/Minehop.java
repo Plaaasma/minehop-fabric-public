@@ -138,11 +138,11 @@ public class Minehop {
 		MotdManager.register();
 		UserPlotManager.register();
 
-		Services.REGISTRY.registerEntityAttributes(ModEntities.GAMEMODE_ENTITY, GamemodeEntity.createResetEntityAttributes());
-		Services.REGISTRY.registerEntityAttributes(ModEntities.RESET_ENTITY, ResetEntity.createResetEntityAttributes());
-		Services.REGISTRY.registerEntityAttributes(ModEntities.START_ENTITY, StartEntity.createResetEntityAttributes());
-		Services.REGISTRY.registerEntityAttributes(ModEntities.END_ENTITY, EndEntity.createResetEntityAttributes());
-		Services.REGISTRY.registerEntityAttributes(ModEntities.REPLAY_ENTITY, ReplayEntity.createResetEntityAttributes());
-		Services.REGISTRY.registerEntityAttributes(ModEntities.SURF_RAMP_ENTITY, SurfRampEntity.createSurfRampAttributes());
+		Services.REGISTRY.registerEntityAttributes(ModEntities.GAMEMODE_ENTITY, GamemodeEntity::createResetEntityAttributes);
+		Services.REGISTRY.registerEntityAttributes(ModEntities.RESET_ENTITY, ResetEntity::createResetEntityAttributes);
+		Services.REGISTRY.registerEntityAttributes(ModEntities.START_ENTITY, StartEntity::createResetEntityAttributes);
+		Services.REGISTRY.registerEntityAttributes(ModEntities.END_ENTITY, EndEntity::createResetEntityAttributes);
+		Services.REGISTRY.registerEntityAttributes(ModEntities.REPLAY_ENTITY, ReplayEntity::createResetEntityAttributes);
+		Services.REGISTRY.registerEntityAttributes(ModEntities.SURF_RAMP_ENTITY, SurfRampEntity::createSurfRampAttributes);
 	}
 }

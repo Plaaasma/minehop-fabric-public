@@ -42,8 +42,8 @@ public class FabricRegistryHelper implements IRegistryHelper {
     }
 
     @Override
-    public void registerEntityAttributes(Supplier<? extends EntityType<? extends LivingEntity>> type, AttributeSupplier.Builder attributes) {
-        FabricDefaultAttributeRegistry.register(type.get(), attributes);
+    public void registerEntityAttributes(Supplier<? extends EntityType<? extends LivingEntity>> type, Supplier<AttributeSupplier.Builder> attributes) {
+        FabricDefaultAttributeRegistry.register(type.get(), attributes.get());
     }
 
     @Override

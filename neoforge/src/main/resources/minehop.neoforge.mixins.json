@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.nerdorg.minehop.neoforge.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "PlayerListMixin"
+  ],
+  "client": [
+    "client.ClientConfigurationPacketListenerImplMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

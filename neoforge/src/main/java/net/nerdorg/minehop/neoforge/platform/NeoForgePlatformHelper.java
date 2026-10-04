@@ -4,12 +4,18 @@ import com.mojang.authlib.GameProfile;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.fml.loading.FMLLoader;
+import net.neoforged.fml.loading.FMLPaths;
+import net.neoforged.neoforge.common.util.FakePlayer;
+import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.nerdorg.minehop.platform.services.IPlatformHelper;
 
 import java.nio.file.Path;
 
 /**
- * PHASE 3 TODO: NeoForge implementation of {@link IPlatformHelper}.
+ * NeoForge implementation of {@link IPlatformHelper}.
  */
 public class NeoForgePlatformHelper implements IPlatformHelper {
 
@@ -20,45 +26,42 @@ public class NeoForgePlatformHelper implements IPlatformHelper {
 
     @Override
     public boolean isModLoaded(String modId) {
-        // TODO(phase 3): net.neoforged.fml.ModList.get().isLoaded(modId)
-        throw Todo.notImplemented("IPlatformHelper.isModLoaded");
+        ModList modList = ModList.get();
+        if (modList != null) {
+            return modList.isLoaded(modId);
+        }
+        // Before the mod list is published (early mod construction): ask the loading mod list.
+        return FMLLoader.getLoadingModList().getModFileById(modId) != null;
     }
 
     @Override
     public boolean isDevelopmentEnvironment() {
-        // TODO(phase 3): !net.neoforged.fml.loading.FMLLoader.isProduction()
-        throw Todo.notImplemented("IPlatformHelper.isDevelopmentEnvironment");
+        return !FMLLoader.isProduction();
     }
 
     @Override
     public boolean isPhysicalClient() {
-        // TODO(phase 3): net.neoforged.fml.loading.FMLEnvironment.dist == Dist.CLIENT
-        throw Todo.notImplemented("IPlatformHelper.isPhysicalClient");
+        return FMLEnvironment.dist.isClient();
     }
 
     @Override
     public Path getGameDirectory() {
-        // TODO(phase 3): net.neoforged.fml.loading.FMLPaths.GAMEDIR.get()
-        throw Todo.notImplemented("IPlatformHelper.getGameDirectory");
+        return FMLPaths.GAMEDIR.get();
     }
 
     @Override
     public Path getConfigDirectory() {
-        // TODO(phase 3): net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get()
-        throw Todo.notImplemented("IPlatformHelper.getConfigDirectory");
+        return FMLPaths.CONFIGDIR.get();
     }
 
     @Override
     public ServerPlayer createFakePlayer(ServerLevel level, GameProfile profile) {
-        // TODO(phase 3): net.neoforged.neoforge.common.util.FakePlayerFactory.get(level, profile)
-        //  (re-run the movement harness on NeoForge: its output must match the Fabric baseline)
-        throw Todo.notImplemented("IPlatformHelper.createFakePlayer");
+        // Cached per level + profile, like Fabric's FakePlayer.get.
+        return FakePlayerFactory.get(level, profile);
     }
 
     @Override
     public boolean isFakePlayer(Player player) {
-        // TODO(phase 3): player instanceof net.neoforged.neoforge.common.util.FakePlayer
-        //  (or player.isFakePlayer(), the NeoForge IPlayerExtension method)
-        throw Todo.notImplemented("IPlatformHelper.isFakePlayer");
+        return player instanceof FakePlayer;
     }
 }
