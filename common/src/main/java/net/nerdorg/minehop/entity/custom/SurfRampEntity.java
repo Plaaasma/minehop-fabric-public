@@ -35,6 +35,8 @@ import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.util.SurfContact;
 import net.nerdorg.minehop.util.SurfRampPlacementManager;
 import net.nerdorg.minehop.util.SurfRampVisualStyle;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -45,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class SurfRampEntity extends Mob {
     private static final EntityDataAccessor<Float> START_X = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
@@ -81,7 +84,12 @@ public class SurfRampEntity extends Mob {
     private static final String DEFAULT_TEXTURE_BLOCK_ID = "minecraft:smooth_stone";
     private static final String DEFAULT_CHAIN_ID = "";
     private static final int MAX_PATH_POINTS = 1024;
-    private static final Map<Level, Set<SurfRampEntity>> ACTIVE_RAMPS_BY_WORLD = new ConcurrentHashMap<>();
+    private static final Map<Level, RampRegistry> ACTIVE_RAMPS_BY_WORLD = new ConcurrentHashMap<>();
+    // Exact-search acceleration: samples are grouped in blocks of this many consecutive indices, each with its XZ
+    // bounds, so whole blocks whose lower-bound distance already rules them out are skipped (see SurfaceSearchCache).
+    private static final int SEARCH_BLOCK_SIZE = 8;
+    private static final int SEARCH_SUPER_BLOCK_BLOCKS = 8;
+    private static final int SURFACE_MEMO_SIZE = 32;
     private String cachedPathPointsRaw = "";
     private List<Vec3> cachedPathPoints = List.of();
     private long cachedDerivedGeometrySignature = Long.MIN_VALUE;
@@ -97,6 +105,21 @@ public class SurfRampEntity extends Mob {
     private boolean boundsDirty = true;
     private String cachedTextureBlockIdForState = null;
     private BlockState cachedTextureBlockState = Blocks.SMOOTH_STONE.defaultBlockState();
+    // Geometry-derived values that were recomputed (and allocated) on every call. Like the other geometry caches
+    // they are cleared by invalidateGeometryCaches(), which runs for every change of a geometry field (setters and
+    // onSyncedDataUpdated on both sides). No field initializers: Entity's constructor calls overridden methods
+    // (setPos) before this class's initializers run.
+    @Nullable
+    private Vec3 cachedStart;
+    @Nullable
+    private Vec3 cachedEnd;
+    private byte cachedCurvedState;
+    @Nullable
+    private CenterlineSampleCache centerlineSampleCache;
+    private int geometryVersion;
+    // Registry this ramp is a member of (set on registration), notified when the bounding box changes.
+    @Nullable
+    private RampRegistry registeredIn;
 
     public SurfRampEntity(EntityType<? extends Mob> entityType, Level world) {
         super(entityType, world);
@@ -166,6 +189,40 @@ public class SurfRampEntity extends Mob {
     public void remove(Entity.RemovalReason reason) {
         this.unregisterActiveRamp();
         super.remove(reason);
+    }
+
+    @Override
+    public void onRemoval(Entity.RemovalReason reason) {
+        super.onRemoval(reason);
+        // Unloaded ramps (setRemoved without remove()) stay registered until a lookup drops them, as before. The
+        // spatial index only visits candidates, so let the next lookup's index rebuild do that cleanup.
+        RampRegistry registry = this.registeredIn;
+        if (registry != null) {
+            registry.markDirty();
+        }
+    }
+
+    @Override
+    public void setPos(double x, double y, double z) {
+        super.setPos(x, y, z);
+        // Vanilla only changes an entity's bounding box here (and refreshBounds() does for ramps): keep the
+        // registry's spatial index in sync. registeredIn is null during construction (Entity's constructor calls
+        // setPos before this class's fields are initialised).
+        RampRegistry registry = this.registeredIn;
+        if (registry != null) {
+            registry.markDirty();
+        }
+    }
+
+    @Override
+    public Iterable<Entity> getIndirectPassengers() {
+        // Entity tracking (ChunkMap.TrackedEntity#getEffectiveRange) asks every tracked entity for this whenever a
+        // player moves; vanilla builds a stream pipeline even without passengers. Ramps never carry any in practice:
+        // same (empty) result without the allocations, and the vanilla path when there are passengers.
+        if (this.getPassengers().isEmpty()) {
+            return List.of();
+        }
+        return super.getIndirectPassengers();
     }
 
     @Override
@@ -327,11 +384,21 @@ public class SurfRampEntity extends Mob {
     }
 
     public Vec3 getStart() {
-        return new Vec3(this.entityData.get(START_X), this.entityData.get(START_Y), this.entityData.get(START_Z));
+        Vec3 start = this.cachedStart;
+        if (start == null) {
+            start = new Vec3(this.entityData.get(START_X), this.entityData.get(START_Y), this.entityData.get(START_Z));
+            this.cachedStart = start;
+        }
+        return start;
     }
 
     public Vec3 getEnd() {
-        return new Vec3(this.entityData.get(END_X), this.entityData.get(END_Y), this.entityData.get(END_Z));
+        Vec3 end = this.cachedEnd;
+        if (end == null) {
+            end = new Vec3(this.entityData.get(END_X), this.entityData.get(END_Y), this.entityData.get(END_Z));
+            this.cachedEnd = end;
+        }
+        return end;
     }
 
     public double getDrop() {
@@ -507,6 +574,15 @@ public class SurfRampEntity extends Mob {
     }
 
     public boolean isCurved() {
+        byte state = this.cachedCurvedState;
+        if (state == 0) {
+            state = this.computeCurved() ? (byte) 2 : (byte) 1;
+            this.cachedCurvedState = state;
+        }
+        return state == 2;
+    }
+
+    private boolean computeCurved() {
         List<Vec3> pathPoints = this.getPathPoints();
         if (pathPoints.size() > 2) {
             return true;
@@ -550,51 +626,60 @@ public class SurfRampEntity extends Mob {
         if (world == null || queryBox == null) {
             return false;
         }
-        Set<SurfRampEntity> rampsInWorld = ACTIVE_RAMPS_BY_WORLD.get(world);
-        if (rampsInWorld == null || rampsInWorld.isEmpty()) {
+        RampRegistry registry = ACTIVE_RAMPS_BY_WORLD.get(world);
+        if (registry == null || registry.ramps.isEmpty()) {
             return false;
         }
         AABB expanded = queryBox.inflate(expand);
-        Iterator<SurfRampEntity> iterator = rampsInWorld.iterator();
-        while (iterator.hasNext()) {
-            SurfRampEntity ramp = iterator.next();
+        RampIndexSnapshot snapshot = registry.snapshot();
+        int[] candidates = snapshot.candidates(expanded);
+        int count = candidates == null ? snapshot.ordered.length : candidates.length;
+        for (int k = 0; k < count; k++) {
+            SurfRampEntity ramp = snapshot.ordered[candidates == null ? k : candidates[k]];
             if (ramp == null || !ramp.isAlive() || ramp.isRemoved()) {
-                rampsInWorld.remove(ramp);
+                registry.remove(ramp);
                 continue;
             }
             if (ramp.getBoundingBox().intersects(expanded)) {
                 return true;
             }
         }
-        if (rampsInWorld.isEmpty()) {
-            ACTIVE_RAMPS_BY_WORLD.remove(world, rampsInWorld);
+        if (registry.ramps.isEmpty()) {
+            ACTIVE_RAMPS_BY_WORLD.remove(world, registry);
         }
         return false;
     }
 
+    /**
+     * The ramps whose bounding box intersects {@code queryBox} inflated by {@code expand}, in registry iteration
+     * order (callers break ties by list order). A spatial index narrows the candidates; every candidate is still
+     * checked exactly as the former full scan did.
+     */
     public static List<SurfRampEntity> collectNearbyRamps(Level world, AABB queryBox, double expand) {
         List<SurfRampEntity> ramps = new ArrayList<>();
         if (world == null || queryBox == null) {
             return ramps;
         }
-        Set<SurfRampEntity> rampsInWorld = ACTIVE_RAMPS_BY_WORLD.get(world);
-        if (rampsInWorld == null || rampsInWorld.isEmpty()) {
+        RampRegistry registry = ACTIVE_RAMPS_BY_WORLD.get(world);
+        if (registry == null || registry.ramps.isEmpty()) {
             return ramps;
         }
         AABB expanded = queryBox.inflate(expand);
-        Iterator<SurfRampEntity> iterator = rampsInWorld.iterator();
-        while (iterator.hasNext()) {
-            SurfRampEntity ramp = iterator.next();
+        RampIndexSnapshot snapshot = registry.snapshot();
+        int[] candidates = snapshot.candidates(expanded);
+        int count = candidates == null ? snapshot.ordered.length : candidates.length;
+        for (int k = 0; k < count; k++) {
+            SurfRampEntity ramp = snapshot.ordered[candidates == null ? k : candidates[k]];
             if (ramp == null || !ramp.isAlive() || ramp.isRemoved()) {
-                rampsInWorld.remove(ramp);
+                registry.remove(ramp);
                 continue;
             }
             if (ramp.getBoundingBox().intersects(expanded)) {
                 ramps.add(ramp);
             }
         }
-        if (rampsInWorld.isEmpty()) {
-            ACTIVE_RAMPS_BY_WORLD.remove(world, rampsInWorld);
+        if (registry.ramps.isEmpty()) {
+            ACTIVE_RAMPS_BY_WORLD.remove(world, registry);
         }
         return ramps;
     }
@@ -604,43 +689,47 @@ public class SurfRampEntity extends Mob {
         if (world == null) {
             return ramps;
         }
-        Set<SurfRampEntity> rampsInWorld = ACTIVE_RAMPS_BY_WORLD.get(world);
-        if (rampsInWorld == null || rampsInWorld.isEmpty()) {
+        RampRegistry registry = ACTIVE_RAMPS_BY_WORLD.get(world);
+        if (registry == null || registry.ramps.isEmpty()) {
             return ramps;
         }
-        Iterator<SurfRampEntity> iterator = rampsInWorld.iterator();
+        Iterator<SurfRampEntity> iterator = registry.ramps.iterator();
         while (iterator.hasNext()) {
             SurfRampEntity ramp = iterator.next();
             if (ramp == null || !ramp.isAlive() || ramp.isRemoved()) {
-                rampsInWorld.remove(ramp);
+                registry.remove(ramp);
                 continue;
             }
             ramps.add(ramp);
         }
-        if (rampsInWorld.isEmpty()) {
-            ACTIVE_RAMPS_BY_WORLD.remove(world, rampsInWorld);
+        if (registry.ramps.isEmpty()) {
+            ACTIVE_RAMPS_BY_WORLD.remove(world, registry);
         }
         return ramps;
     }
 
     public boolean isNearEndpointXZ(double x, double z, double endpointTThreshold, double lateralToleranceExtra) {
-        int samples = Mth.clamp((int) Math.ceil(this.getHorizontalLength() * 10.0D), 24, 220);
+        CenterlineSampleCache cache = this.getOrBuildCenterlineSampleCache();
+        double lateralTolerance = this.getRampWidth() + Math.max(lateralToleranceExtra, 0.0D);
+        // Every sample lies inside the cache bounds, so their distance is >= this bound (exactly, in floating
+        // point too): when even the bound is outside the tolerance, the scan below would return false.
+        if (cache.lowerBoundDistanceSquared(x, z) > lateralTolerance * lateralTolerance) {
+            return false;
+        }
+        int samples = cache.samples;
         double bestDistanceSquared = Double.MAX_VALUE;
         double bestT = 0.0D;
 
         for (int i = 0; i <= samples; i++) {
-            double t = (double) i / (double) samples;
-            Vec3 center = this.getCenterlinePoint(t);
-            double dx = x - center.x;
-            double dz = z - center.z;
+            double dx = x - cache.centerX[i];
+            double dz = z - cache.centerZ[i];
             double distanceSquared = dx * dx + dz * dz;
             if (distanceSquared < bestDistanceSquared) {
                 bestDistanceSquared = distanceSquared;
-                bestT = t;
+                bestT = (double) i / (double) samples;
             }
         }
 
-        double lateralTolerance = this.getRampWidth() + Math.max(lateralToleranceExtra, 0.0D);
         if (bestDistanceSquared > lateralTolerance * lateralTolerance) {
             return false;
         }
@@ -650,22 +739,45 @@ public class SurfRampEntity extends Mob {
     }
 
     public boolean isNearRampXZ(double x, double z, double lateralToleranceExtra) {
-        int samples = Mth.clamp((int) Math.ceil(this.getHorizontalLength() * 10.0D), 24, 220);
+        CenterlineSampleCache cache = this.getOrBuildCenterlineSampleCache();
+        double lateralTolerance = this.getRampWidth() + Math.max(lateralToleranceExtra, 0.0D);
+        if (cache.lowerBoundDistanceSquared(x, z) > lateralTolerance * lateralTolerance) {
+            return false;
+        }
+        int samples = cache.samples;
         double bestDistanceSquared = Double.MAX_VALUE;
 
         for (int i = 0; i <= samples; i++) {
-            double t = (double) i / (double) samples;
-            Vec3 center = this.getCenterlinePoint(t);
-            double dx = x - center.x;
-            double dz = z - center.z;
+            double dx = x - cache.centerX[i];
+            double dz = z - cache.centerZ[i];
             double distanceSquared = dx * dx + dz * dz;
             if (distanceSquared < bestDistanceSquared) {
                 bestDistanceSquared = distanceSquared;
             }
         }
 
-        double lateralTolerance = this.getRampWidth() + Math.max(lateralToleranceExtra, 0.0D);
         return bestDistanceSquared <= lateralTolerance * lateralTolerance;
+    }
+
+    // The centerline samples isNearEndpointXZ / isNearRampXZ scan (t = i / samples), computed once per geometry
+    // with the same getCenterlinePoint calls they used to make on every query.
+    private CenterlineSampleCache getOrBuildCenterlineSampleCache() {
+        CenterlineSampleCache cache = this.centerlineSampleCache;
+        if (cache != null) {
+            return cache;
+        }
+        int samples = Mth.clamp((int) Math.ceil(this.getHorizontalLength() * 10.0D), 24, 220);
+        double[] centerX = new double[samples + 1];
+        double[] centerZ = new double[samples + 1];
+        for (int i = 0; i <= samples; i++) {
+            double t = (double) i / (double) samples;
+            Vec3 center = this.getCenterlinePoint(t);
+            centerX[i] = center.x;
+            centerZ[i] = center.z;
+        }
+        cache = new CenterlineSampleCache(samples, centerX, centerZ);
+        this.centerlineSampleCache = cache;
+        return cache;
     }
 
     private void registerActiveRamp() {
@@ -673,11 +785,11 @@ public class SurfRampEntity extends Mob {
         if (world == null) {
             return;
         }
-        Set<SurfRampEntity> rampsInWorld = ACTIVE_RAMPS_BY_WORLD.computeIfAbsent(
-                world,
-                key -> Collections.newSetFromMap(new ConcurrentHashMap<>())
-        );
-        rampsInWorld.add(this);
+        RampRegistry registry = ACTIVE_RAMPS_BY_WORLD.computeIfAbsent(world, key -> new RampRegistry());
+        this.registeredIn = registry;
+        if (registry.ramps.add(this)) {
+            registry.markDirty();
+        }
     }
 
     private void unregisterActiveRamp() {
@@ -685,19 +797,25 @@ public class SurfRampEntity extends Mob {
         if (world == null) {
             return;
         }
-        Set<SurfRampEntity> rampsInWorld = ACTIVE_RAMPS_BY_WORLD.get(world);
-        if (rampsInWorld == null) {
+        RampRegistry registry = ACTIVE_RAMPS_BY_WORLD.get(world);
+        if (registry == null) {
             return;
         }
-        rampsInWorld.remove(this);
-        if (rampsInWorld.isEmpty()) {
-            ACTIVE_RAMPS_BY_WORLD.remove(world, rampsInWorld);
+        registry.remove(this);
+        if (registry.ramps.isEmpty()) {
+            ACTIVE_RAMPS_BY_WORLD.remove(world, registry);
         }
     }
 
     @Nullable
     public SurfContact sampleContact(double sampleX, double sampleZ, double minFeetY, double maxFeetY) {
         if (!this.isWithinSurfaceSearchBounds(sampleX, sampleZ, minFeetY, maxFeetY)) {
+            return null;
+        }
+        SurfaceSearchCache cache = this.getOrBuildSurfaceSearchCache();
+        if (cache != null && (cache.surfaceYUpperBound < minFeetY - CONTACT_THICKNESS_BELOW
+                || cache.surfaceYLowerBound > maxFeetY + CONTACT_THICKNESS_ABOVE)) {
+            // Every surface point lies within [lower, upper]: the check below would reject it.
             return null;
         }
         SurfacePoint point = this.findSurfacePoint(sampleX, sampleZ);
@@ -722,6 +840,12 @@ public class SurfRampEntity extends Mob {
         )) {
             return null;
         }
+        SurfaceSearchCache cache = this.getOrBuildSurfaceSearchCache();
+        if (cache != null && (targetFeetY - cache.surfaceYUpperBound > maxVerticalDistance
+                || cache.surfaceYLowerBound - targetFeetY > maxVerticalDistance)) {
+            // surfaceY <= upper (resp. >= lower) makes |targetFeetY - surfaceY| > maxVerticalDistance below.
+            return null;
+        }
         SurfacePoint point = this.findSurfacePoint(sampleX, sampleZ);
         if (point == null) {
             return null;
@@ -734,6 +858,10 @@ public class SurfRampEntity extends Mob {
 
     @Nullable
     public SurfContact sampleSurface(double sampleX, double sampleZ, double feetY, double maxBelow, double maxAbove) {
+        SurfaceSearchCache cache = this.getOrBuildSurfaceSearchCache();
+        if (cache != null && (cache.surfaceYUpperBound < feetY - maxBelow || cache.surfaceYLowerBound > feetY + maxAbove)) {
+            return null;
+        }
         SurfacePoint point = this.findSurfacePoint(sampleX, sampleZ);
         if (point == null) {
             return null;
@@ -959,7 +1087,7 @@ public class SurfRampEntity extends Mob {
 
         double horizontalLength = Math.max(this.getHorizontalLength(), 0.5D);
         double segmentLength = Math.max(horizontalLength / Math.max(segmentCount, 1), 0.06D);
-        return new SurfaceSearchCache(
+        SurfaceSearchCache cache = new SurfaceSearchCache(
                 segmentCount,
                 segmentLength,
                 centerX,
@@ -971,6 +1099,16 @@ public class SurfRampEntity extends Mob {
                 baseY,
                 alongSlope
         );
+        // Drop, width, sides and seam flags are geometry fields: a change of any of them invalidates this cache.
+        cache.initSearchParameters(
+                Math.max(this.getRampWidth(), 0.15D),
+                this.getDrop(),
+                this.getSideSign(),
+                this.isTwoSided(),
+                this.isLinkedStart(),
+                this.isLinkedEnd()
+        );
+        return cache;
     }
 
     @Nullable
@@ -1219,6 +1357,10 @@ public class SurfRampEntity extends Mob {
 
         this.setBoundingBox(new AABB(minX, minY, minZ, maxX, maxY, maxZ));
         this.boundsDirty = false;
+        RampRegistry registry = this.registeredIn;
+        if (registry != null) {
+            registry.markDirty();
+        }
     }
 
     private int getCollisionSegmentCount() {
@@ -1268,7 +1410,20 @@ public class SurfRampEntity extends Mob {
         this.surfaceSearchCacheSignature = Long.MIN_VALUE;
     }
 
+    /**
+     * Changes whenever a geometry field changes (both sides): lets client-side caches of derived data (the renderer's
+     * meshes) know when to rebuild.
+     */
+    public int getGeometryVersion() {
+        return this.geometryVersion;
+    }
+
     private void invalidateGeometryCaches() {
+        this.geometryVersion++;
+        this.cachedStart = null;
+        this.cachedEnd = null;
+        this.cachedCurvedState = 0;
+        this.centerlineSampleCache = null;
         this.cachedDerivedGeometrySignature = Long.MIN_VALUE;
         this.collisionShapeCache = null;
         this.collisionShapeCacheSignature = Long.MIN_VALUE;
@@ -1308,165 +1463,241 @@ public class SurfRampEntity extends Mob {
         if (cache == null || cache.segmentCount <= 0) {
             return null;
         }
-        int segmentCount = cache.segmentCount;
-        double width = Math.max(this.getRampWidth(), 0.15D);
-        double halfSegmentLength = Math.max(cache.segmentLength, 0.06D) * 1.30D + COLLISION_PATCH_OVERLAP + 0.06D;
-        int seamExtraSamples = (this.isLinkedStart() || this.isLinkedEnd()) ? 5 : 0;
-        double estimatedT = cache.estimateClosestT(sampleX, sampleZ);
-        int centerIndex = Mth.clamp((int) Math.round(estimatedT * segmentCount), 0, segmentCount);
-        int halfWindow = Mth.clamp((int) Math.ceil(segmentCount * 0.10D) + 6 + seamExtraSamples, 10, 64);
-
-        SurfacePoint localBest = this.findSurfacePointInIndexRange(
-                sampleX,
-                sampleZ,
-                cache,
-                width,
-                halfSegmentLength,
-                centerIndex - halfWindow,
-                centerIndex + halfWindow
-        );
-        if (localBest != null) {
-            return localBest;
+        // The result is a pure function of (sampleX, sampleZ) and the geometry the cache was built from, and the
+        // surf pipeline queries the same foot positions several times per tick (contact, fallbacks, re-seat):
+        // reuse the result of an identical query (bit-equal coordinates) made against this cache.
+        long xBits = Double.doubleToRawLongBits(sampleX);
+        long zBits = Double.doubleToRawLongBits(sampleZ);
+        int slot = SurfaceSearchCache.memoSlot(xBits, zBits);
+        SurfaceMemoEntry memo = cache.memo[slot];
+        if (memo != null && memo.xBits == xBits && memo.zBits == zBits) {
+            return memo.point;
         }
-
-        int expandedHalfWindow = Mth.clamp(halfWindow * 2 + seamExtraSamples, 18, segmentCount + seamExtraSamples);
-        SurfacePoint expandedBest = this.findSurfacePointInIndexRange(
-                sampleX,
-                sampleZ,
-                cache,
-                width,
-                halfSegmentLength,
-                centerIndex - expandedHalfWindow,
-                centerIndex + expandedHalfWindow
-        );
-        if (expandedBest != null) {
-            return expandedBest;
-        }
-
-        return this.findSurfacePointInIndexRange(
-                sampleX,
-                sampleZ,
-                cache,
-                width,
-                halfSegmentLength,
-                -seamExtraSamples,
-                segmentCount + seamExtraSamples
-        );
+        SurfacePoint point = this.computeSurfacePoint(cache, sampleX, sampleZ);
+        cache.memo[slot] = new SurfaceMemoEntry(xBits, zBits, point);
+        return point;
     }
 
     @Nullable
-    private SurfacePoint findSurfacePointInIndexRange(
-            double sampleX,
-            double sampleZ,
-            SurfaceSearchCache cache,
-            double width,
-            double halfSegmentLength,
-            int minIndex,
-            int maxIndex
-    ) {
-        if (cache == null) {
+    private SurfacePoint computeSurfacePoint(SurfaceSearchCache cache, double sampleX, double sampleZ) {
+        if (cache.lowerBoundDistanceSquared(sampleX, sampleZ) > cache.acceptRadiusSquared) {
+            // Out of reach of every sample (cheap whole-ramp test before the closest-sample search).
             return null;
         }
         int segmentCount = cache.segmentCount;
-        if (segmentCount <= 0) {
+        int closestIndex = cache.closestIndex(sampleX, sampleZ);
+        double closestDx = sampleX - cache.centerX[closestIndex];
+        double closestDz = sampleZ - cache.centerZ[closestIndex];
+        if (closestDx * closestDx + closestDz * closestDz > cache.acceptRadiusSquared) {
+            // No sample of the whole ramp is close enough to accept: all three searches below would find nothing.
             return null;
         }
+        double estimatedT = (double) closestIndex / (double) Math.max(segmentCount, 1);
+        int centerIndex = Mth.clamp((int) Math.round(estimatedT * segmentCount), 0, segmentCount);
+        int best = this.findBestSurfaceSample(sampleX, sampleZ, cache, centerIndex);
+        return best < 0 ? null : this.buildSurfacePoint(cache, best, sampleX, sampleZ);
+    }
 
+    /**
+     * The search looks for the accepted sample with the smallest metric in three nested index windows around
+     * centerIndex: the local one, then (only if that accepted nothing) the expanded one, then the whole range, each
+     * keeping its first best sample. A window is only reached when the smaller one accepted nothing, so it is enough
+     * to scan the part of it that is new (in increasing index order). Returns the sample index or -1.
+     */
+    private int findBestSurfaceSample(double sampleX, double sampleZ, SurfaceSearchCache cache, int centerIndex) {
+        int segmentCount = cache.segmentCount;
+        if (segmentCount <= 0) {
+            return -1;
+        }
+        int localStart = Mth.clamp(centerIndex - cache.halfWindow, 0, segmentCount);
+        int localEnd = Mth.clamp(centerIndex + cache.halfWindow, 0, segmentCount);
+        // The block holding centerIndex lies inside the local window (halfWindow >= 10 > block size) and holds the
+        // samples nearest the query: scanning it first gives the pruning below a good bound right away.
+        int seedBlock = centerIndex / SEARCH_BLOCK_SIZE;
+        int best = this.scanSurfaceBlock(sampleX, sampleZ, cache, seedBlock, localStart, localEnd, -1);
+        for (int block = localStart / SEARCH_BLOCK_SIZE; block <= localEnd / SEARCH_BLOCK_SIZE; block++) {
+            if (block != seedBlock) {
+                best = this.scanSurfaceBlock(sampleX, sampleZ, cache, block, localStart, localEnd, best);
+            }
+        }
+        if (best >= 0) {
+            return best;
+        }
+        int expandedStart = Mth.clamp(centerIndex - cache.expandedHalfWindow, 0, segmentCount);
+        int expandedEnd = Mth.clamp(centerIndex + cache.expandedHalfWindow, 0, segmentCount);
+        best = this.scanSurfaceRange(sampleX, sampleZ, cache, expandedStart, localStart - 1, -1);
+        best = this.scanSurfaceRange(sampleX, sampleZ, cache, localEnd + 1, expandedEnd, best);
+        if (best >= 0) {
+            return best;
+        }
+        int fullStart = Mth.clamp(Math.min(-cache.seamExtraSamples, segmentCount + cache.seamExtraSamples), 0, segmentCount);
+        int fullEnd = Mth.clamp(Math.max(-cache.seamExtraSamples, segmentCount + cache.seamExtraSamples), 0, segmentCount);
+        best = this.scanSurfaceRange(sampleX, sampleZ, cache, fullStart, Math.min(expandedStart, localStart) - 1, -1);
+        return this.scanSurfaceRange(sampleX, sampleZ, cache, Math.max(expandedEnd, localEnd) + 1, fullEnd, best);
+    }
+
+    private int scanSurfaceRange(double sampleX, double sampleZ, SurfaceSearchCache cache, int from, int to, int best) {
+        if (from > to) {
+            return best;
+        }
+        for (int block = from / SEARCH_BLOCK_SIZE; block <= to / SEARCH_BLOCK_SIZE; block++) {
+            best = this.scanSurfaceBlock(sampleX, sampleZ, cache, block, from, to, best);
+        }
+        return best;
+    }
+
+    // Metric of sample i (computed exactly as in scanSurfaceBlock).
+    private static double surfaceSampleMetric(SurfaceSearchCache cache, int i, double sampleX, double sampleZ) {
+        double deltaX = sampleX - cache.centerX[i];
+        double deltaZ = sampleZ - cache.centerZ[i];
+        double along = deltaX * cache.tangentX[i] + deltaZ * cache.tangentZ[i];
+        return deltaX * deltaX + deltaZ * deltaZ + Math.abs(along) * 0.02D;
+    }
+
+    /**
+     * Scans the samples of {@code block} within [from, to] and returns the best accepted sample among them and
+     * {@code best} (-1 = none): the smallest metric, the lowest index on equal metrics (what an increasing scan with
+     * a strict "<" keeps, whatever order the blocks are visited in). The whole block is skipped when all its samples
+     * fail the along test or the reach test, or when their metric lower bound exceeds the current best's metric.
+     */
+    private int scanSurfaceBlock(double sampleX, double sampleZ, SurfaceSearchCache cache, int block, int from, int to, int best) {
+        int blockStart = Math.max(from, block * SEARCH_BLOCK_SIZE);
+        int blockEnd = Math.min(to, block * SEARCH_BLOCK_SIZE + SEARCH_BLOCK_SIZE - 1);
+        if (blockStart > blockEnd) {
+            return best;
+        }
+        double alongLimit = cache.alongLimit;
+        // Bounds of the block samples' along values (see SurfaceSearchCache.blockTangentDeviation), padded far
+        // beyond rounding error; NaN never prunes.
+        int first = block * SEARCH_BLOCK_SIZE;
+        double firstDx = sampleX - cache.centerX[first];
+        double firstDz = sampleZ - cache.centerZ[first];
+        double base = firstDx * cache.tangentX[first] + firstDz * cache.tangentZ[first];
+        double reach = Math.abs(firstDx) + Math.abs(firstDz);
+        double slack = reach * cache.blockTangentDeviation[block] + 1.0E-5D + reach * 1.0E-9D;
+        double alongLow = base - slack - cache.blockOffsetMax[block];
+        double alongHigh = base + slack - cache.blockOffsetMin[block];
+        if (alongLow > alongLimit || alongHigh < -alongLimit) {
+            return best;
+        }
+        double distanceBound = cache.blockLowerBoundDistanceSquared(block, sampleX, sampleZ);
+        if (distanceBound > cache.acceptRadiusSquared) {
+            return best;
+        }
         double bestMetric = Double.MAX_VALUE;
-        int startIndex = Mth.clamp(Math.min(minIndex, maxIndex), 0, segmentCount);
-        int endIndex = Mth.clamp(Math.max(minIndex, maxIndex), 0, segmentCount);
-        double drop = this.getDrop();
-        int sideSign = this.getSideSign();
-        double crossSlope = -drop / Math.max(width, 0.15D);
-
-        double bestSurfaceY = 0.0D;
-        double bestNormalX = 0.0D;
-        double bestNormalY = 1.0D;
-        double bestNormalZ = 0.0D;
-        double bestT = 0.0D;
-        boolean found = false;
-
-        for (int i = startIndex; i <= endIndex; i++) {
-            double t = (double) i / (double) segmentCount;
-            double centerX = cache.centerX[i];
-            double centerZ = cache.centerZ[i];
-            double tangentX = cache.tangentX[i];
-            double tangentZ = cache.tangentZ[i];
-            double leftX = cache.leftX[i];
-            double leftZ = cache.leftZ[i];
-            double alongSlope = cache.alongSlope[i];
-            double baseY = cache.baseY[i];
-
-            double deltaX = sampleX - centerX;
-            double deltaZ = sampleZ - centerZ;
-            double along = deltaX * tangentX + deltaZ * tangentZ;
-            double seamAlongBoost = 0.0D;
-            if (this.isLinkedStart() && t < 0.14D) {
-                seamAlongBoost = 0.30D;
+        if (best >= 0) {
+            bestMetric = surfaceSampleMetric(cache, best, sampleX, sampleZ);
+            // Every sample's metric (distance^2 + |along| * 0.02) is >= this bound (monotonic rounding).
+            double metricBound = distanceBound + Math.max(0.0D, Math.max(alongLow, -alongHigh)) * 0.02D;
+            if (metricBound > bestMetric) {
+                return best;
             }
-            if (this.isLinkedEnd() && t > 0.86D) {
-                seamAlongBoost = Math.max(seamAlongBoost, 0.30D);
-            }
-            if (Math.abs(along) > halfSegmentLength + seamAlongBoost + CONTACT_EPSILON) {
+        }
+
+        int segmentCount = cache.segmentCount;
+        double halfSegmentLength = cache.halfSegmentLength;
+        boolean linkedStart = cache.linkedStart;
+        boolean linkedEnd = cache.linkedEnd;
+        boolean linked = linkedStart || linkedEnd;
+        boolean twoSided = cache.twoSided;
+        double twoSidedMax = cache.width + CONTACT_EPSILON;
+        double oneSidedMax = cache.width + CONTACT_EPSILON + 0.16D;
+        int sideSign = cache.sideSign;
+        for (int i = blockStart; i <= blockEnd; i++) {
+            double deltaX = sampleX - cache.centerX[i];
+            double deltaZ = sampleZ - cache.centerZ[i];
+            double along = deltaX * cache.tangentX[i] + deltaZ * cache.tangentZ[i];
+            // alongLimit is the largest threshold below (seam boost 0.30 on linked ramps, else 0).
+            if (Math.abs(along) > alongLimit) {
                 continue;
             }
-
-            double lateral = deltaX * leftX + deltaZ * leftZ;
-            double normalizedLateral;
-            double normalSideSign;
-            if (this.isTwoSided()) {
-                if (Math.abs(lateral) > width + CONTACT_EPSILON) {
+            if (linked) {
+                double t = (double) i / (double) segmentCount;
+                double seamAlongBoost = 0.0D;
+                if (linkedStart && t < 0.14D) {
+                    seamAlongBoost = 0.30D;
+                }
+                if (linkedEnd && t > 0.86D) {
+                    seamAlongBoost = Math.max(seamAlongBoost, 0.30D);
+                }
+                if (Math.abs(along) > halfSegmentLength + seamAlongBoost + CONTACT_EPSILON) {
                     continue;
                 }
-                normalizedLateral = Math.abs(lateral) / width;
-                normalSideSign = lateral >= 0.0D ? 1.0D : -1.0D;
+            }
+
+            double lateral = deltaX * cache.leftX[i] + deltaZ * cache.leftZ[i];
+            if (twoSided) {
+                if (Math.abs(lateral) > twoSidedMax) {
+                    continue;
+                }
             } else {
                 double orientedLateral = lateral * sideSign;
-                double oneSidedMax = width + CONTACT_EPSILON + 0.16D;
                 if (orientedLateral < -CONTACT_EPSILON || orientedLateral > oneSidedMax) {
                     continue;
                 }
-                normalizedLateral = Mth.clamp(orientedLateral / width, 0.0D, 1.0D);
-                normalSideSign = sideSign;
             }
-
-            // Interpolate base height to the query's actual along-position within the segment.
-            // Using the discrete cache.baseY[i] alone quantizes surfaceY to the nearest segment
-            // center, so on a longitudinally-sloped ramp it stair-steps by segmentLength*slope
-            // (~0.08) each time the closest segment flips -> a periodic vertical bump as the rider
-            // crosses segment boundaries. The along*alongSlope term makes it continuous (exact for
-            // a planar ramp, near-continuous through curves).
-            double surfaceY = baseY + along * alongSlope + drop * (1.0D - normalizedLateral);
-
-            double slopeDirectionX = leftX * normalSideSign;
-            double slopeDirectionZ = leftZ * normalSideSign;
-            double gradX = slopeDirectionX * crossSlope + tangentX * alongSlope;
-            double gradZ = slopeDirectionZ * crossSlope + tangentZ * alongSlope;
-            double normalLength = Math.sqrt(gradX * gradX + 1.0D + gradZ * gradZ);
-            if (normalLength < 1.0E-8D) {
-                normalLength = 1.0D;
-            }
-            double invNormalLength = 1.0D / normalLength;
-            double normalX = -gradX * invNormalLength;
-            double normalY = invNormalLength;
-            double normalZ = -gradZ * invNormalLength;
 
             double metric = deltaX * deltaX + deltaZ * deltaZ + Math.abs(along) * 0.02D;
-            if (metric < bestMetric) {
+            if (metric < bestMetric || (metric == bestMetric && i < best)) {
                 bestMetric = metric;
-                bestSurfaceY = surfaceY;
-                bestNormalX = normalX;
-                bestNormalY = normalY;
-                bestNormalZ = normalZ;
-                bestT = t;
-                found = true;
+                best = i;
             }
         }
+        return best;
+    }
 
-        if (!found) {
-            return null;
+    // The surface point of accepted sample i for the query (sampleX, sampleZ).
+    private SurfacePoint buildSurfacePoint(SurfaceSearchCache cache, int i, double sampleX, double sampleZ) {
+        double width = cache.width;
+        double drop = cache.drop;
+        int sideSign = cache.sideSign;
+        double crossSlope = -drop / Math.max(width, 0.15D);
+        double t = (double) i / (double) cache.segmentCount;
+        double centerX = cache.centerX[i];
+        double centerZ = cache.centerZ[i];
+        double tangentX = cache.tangentX[i];
+        double tangentZ = cache.tangentZ[i];
+        double leftX = cache.leftX[i];
+        double leftZ = cache.leftZ[i];
+        double alongSlope = cache.alongSlope[i];
+        double baseY = cache.baseY[i];
+
+        double deltaX = sampleX - centerX;
+        double deltaZ = sampleZ - centerZ;
+        double along = deltaX * tangentX + deltaZ * tangentZ;
+        double lateral = deltaX * leftX + deltaZ * leftZ;
+        double normalizedLateral;
+        double normalSideSign;
+        if (cache.twoSided) {
+            normalizedLateral = Math.abs(lateral) / width;
+            normalSideSign = lateral >= 0.0D ? 1.0D : -1.0D;
+        } else {
+            double orientedLateral = lateral * sideSign;
+            normalizedLateral = Mth.clamp(orientedLateral / width, 0.0D, 1.0D);
+            normalSideSign = sideSign;
         }
-        return new SurfacePoint(bestSurfaceY, new Vec3(bestNormalX, bestNormalY, bestNormalZ), bestT);
+
+        // Interpolate base height to the query's actual along-position within the segment.
+        // Using the discrete cache.baseY[i] alone quantizes surfaceY to the nearest segment
+        // center, so on a longitudinally-sloped ramp it stair-steps by segmentLength*slope
+        // (~0.08) each time the closest segment flips -> a periodic vertical bump as the rider
+        // crosses segment boundaries. The along*alongSlope term makes it continuous (exact for
+        // a planar ramp, near-continuous through curves).
+        double surfaceY = baseY + along * alongSlope + drop * (1.0D - normalizedLateral);
+
+        double slopeDirectionX = leftX * normalSideSign;
+        double slopeDirectionZ = leftZ * normalSideSign;
+        double gradX = slopeDirectionX * crossSlope + tangentX * alongSlope;
+        double gradZ = slopeDirectionZ * crossSlope + tangentZ * alongSlope;
+        double normalLength = Math.sqrt(gradX * gradX + 1.0D + gradZ * gradZ);
+        if (normalLength < 1.0E-8D) {
+            normalLength = 1.0D;
+        }
+        double invNormalLength = 1.0D / normalLength;
+        double normalX = -gradX * invNormalLength;
+        double normalY = invNormalLength;
+        double normalZ = -gradZ * invNormalLength;
+        return new SurfacePoint(surfaceY, new Vec3(normalX, normalY, normalZ), t);
     }
 
     private boolean isHardEndpointT(double t) {
@@ -1791,6 +2022,7 @@ public class SurfRampEntity extends Mob {
         return Mth.lerp(t, values[index0], values[index1]);
     }
 
+
     private static final class SurfaceSearchCache {
         private final int segmentCount;
         private final double segmentLength;
@@ -1802,6 +2034,51 @@ public class SurfRampEntity extends Mob {
         private final double[] leftZ;
         private final double[] baseY;
         private final double[] alongSlope;
+
+        // XZ bounds of the centers of each block of SEARCH_BLOCK_SIZE consecutive samples, of each super block of
+        // SEARCH_SUPER_BLOCK_BLOCKS blocks, and of all samples.
+        private final int blockCount;
+        private final double[] blockMinX;
+        private final double[] blockMaxX;
+        private final double[] blockMinZ;
+        private final double[] blockMaxZ;
+        private final int superBlockCount;
+        private final double[] superMinX;
+        private final double[] superMaxX;
+        private final double[] superMinZ;
+        private final double[] superMaxZ;
+        private final double allMinX;
+        private final double allMaxX;
+        private final double allMinZ;
+        private final double allMaxZ;
+        // Along-axis bounds per block: along_i = (P - C_i) . T_i = (P - C_ref) . T_ref + (P - C_ref) . (T_i - T_ref)
+        // - (C_i - C_ref) . T_i, with C_ref/T_ref the block's first sample, |T_i - T_ref| <= blockTangentDeviation
+        // and (C_i - C_ref) . T_i within [blockOffsetMin, blockOffsetMax].
+        private final double[] blockTangentDeviation;
+        private final double[] blockOffsetMin;
+        private final double[] blockOffsetMax;
+        // Bounds of every surfaceY findSurfacePoint can return (baseY + along * alongSlope + drop * (1 - lateral)).
+        private double surfaceYLowerBound = Double.NaN;
+        private double surfaceYUpperBound = Double.NaN;
+        // Search parameters from the ramp's geometry fields (any change of them replaces this cache).
+        private double width;
+        private double drop;
+        private int sideSign;
+        private boolean twoSided;
+        private boolean linkedStart;
+        private boolean linkedEnd;
+        private int seamExtraSamples;
+        private double halfSegmentLength;
+        private int halfWindow;
+        private int expandedHalfWindow;
+        // Largest along offset any sample can accept (seam boost included).
+        private double alongLimit;
+        // An accepted sample has |along| <= alongLimit and |lateral| within the width (+ the one-sided margins);
+        // along and lateral are the components of (query - center[i]) in an orthonormal frame, so it lies within
+        // this radius of center[i] (the 0.01 padding absorbs rounding).
+        private double acceptRadiusSquared;
+        // findSurfacePoint results for recent queries against this cache (direct-mapped; entries are immutable).
+        private final SurfaceMemoEntry[] memo = new SurfaceMemoEntry[SURFACE_MEMO_SIZE];
 
         private SurfaceSearchCache(
                 int segmentCount,
@@ -1825,21 +2102,437 @@ public class SurfRampEntity extends Mob {
             this.leftZ = leftZ;
             this.baseY = baseY;
             this.alongSlope = alongSlope;
+            int sampleCount = segmentCount + 1;
+            this.blockCount = (sampleCount + SEARCH_BLOCK_SIZE - 1) / SEARCH_BLOCK_SIZE;
+            this.blockMinX = new double[this.blockCount];
+            this.blockMaxX = new double[this.blockCount];
+            this.blockMinZ = new double[this.blockCount];
+            this.blockMaxZ = new double[this.blockCount];
+            for (int block = 0; block < this.blockCount; block++) {
+                double minX = Double.POSITIVE_INFINITY;
+                double maxX = Double.NEGATIVE_INFINITY;
+                double minZ = Double.POSITIVE_INFINITY;
+                double maxZ = Double.NEGATIVE_INFINITY;
+                int end = Math.min(sampleCount, (block + 1) * SEARCH_BLOCK_SIZE);
+                for (int i = block * SEARCH_BLOCK_SIZE; i < end; i++) {
+                    minX = Math.min(minX, centerX[i]);
+                    maxX = Math.max(maxX, centerX[i]);
+                    minZ = Math.min(minZ, centerZ[i]);
+                    maxZ = Math.max(maxZ, centerZ[i]);
+                }
+                this.blockMinX[block] = minX;
+                this.blockMaxX[block] = maxX;
+                this.blockMinZ[block] = minZ;
+                this.blockMaxZ[block] = maxZ;
+            }
+            this.superBlockCount = (this.blockCount + SEARCH_SUPER_BLOCK_BLOCKS - 1) / SEARCH_SUPER_BLOCK_BLOCKS;
+            this.superMinX = new double[this.superBlockCount];
+            this.superMaxX = new double[this.superBlockCount];
+            this.superMinZ = new double[this.superBlockCount];
+            this.superMaxZ = new double[this.superBlockCount];
+            double allMinX = Double.POSITIVE_INFINITY;
+            double allMaxX = Double.NEGATIVE_INFINITY;
+            double allMinZ = Double.POSITIVE_INFINITY;
+            double allMaxZ = Double.NEGATIVE_INFINITY;
+            for (int superBlock = 0; superBlock < this.superBlockCount; superBlock++) {
+                double minX = Double.POSITIVE_INFINITY;
+                double maxX = Double.NEGATIVE_INFINITY;
+                double minZ = Double.POSITIVE_INFINITY;
+                double maxZ = Double.NEGATIVE_INFINITY;
+                int end = Math.min(this.blockCount, (superBlock + 1) * SEARCH_SUPER_BLOCK_BLOCKS);
+                for (int block = superBlock * SEARCH_SUPER_BLOCK_BLOCKS; block < end; block++) {
+                    minX = Math.min(minX, this.blockMinX[block]);
+                    maxX = Math.max(maxX, this.blockMaxX[block]);
+                    minZ = Math.min(minZ, this.blockMinZ[block]);
+                    maxZ = Math.max(maxZ, this.blockMaxZ[block]);
+                }
+                this.superMinX[superBlock] = minX;
+                this.superMaxX[superBlock] = maxX;
+                this.superMinZ[superBlock] = minZ;
+                this.superMaxZ[superBlock] = maxZ;
+                allMinX = Math.min(allMinX, minX);
+                allMaxX = Math.max(allMaxX, maxX);
+                allMinZ = Math.min(allMinZ, minZ);
+                allMaxZ = Math.max(allMaxZ, maxZ);
+            }
+            this.allMinX = allMinX;
+            this.allMaxX = allMaxX;
+            this.allMinZ = allMinZ;
+            this.allMaxZ = allMaxZ;
+            this.blockTangentDeviation = new double[this.blockCount];
+            this.blockOffsetMin = new double[this.blockCount];
+            this.blockOffsetMax = new double[this.blockCount];
+            for (int block = 0; block < this.blockCount; block++) {
+                int first = block * SEARCH_BLOCK_SIZE;
+                int end = Math.min(sampleCount, first + SEARCH_BLOCK_SIZE);
+                double deviation = 0.0D;
+                double offsetMin = Double.POSITIVE_INFINITY;
+                double offsetMax = Double.NEGATIVE_INFINITY;
+                for (int i = first; i < end; i++) {
+                    double dtx = tangentX[i] - tangentX[first];
+                    double dtz = tangentZ[i] - tangentZ[first];
+                    deviation = Math.max(deviation, Math.sqrt(dtx * dtx + dtz * dtz));
+                    double offset = (centerX[i] - centerX[first]) * tangentX[i] + (centerZ[i] - centerZ[first]) * tangentZ[i];
+                    offsetMin = Math.min(offsetMin, offset);
+                    offsetMax = Math.max(offsetMax, offset);
+                }
+                this.blockTangentDeviation[block] = deviation;
+                this.blockOffsetMin[block] = offsetMin;
+                this.blockOffsetMax[block] = offsetMax;
+            }
         }
 
-        private double estimateClosestT(double x, double z) {
-            int bestIndex = 0;
-            double bestDistanceSq = Double.MAX_VALUE;
+        private void initSearchParameters(double width, double drop, int sideSign, boolean twoSided, boolean linkedStart, boolean linkedEnd) {
+            this.width = width;
+            this.drop = drop;
+            this.sideSign = sideSign;
+            this.twoSided = twoSided;
+            this.linkedStart = linkedStart;
+            this.linkedEnd = linkedEnd;
+            this.seamExtraSamples = (linkedStart || linkedEnd) ? 5 : 0;
+            this.halfSegmentLength = Math.max(this.segmentLength, 0.06D) * 1.30D + COLLISION_PATCH_OVERLAP + 0.06D;
+            this.halfWindow = Mth.clamp((int) Math.ceil(this.segmentCount * 0.10D) + 6 + this.seamExtraSamples, 10, 64);
+            this.expandedHalfWindow = Mth.clamp(this.halfWindow * 2 + this.seamExtraSamples, 18, this.segmentCount + this.seamExtraSamples);
+            this.alongLimit = this.halfSegmentLength + ((linkedStart || linkedEnd) ? 0.30D : 0.0D) + CONTACT_EPSILON;
+            double lateralMax = twoSided ? width + CONTACT_EPSILON : width + CONTACT_EPSILON + 0.16D;
+            double acceptRadius = Math.sqrt(this.alongLimit * this.alongLimit + lateralMax * lateralMax) + 0.01D;
+            this.acceptRadiusSquared = acceptRadius * acceptRadius;
+            this.computeSurfaceYBounds(drop, width, this.alongLimit);
+        }
+
+        // Computes the surfaceY bounds for the ramp's drop/width and the largest along offset a sample can accept.
+        private void computeSurfaceYBounds(double drop, double width, double alongMax) {
+            double minBaseY = Double.POSITIVE_INFINITY;
+            double maxBaseY = Double.NEGATIVE_INFINITY;
+            double maxSlope = 0.0D;
             for (int i = 0; i <= this.segmentCount; i++) {
-                double dx = x - this.centerX[i];
-                double dz = z - this.centerZ[i];
-                double distanceSq = dx * dx + dz * dz;
-                if (distanceSq < bestDistanceSq) {
-                    bestDistanceSq = distanceSq;
-                    bestIndex = i;
+                minBaseY = Math.min(minBaseY, this.baseY[i]);
+                maxBaseY = Math.max(maxBaseY, this.baseY[i]);
+                maxSlope = Math.max(maxSlope, Math.abs(this.alongSlope[i]));
+            }
+            // |along| <= alongMax; the lateral fraction is within [0, 1 + epsilon / width] (two-sided ramps can sit
+            // just past the edge), so the drop term is within +-|drop| * (1 + epsilon / width). 1e-6 absorbs rounding.
+            double dropTerm = Math.abs(drop) * (1.0D + CONTACT_EPSILON / width);
+            double alongTerm = alongMax * maxSlope;
+            this.surfaceYLowerBound = minBaseY - alongTerm - dropTerm - 1.0E-6D;
+            this.surfaceYUpperBound = maxBaseY + alongTerm + dropTerm + 1.0E-6D;
+        }
+
+        // Lower bound of the squared distance from (x, z) to every sample.
+        private double lowerBoundDistanceSquared(double x, double z) {
+            return boundsDistanceSquared(this.allMinX, this.allMaxX, this.allMinZ, this.allMaxZ, x, z);
+        }
+
+        // True when every sample of the block has |along| > alongLimit (along = (x - centerX[i]) * tangentX[i] +
+        // (z - centerZ[i]) * tangentZ[i]). The bound is padded far beyond rounding error; NaN never prunes.
+
+        private static int memoSlot(long xBits, long zBits) {
+            long hash = xBits * 0x9E3779B97F4A7C15L + zBits * 0xC2B2AE3D27D4EB4FL;
+            return (int) (hash >>> 59) & (SURFACE_MEMO_SIZE - 1);
+        }
+
+        // Lower bound of (x - centerX[i])^2 + (z - centerZ[i])^2 over the block's samples.
+        private double blockLowerBoundDistanceSquared(int block, double x, double z) {
+            return boundsDistanceSquared(this.blockMinX[block], this.blockMaxX[block], this.blockMinZ[block], this.blockMaxZ[block], x, z);
+        }
+
+        // Squared distance from (x, z) to the box; a lower bound of the squared distance to any point inside it. IEEE
+        // rounding is monotonic, so this also holds for the computed distances (NaN yields 0 = no pruning).
+        private static double boundsDistanceSquared(double minX, double maxX, double minZ, double maxZ, double x, double z) {
+            double dx = minX - x;
+            if (!(dx > 0.0D)) {
+                dx = x - maxX;
+                if (!(dx > 0.0D)) {
+                    dx = 0.0D;
                 }
             }
-            return (double) bestIndex / (double) Math.max(this.segmentCount, 1);
+            double dz = minZ - z;
+            if (!(dz > 0.0D)) {
+                dz = z - maxZ;
+                if (!(dz > 0.0D)) {
+                    dz = 0.0D;
+                }
+            }
+            return dx * dx + dz * dz;
+        }
+
+        // Index of the sample closest to (x, z); on equal distances the lowest index, i.e. exactly what a linear
+        // "if (distanceSq < best)" scan over 0..segmentCount returns. Starts in the most promising block, then visits
+        // only blocks whose lower bound does not exceed the best distance found so far.
+        private int closestIndex(double x, double z) {
+            // Seed with the most promising block of the most promising super block.
+            int seedSuper = 0;
+            double seedSuperBound = Double.POSITIVE_INFINITY;
+            for (int superBlock = 0; superBlock < this.superBlockCount; superBlock++) {
+                double bound = boundsDistanceSquared(this.superMinX[superBlock], this.superMaxX[superBlock],
+                        this.superMinZ[superBlock], this.superMaxZ[superBlock], x, z);
+                if (bound < seedSuperBound) {
+                    seedSuperBound = bound;
+                    seedSuper = superBlock;
+                }
+            }
+            int seedBlock = seedSuper * SEARCH_SUPER_BLOCK_BLOCKS;
+            double seedBound = Double.POSITIVE_INFINITY;
+            int seedEnd = Math.min(this.blockCount, (seedSuper + 1) * SEARCH_SUPER_BLOCK_BLOCKS);
+            for (int block = seedSuper * SEARCH_SUPER_BLOCK_BLOCKS; block < seedEnd; block++) {
+                double bound = this.blockLowerBoundDistanceSquared(block, x, z);
+                if (bound < seedBound) {
+                    seedBound = bound;
+                    seedBlock = block;
+                }
+            }
+            int sampleCount = this.segmentCount + 1;
+            int bestIndex = 0;
+            double bestDistanceSq = Double.MAX_VALUE;
+            for (int pass = -1; pass < this.superBlockCount; pass++) {
+                int firstBlock;
+                int endBlock;
+                if (pass < 0) {
+                    firstBlock = seedBlock;
+                    endBlock = seedBlock + 1;
+                } else {
+                    if (boundsDistanceSquared(this.superMinX[pass], this.superMaxX[pass],
+                            this.superMinZ[pass], this.superMaxZ[pass], x, z) > bestDistanceSq) {
+                        continue;
+                    }
+                    firstBlock = pass * SEARCH_SUPER_BLOCK_BLOCKS;
+                    endBlock = Math.min(this.blockCount, firstBlock + SEARCH_SUPER_BLOCK_BLOCKS);
+                }
+                for (int block = firstBlock; block < endBlock; block++) {
+                    if (pass >= 0 && (block == seedBlock || this.blockLowerBoundDistanceSquared(block, x, z) > bestDistanceSq)) {
+                        continue;
+                    }
+                    int end = Math.min(sampleCount, (block + 1) * SEARCH_BLOCK_SIZE);
+                    for (int i = block * SEARCH_BLOCK_SIZE; i < end; i++) {
+                        double dx = x - this.centerX[i];
+                        double dz = z - this.centerZ[i];
+                        double distanceSq = dx * dx + dz * dz;
+                        if (distanceSq < bestDistanceSq || (distanceSq == bestDistanceSq && i < bestIndex)) {
+                            bestDistanceSq = distanceSq;
+                            bestIndex = i;
+                        }
+                    }
+                }
+            }
+            return bestIndex;
+        }
+    }
+
+    private record SurfaceMemoEntry(long xBits, long zBits, @Nullable SurfacePoint point) {
+    }
+
+    private static final class CenterlineSampleCache {
+        private final int samples;
+        private final double[] centerX;
+        private final double[] centerZ;
+        private final double minX;
+        private final double maxX;
+        private final double minZ;
+        private final double maxZ;
+
+        private CenterlineSampleCache(int samples, double[] centerX, double[] centerZ) {
+            this.samples = samples;
+            this.centerX = centerX;
+            this.centerZ = centerZ;
+            double minX = Double.POSITIVE_INFINITY;
+            double maxX = Double.NEGATIVE_INFINITY;
+            double minZ = Double.POSITIVE_INFINITY;
+            double maxZ = Double.NEGATIVE_INFINITY;
+            for (int i = 0; i < centerX.length; i++) {
+                minX = Math.min(minX, centerX[i]);
+                maxX = Math.max(maxX, centerX[i]);
+                minZ = Math.min(minZ, centerZ[i]);
+                maxZ = Math.max(maxZ, centerZ[i]);
+            }
+            this.minX = minX;
+            this.maxX = maxX;
+            this.minZ = minZ;
+            this.maxZ = maxZ;
+        }
+
+        // Lower bound of the squared distance from (x, z) to every sample (see blockLowerBoundDistanceSquared).
+        private double lowerBoundDistanceSquared(double x, double z) {
+            double dx = this.minX - x;
+            if (!(dx > 0.0D)) {
+                dx = x - this.maxX;
+                if (!(dx > 0.0D)) {
+                    dx = 0.0D;
+                }
+            }
+            double dz = this.minZ - z;
+            if (!(dz > 0.0D)) {
+                dz = z - this.maxZ;
+                if (!(dz > 0.0D)) {
+                    dz = 0.0D;
+                }
+            }
+            return dx * dx + dz * dz;
+        }
+    }
+
+    /**
+     * The active ramps of one level. {@code ramps} is the membership authority and defines the iteration order of
+     * lookups (unchanged); the snapshot adds a spatial index over the ramps' bounding boxes and is rebuilt after any
+     * membership or bounding-box change.
+     */
+    private static final class RampRegistry {
+        private final Set<SurfRampEntity> ramps = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        private final AtomicInteger modCount = new AtomicInteger();
+        @Nullable
+        private volatile RampIndexSnapshot snapshot;
+
+        private void markDirty() {
+            this.modCount.incrementAndGet();
+        }
+
+        private void remove(SurfRampEntity ramp) {
+            if (this.ramps.remove(ramp)) {
+                this.markDirty();
+            }
+        }
+
+        private RampIndexSnapshot snapshot() {
+            RampIndexSnapshot current = this.snapshot;
+            if (current != null && current.modCount == this.modCount.get()) {
+                return current;
+            }
+            synchronized (this) {
+                current = this.snapshot;
+                if (current != null && current.modCount == this.modCount.get()) {
+                    return current;
+                }
+                // Drop dead ramps first, as the former full scans did on every lookup (the index only visits
+                // candidates, so unloaded ramps far from any query would otherwise stay referenced).
+                for (SurfRampEntity ramp : this.ramps) {
+                    if (ramp == null || !ramp.isAlive() || ramp.isRemoved()) {
+                        this.ramps.remove(ramp);
+                    }
+                }
+                int mod = this.modCount.get();
+                current = RampIndexSnapshot.build(this.ramps, mod);
+                this.snapshot = current;
+                return current;
+            }
+        }
+    }
+
+    private static final class RampIndexSnapshot {
+        // A query box spanning more cells than this just scans every ramp (in order).
+        private static final int MAX_QUERY_CELLS = 64;
+        // A ramp box spanning more cells than this (or not finite) is a candidate of every query.
+        private static final int MAX_RAMP_CELLS = 1024;
+        private static final int[] NO_RAMPS = new int[0];
+
+        private final int modCount;
+        private final SurfRampEntity[] ordered;
+        private final Long2ObjectOpenHashMap<int[]> cells;
+        private final int[] everywhere;
+
+        private RampIndexSnapshot(int modCount, SurfRampEntity[] ordered, Long2ObjectOpenHashMap<int[]> cells, int[] everywhere) {
+            this.modCount = modCount;
+            this.ordered = ordered;
+            this.cells = cells;
+            this.everywhere = everywhere;
+        }
+
+        private static RampIndexSnapshot build(Set<SurfRampEntity> ramps, int modCount) {
+            List<SurfRampEntity> ordered = new ArrayList<>(ramps.size());
+            for (SurfRampEntity ramp : ramps) {
+                ordered.add(ramp);
+            }
+            Long2ObjectOpenHashMap<IntArrayList> lists = new Long2ObjectOpenHashMap<>();
+            IntArrayList everywhere = new IntArrayList();
+            for (int rank = 0; rank < ordered.size(); rank++) {
+                SurfRampEntity ramp = ordered.get(rank);
+                AABB box = ramp == null ? null : ramp.getBoundingBox();
+                if (box == null || !Double.isFinite(box.minX) || !Double.isFinite(box.maxX)
+                        || !Double.isFinite(box.minZ) || !Double.isFinite(box.maxZ)) {
+                    everywhere.add(rank);
+                    continue;
+                }
+                int minCellX = Mth.floor(box.minX) >> 4;
+                int maxCellX = Mth.floor(box.maxX) >> 4;
+                int minCellZ = Mth.floor(box.minZ) >> 4;
+                int maxCellZ = Mth.floor(box.maxZ) >> 4;
+                long cellCount = ((long) maxCellX - minCellX + 1L) * ((long) maxCellZ - minCellZ + 1L);
+                if (cellCount <= 0L || cellCount > MAX_RAMP_CELLS) {
+                    everywhere.add(rank);
+                    continue;
+                }
+                for (int cellX = minCellX; cellX <= maxCellX; cellX++) {
+                    for (int cellZ = minCellZ; cellZ <= maxCellZ; cellZ++) {
+                        lists.computeIfAbsent(cellKey(cellX, cellZ), key -> new IntArrayList()).add(rank);
+                    }
+                }
+            }
+            Long2ObjectOpenHashMap<int[]> cells = new Long2ObjectOpenHashMap<>(lists.size());
+            for (Long2ObjectOpenHashMap.Entry<IntArrayList> entry : lists.long2ObjectEntrySet()) {
+                cells.put(entry.getLongKey(), entry.getValue().toIntArray());
+            }
+            return new RampIndexSnapshot(modCount, ordered.toArray(new SurfRampEntity[0]), cells, everywhere.toIntArray());
+        }
+
+        private static long cellKey(int cellX, int cellZ) {
+            return ((long) cellX << 32) | (cellZ & 0xFFFFFFFFL);
+        }
+
+        /**
+         * Ascending ranks of the ramps whose indexed box may intersect {@code box} (a superset of the ramps that
+         * do), or {@code null} to visit every ramp. Two AABBs that intersect overlap in X and Z, and floor/shift are
+         * monotonic, so they share at least one cell.
+         */
+        @Nullable
+        private int[] candidates(AABB box) {
+            if (!Double.isFinite(box.minX) || !Double.isFinite(box.maxX)
+                    || !Double.isFinite(box.minZ) || !Double.isFinite(box.maxZ)) {
+                return null;
+            }
+            int minCellX = Mth.floor(box.minX) >> 4;
+            int maxCellX = Mth.floor(box.maxX) >> 4;
+            int minCellZ = Mth.floor(box.minZ) >> 4;
+            int maxCellZ = Mth.floor(box.maxZ) >> 4;
+            long cellCount = ((long) maxCellX - minCellX + 1L) * ((long) maxCellZ - minCellZ + 1L);
+            if (cellCount <= 0L || cellCount > MAX_QUERY_CELLS) {
+                return null;
+            }
+            int[] single = null;
+            IntArrayList merged = null;
+            for (int cellX = minCellX; cellX <= maxCellX; cellX++) {
+                for (int cellZ = minCellZ; cellZ <= maxCellZ; cellZ++) {
+                    int[] list = this.cells.get(cellKey(cellX, cellZ));
+                    if (list == null) {
+                        continue;
+                    }
+                    if (single == null && merged == null) {
+                        single = list;
+                        continue;
+                    }
+                    if (merged == null) {
+                        merged = new IntArrayList(single.length + list.length + this.everywhere.length);
+                        merged.addElements(0, single);
+                    }
+                    merged.addElements(merged.size(), list);
+                }
+            }
+            if (merged == null && this.everywhere.length == 0) {
+                return single == null ? NO_RAMPS : single;
+            }
+            if (merged == null) {
+                merged = new IntArrayList((single == null ? 0 : single.length) + this.everywhere.length);
+                if (single != null) {
+                    merged.addElements(0, single);
+                }
+            }
+            merged.addElements(merged.size(), this.everywhere);
+            int[] ranks = merged.toIntArray();
+            java.util.Arrays.sort(ranks);
+            int unique = 0;
+            for (int k = 0; k < ranks.length; k++) {
+                if (k == 0 || ranks[k] != ranks[k - 1]) {
+                    ranks[unique++] = ranks[k];
+                }
+            }
+            return unique == ranks.length ? ranks : java.util.Arrays.copyOf(ranks, unique);
         }
     }
 

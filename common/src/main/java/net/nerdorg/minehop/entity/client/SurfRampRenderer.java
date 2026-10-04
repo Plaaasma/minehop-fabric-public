@@ -26,6 +26,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.WeakHashMap;
 
 public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntityRenderState, SurfRampModel> {
     private static final double UV_SCALE = 0.5D;
@@ -48,6 +49,10 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
     private static final double COLLISION_DEBUG_RIB_SPACING = 0.70D;
     private static final double[] COLLISION_DEBUG_SURFACE_LINE_FRACTIONS = new double[]{0.33D, 0.66D};
 
+    // Solid-mode meshes per ramp (render thread only). The renderer is recreated on resource reload, which also
+    // drops these (sprites change on reload).
+    private final WeakHashMap<SurfRampEntity, MeshSlots> meshes = new WeakHashMap<>();
+
     public SurfRampRenderer(EntityRendererProvider.Context context) {
         super(context, new SurfRampModel(context.bakeLayer(ModModelLayers.SURF_RAMP_ENTITY)), 0.0F);
     }
@@ -67,8 +72,24 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
         state.surfRampEntity = entity;
     }
 
+    // Dev-only timing for the client perf probe (minehop.clientperf): total nanoseconds spent in render().
+    public static final boolean PERF_TIMING = Boolean.getBoolean("minehop.clientperf");
+    public static long perfRenderNanos;
+    public static long perfRenderCalls;
+
     @Override
     public void render(SurfRampEntityRenderState renderState, PoseStack matrixStack, MultiBufferSource vertexConsumerProvider, int light) {
+        if (PERF_TIMING) {
+            long start = System.nanoTime();
+            this.renderRamp(renderState, matrixStack, vertexConsumerProvider, light);
+            perfRenderNanos += System.nanoTime() - start;
+            perfRenderCalls++;
+            return;
+        }
+        this.renderRamp(renderState, matrixStack, vertexConsumerProvider, light);
+    }
+
+    private void renderRamp(SurfRampEntityRenderState renderState, PoseStack matrixStack, MultiBufferSource vertexConsumerProvider, int light) {
         SurfRampEntity entity = renderState.surfRampEntity;
         if (entity == null) {
             return;
@@ -84,10 +105,15 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             int segments = this.getLodSegmentCount(entity, entityPos, false);
             TextureAtlasSprite rampSprite = this.resolveRampSprite(entity);
             VertexConsumer consumer = vertexConsumerProvider.getBuffer(RenderType.entityCutoutNoCull(TextureAtlas.LOCATION_BLOCKS));
-            if (entity.isTwoSided()) {
-                this.renderTwoSidedSolid(entity, entityPos, segments, matrixStack, consumer, rampSprite, light, renderUnderside);
-            } else {
-                this.renderOneSidedSolid(entity, entityPos, cameraPos, segments, matrixStack, consumer, rampSprite, light, renderUnderside);
+            // The surface strip only depends on the geometry, the position, the LOD, the underside flag and the
+            // sprite: record its vertices once and replay them each frame (identical vertex data). On linked ramps
+            // the one-sided end caps and seam bridges depend on the camera and the neighbouring ramps, so they are
+            // still drawn live.
+            boolean twoSided = entity.isTwoSided();
+            RampMesh mesh = this.getOrRecordMesh(entity, entityPos, segments, twoSided, renderUnderside, rampSprite);
+            mesh.emit(consumer, matrixStack.last().pose(), light);
+            if (!twoSided && mesh.hasEnds && !mesh.endsRecorded) {
+                this.renderOneSidedEnds(entity, entityPos, cameraPos, matrixStack, consumer, rampSprite, light, renderUnderside);
             }
         }
 
@@ -137,10 +163,47 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
                 : Mth.clamp(baseSegments, 6, 24);
     }
 
-    private void renderOneSidedSolid(
+    private RampMesh getOrRecordMesh(
             SurfRampEntity entity,
             Vec3 entityPos,
-            @Nullable Vec3 cameraPos,
+            int segments,
+            boolean twoSided,
+            boolean renderUnderside,
+            TextureAtlasSprite sprite
+    ) {
+        int geometryVersion = entity.getGeometryVersion();
+        MeshSlots slots = this.meshes.computeIfAbsent(entity, key -> new MeshSlots());
+        for (RampMesh mesh : slots.meshes) {
+            if (mesh != null && mesh.matches(geometryVersion, entityPos, segments, twoSided, renderUnderside, sprite)) {
+                return mesh;
+            }
+        }
+        MeshRecorder recorder = new MeshRecorder();
+        PoseStack identity = new PoseStack();
+        boolean hasEnds;
+        if (twoSided) {
+            this.renderTwoSidedSolid(entity, entityPos, segments, identity, recorder, sprite, 0, renderUnderside);
+            hasEnds = false;
+        } else {
+            hasEnds = this.renderOneSidedStrip(entity, entityPos, segments, identity, recorder, sprite, 0, renderUnderside);
+        }
+        // Without linked seams the end caps never depend on the camera or the neighbours (no seam lookup): they are
+        // drawn right after the strip every frame, so they can be part of the recording.
+        boolean endsRecorded = !twoSided && hasEnds && !entity.isLinkedStart() && !entity.isLinkedEnd();
+        if (endsRecorded) {
+            this.renderOneSidedEnds(entity, entityPos, null, identity, recorder, sprite, 0, renderUnderside);
+        }
+        RampMesh mesh = recorder.build(geometryVersion, entityPos, segments, twoSided, renderUnderside, sprite, hasEnds, endsRecorded);
+        slots.meshes[slots.next] = mesh;
+        slots.next = (slots.next + 1) % slots.meshes.length;
+        return mesh;
+    }
+
+    // Draws the one-sided surface strip; returns whether the end caps / seam bridges apply (as before: whenever the
+    // strip has a first and a last slice).
+    private boolean renderOneSidedStrip(
+            SurfRampEntity entity,
+            Vec3 entityPos,
             int segments,
             PoseStack matrixStack,
             VertexConsumer consumer,
@@ -197,37 +260,48 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             previousCenter = center;
         }
 
-        if (firstTop != null && previousTop != null) {
-            EndpointSlice startSlice = this.computeOneSidedEndpointSlice(entity, entityPos, 0.0D);
-            EndpointSlice endSlice = this.computeOneSidedEndpointSlice(entity, entityPos, 1.0D);
+        return firstTop != null && previousTop != null;
+    }
 
-            EndpointConnection startConnection = null;
-            EndpointConnection endConnection = null;
+    private void renderOneSidedEnds(
+            SurfRampEntity entity,
+            Vec3 entityPos,
+            @Nullable Vec3 cameraPos,
+            PoseStack matrixStack,
+            VertexConsumer consumer,
+            TextureAtlasSprite sprite,
+            int light,
+            boolean renderUnderside
+    ) {
+        EndpointSlice startSlice = this.computeOneSidedEndpointSlice(entity, entityPos, 0.0D);
+        EndpointSlice endSlice = this.computeOneSidedEndpointSlice(entity, entityPos, 1.0D);
 
-            boolean renderStartCap = !entity.isLinkedStart();
-            boolean renderEndCap = !entity.isLinkedEnd();
-            if (cameraPos != null && entity.isLinkedStart() && this.shouldResolveSeamConnection(cameraPos, startSlice.worldCenter)) {
-                startConnection = this.findConnectedOneSidedEndpoint(entity, startSlice.worldCenter);
-                renderStartCap = startConnection == null;
-            }
-            if (cameraPos != null && entity.isLinkedEnd() && this.shouldResolveSeamConnection(cameraPos, endSlice.worldCenter)) {
-                endConnection = this.findConnectedOneSidedEndpoint(entity, endSlice.worldCenter);
-                renderEndCap = endConnection == null;
-            }
+        EndpointConnection startConnection = null;
+        EndpointConnection endConnection = null;
 
-            if (renderStartCap) {
-                drawDoubleSidedTexturedTriangle(entity, consumer, matrixStack, startSlice.topLocal, startSlice.outerLocal, startSlice.innerLocal, sprite, light);
-            }
-            if (renderEndCap) {
-                drawDoubleSidedTexturedTriangle(entity, consumer, matrixStack, endSlice.topLocal, endSlice.innerLocal, endSlice.outerLocal, sprite, light);
-            }
+        boolean renderStartCap = !entity.isLinkedStart();
+        boolean renderEndCap = !entity.isLinkedEnd();
+        if (cameraPos != null && entity.isLinkedStart() && this.shouldResolveSeamConnection(cameraPos, startSlice.worldCenter)) {
+            startConnection = this.findConnectedOneSidedEndpoint(entity, startSlice.worldCenter);
+            renderStartCap = startConnection == null;
+        }
+        if (cameraPos != null && entity.isLinkedEnd() && this.shouldResolveSeamConnection(cameraPos, endSlice.worldCenter)) {
+            endConnection = this.findConnectedOneSidedEndpoint(entity, endSlice.worldCenter);
+            renderEndCap = endConnection == null;
+        }
 
-            if (startConnection != null) {
-                this.drawOneSidedSeamBridge(entity, entityPos, matrixStack, consumer, sprite, light, startSlice, startConnection, renderUnderside);
-            }
-            if (endConnection != null) {
-                this.drawOneSidedSeamBridge(entity, entityPos, matrixStack, consumer, sprite, light, endSlice, endConnection, renderUnderside);
-            }
+        if (renderStartCap) {
+            drawDoubleSidedTexturedTriangle(entity, consumer, matrixStack, startSlice.topLocal, startSlice.outerLocal, startSlice.innerLocal, sprite, light);
+        }
+        if (renderEndCap) {
+            drawDoubleSidedTexturedTriangle(entity, consumer, matrixStack, endSlice.topLocal, endSlice.innerLocal, endSlice.outerLocal, sprite, light);
+        }
+
+        if (startConnection != null) {
+            this.drawOneSidedSeamBridge(entity, entityPos, matrixStack, consumer, sprite, light, startSlice, startConnection, renderUnderside);
+        }
+        if (endConnection != null) {
+            this.drawOneSidedSeamBridge(entity, entityPos, matrixStack, consumer, sprite, light, endSlice, endConnection, renderUnderside);
         }
     }
 
@@ -1378,6 +1452,149 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
 
             double alpha = (distance - lowerDistance) / (upperDistance - lowerDistance);
             return this.tSamples[lowerIndex] + (this.tSamples[upperIndex] - this.tSamples[lowerIndex]) * alpha;
+        }
+    }
+
+    private static final class MeshSlots {
+        private final RampMesh[] meshes = new RampMesh[4];
+        private int next;
+    }
+
+    /** Recorded vertex stream of a ramp's surface strip (position relative to the entity, before the pose). */
+    private static final class RampMesh {
+        private final int geometryVersion;
+        private final double entityX;
+        private final double entityY;
+        private final double entityZ;
+        private final int segments;
+        private final boolean twoSided;
+        private final boolean renderUnderside;
+        private final TextureAtlasSprite sprite;
+        private final boolean hasEnds;
+        // The one-sided end caps are part of the recording (ramps without linked seams).
+        private final boolean endsRecorded;
+        private final int vertexCount;
+        // x, y, z, u, v, normal x, normal y, normal z per vertex
+        private final float[] vertices;
+        private final int[] colors;
+        private final int[] overlays;
+
+        private RampMesh(int geometryVersion, Vec3 entityPos, int segments, boolean twoSided, boolean renderUnderside,
+                         TextureAtlasSprite sprite, boolean hasEnds, boolean endsRecorded, int vertexCount, float[] vertices,
+                         int[] colors, int[] overlays) {
+            this.geometryVersion = geometryVersion;
+            this.entityX = entityPos.x;
+            this.entityY = entityPos.y;
+            this.entityZ = entityPos.z;
+            this.segments = segments;
+            this.twoSided = twoSided;
+            this.renderUnderside = renderUnderside;
+            this.sprite = sprite;
+            this.hasEnds = hasEnds;
+            this.endsRecorded = endsRecorded;
+            this.vertexCount = vertexCount;
+            this.vertices = vertices;
+            this.colors = colors;
+            this.overlays = overlays;
+        }
+
+        private boolean matches(int geometryVersion, Vec3 entityPos, int segments, boolean twoSided, boolean renderUnderside,
+                                TextureAtlasSprite sprite) {
+            return this.geometryVersion == geometryVersion
+                    && this.segments == segments
+                    && this.twoSided == twoSided
+                    && this.renderUnderside == renderUnderside
+                    && this.sprite == sprite
+                    && Double.doubleToRawLongBits(this.entityX) == Double.doubleToRawLongBits(entityPos.x)
+                    && Double.doubleToRawLongBits(this.entityY) == Double.doubleToRawLongBits(entityPos.y)
+                    && Double.doubleToRawLongBits(this.entityZ) == Double.doubleToRawLongBits(entityPos.z);
+        }
+
+        // Same vertices as the live drawing: VertexConsumer#addVertex(Matrix4f, x, y, z) transforms the position
+        // exactly like this, and the bulk addVertex writes the same color/uv/overlay/light/normal values.
+        private void emit(VertexConsumer consumer, Matrix4f pose, int light) {
+            Vector3f position = new Vector3f();
+            float[] data = this.vertices;
+            for (int vertex = 0; vertex < this.vertexCount; vertex++) {
+                int offset = vertex * 8;
+                pose.transformPosition(data[offset], data[offset + 1], data[offset + 2], position);
+                consumer.addVertex(position.x(), position.y(), position.z(), this.colors[vertex],
+                        data[offset + 3], data[offset + 4], this.overlays[vertex], light,
+                        data[offset + 5], data[offset + 6], data[offset + 7]);
+            }
+        }
+    }
+
+    /** Captures what the drawing code feeds a VertexConsumer (untransformed positions; light is applied on replay). */
+    private static final class MeshRecorder implements VertexConsumer {
+        private float[] vertices = new float[8 * 256];
+        private int[] colors = new int[256];
+        private int[] overlays = new int[256];
+        private int count;
+
+        private RampMesh build(int geometryVersion, Vec3 entityPos, int segments, boolean twoSided, boolean renderUnderside,
+                               TextureAtlasSprite sprite, boolean hasEnds, boolean endsRecorded) {
+            return new RampMesh(geometryVersion, entityPos, segments, twoSided, renderUnderside, sprite, hasEnds, endsRecorded, this.count,
+                    Arrays.copyOf(this.vertices, this.count * 8), Arrays.copyOf(this.colors, this.count),
+                    Arrays.copyOf(this.overlays, this.count));
+        }
+
+        @Override
+        public VertexConsumer addVertex(Matrix4f pose, float x, float y, float z) {
+            return this.addVertex(x, y, z);
+        }
+
+        @Override
+        public VertexConsumer addVertex(float x, float y, float z) {
+            if (this.count == this.colors.length) {
+                this.vertices = Arrays.copyOf(this.vertices, this.vertices.length * 2);
+                this.colors = Arrays.copyOf(this.colors, this.colors.length * 2);
+                this.overlays = Arrays.copyOf(this.overlays, this.overlays.length * 2);
+            }
+            int offset = this.count * 8;
+            this.vertices[offset] = x;
+            this.vertices[offset + 1] = y;
+            this.vertices[offset + 2] = z;
+            this.colors[this.count] = 0xFFFFFFFF;
+            this.overlays[this.count] = OverlayTexture.NO_OVERLAY;
+            this.count++;
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setColor(int red, int green, int blue, int alpha) {
+            this.colors[this.count - 1] = (alpha & 0xFF) << 24 | (red & 0xFF) << 16 | (green & 0xFF) << 8 | (blue & 0xFF);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setUv(float u, float v) {
+            int offset = (this.count - 1) * 8;
+            this.vertices[offset + 3] = u;
+            this.vertices[offset + 4] = v;
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setUv1(int u, int v) {
+            // setOverlay(packed) arrives as setUv1(packed & 0xFFFF, packed >> 16 & 0xFFFF)
+            this.overlays[this.count - 1] = (u & 0xFFFF) | (v & 0xFFFF) << 16;
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setUv2(int u, int v) {
+            // light: applied by RampMesh#emit
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setNormal(float x, float y, float z) {
+            int offset = (this.count - 1) * 8;
+            this.vertices[offset + 5] = x;
+            this.vertices[offset + 6] = y;
+            this.vertices[offset + 7] = z;
+            return this;
         }
     }
 
