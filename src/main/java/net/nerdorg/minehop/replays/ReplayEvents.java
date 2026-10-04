@@ -2,7 +2,7 @@ package net.nerdorg.minehop.replays;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.level.ServerPlayer;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.data.DataManager;
@@ -17,16 +17,16 @@ public class ReplayEvents {
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(((server) -> {
-            for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
-                if (Minehop.timerManager.containsKey(playerEntity.getNameForScoreboard())) {
-                    if (replayEntryMap.containsKey(playerEntity.getNameForScoreboard())) {
-                        List<ReplayManager.ReplayEntry> replayEntries = replayEntryMap.get(playerEntity.getNameForScoreboard());
+            for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
+                if (Minehop.timerManager.containsKey(playerEntity.getScoreboardName())) {
+                    if (replayEntryMap.containsKey(playerEntity.getScoreboardName())) {
+                        List<ReplayManager.ReplayEntry> replayEntries = replayEntryMap.get(playerEntity.getScoreboardName());
                         double jump_count = 0;
                         double last_jump_speed = 0;
                         double efficiency = 0;
 
-                        if (Minehop.lastEfficiencyMap.containsKey(playerEntity.getNameForScoreboard())) {
-                            ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerEntity.getNameForScoreboard());
+                        if (Minehop.lastEfficiencyMap.containsKey(playerEntity.getScoreboardName())) {
+                            ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerEntity.getScoreboardName());
                             jump_count = ssjEntry.jump_count;
                             last_jump_speed = ssjEntry.last_jump_speed;
                             efficiency = ssjEntry.efficiency;
@@ -35,14 +35,14 @@ public class ReplayEvents {
                                 playerEntity.getX(),
                                 playerEntity.getY(),
                                 playerEntity.getZ(),
-                                (double) playerEntity.getPitch(),
-                                (double) playerEntity.getHeadYaw(),
+                                (double) playerEntity.getXRot(),
+                                (double) playerEntity.getYHeadRot(),
                                 jump_count,
                                 last_jump_speed,
                                 efficiency
                         ));
 
-                        replayEntryMap.put(playerEntity.getNameForScoreboard(), replayEntries);
+                        replayEntryMap.put(playerEntity.getScoreboardName(), replayEntries);
                     }
                     else {
                         List<ReplayManager.ReplayEntry> replayEntries = new ArrayList<>();
@@ -50,8 +50,8 @@ public class ReplayEvents {
                         double last_jump_speed = 0;
                         double efficiency = 0;
 
-                        if (Minehop.lastEfficiencyMap.containsKey(playerEntity.getNameForScoreboard())) {
-                            ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerEntity.getNameForScoreboard());
+                        if (Minehop.lastEfficiencyMap.containsKey(playerEntity.getScoreboardName())) {
+                            ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerEntity.getScoreboardName());
                             jump_count = ssjEntry.jump_count;
                             last_jump_speed = ssjEntry.last_jump_speed;
                             efficiency = ssjEntry.efficiency;
@@ -60,14 +60,14 @@ public class ReplayEvents {
                                 playerEntity.getX(),
                                 playerEntity.getY(),
                                 playerEntity.getZ(),
-                                (double) playerEntity.getPitch(),
-                                (double) playerEntity.getHeadYaw(),
+                                (double) playerEntity.getXRot(),
+                                (double) playerEntity.getYHeadRot(),
                                 jump_count,
                                 last_jump_speed,
                                 efficiency
                         ));
 
-                        replayEntryMap.put(playerEntity.getNameForScoreboard(), replayEntries);
+                        replayEntryMap.put(playerEntity.getScoreboardName(), replayEntries);
                     }
                 }
             }

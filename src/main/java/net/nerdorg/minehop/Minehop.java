@@ -7,7 +7,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.world.entity.player.Player;
 import net.nerdorg.minehop.anticheat.AntiCheatManager;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.block.entity.ModBlockEntities;
@@ -103,7 +103,7 @@ public class Minehop implements ModInitializer {
 	public static java.util.Map<String, net.nerdorg.minehop.util.StrafeStats> strafeStatsMap = new ConcurrentHashMap<>();
 	public static HashMap<String, Zone> playerMapLocation = new HashMap<>();
 
-	public static List<PlayerEntity> currentCheaters = new ArrayList<>();
+	public static List<Player> currentCheaters = new ArrayList<>();
 
 	@Override
 	public void onInitialize() {

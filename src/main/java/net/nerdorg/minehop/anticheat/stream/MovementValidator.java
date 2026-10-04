@@ -1,35 +1,35 @@
 package net.nerdorg.minehop.anticheat.stream;
 
 import net.fabricmc.fabric.api.entity.FakePlayer;
-import net.minecraft.block.BedBlock;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.player.PlayerAbilities;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerPosition;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.network.packet.s2c.common.CustomPayloadS2CPacket;
-import net.minecraft.network.packet.s2c.play.BundleS2CPacket;
-import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
-import net.minecraft.network.packet.s2c.play.ExplosionS2CPacket;
-import net.minecraft.network.packet.s2c.play.PositionFlag;
-import net.minecraft.registry.tag.BlockTags;
-import net.minecraft.network.packet.s2c.common.CommonPingS2CPacket;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
+import net.minecraft.network.protocol.common.ClientboundPingPacket;
+import net.minecraft.network.protocol.game.ClientboundBundlePacket;
+import net.minecraft.network.protocol.game.ClientboundExplodePacket;
+import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.PlayerInput;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.util.Mth;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.PositionMoveRotation;
+import net.minecraft.world.entity.Relative;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Abilities;
+import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.anticheat.AntiCheatManager;
 import net.nerdorg.minehop.block.ModBlocks;
@@ -144,8 +144,8 @@ public final class MovementValidator {
     private MovementValidator() {
     }
 
-    private static StreamState state(ServerPlayerEntity player) {
-        return STATES.computeIfAbsent(player.getUuid(), uuid -> new StreamState());
+    private static StreamState state(ServerPlayer player) {
+        return STATES.computeIfAbsent(player.getUUID(), uuid -> new StreamState());
     }
 
     public static void clear(UUID uuid) {
@@ -155,8 +155,8 @@ public final class MovementValidator {
     }
 
     /** Client ticks validated so far for this player, or -1 if none (used to check run timing). */
-    public static long clientTicks(ServerPlayerEntity player) {
-        StreamState st = player == null ? null : STATES.get(player.getUuid());
+    public static long clientTicks(ServerPlayer player) {
+        StreamState st = player == null ? null : STATES.get(player.getUUID());
         return st == null ? -1L : st.clientTicks;
     }
 
@@ -165,7 +165,7 @@ public final class MovementValidator {
     // ------------------------------------------------------------------------------------------
 
     /** Server thread. The input packet for a client tick arrives before that tick's move packet. */
-    public static void onPlayerInput(ServerPlayerEntity player, PlayerInput input) {
+    public static void onPlayerInput(ServerPlayer player, Input input) {
         if (player == null || input == null) {
             return;
         }
@@ -173,17 +173,17 @@ public final class MovementValidator {
     }
 
     /** Server thread, after vanilla accepted and applied a move packet. */
-    public static void onMoveAccepted(ServerPlayerEntity player, PlayerMoveC2SPacket packet) {
+    public static void onMoveAccepted(ServerPlayer player, ServerboundMovePlayerPacket packet) {
         if (player == null || packet == null) {
             return;
         }
         StreamState st = state(player);
-        if (packet.changesPosition()) {
-            Vec3d pos = player.getPos();
+        if (packet.hasPosition()) {
+            Vec3 pos = player.position();
             boolean echo = false;
             if (st.teleportEchoPending) {
                 st.teleportEchoPending = false;
-                echo = st.lastPos != null && pos.squaredDistanceTo(st.lastPos) < 1.0E-12D;
+                echo = st.lastPos != null && pos.distanceToSqr(st.lastPos) < 1.0E-12D;
             }
             if (!echo) {
                 if (st.tickPos != null) {
@@ -200,47 +200,47 @@ public final class MovementValidator {
             }
         }
         st.clientOnGround = packet.isOnGround();
-        if (packet.changesLook()) {
+        if (packet.hasRotation()) {
             // Raw (unwrapped) yaw exactly as the client's travel() used it.
-            st.tickYaw = packet.getYaw(st.tickYaw);
+            st.tickYaw = packet.getYRot(st.tickYaw);
             st.tickHasYaw = true;
         }
     }
 
     /** Netty thread: a move packet arrived (extra ticks without tick-end packets count too). */
-    public static void onMovePacketNetwork(ServerPlayerEntity player) {
+    public static void onMovePacketNetwork(ServerPlayer player) {
         MinecraftServer server = player == null ? null : player.getServer();
         if (server == null) {
             return;
         }
-        handleTimer(player, server, state(player).timer.onMovePacket(System.nanoTime(), server.getTickManager().getNanosPerTick()));
+        handleTimer(player, server, state(player).timer.onMovePacket(System.nanoTime(), server.tickRateManager().nanosecondsPerTick()));
     }
 
     /** Netty thread: timestamp the client tick for the timer check. */
-    public static void onClientTickEndNetwork(ServerPlayerEntity player) {
+    public static void onClientTickEndNetwork(ServerPlayer player) {
         MinecraftServer server = player == null ? null : player.getServer();
         if (server == null) {
             return;
         }
-        handleTimer(player, server, state(player).timer.onTickEnd(System.nanoTime(), server.getTickManager().getNanosPerTick()));
+        handleTimer(player, server, state(player).timer.onTickEnd(System.nanoTime(), server.tickRateManager().nanosecondsPerTick()));
     }
 
     /** Netty thread: the client confirmed a teleport; its next move packet is an echo, not a tick. */
-    public static void onTeleportConfirmNetwork(ServerPlayerEntity player) {
+    public static void onTeleportConfirmNetwork(ServerPlayer player) {
         if (player != null) {
             state(player).timer.onTeleportConfirm();
         }
     }
 
-    private static void handleTimer(ServerPlayerEntity player, MinecraftServer server, TimerBalance.Violation violation) {
+    private static void handleTimer(ServerPlayer player, MinecraftServer server, TimerBalance.Violation violation) {
         if (violation != null) {
-            UUID uuid = player.getUuid();
+            UUID uuid = player.getUUID();
             server.execute(() -> onTimerViolation(uuid, server, violation));
         }
     }
 
     /** Server thread: the client finished a tick; validate it. */
-    public static void onClientTickEnd(ServerPlayerEntity player) {
+    public static void onClientTickEnd(ServerPlayer player) {
         if (player == null) {
             return;
         }
@@ -250,7 +250,7 @@ public final class MovementValidator {
     }
 
     /** Server thread: vanilla is about to ignore moves until the client confirms this teleport. */
-    public static void onTeleportRequested(ServerPlayerEntity player, PlayerPosition position, Set<PositionFlag> flags) {
+    public static void onTeleportRequested(ServerPlayer player, PositionMoveRotation position, Set<Relative> flags) {
         if (player == null) {
             return;
         }
@@ -259,15 +259,15 @@ public final class MovementValidator {
         st.lastTeleportNanos = System.nanoTime();
         st.clearTickAccumulation();
         double speed = position == null ? 0.0D : position.deltaMovement().length();
-        if (flags != null && (flags.contains(PositionFlag.DELTA_X) || flags.contains(PositionFlag.DELTA_Y)
-                || flags.contains(PositionFlag.DELTA_Z))) {
+        if (flags != null && (flags.contains(Relative.DELTA_X) || flags.contains(Relative.DELTA_Y)
+                || flags.contains(Relative.DELTA_Z))) {
             speed += st.lastStep == null ? 0.0D : st.lastStep.length();
         }
         st.pendingTeleportSpeed = Math.max(st.pendingTeleportSpeed, speed);
     }
 
     /** Server thread: the client confirmed the pending teleport and now stands at the target. */
-    public static void onTeleportConfirmed(ServerPlayerEntity player) {
+    public static void onTeleportConfirmed(ServerPlayer player) {
         if (player == null) {
             return;
         }
@@ -285,11 +285,11 @@ public final class MovementValidator {
         // offset; with sneak still held it lifts again.
         st.crouchLiftOwed = true;
         st.clearTickAccumulation();
-        st.resetBaseline(player.getPos());
+        st.resetBaseline(player.position());
     }
 
     /** Called right before our own lagback teleport is requested. */
-    public static void onLagbackIssued(ServerPlayerEntity player) {
+    public static void onLagbackIssued(ServerPlayer player) {
         if (player == null) {
             return;
         }
@@ -304,7 +304,7 @@ public final class MovementValidator {
      * returns the ping id that must be sent right after it (the client answers once it applied the
      * velocity), else -1.
      */
-    public static int onPacketSent(ServerPlayerEntity player, Packet<?> packet) {
+    public static int onPacketSent(ServerPlayer player, Packet<?> packet) {
         if (player == null || packet == null) {
             return -1;
         }
@@ -326,7 +326,7 @@ public final class MovementValidator {
     }
 
     /** Netty thread, in packet order: a timer heartbeat was answered. */
-    public static void onHeartbeatPongNetwork(ServerPlayerEntity player, int id) {
+    public static void onHeartbeatPongNetwork(ServerPlayer player, int id) {
         if (player != null) {
             state(player).timer.onHeartbeatPong(id, System.nanoTime());
         }
@@ -344,14 +344,14 @@ public final class MovementValidator {
         }
         heartbeatCountdown = HEARTBEAT_INTERVAL_TICKS;
         long now = System.nanoTime();
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            if (player.networkHandler == null) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player.connection == null) {
                 continue;
             }
             StreamState st = state(player);
             int id = HEARTBEAT_TAG | (PING_SEQUENCE.incrementAndGet() & 0xFFFF);
             st.timer.onHeartbeatSent(id, now);
-            player.networkHandler.sendPacket(new CommonPingS2CPacket(id));
+            player.connection.send(new ClientboundPingPacket(id));
             int withheld = st.timer.takeWithheldGaps();
             boolean unanswered = st.timer.takeWithheldHeartbeats();
             if ((withheld > 0 || unanswered) && !isUnchecked(player) && !st.awaitingTeleport
@@ -379,22 +379,22 @@ public final class MovementValidator {
 
     /** {carryTicks, speed} if the packet changes the player's own velocity, else null. */
     private static double[] selfVelocity(Packet<?> packet, int selfId) {
-        if (packet instanceof EntityVelocityUpdateS2CPacket velocity) {
-            if (velocity.getEntityId() != selfId) {
+        if (packet instanceof ClientboundSetEntityMotionPacket velocity) {
+            if (velocity.getId() != selfId) {
                 return null;
             }
-            return new double[]{0, new Vec3d(velocity.getVelocityX(), velocity.getVelocityY(), velocity.getVelocityZ()).length()};
+            return new double[]{0, new Vec3(velocity.getXa(), velocity.getYa(), velocity.getZa()).length()};
         }
-        if (packet instanceof ExplosionS2CPacket explosion) {
+        if (packet instanceof ClientboundExplodePacket explosion) {
             return explosion.playerKnockback().map(knock -> new double[]{0, knock.length()}).orElse(null);
         }
-        if (packet instanceof CustomPayloadS2CPacket custom
+        if (packet instanceof ClientboundCustomPayloadPacket custom
                 && custom.payload() instanceof ResetVelocityCarryPayload carry) {
-            return new double[]{Math.max(1, carry.ticks()), new Vec3d(carry.x(), carry.y(), carry.z()).length()};
+            return new double[]{Math.max(1, carry.ticks()), new Vec3(carry.x(), carry.y(), carry.z()).length()};
         }
-        if (packet instanceof BundleS2CPacket bundle) {
+        if (packet instanceof ClientboundBundlePacket bundle) {
             double[] best = null;
-            for (Packet<?> inner : bundle.getPackets()) {
+            for (Packet<?> inner : bundle.subPackets()) {
                 double[] candidate = selfVelocity(inner, selfId);
                 if (candidate != null && (best == null || candidate[1] > best[1])) {
                     best = candidate;
@@ -406,7 +406,7 @@ public final class MovementValidator {
     }
 
     private static void onTimerViolation(UUID uuid, MinecraftServer server, TimerBalance.Violation violation) {
-        ServerPlayerEntity player = server.getPlayerManager().getPlayer(uuid);
+        ServerPlayer player = server.getPlayerList().getPlayer(uuid);
         if (player == null || isUnchecked(player)) {
             return;
         }
@@ -425,27 +425,27 @@ public final class MovementValidator {
     // Per-tick validation
     // ------------------------------------------------------------------------------------------
 
-    private static boolean isUnchecked(ServerPlayerEntity player) {
+    private static boolean isUnchecked(ServerPlayer player) {
         if (player instanceof FakePlayer || !AntiCheatManager.isEnabled() || AntiCheatManager.isExempt(player)) {
             return true;
         }
         MinecraftServer server = player.getServer();
-        return server != null && server.isHost(player.getGameProfile());
+        return server != null && server.isSingleplayerOwner(player.getGameProfile());
     }
 
-    private static int latencyTicks(ServerPlayerEntity player) {
-        return player.networkHandler == null ? 0 : Math.max(0, player.networkHandler.getLatency()) / 50;
+    private static int latencyTicks(ServerPlayer player) {
+        return player.connection == null ? 0 : Math.max(0, player.connection.latency()) / 50;
     }
 
-    private static void finalizeTick(ServerPlayerEntity player, StreamState st) {
+    private static void finalizeTick(ServerPlayer player, StreamState st) {
         st.clientTicks++;
-        PlayerInput input = st.input;
+        Input input = st.input;
         st.ticksSinceJumpInput = input.jump() ? 0 : Math.min(st.ticksSinceJumpInput + 1, 1000);
-        boolean sneakChanged = input.sneak() != st.lastTickInput.sneak();
+        boolean sneakChanged = input.shift() != st.lastTickInput.shift();
         st.ticksSinceSneakChange = sneakChanged ? 0 : Math.min(st.ticksSinceSneakChange + 1, 1000);
         if (sneakChanged) {
             // Pressing sneak owes a css crouch lift (it waits for headroom); releasing cancels it.
-            st.crouchLiftOwed = input.sneak();
+            st.crouchLiftOwed = input.shift();
         }
         st.lastTickInput = input;
         if (st.ticksSinceTeleport < 1000) {
@@ -460,9 +460,9 @@ public final class MovementValidator {
             st.clearTickAccumulation();
             return;
         }
-        ServerWorld world = player.getServerWorld();
-        Vec3d pos = st.tickPos != null ? st.tickPos : (st.lastPos != null ? st.lastPos : player.getPos());
-        float yaw = st.tickHasYaw ? st.tickYaw : (st.hasLastYaw ? st.lastYaw : player.getYaw());
+        ServerLevel world = player.serverLevel();
+        Vec3 pos = st.tickPos != null ? st.tickPos : (st.lastPos != null ? st.lastPos : player.position());
+        float yaw = st.tickHasYaw ? st.tickYaw : (st.hasLastYaw ? st.lastYaw : player.getYRot());
         boolean horizontalCollision = st.tickHorizontalCollision;
         st.clearTickAccumulation();
 
@@ -476,7 +476,7 @@ public final class MovementValidator {
         }
 
         MinehopConfig config = ConfigWrapper.getEffectiveConfig(player);
-        Vec3d step = pos.subtract(st.lastPos);
+        Vec3 step = pos.subtract(st.lastPos);
         boolean supportedPrev = st.lastSupported;
 
         // Movement settings. A map change, an admin edit or an effect ending reaches the client a
@@ -509,7 +509,7 @@ public final class MovementValidator {
         // happens at the previous tick's x/z even if the player then slides off it horizontally.
         // The client's own ground flag is only accepted with ground directly under its feet.
         boolean supportedNow = !stillRising && (isSupported(world, player, pos)
-                || isSupported(world, player, new Vec3d(st.lastPos.x, pos.y, st.lastPos.z))
+                || isSupported(world, player, new Vec3(st.lastPos.x, pos.y, st.lastPos.z))
                 || (st.clientOnGround && isGroundUnderFeet(world, player, pos)));
 
         String exemptReason = environmentExemption(player, world, st.lastPos, pos);
@@ -527,7 +527,7 @@ public final class MovementValidator {
         }
 
         double h2 = step.x * step.x + step.z * step.z;
-        boolean sneakingNearGround = input.sneak() && (supportedPrev || supportedNow);
+        boolean sneakingNearGround = input.shift() && (supportedPrev || supportedNow);
         double crouchOffset = config.movement.css_crouch_jump ? crouchDelta(player) : 0.0D;
         // The client lifts whenever sneak is held and its offset isn't applied, so the lift is owed
         // again (without any sneak change) once something made it drop the offset: climbing, fluids
@@ -538,7 +538,7 @@ public final class MovementValidator {
         st.lastCrouchOffset = crouchOffset;
         // While sneak is held the client has (or is owed) its crouch offset; after release it drops
         // up to that much, possibly ticks later and in pieces (see uncrouchDrop).
-        if (input.sneak()) {
+        if (input.shift()) {
             st.pendingCrouchDrop = crouchOffset;
         }
 
@@ -586,7 +586,7 @@ public final class MovementValidator {
         // was released while standing (the floor blocked it). If the lowered feet are within ground
         // reach, this tick moves like a ground tick (ground acceleration, jump buffer).
         double dropNow = 0.0D;
-        if (crouchOffset > 0.0D && !input.sneak()) {
+        if (crouchOffset > 0.0D && !input.shift()) {
             dropNow = st.ticksSinceSneakChange <= 1
                     ? crouchOffset
                     : st.inAir ? uncrouchDrop(st, step.y, st.airVy - effectiveGravity) : 0.0D;
@@ -641,7 +641,7 @@ public final class MovementValidator {
                 && !horizontalCollision && st.hasLastYaw && pushers == 0) {
             double sI = (input.left() ? 1.0D : 0.0D) - (input.right() ? 1.0D : 0.0D);
             double fI = (input.forward() ? 1.0D : 0.0D) - (input.backward() ? 1.0D : 0.0D);
-            Vec3d vPrev = new Vec3d(st.lastStep.x, 0.0D, st.lastStep.z);
+            Vec3 vPrev = new Vec3(st.lastStep.x, 0.0D, st.lastStep.z);
             double predicted2 = maxAirStrafeSpeed2(vPrev, sI, fI, effectiveCap, st.lastYaw, yaw);
             if (!Double.isNaN(predicted2)) {
                 double tolerance = predicted2 * STRAFE_EPSILON_RATIO + 1.0E-10D;
@@ -664,9 +664,9 @@ public final class MovementValidator {
         // ---------------- vertical: ballistic arc ----------------
         double dy = step.y;
         // Lift allowance: on a sneak change, or while a lift is still owed (delayed by a ceiling).
-        double crouchNow = (st.ticksSinceSneakChange <= 1 || (input.sneak() && st.crouchLiftOwed)) ? crouchOffset : 0.0D;
+        double crouchNow = (st.ticksSinceSneakChange <= 1 || (input.shift() && st.crouchLiftOwed)) ? crouchOffset : 0.0D;
         // Height above the arc the offset can account for: while crouched, and briefly after release.
-        double crouchHeld = (input.sneak() || st.ticksSinceSneakChange <= CROUCH_RESTORE_WINDOW_TICKS) ? crouchOffset : 0.0D;
+        double crouchHeld = (input.shift() || st.ticksSinceSneakChange <= CROUCH_RESTORE_WINDOW_TICKS) ? crouchOffset : 0.0D;
         double stepHeight = config.movement.auto_step_up ? AUTO_STEP_HEIGHT : VANILLA_STEP_HEIGHT;
         boolean jumpPossible = st.ticksSinceJumpInput <= JUMP_INPUT_WINDOW_TICKS;
         boolean liftOwedBefore = st.crouchLiftOwed;
@@ -692,7 +692,7 @@ public final class MovementValidator {
                 // fastest legal speed (jump, arc, carried) it accounts for.
                 double drop = 0.0D;
                 double dropFrom = takeoffVy;
-                if (!input.sneak()) {
+                if (!input.shift()) {
                     for (double ref : new double[]{takeoffVy, arcVy, carriedVy}) {
                         if (!Double.isNaN(ref) && (drop = uncrouchDrop(st, dy, ref)) > 0.0D) {
                             dropFrom = ref;
@@ -723,7 +723,7 @@ public final class MovementValidator {
                 double perTick = dy - (expectedDy + crouchNow + VERTICAL_EPSILON);
                 double cumulative = st.airExcess - (crouchHeld + VERTICAL_EPSILON);
                 verticalExcess = Math.max(perTick, cumulative);
-                double drop = input.sneak() ? 0.0D : uncrouchDrop(st, dy, expectedDy);
+                double drop = input.shift() ? 0.0D : uncrouchDrop(st, dy, expectedDy);
                 st.airVy = drop > 0.0D ? expectedDy : Math.min(dy + crouchNow, expectedDy);
                 st.pendingCrouchDrop = Math.max(0.0D, st.pendingCrouchDrop - drop);
             }
@@ -749,7 +749,7 @@ public final class MovementValidator {
                     dy, Double.isNaN(expectedDy) ? "takeoff" : String.format(Locale.ROOT, "%.4f", expectedDy),
                     verticalExcess, st.verticalBuffer, groundBelowPrev ? "fromGround" : "air",
                     st.lastStep == null ? "none" : String.format(Locale.ROOT, "%.4f", st.lastStep.y),
-                    input.sneak(), st.ticksSinceSneakChange, liftOwedBefore,
+                    input.shift(), st.ticksSinceSneakChange, liftOwedBefore,
                     st.ticksSinceJumpInput, st.ticksSinceTeleport, st.clientOnGround, st.pendingCrouchDrop);
             if (AntiCheatManager.reportMovementViolation(player, CHECK_FLY,
                     blatant ? 2.0D : 0.5D, details, wantLagback, st.lastGoodPos)) {
@@ -790,7 +790,7 @@ public final class MovementValidator {
     }
 
     /** After a grace or unchecked tick: take the realized movement as the new baseline. */
-    private static void rebuildBaseline(StreamState st, Vec3d step, double h2, boolean supportedNow, double crouchOffset) {
+    private static void rebuildBaseline(StreamState st, Vec3 step, double h2, boolean supportedNow, double crouchOffset) {
         st.horizontalVelocityBound2 = h2;
         st.lastWasCheckedAir = false;
         st.groundTicks = supportedNow ? st.groundTicks + 1 : 0;
@@ -803,7 +803,7 @@ public final class MovementValidator {
         }
     }
 
-    private static void commit(StreamState st, Vec3d pos, Vec3d step, boolean supported, boolean horizontalCollision, float yaw) {
+    private static void commit(StreamState st, Vec3 pos, Vec3 step, boolean supported, boolean horizontalCollision, float yaw) {
         st.lastPos = pos;
         st.lastStep = step;
         st.lastSupported = supported;
@@ -822,7 +822,7 @@ public final class MovementValidator {
      * Unanswered velocity transactions expire after a server-measured round trip (the client can't
      * stretch it by delaying keepalives). The movement stays hard-capped meanwhile either way.
      */
-    private static void expireStalePings(ServerPlayerEntity player, StreamState st) {
+    private static void expireStalePings(ServerPlayer player, StreamState st) {
         if (st.pendingPings.isEmpty()) {
             return;
         }
@@ -830,7 +830,7 @@ public final class MovementValidator {
         if (st.transactionRttNanos > 0L) {
             timeout = 2L * st.transactionRttNanos + PING_TIMEOUT_SLACK_NANOS;
         } else {
-            long latencyNanos = player.networkHandler == null ? 0L : Math.max(0, player.networkHandler.getLatency()) * 1_000_000L;
+            long latencyNanos = player.connection == null ? 0L : Math.max(0, player.connection.latency()) * 1_000_000L;
             timeout = 2L * latencyNanos + 250_000_000L;
         }
         timeout = Math.max(PING_TIMEOUT_MIN_NANOS, Math.min(PING_TIMEOUT_MAX_NANOS, timeout));
@@ -854,8 +854,8 @@ public final class MovementValidator {
     // ------------------------------------------------------------------------------------------
 
     /** Upper bound on horizontal speed² after one ground tick (Source friction + ground accelerate). */
-    private static double groundBound2(ServerPlayerEntity player, MinehopConfig config, double vRef2) {
-        double wish = player.getAttributeValue(EntityAttributes.MOVEMENT_SPEED) * SPRINT_MARGIN
+    private static double groundBound2(ServerPlayer player, MinehopConfig config, double vRef2) {
+        double wish = player.getAttributeValue(Attributes.MOVEMENT_SPEED) * SPRINT_MARGIN
                 * Math.max(config.movement.speed_mul, 0.0D);
         double speed = Math.sqrt(Math.max(vRef2, 0.0D));
         double stop = Math.max(config.movement.sv_stopspeed, 0.0D) * SOURCE_UNIT_TO_BLOCKS_PER_TICK;
@@ -872,13 +872,13 @@ public final class MovementValidator {
      * substep taking the full cap. NaN if a substep pushes against the velocity — then the real
      * acceleration (capped by sneaking/item use) is not bounded by this model, so the tick is skipped.
      */
-    private static double maxAirStrafeSpeed2(Vec3d velocity, double sI, double fI, double cap, float startYaw, float endYaw) {
+    private static double maxAirStrafeSpeed2(Vec3 velocity, double sI, double fI, double cap, float startYaw, float endYaw) {
         if (sI == 0.0D && fI == 0.0D) {
             return velocity.x * velocity.x + velocity.z * velocity.z;
         }
         double best = 0.0D;
         for (int steps = 6; steps <= MAX_AIR_SUBSTEPS; steps++) {
-            Vec3d result = simulateAirStrafe(velocity, sI, fI, cap, startYaw, endYaw, steps);
+            Vec3 result = simulateAirStrafe(velocity, sI, fI, cap, startYaw, endYaw, steps);
             if (result == null) {
                 return Double.NaN;
             }
@@ -887,31 +887,31 @@ public final class MovementValidator {
         return best;
     }
 
-    private static Vec3d simulateAirStrafe(Vec3d velocity, double sI, double fI, double cap, float startYaw, float endYaw, int steps) {
-        float yawDelta = MathHelper.wrapDegrees(endYaw - startYaw);
+    private static Vec3 simulateAirStrafe(Vec3 velocity, double sI, double fI, double cap, float startYaw, float endYaw, int steps) {
+        float yawDelta = Mth.wrapDegrees(endYaw - startYaw);
         if (yawDelta > SOURCE_MAX_AIR_YAW_DELTA) {
             yawDelta = (float) SOURCE_MAX_AIR_YAW_DELTA;
         } else if (yawDelta < -SOURCE_MAX_AIR_YAW_DELTA) {
             yawDelta = (float) -SOURCE_MAX_AIR_YAW_DELTA;
         }
         float effectiveStartYaw = endYaw - yawDelta;
-        Vec3d hv = velocity;
+        Vec3 hv = velocity;
         for (int i = 0; i < steps; i++) {
             float frac = (float) ((i + 1.0D) / steps);
-            float yawI = MathHelper.lerpAngleDegrees(frac, effectiveStartYaw, endYaw);
-            Vec3d wish = MovementUtil.movementInputToVelocity(new Vec3d(sI, 0.0D, fI), 1.0F, yawI);
-            double length = wish.horizontalLength();
+            float yawI = Mth.rotLerp(frac, effectiveStartYaw, endYaw);
+            Vec3 wish = MovementUtil.movementInputToVelocity(new Vec3(sI, 0.0D, fI), 1.0F, yawI);
+            double length = wish.horizontalDistance();
             if (length <= 0.0D) {
                 continue;
             }
-            Vec3d dir = new Vec3d(wish.x / length, 0.0D, wish.z / length);
-            double along = hv.dotProduct(dir);
+            Vec3 dir = new Vec3(wish.x / length, 0.0D, wish.z / length);
+            double along = hv.dot(dir);
             if (along < 0.0D) {
                 return null;
             }
             double add = cap - along;
             if (add > 0.0D) {
-                hv = hv.add(dir.multiply(add));
+                hv = hv.add(dir.scale(add));
             }
         }
         return hv;
@@ -922,12 +922,12 @@ public final class MovementValidator {
      * shortly after a teleport and while the server still has that chunk queued, or within a round
      * trip of the teleport — not for 10 s after every teleport (a hover cheat would hide in that).
      */
-    private static boolean isChunkStillLoading(ServerPlayerEntity player, StreamState st, Vec3d pos) {
-        if (st.ticksSinceTeleport > CHUNK_LOAD_WINDOW_TICKS || player.networkHandler == null) {
+    private static boolean isChunkStillLoading(ServerPlayer player, StreamState st, Vec3 pos) {
+        if (st.ticksSinceTeleport > CHUNK_LOAD_WINDOW_TICKS || player.connection == null) {
             return false;
         }
-        long chunk = ChunkPos.toLong(MathHelper.floor(pos.x) >> 4, MathHelper.floor(pos.z) >> 4);
-        if (player.networkHandler.chunkDataSender.isInNextBatch(chunk)) {
+        long chunk = ChunkPos.asLong(Mth.floor(pos.x) >> 4, Mth.floor(pos.z) >> 4);
+        if (player.connection.chunkSender.isPending(chunk)) {
             return true;
         }
         // The chunk was sent but the client may still be decoding/building it (seen in production
@@ -935,17 +935,17 @@ public final class MovementValidator {
         return st.ticksSinceTeleport <= FROZEN_AFTER_TELEPORT_TICKS + 2 * latencyTicks(player);
     }
 
-    private static double jumpBoost(ServerPlayerEntity player) {
-        if (!player.hasStatusEffect(StatusEffects.JUMP_BOOST)) {
+    private static double jumpBoost(ServerPlayer player) {
+        if (!player.hasEffect(MobEffects.JUMP)) {
             return 0.0D;
         }
-        var effect = player.getStatusEffect(StatusEffects.JUMP_BOOST);
+        var effect = player.getEffect(MobEffects.JUMP);
         return effect == null ? 0.0D : 0.1F * (effect.getAmplifier() + 1);
     }
 
-    private static double crouchDelta(ServerPlayerEntity player) {
-        double standing = player.getDimensions(EntityPose.STANDING).height();
-        double crouching = player.getDimensions(EntityPose.CROUCHING).height();
+    private static double crouchDelta(ServerPlayer player) {
+        double standing = player.getDimensions(Pose.STANDING).height();
+        double crouching = player.getDimensions(Pose.CROUCHING).height();
         return Math.max(standing - crouching, 0.0D);
     }
 
@@ -954,60 +954,60 @@ public final class MovementValidator {
     // ------------------------------------------------------------------------------------------
 
     /** Solid ground (or a collidable entity) within reach below the feet at {@code pos}. */
-    private static boolean isSupported(ServerWorld world, ServerPlayerEntity player, Vec3d pos) {
-        Box box = player.getDimensions(EntityPose.STANDING).getBoxAt(pos);
-        Box below = new Box(box.minX, box.minY - SUPPORT_PROBE_DEPTH, box.minZ, box.maxX, box.minY - 1.0E-6D, box.maxZ);
-        return !world.isSpaceEmpty(player, below);
+    private static boolean isSupported(ServerLevel world, ServerPlayer player, Vec3 pos) {
+        AABB box = player.getDimensions(Pose.STANDING).makeBoundingBox(pos);
+        AABB below = new AABB(box.minX, box.minY - SUPPORT_PROBE_DEPTH, box.minZ, box.maxX, box.minY - 1.0E-6D, box.maxZ);
+        return !world.noCollision(player, below);
     }
 
     /**
      * Confirms the client's own on-ground claim: ground somewhere directly under its footprint (not
      * beside it — a wall must not count as a floor).
      */
-    private static boolean isGroundUnderFeet(ServerWorld world, ServerPlayerEntity player, Vec3d pos) {
-        Box box = player.getDimensions(EntityPose.STANDING).getBoxAt(pos);
-        Box below = new Box(box.minX, box.minY - CLIENT_GROUND_DEPTH, box.minZ, box.maxX, box.minY + 1.0E-3D, box.maxZ);
-        return !world.isSpaceEmpty(player, below);
+    private static boolean isGroundUnderFeet(ServerLevel world, ServerPlayer player, Vec3 pos) {
+        AABB box = player.getDimensions(Pose.STANDING).makeBoundingBox(pos);
+        AABB below = new AABB(box.minX, box.minY - CLIENT_GROUND_DEPTH, box.minZ, box.maxX, box.minY + 1.0E-3D, box.maxZ);
+        return !world.noCollision(player, below);
     }
 
     /** Why this tick's movement can't be modeled (null if it can). */
-    private static String environmentExemption(ServerPlayerEntity player, ServerWorld world, Vec3d from, Vec3d to) {
-        if (player.hasVehicle()) {
+    private static String environmentExemption(ServerPlayer player, ServerLevel world, Vec3 from, Vec3 to) {
+        if (player.isPassenger()) {
             return "vehicle";
         }
-        if (player.isGliding()) {
+        if (player.isFallFlying()) {
             return "glide";
         }
-        if (player.isUsingRiptide()) {
+        if (player.isAutoSpinAttack()) {
             return "riptide";
         }
         if (player.isSleeping() || !player.isAlive()) {
             return "inactive";
         }
-        PlayerAbilities abilities = player.getAbilities();
-        if (abilities.flying || abilities.allowFlying) {
+        Abilities abilities = player.getAbilities();
+        if (abilities.flying || abilities.mayfly) {
             return "flight";
         }
-        if (player.hasStatusEffect(StatusEffects.LEVITATION) || player.hasStatusEffect(StatusEffects.SLOW_FALLING)) {
+        if (player.hasEffect(MobEffects.LEVITATION) || player.hasEffect(MobEffects.SLOW_FALLING)) {
             return "effect";
         }
-        EntityDimensions dims = player.getDimensions(EntityPose.STANDING);
-        Box toBox = dims.getBoxAt(to);
-        Box body = from.squaredDistanceTo(to) <= MAX_ENVIRONMENT_SCAN_STEP * MAX_ENVIRONMENT_SCAN_STEP
-                ? dims.getBoxAt(from).union(toBox)
+        EntityDimensions dims = player.getDimensions(Pose.STANDING);
+        AABB toBox = dims.makeBoundingBox(to);
+        AABB body = from.distanceToSqr(to) <= MAX_ENVIRONMENT_SCAN_STEP * MAX_ENVIRONMENT_SCAN_STEP
+                ? dims.makeBoundingBox(from).minmax(toBox)
                 : toBox;
         if (SurfRampEntity.hasNearbyRamp(world, body, SURF_RAMP_PROXIMITY)) {
             return "surf";
         }
-        Box bodyScan = body.expand(0.1D);
-        BlockPos.Mutable mutable = new BlockPos.Mutable();
-        int minX = MathHelper.floor(bodyScan.minX);
-        int maxX = MathHelper.floor(bodyScan.maxX);
-        int minY = MathHelper.floor(bodyScan.minY - 0.6D);
-        int maxY = MathHelper.floor(bodyScan.maxY);
-        int minZ = MathHelper.floor(bodyScan.minZ);
-        int maxZ = MathHelper.floor(bodyScan.maxZ);
-        int bodyMinY = MathHelper.floor(bodyScan.minY);
+        AABB bodyScan = body.inflate(0.1D);
+        BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
+        int minX = Mth.floor(bodyScan.minX);
+        int maxX = Mth.floor(bodyScan.maxX);
+        int minY = Mth.floor(bodyScan.minY - 0.6D);
+        int maxY = Mth.floor(bodyScan.maxY);
+        int minZ = Mth.floor(bodyScan.minZ);
+        int maxZ = Mth.floor(bodyScan.maxZ);
+        int bodyMinY = Mth.floor(bodyScan.minY);
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
                 for (int y = minY; y <= maxY; y++) {
@@ -1017,8 +1017,8 @@ public final class MovementValidator {
                         continue;
                     }
                     // Under the feet: blocks that launch or redirect the player.
-                    if (state.isOf(Blocks.SLIME_BLOCK) || state.isOf(Blocks.HONEY_BLOCK)
-                            || state.getBlock() instanceof BedBlock || state.isOf(ModBlocks.BOOSTER_BLOCK)) {
+                    if (state.is(Blocks.SLIME_BLOCK) || state.is(Blocks.HONEY_BLOCK)
+                            || state.getBlock() instanceof BedBlock || state.is(ModBlocks.BOOSTER_BLOCK)) {
                         return "bounce";
                     }
                     if (y < bodyMinY) {
@@ -1028,12 +1028,12 @@ public final class MovementValidator {
                     if (!state.getFluidState().isEmpty()) {
                         return "fluid";
                     }
-                    if (state.isIn(BlockTags.CLIMBABLE) || state.isOf(Blocks.SCAFFOLDING)
-                            || state.isOf(Blocks.POWDER_SNOW) || state.isOf(Blocks.COBWEB)
-                            || state.isOf(Blocks.SWEET_BERRY_BUSH) || state.isOf(Blocks.BUBBLE_COLUMN)) {
+                    if (state.is(BlockTags.CLIMBABLE) || state.is(Blocks.SCAFFOLDING)
+                            || state.is(Blocks.POWDER_SNOW) || state.is(Blocks.COBWEB)
+                            || state.is(Blocks.SWEET_BERRY_BUSH) || state.is(Blocks.BUBBLE_COLUMN)) {
                         return "block";
                     }
-                    if (state.isOf(Blocks.MOVING_PISTON) || state.isOf(Blocks.PISTON_HEAD)) {
+                    if (state.is(Blocks.MOVING_PISTON) || state.is(Blocks.PISTON_HEAD)) {
                         return "piston";
                     }
                 }
@@ -1047,35 +1047,35 @@ public final class MovementValidator {
      * count too: on HNS maps the clients push each other even though the server treats players as
      * not pushable.
      */
-    private static int countPushers(ServerPlayerEntity player, ServerWorld world, Vec3d pos) {
-        Box box = player.getDimensions(EntityPose.STANDING).getBoxAt(pos).expand(0.3D);
-        return world.getOtherEntities(player, box,
-                entity -> !entity.isSpectator() && (entity.isPushable() || entity instanceof PlayerEntity)).size();
+    private static int countPushers(ServerPlayer player, ServerLevel world, Vec3 pos) {
+        AABB box = player.getDimensions(Pose.STANDING).makeBoundingBox(pos).inflate(0.3D);
+        return world.getEntities(player, box,
+                entity -> !entity.isSpectator() && (entity.isPushable() || entity instanceof Player)).size();
     }
 
     // ------------------------------------------------------------------------------------------
     // Debug
     // ------------------------------------------------------------------------------------------
 
-    private static void debug(ServerPlayerEntity player, StreamState st, Vec3d pos, Vec3d step, String status,
+    private static void debug(ServerPlayer player, StreamState st, Vec3 pos, Vec3 step, String status,
                               double bound2, double expectedDy, boolean supportedPrev, boolean supportedNow) {
-        if (Minehop.surfDebugPlayers.isEmpty() || !Minehop.surfDebugPlayers.contains(player.getUuid())) {
+        if (Minehop.surfDebugPlayers.isEmpty() || !Minehop.surfDebugPlayers.contains(player.getUUID())) {
             return;
         }
         Minehop.LOGGER.info(String.format(Locale.ROOT,
                 "[STREAM] %s %s pos=(%.4f,%.4f,%.4f) cg=%b h=%.4f limit=%s dy=%.4f expDy=%s sup=%s>%s air=%b airVy=%.4f keys=%s%s%s%s%s%s",
-                player.getNameForScoreboard(), status, pos.x, pos.y, pos.z, st.clientOnGround,
+                player.getScoreboardName(), status, pos.x, pos.y, pos.z, st.clientOnGround,
                 Math.sqrt(step.x * step.x + step.z * step.z),
                 Double.isNaN(bound2) ? "-" : String.format(Locale.ROOT, "%.4f", Math.sqrt(bound2)),
                 step.y,
                 Double.isNaN(expectedDy) ? "-" : String.format(Locale.ROOT, "%.4f", expectedDy),
                 supportedPrev ? "G" : "A", supportedNow ? "G" : "A", st.inAir, st.airVy,
                 st.input.forward() ? "W" : "", st.input.left() ? "A" : "", st.input.backward() ? "S" : "",
-                st.input.right() ? "D" : "", st.input.jump() ? "J" : "", st.input.sneak() ? "C" : ""));
+                st.input.right() ? "D" : "", st.input.jump() ? "J" : "", st.input.shift() ? "C" : ""));
     }
 
     /** True if {@code entity} is a server player whose stream is tracked (for diagnostics). */
     public static boolean isTracked(Entity entity) {
-        return entity instanceof ServerPlayerEntity player && STATES.containsKey(player.getUuid());
+        return entity instanceof ServerPlayer player && STATES.containsKey(player.getUUID());
     }
 }

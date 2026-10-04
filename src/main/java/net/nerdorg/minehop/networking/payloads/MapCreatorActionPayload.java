@@ -1,9 +1,9 @@
 package net.nerdorg.minehop.networking.payloads;
 
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.nerdorg.minehop.Minehop;
 
 public record MapCreatorActionPayload(
@@ -30,7 +30,7 @@ public record MapCreatorActionPayload(
         boolean movementDisableSprint,
         boolean movementFallDamage,
         int checkpointIndex
-) implements CustomPayload {
+) implements CustomPacketPayload {
     public static final String ACTION_CREATE_OR_UPDATE = "create_or_update";
     public static final String ACTION_SET_SPAWN = "set_spawn";
     public static final String ACTION_ADD_CHECKPOINT = "add_checkpoint";
@@ -40,12 +40,12 @@ public record MapCreatorActionPayload(
 
     private static final int MAX_ACTION_LENGTH = 48;
     private static final int MAX_MAP_NAME_LENGTH = 128;
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "map_creator_action");
-    public static final Id<MapCreatorActionPayload> ID = new Id<>(HANDSHAKE_ID);
-    public static final PacketCodec<PacketByteBuf, MapCreatorActionPayload> CODEC = PacketCodec.of(
+    public static final ResourceLocation HANDSHAKE_ID = ResourceLocation.fromNamespaceAndPath(Minehop.MOD_ID, "map_creator_action");
+    public static final Type<MapCreatorActionPayload> ID = new Type<>(HANDSHAKE_ID);
+    public static final StreamCodec<FriendlyByteBuf, MapCreatorActionPayload> CODEC = StreamCodec.ofMember(
             (value, buf) -> {
-                buf.writeString(value.action == null ? "" : value.action, MAX_ACTION_LENGTH);
-                buf.writeString(value.mapName == null ? "" : value.mapName, MAX_MAP_NAME_LENGTH);
+                buf.writeUtf(value.action == null ? "" : value.action, MAX_ACTION_LENGTH);
+                buf.writeUtf(value.mapName == null ? "" : value.mapName, MAX_MAP_NAME_LENGTH);
                 buf.writeInt(value.difficulty);
                 buf.writeBoolean(value.arena);
                 buf.writeBoolean(value.hns);
@@ -69,8 +69,8 @@ public record MapCreatorActionPayload(
                 buf.writeInt(value.checkpointIndex);
             },
             buf -> new MapCreatorActionPayload(
-                    buf.readString(MAX_ACTION_LENGTH),
-                    buf.readString(MAX_MAP_NAME_LENGTH),
+                    buf.readUtf(MAX_ACTION_LENGTH),
+                    buf.readUtf(MAX_MAP_NAME_LENGTH),
                     buf.readInt(),
                     buf.readBoolean(),
                     buf.readBoolean(),
@@ -96,7 +96,7 @@ public record MapCreatorActionPayload(
     );
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

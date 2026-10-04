@@ -5,11 +5,9 @@ import com.google.gson.reflect.TypeToken;
 import com.mojang.datafixers.util.Pair;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.WorldSavePath;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.networking.PacketHandler;
@@ -46,7 +44,7 @@ public class DataManager {
         public double xrot;
         public double yrot;
         public String worldKey;
-        public List<List<Vec3d>> checkpointPositions;
+        public List<List<Vec3>> checkpointPositions;
         public boolean arena;
         public boolean hns;
         public boolean surf;
@@ -340,7 +338,7 @@ public class DataManager {
         // overworld gate every dimension reloaded (and on shutdown rewrote) the same files, so the
         // one-generation .bak was always overwritten with the file it was meant to protect.
         ServerWorldEvents.LOAD.register(((server, world) -> {
-            if (world.getRegistryKey() != net.minecraft.world.World.OVERWORLD) {
+            if (world.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
                 return;
             }
             Minehop.mapList = new ArrayList<>();
@@ -372,7 +370,7 @@ public class DataManager {
         }));
 
         ServerWorldEvents.UNLOAD.register(((server, world) -> {
-            if (world.getRegistryKey() != net.minecraft.world.World.OVERWORLD) {
+            if (world.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
                 return;
             }
             DataManager.saveData(world, mapListLocation, Minehop.mapList);
@@ -807,7 +805,7 @@ public class DataManager {
         if (server == null) {
             return byName;
         }
-        Path file = server.getPath("usercache.json");
+        Path file = server.getFile("usercache.json");
         if (!Files.isRegularFile(file)) {
             return byName;
         }
@@ -960,20 +958,20 @@ public class DataManager {
      * Atomic, backed-up, version-enveloped write (see JsonStorage). Keep this signature (void): the
      * minehop-server companion mod calls it through ServerDataManager and is compiled against it.
      */
-    public static <T> void saveData(ServerWorld world, String location, List<T> data) {
+    public static <T> void saveData(ServerLevel world, String location, List<T> data) {
         saveDataChecked(world, location, data);
     }
 
     /** Same as {@link #saveData}, returning false if the write failed. */
-    public static <T> boolean saveDataChecked(ServerWorld world, String location, List<T> data) {
+    public static <T> boolean saveDataChecked(ServerLevel world, String location, List<T> data) {
         MinecraftServer server = world.getServer();
-        Path worldDir = server.getSavePath(WorldSavePath.ROOT);
+        Path worldDir = server.getWorldPath(LevelResource.ROOT);
         folderCheck(worldDir);
         return JsonStorage.writeAtomic(worldDir.resolve(location), SCHEMA_VERSION, data == null ? new ArrayList<>() : data);
     }
 
-    public static <T> List<T> loadData(ServerWorld world, String location, Type recordListType) {
-        Path worldDir = world.getServer().getSavePath(WorldSavePath.ROOT);
+    public static <T> List<T> loadData(ServerLevel world, String location, Type recordListType) {
+        Path worldDir = world.getServer().getWorldPath(LevelResource.ROOT);
         folderCheck(worldDir);
         // Crash-proof read with .corrupt quarantine + .bak fallback; null = no data yet.
         return JsonStorage.readData(worldDir.resolve(location), recordListType);

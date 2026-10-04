@@ -9,7 +9,7 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 
 import java.io.IOException;
@@ -42,9 +42,9 @@ public final class JsonStorage {
      * checkpoint silently loaded as 0,0,0), and a mapping change would do the same to live data.
      * Writes stable {@code x/y/z}; reads either form so existing production files keep working.
      */
-    private static final TypeAdapter<Vec3d> VEC3D_ADAPTER = new TypeAdapter<>() {
+    private static final TypeAdapter<Vec3> VEC3D_ADAPTER = new TypeAdapter<>() {
         @Override
-        public void write(JsonWriter out, Vec3d value) throws IOException {
+        public void write(JsonWriter out, Vec3 value) throws IOException {
             if (value == null) {
                 out.nullValue();
                 return;
@@ -57,7 +57,7 @@ public final class JsonStorage {
         }
 
         @Override
-        public Vec3d read(JsonReader in) throws IOException {
+        public Vec3 read(JsonReader in) throws IOException {
             if (in.peek() == JsonToken.NULL) {
                 in.nextNull();
                 return null;
@@ -75,12 +75,12 @@ public final class JsonStorage {
                 }
             }
             in.endObject();
-            return new Vec3d(x, y, z);
+            return new Vec3(x, y, z);
         }
     };
 
     private static final Gson GSON = new GsonBuilder()
-            .registerTypeAdapter(Vec3d.class, VEC3D_ADAPTER)
+            .registerTypeAdapter(Vec3.class, VEC3D_ADAPTER)
             .create();
     private static final String ENVELOPE_VERSION_KEY = "_v";
     private static final String ENVELOPE_DATA_KEY = "data";

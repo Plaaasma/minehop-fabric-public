@@ -1,12 +1,12 @@
 package net.nerdorg.minehop.entity.client;
 
-import net.minecraft.client.model.ModelData;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.model.ModelPartBuilder;
-import net.minecraft.client.model.ModelPartData;
-import net.minecraft.client.model.ModelTransform;
-import net.minecraft.client.model.TexturedModelData;
-import net.minecraft.client.render.entity.model.EntityModel;
+import net.minecraft.client.model.EntityModel;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.model.geom.PartPose;
+import net.minecraft.client.model.geom.builders.CubeListBuilder;
+import net.minecraft.client.model.geom.builders.LayerDefinition;
+import net.minecraft.client.model.geom.builders.MeshDefinition;
+import net.minecraft.client.model.geom.builders.PartDefinition;
 
 public class SurfRampModel extends EntityModel<SurfRampEntityRenderState> {
     private final ModelPart root;
@@ -16,14 +16,14 @@ public class SurfRampModel extends EntityModel<SurfRampEntityRenderState> {
         this.root = root;
     }
 
-    public static TexturedModelData getTexturedModelData() {
-        ModelData modelData = new ModelData();
-        ModelPartData root = modelData.getRoot();
-        root.addChild("bb_main", ModelPartBuilder.create(), ModelTransform.NONE);
-        return TexturedModelData.of(modelData, 16, 16);
+    public static LayerDefinition getTexturedModelData() {
+        MeshDefinition modelData = new MeshDefinition();
+        PartDefinition root = modelData.getRoot();
+        root.addOrReplaceChild("bb_main", CubeListBuilder.create(), PartPose.ZERO);
+        return LayerDefinition.create(modelData, 16, 16);
     }
 
     @Override
-    public void setAngles(SurfRampEntityRenderState state) {
+    public void setupAnim(SurfRampEntityRenderState state) {
     }
 }

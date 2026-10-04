@@ -5,10 +5,10 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.world.GameMode;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.payloads.MapCreatorActionPayload;
@@ -24,9 +24,9 @@ public final class PlotCommands {
 
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-                LiteralArgumentBuilder.<ServerCommandSource>literal("plot")
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("create")
-                                .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.word())
+                LiteralArgumentBuilder.<CommandSourceStack>literal("plot")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("create")
+                                .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.word())
                                         .executes(context -> safeExecute(
                                                 context.getSource(),
                                                 "create_default",
@@ -37,7 +37,7 @@ public final class PlotCommands {
                                                         ""
                                                 )
                                         ))
-                                        .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<ServerCommandSource, String>argument("ground_block", StringArgumentType.word())
+                                        .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<CommandSourceStack, String>argument("ground_block", StringArgumentType.word())
                                                 .executes(context -> safeExecute(
                                                         context.getSource(),
                                                         "create_ground",
@@ -48,7 +48,7 @@ public final class PlotCommands {
                                                                 ""
                                                         )
                                                 ))
-                                                .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<ServerCommandSource, String>argument("description", StringArgumentType.greedyString())
+                                                .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<CommandSourceStack, String>argument("description", StringArgumentType.greedyString())
                                                         .executes(context -> safeExecute(
                                                                 context.getSource(),
                                                                 "create_full",
@@ -63,51 +63,51 @@ public final class PlotCommands {
                                         )
                                 )
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("home")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("home")
                                 .executes(context -> safeExecute(
                                         context.getSource(),
                                         "home",
                                         () -> UserPlotManager.teleportHome(requirePlayer(context.getSource()))
                                 ))
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("play")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("play")
                                 .executes(context -> safeExecute(
                                         context.getSource(),
                                         "play",
-                                        () -> UserPlotManager.setOwnedPlotGameMode(requirePlayer(context.getSource()), GameMode.ADVENTURE)
+                                        () -> UserPlotManager.setOwnedPlotGameMode(requirePlayer(context.getSource()), GameType.ADVENTURE)
                                 ))
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("build")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("build")
                                 .executes(context -> safeExecute(
                                         context.getSource(),
                                         "build",
-                                        () -> UserPlotManager.setOwnedPlotGameMode(requirePlayer(context.getSource()), GameMode.CREATIVE)
+                                        () -> UserPlotManager.setOwnedPlotGameMode(requirePlayer(context.getSource()), GameType.CREATIVE)
                                 ))
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("gamemode")
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("creative")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("gamemode")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("creative")
                                         .executes(context -> safeExecute(
                                                 context.getSource(),
                                                 "gamemode_creative",
-                                                () -> UserPlotManager.setOwnedPlotGameMode(requirePlayer(context.getSource()), GameMode.CREATIVE)
+                                                () -> UserPlotManager.setOwnedPlotGameMode(requirePlayer(context.getSource()), GameType.CREATIVE)
                                         ))
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("adventure")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("adventure")
                                         .executes(context -> safeExecute(
                                                 context.getSource(),
                                                 "gamemode_adventure",
-                                                () -> UserPlotManager.setOwnedPlotGameMode(requirePlayer(context.getSource()), GameMode.ADVENTURE)
+                                                () -> UserPlotManager.setOwnedPlotGameMode(requirePlayer(context.getSource()), GameType.ADVENTURE)
                                         ))
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("survival")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("survival")
                                         .executes(context -> safeExecute(
                                                 context.getSource(),
                                                 "gamemode_survival",
-                                                () -> UserPlotManager.setOwnedPlotGameMode(requirePlayer(context.getSource()), GameMode.SURVIVAL)
+                                                () -> UserPlotManager.setOwnedPlotGameMode(requirePlayer(context.getSource()), GameType.SURVIVAL)
                                         ))
                                 )
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("setspawn")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("setspawn")
                                 .executes(context -> safeExecute(
                                         context.getSource(),
                                         "setspawn",
@@ -118,8 +118,8 @@ public final class PlotCommands {
                                         )
                                 ))
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("zone")
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("start")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("zone")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("start")
                                         .executes(context -> safeExecute(
                                                 context.getSource(),
                                                 "zone_start",
@@ -130,7 +130,7 @@ public final class PlotCommands {
                                                 )
                                         ))
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("end")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("end")
                                         .executes(context -> safeExecute(
                                                 context.getSource(),
                                                 "zone_end",
@@ -141,7 +141,7 @@ public final class PlotCommands {
                                                 )
                                         ))
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reset")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("reset")
                                         .executes(context -> safeExecute(
                                                 context.getSource(),
                                                 "zone_reset_default",
@@ -151,7 +151,7 @@ public final class PlotCommands {
                                                         0
                                                 )
                                         ))
-                                        .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("checkpoint_index", IntegerArgumentType.integer(0))
+                                        .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("checkpoint_index", IntegerArgumentType.integer(0))
                                                 .executes(context -> safeExecute(
                                                         context.getSource(),
                                                         "zone_reset_indexed",
@@ -164,8 +164,8 @@ public final class PlotCommands {
                                         )
                                 )
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("description")
-                                .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<ServerCommandSource, String>argument("text", StringArgumentType.greedyString())
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("description")
+                                .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<CommandSourceStack, String>argument("text", StringArgumentType.greedyString())
                                         .executes(context -> safeExecute(
                                                 context.getSource(),
                                                 "description",
@@ -176,8 +176,8 @@ public final class PlotCommands {
                                         ))
                                 )
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("ground")
-                                .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<ServerCommandSource, String>argument("block_id", StringArgumentType.word())
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("ground")
+                                .then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<CommandSourceStack, String>argument("block_id", StringArgumentType.word())
                                         .executes(context -> safeExecute(
                                                 context.getSource(),
                                                 "ground",
@@ -188,7 +188,7 @@ public final class PlotCommands {
                                         ))
                                 )
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("delete")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("delete")
                                 .executes(context -> safeExecute(
                                         context.getSource(),
                                         "delete",
@@ -199,12 +199,12 @@ public final class PlotCommands {
                                 context.getSource(),
                                 "root",
                                 () -> {
-                                    ServerPlayerEntity player = requirePlayer(context.getSource());
+                                    ServerPlayer player = requirePlayer(context.getSource());
                                     if (player == null) {
                                         return 0;
                                     }
-                                    context.getSource().sendFeedback(
-                                            () -> Text.literal(
+                                    context.getSource().sendSuccess(
+                                            () -> Component.literal(
                                                     "Plot commands: /plot create <map_name> [ground_block] [description], /plot home, /plot play, /plot build, /plot gamemode <creative|adventure|survival>, /plot setspawn, /plot zone <start|end|reset [checkpoint_index]>, /plot description <text>, /plot ground <block_id>, /plot delete."
                                             ),
                                             false
@@ -215,15 +215,15 @@ public final class PlotCommands {
         ));
     }
 
-    private static ServerPlayerEntity requirePlayer(ServerCommandSource source) {
-        if (source.getEntity() instanceof ServerPlayerEntity player) {
+    private static ServerPlayer requirePlayer(CommandSourceStack source) {
+        if (source.getEntity() instanceof ServerPlayer player) {
             return player;
         }
-        source.sendError(Text.literal("This command can only be used by a player."));
+        source.sendFailure(Component.literal("This command can only be used by a player."));
         return null;
     }
 
-    private static int runOwnedMapAction(ServerPlayerEntity player, String action, int checkpointIndex) {
+    private static int runOwnedMapAction(ServerPlayer player, String action, int checkpointIndex) {
         if (player == null) {
             return 0;
         }
@@ -261,12 +261,12 @@ public final class PlotCommands {
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int safeExecute(ServerCommandSource source, String action, IntSupplier execute) {
+    private static int safeExecute(CommandSourceStack source, String action, IntSupplier execute) {
         try {
             return execute.getAsInt();
         } catch (Throwable throwable) {
             Minehop.LOGGER.error("Plot command failed during action '{}'", action, throwable);
-            source.sendError(Text.literal("Plot command failed. Check latest.log for details."));
+            source.sendFailure(Component.literal("Plot command failed. Check latest.log for details."));
             return 0;
         }
     }

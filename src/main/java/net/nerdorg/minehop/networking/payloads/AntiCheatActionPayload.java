@@ -1,19 +1,19 @@
 package net.nerdorg.minehop.networking.payloads;
 
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.nerdorg.minehop.Minehop;
 
-public record AntiCheatActionPayload(String action, String targetUuid) implements CustomPayload {
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "anticheat_action");
-    public static final Id<AntiCheatActionPayload> ID = new Id<>(HANDSHAKE_ID);
+public record AntiCheatActionPayload(String action, String targetUuid) implements CustomPacketPayload {
+    public static final ResourceLocation HANDSHAKE_ID = ResourceLocation.fromNamespaceAndPath(Minehop.MOD_ID, "anticheat_action");
+    public static final Type<AntiCheatActionPayload> ID = new Type<>(HANDSHAKE_ID);
     // Bound strings: action is a short keyword, targetUuid is a 36-char UUID.
-    public static final PacketCodec<PacketByteBuf, AntiCheatActionPayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.string(32), AntiCheatActionPayload::action,
-            PacketCodecs.string(40), AntiCheatActionPayload::targetUuid,
+    public static final StreamCodec<FriendlyByteBuf, AntiCheatActionPayload> CODEC = StreamCodec.composite(
+            ByteBufCodecs.stringUtf8(32), AntiCheatActionPayload::action,
+            ByteBufCodecs.stringUtf8(40), AntiCheatActionPayload::targetUuid,
             AntiCheatActionPayload::new
     );
 
@@ -24,7 +24,7 @@ public record AntiCheatActionPayload(String action, String targetUuid) implement
     public static final String ACTION_REFRESH = "refresh";
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

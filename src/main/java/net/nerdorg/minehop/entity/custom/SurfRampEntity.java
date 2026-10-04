@@ -1,36 +1,36 @@
 package net.nerdorg.minehop.entity.custom;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.attribute.DefaultAttributeContainer;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.damage.DamageTypes;
-import net.minecraft.entity.data.DataTracker;
-import net.minecraft.entity.data.TrackedData;
-import net.minecraft.entity.data.TrackedDataHandlerRegistry;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.registry.Registries;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.util.shape.VoxelShapes;
-import net.minecraft.world.World;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.nerdorg.minehop.item.ModItems;
 import net.nerdorg.minehop.util.SurfContact;
 import net.nerdorg.minehop.util.SurfRampPlacementManager;
@@ -46,29 +46,29 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class SurfRampEntity extends MobEntity {
-    private static final TrackedData<Float> START_X = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    private static final TrackedData<Float> START_Y = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    private static final TrackedData<Float> START_Z = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    private static final TrackedData<Float> END_X = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    private static final TrackedData<Float> END_Y = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    private static final TrackedData<Float> END_Z = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    private static final TrackedData<Float> DROP = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    private static final TrackedData<Float> WIDTH = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    private static final TrackedData<Boolean> TWO_SIDED = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
-    private static final TrackedData<Integer> SIDE_SIGN = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    private static final TrackedData<String> TEXTURE_BLOCK_ID = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.STRING);
-    private static final TrackedData<String> RENDER_MODE = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.STRING);
-    private static final TrackedData<Integer> WIREFRAME_COLOR_RGB = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    private static final TrackedData<Boolean> WIREFRAME_FILL = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
-    private static final TrackedData<Integer> WIREFRAME_FILL_COLOR_RGB = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    private static final TrackedData<Integer> WIREFRAME_FILL_ALPHA = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    private static final TrackedData<String> PATH_POINTS = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.STRING);
-    private static final TrackedData<Float> PATH_T_START = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    private static final TrackedData<Float> PATH_T_END = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    private static final TrackedData<Boolean> LINKED_START = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
-    private static final TrackedData<Boolean> LINKED_END = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
-    private static final TrackedData<String> CHAIN_ID = DataTracker.registerData(SurfRampEntity.class, TrackedDataHandlerRegistry.STRING);
+public class SurfRampEntity extends Mob {
+    private static final EntityDataAccessor<Float> START_X = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> START_Y = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> START_Z = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> END_X = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> END_Y = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> END_Z = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> DROP = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> WIDTH = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Boolean> TWO_SIDED = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> SIDE_SIGN = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<String> TEXTURE_BLOCK_ID = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<String> RENDER_MODE = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<Integer> WIREFRAME_COLOR_RGB = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> WIREFRAME_FILL = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> WIREFRAME_FILL_COLOR_RGB = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> WIREFRAME_FILL_ALPHA = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<String> PATH_POINTS = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<Float> PATH_T_START = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> PATH_T_END = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Boolean> LINKED_START = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> LINKED_END = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<String> CHAIN_ID = SynchedEntityData.defineId(SurfRampEntity.class, EntityDataSerializers.STRING);
 
     private static final double CONTACT_EPSILON = 0.14D;
     private static final double CONTACT_THICKNESS_BELOW = 0.20D;
@@ -81,9 +81,9 @@ public class SurfRampEntity extends MobEntity {
     private static final String DEFAULT_TEXTURE_BLOCK_ID = "minecraft:smooth_stone";
     private static final String DEFAULT_CHAIN_ID = "";
     private static final int MAX_PATH_POINTS = 1024;
-    private static final Map<World, Set<SurfRampEntity>> ACTIVE_RAMPS_BY_WORLD = new ConcurrentHashMap<>();
+    private static final Map<Level, Set<SurfRampEntity>> ACTIVE_RAMPS_BY_WORLD = new ConcurrentHashMap<>();
     private String cachedPathPointsRaw = "";
-    private List<Vec3d> cachedPathPoints = List.of();
+    private List<Vec3> cachedPathPoints = List.of();
     private long cachedDerivedGeometrySignature = Long.MIN_VALUE;
     private double cachedHorizontalLength = 0.01D;
     private int cachedCollisionSegmentCount = 24;
@@ -96,44 +96,44 @@ public class SurfRampEntity extends MobEntity {
     private long surfaceSearchCacheSignature = Long.MIN_VALUE;
     private boolean boundsDirty = true;
     private String cachedTextureBlockIdForState = null;
-    private BlockState cachedTextureBlockState = Blocks.SMOOTH_STONE.getDefaultState();
+    private BlockState cachedTextureBlockState = Blocks.SMOOTH_STONE.defaultBlockState();
 
-    public SurfRampEntity(EntityType<? extends MobEntity> entityType, World world) {
+    public SurfRampEntity(EntityType<? extends Mob> entityType, Level world) {
         super(entityType, world);
-        this.noClip = true;
-        this.setPersistent();
+        this.noPhysics = true;
+        this.setPersistenceRequired();
     }
 
-    public static DefaultAttributeContainer.Builder createSurfRampAttributes() {
-        return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 20.0D);
+    public static AttributeSupplier.Builder createSurfRampAttributes() {
+        return Mob.createMobAttributes()
+                .add(Attributes.MAX_HEALTH, 20.0D);
     }
 
     @Override
-    protected void initDataTracker(DataTracker.Builder builder) {
-        super.initDataTracker(builder);
-        builder.add(START_X, 0.5F);
-        builder.add(START_Y, 0.0F);
-        builder.add(START_Z, 0.5F);
-        builder.add(END_X, 1.5F);
-        builder.add(END_Y, 0.0F);
-        builder.add(END_Z, 0.5F);
-        builder.add(DROP, 1.0F);
-        builder.add(WIDTH, 1.0F);
-        builder.add(TWO_SIDED, false);
-        builder.add(SIDE_SIGN, 1);
-        builder.add(TEXTURE_BLOCK_ID, DEFAULT_TEXTURE_BLOCK_ID);
-        builder.add(RENDER_MODE, SurfRampVisualStyle.MODE_BLOCK);
-        builder.add(WIREFRAME_COLOR_RGB, SurfRampVisualStyle.DEFAULT_WIREFRAME_COLOR);
-        builder.add(WIREFRAME_FILL, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL);
-        builder.add(WIREFRAME_FILL_COLOR_RGB, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_COLOR);
-        builder.add(WIREFRAME_FILL_ALPHA, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
-        builder.add(PATH_POINTS, "");
-        builder.add(PATH_T_START, 0.0F);
-        builder.add(PATH_T_END, 1.0F);
-        builder.add(LINKED_START, false);
-        builder.add(LINKED_END, false);
-        builder.add(CHAIN_ID, DEFAULT_CHAIN_ID);
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(START_X, 0.5F);
+        builder.define(START_Y, 0.0F);
+        builder.define(START_Z, 0.5F);
+        builder.define(END_X, 1.5F);
+        builder.define(END_Y, 0.0F);
+        builder.define(END_Z, 0.5F);
+        builder.define(DROP, 1.0F);
+        builder.define(WIDTH, 1.0F);
+        builder.define(TWO_SIDED, false);
+        builder.define(SIDE_SIGN, 1);
+        builder.define(TEXTURE_BLOCK_ID, DEFAULT_TEXTURE_BLOCK_ID);
+        builder.define(RENDER_MODE, SurfRampVisualStyle.MODE_BLOCK);
+        builder.define(WIREFRAME_COLOR_RGB, SurfRampVisualStyle.DEFAULT_WIREFRAME_COLOR);
+        builder.define(WIREFRAME_FILL, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL);
+        builder.define(WIREFRAME_FILL_COLOR_RGB, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_COLOR);
+        builder.define(WIREFRAME_FILL_ALPHA, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
+        builder.define(PATH_POINTS, "");
+        builder.define(PATH_T_START, 0.0F);
+        builder.define(PATH_T_END, 1.0F);
+        builder.define(LINKED_START, false);
+        builder.define(LINKED_END, false);
+        builder.define(CHAIN_ID, DEFAULT_CHAIN_ID);
     }
 
     @Override
@@ -147,8 +147,8 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
-    public void onTrackedDataSet(TrackedData<?> data) {
-        super.onTrackedDataSet(data);
+    public void onSyncedDataUpdated(EntityDataAccessor<?> data) {
+        super.onSyncedDataUpdated(data);
         // On the CLIENT geometry arrives via dataTracker sync (also after a GUI edit). Without this,
         // a resized/edited ramp keeps its old bounding box + caches client-side, so the collision
         // solver's bbox-gated lookup misses the now-bigger ramp and the player falls through. Force
@@ -169,7 +169,7 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
-    public boolean collidesWith(Entity other) {
+    public boolean canCollideWith(Entity other) {
         return false;
     }
 
@@ -184,12 +184,12 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
-    public boolean isPushedByFluids() {
+    public boolean isPushedByFluid() {
         return false;
     }
 
     @Override
-    protected boolean updateWaterState() {
+    protected boolean updateInWaterStateAndDoFluidPushing() {
         // Ramps ignore fluids, but vanilla's baseTick still sweeps every block inside the bounding box
         // for water and lava each tick. With full-size ramp boxes that is thousands of block lookups per
         // ramp per tick (hundreds of ramps froze a server), so skip it: never in water or lava.
@@ -197,18 +197,18 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
-    public boolean cannotDespawn() {
+    public boolean requiresCustomPersistence() {
         return true;
     }
 
     @Override
-    public boolean canImmediatelyDespawn(double distanceSquared) {
+    public boolean removeWhenFarAway(double distanceSquared) {
         return false;
     }
 
     @Override
-    public boolean damage(ServerWorld world, DamageSource source, float amount) {
-        if (source.isOf(DamageTypes.GENERIC_KILL) || source.isOf(DamageTypes.OUT_OF_WORLD)) {
+    public boolean hurtServer(ServerLevel world, DamageSource source, float amount) {
+        if (source.is(DamageTypes.GENERIC_KILL) || source.is(DamageTypes.FELL_OUT_OF_WORLD)) {
             this.kill(world);
             return true;
         }
@@ -216,15 +216,15 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
-    public void kill(ServerWorld world) {
+    public void kill(ServerLevel world) {
         this.remove(Entity.RemovalReason.KILLED);
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
+    public void readAdditionalSaveData(CompoundTag nbt) {
         this.setGeometry(
-                new Vec3d(nbt.getDouble("startX"), nbt.getDouble("startY"), nbt.getDouble("startZ")),
-                new Vec3d(nbt.getDouble("endX"), nbt.getDouble("endY"), nbt.getDouble("endZ")),
+                new Vec3(nbt.getDouble("startX"), nbt.getDouble("startY"), nbt.getDouble("startZ")),
+                new Vec3(nbt.getDouble("endX"), nbt.getDouble("endY"), nbt.getDouble("endZ")),
                 nbt.getDouble("drop"),
                 nbt.getDouble("width"),
                 nbt.getBoolean("twoSided"),
@@ -274,9 +274,9 @@ public class SurfRampEntity extends MobEntity {
     }
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        Vec3d start = this.getStart();
-        Vec3d end = this.getEnd();
+    public void addAdditionalSaveData(CompoundTag nbt) {
+        Vec3 start = this.getStart();
+        Vec3 end = this.getEnd();
 
         nbt.putDouble("startX", start.x);
         nbt.putDouble("startY", start.y);
@@ -296,7 +296,7 @@ public class SurfRampEntity extends MobEntity {
         nbt.putBoolean("wireframeFill", this.isWireframeFillEnabled());
         nbt.putInt("wireframeFillColorRgb", this.getWireframeFillColorRgb());
         nbt.putInt("wireframeFillAlpha", this.getWireframeFillAlpha());
-        nbt.putString("pathPoints", this.dataTracker.get(PATH_POINTS));
+        nbt.putString("pathPoints", this.entityData.get(PATH_POINTS));
         nbt.putDouble("pathTStart", this.getPathTStart());
         nbt.putDouble("pathTEnd", this.getPathTEnd());
         nbt.putBoolean("linkedStart", this.isLinkedStart());
@@ -304,63 +304,63 @@ public class SurfRampEntity extends MobEntity {
         nbt.putString("chainId", this.getChainId());
     }
 
-    public void setGeometry(Vec3d start, Vec3d end, double drop, double width, boolean twoSided, int sideSign) {
-        this.dataTracker.set(START_X, (float) start.x);
-        this.dataTracker.set(START_Y, (float) start.y);
-        this.dataTracker.set(START_Z, (float) start.z);
+    public void setGeometry(Vec3 start, Vec3 end, double drop, double width, boolean twoSided, int sideSign) {
+        this.entityData.set(START_X, (float) start.x);
+        this.entityData.set(START_Y, (float) start.y);
+        this.entityData.set(START_Z, (float) start.z);
 
-        this.dataTracker.set(END_X, (float) end.x);
-        this.dataTracker.set(END_Y, (float) end.y);
-        this.dataTracker.set(END_Z, (float) end.z);
+        this.entityData.set(END_X, (float) end.x);
+        this.entityData.set(END_Y, (float) end.y);
+        this.entityData.set(END_Z, (float) end.z);
 
-        this.dataTracker.set(DROP, (float) Math.max(drop, 0.01D));
-        this.dataTracker.set(WIDTH, (float) Math.max(width, 0.15D));
-        this.dataTracker.set(TWO_SIDED, twoSided);
+        this.entityData.set(DROP, (float) Math.max(drop, 0.01D));
+        this.entityData.set(WIDTH, (float) Math.max(width, 0.15D));
+        this.entityData.set(TWO_SIDED, twoSided);
 
         int clampedSign = sideSign >= 0 ? 1 : -1;
-        this.dataTracker.set(SIDE_SIGN, clampedSign);
+        this.entityData.set(SIDE_SIGN, clampedSign);
         this.invalidateGeometryCaches();
 
-        Vec3d midpoint = start.add(end).multiply(0.5D);
-        this.refreshPositionAndAngles(midpoint.x, midpoint.y + Math.max(drop, 0.01D) * 0.5D, midpoint.z, 0.0F, 0.0F);
+        Vec3 midpoint = start.add(end).scale(0.5D);
+        this.moveTo(midpoint.x, midpoint.y + Math.max(drop, 0.01D) * 0.5D, midpoint.z, 0.0F, 0.0F);
         this.refreshBounds();
     }
 
-    public Vec3d getStart() {
-        return new Vec3d(this.dataTracker.get(START_X), this.dataTracker.get(START_Y), this.dataTracker.get(START_Z));
+    public Vec3 getStart() {
+        return new Vec3(this.entityData.get(START_X), this.entityData.get(START_Y), this.entityData.get(START_Z));
     }
 
-    public Vec3d getEnd() {
-        return new Vec3d(this.dataTracker.get(END_X), this.dataTracker.get(END_Y), this.dataTracker.get(END_Z));
+    public Vec3 getEnd() {
+        return new Vec3(this.entityData.get(END_X), this.entityData.get(END_Y), this.entityData.get(END_Z));
     }
 
     public double getDrop() {
-        return this.dataTracker.get(DROP);
+        return this.entityData.get(DROP);
     }
 
     public double getRampWidth() {
-        return this.dataTracker.get(WIDTH);
+        return this.entityData.get(WIDTH);
     }
 
     public boolean isTwoSided() {
-        return this.dataTracker.get(TWO_SIDED);
+        return this.entityData.get(TWO_SIDED);
     }
 
     public int getSideSign() {
-        int sign = this.dataTracker.get(SIDE_SIGN);
+        int sign = this.entityData.get(SIDE_SIGN);
         return sign >= 0 ? 1 : -1;
     }
 
     public boolean isLinkedStart() {
-        return this.dataTracker.get(LINKED_START);
+        return this.entityData.get(LINKED_START);
     }
 
     public boolean isLinkedEnd() {
-        return this.dataTracker.get(LINKED_END);
+        return this.entityData.get(LINKED_END);
     }
 
     public String getChainId() {
-        String raw = this.dataTracker.get(CHAIN_ID);
+        String raw = this.entityData.get(CHAIN_ID);
         if (raw == null) {
             return DEFAULT_CHAIN_ID;
         }
@@ -373,30 +373,30 @@ public class SurfRampEntity extends MobEntity {
         if (value.length() > 96) {
             value = value.substring(0, 96);
         }
-        this.dataTracker.set(CHAIN_ID, value);
+        this.entityData.set(CHAIN_ID, value);
     }
 
     public String getPathPointsEncoded() {
-        String encoded = this.dataTracker.get(PATH_POINTS);
+        String encoded = this.entityData.get(PATH_POINTS);
         return encoded == null ? "" : encoded;
     }
 
     public String getTextureBlockId() {
-        return sanitizeTextureBlockId(this.dataTracker.get(TEXTURE_BLOCK_ID));
+        return sanitizeTextureBlockId(this.entityData.get(TEXTURE_BLOCK_ID));
     }
 
     public void setTextureBlockId(String textureBlockId) {
         String sanitized = sanitizeTextureBlockId(textureBlockId);
-        this.dataTracker.set(TEXTURE_BLOCK_ID, sanitized);
+        this.entityData.set(TEXTURE_BLOCK_ID, sanitized);
         this.cachedTextureBlockIdForState = null;
     }
 
     public String getRenderMode() {
-        return SurfRampVisualStyle.sanitizeMode(this.dataTracker.get(RENDER_MODE));
+        return SurfRampVisualStyle.sanitizeMode(this.entityData.get(RENDER_MODE));
     }
 
     public void setRenderMode(String renderMode) {
-        this.dataTracker.set(RENDER_MODE, SurfRampVisualStyle.sanitizeMode(renderMode));
+        this.entityData.set(RENDER_MODE, SurfRampVisualStyle.sanitizeMode(renderMode));
     }
 
     public boolean isWireframeMode() {
@@ -405,35 +405,35 @@ public class SurfRampEntity extends MobEntity {
 
     public int getWireframeColorRgb() {
         return SurfRampVisualStyle.sanitizeColor(
-                this.dataTracker.get(WIREFRAME_COLOR_RGB),
+                this.entityData.get(WIREFRAME_COLOR_RGB),
                 SurfRampVisualStyle.DEFAULT_WIREFRAME_COLOR
         );
     }
 
     public void setWireframeColorRgb(int wireframeColorRgb) {
-        this.dataTracker.set(
+        this.entityData.set(
                 WIREFRAME_COLOR_RGB,
                 SurfRampVisualStyle.sanitizeColor(wireframeColorRgb, SurfRampVisualStyle.DEFAULT_WIREFRAME_COLOR)
         );
     }
 
     public boolean isWireframeFillEnabled() {
-        return this.dataTracker.get(WIREFRAME_FILL);
+        return this.entityData.get(WIREFRAME_FILL);
     }
 
     public void setWireframeFillEnabled(boolean wireframeFillEnabled) {
-        this.dataTracker.set(WIREFRAME_FILL, wireframeFillEnabled);
+        this.entityData.set(WIREFRAME_FILL, wireframeFillEnabled);
     }
 
     public int getWireframeFillColorRgb() {
         return SurfRampVisualStyle.sanitizeColor(
-                this.dataTracker.get(WIREFRAME_FILL_COLOR_RGB),
+                this.entityData.get(WIREFRAME_FILL_COLOR_RGB),
                 SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_COLOR
         );
     }
 
     public void setWireframeFillColorRgb(int wireframeFillColorRgb) {
-        this.dataTracker.set(
+        this.entityData.set(
                 WIREFRAME_FILL_COLOR_RGB,
                 SurfRampVisualStyle.sanitizeColor(wireframeFillColorRgb, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_COLOR)
         );
@@ -441,13 +441,13 @@ public class SurfRampEntity extends MobEntity {
 
     public int getWireframeFillAlpha() {
         return SurfRampVisualStyle.sanitizeAlpha(
-                this.dataTracker.get(WIREFRAME_FILL_ALPHA),
+                this.entityData.get(WIREFRAME_FILL_ALPHA),
                 SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA
         );
     }
 
     public void setWireframeFillAlpha(int wireframeFillAlpha) {
-        this.dataTracker.set(
+        this.entityData.set(
                 WIREFRAME_FILL_ALPHA,
                 SurfRampVisualStyle.sanitizeAlpha(wireframeFillAlpha, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA)
         );
@@ -459,86 +459,86 @@ public class SurfRampEntity extends MobEntity {
             return this.cachedTextureBlockState;
         }
 
-        Identifier id = Identifier.tryParse(textureId);
-        if (id == null || !Registries.BLOCK.containsId(id)) {
+        ResourceLocation id = ResourceLocation.tryParse(textureId);
+        if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) {
             this.cachedTextureBlockIdForState = textureId;
-            this.cachedTextureBlockState = Blocks.SMOOTH_STONE.getDefaultState();
+            this.cachedTextureBlockState = Blocks.SMOOTH_STONE.defaultBlockState();
             return this.cachedTextureBlockState;
         }
-        Block block = Registries.BLOCK.get(id);
+        Block block = BuiltInRegistries.BLOCK.getValue(id);
         if (block == Blocks.AIR) {
             this.cachedTextureBlockIdForState = textureId;
-            this.cachedTextureBlockState = Blocks.SMOOTH_STONE.getDefaultState();
+            this.cachedTextureBlockState = Blocks.SMOOTH_STONE.defaultBlockState();
             return this.cachedTextureBlockState;
         }
         this.cachedTextureBlockIdForState = textureId;
-        this.cachedTextureBlockState = block.getDefaultState();
+        this.cachedTextureBlockState = block.defaultBlockState();
         return this.cachedTextureBlockState;
     }
 
     @Override
-    public ActionResult interactMob(PlayerEntity player, Hand hand) {
-        ItemStack held = player.getStackInHand(hand);
-        if (held.isOf(ModItems.SURF_STICK)) {
-            if (!this.getWorld().isClient && player instanceof ServerPlayerEntity serverPlayer) {
+    public InteractionResult mobInteract(Player player, InteractionHand hand) {
+        ItemStack held = player.getItemInHand(hand);
+        if (held.is(ModItems.SURF_STICK)) {
+            if (!this.level().isClientSide && player instanceof ServerPlayer serverPlayer) {
                 SurfRampPlacementManager.openEditor(serverPlayer, this);
             }
-            return ActionResult.SUCCESS;
+            return InteractionResult.SUCCESS;
         }
 
-        if (!player.isSneaking() || !player.getAbilities().creativeMode) {
-            return ActionResult.PASS;
+        if (!player.isShiftKeyDown() || !player.getAbilities().instabuild) {
+            return InteractionResult.PASS;
         }
 
         if (!(held.getItem() instanceof BlockItem blockItem)) {
-            return ActionResult.PASS;
+            return InteractionResult.PASS;
         }
 
-        Identifier blockId = Registries.BLOCK.getId(blockItem.getBlock());
+        ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(blockItem.getBlock());
         if (blockId == null) {
-            return ActionResult.PASS;
+            return InteractionResult.PASS;
         }
         String newTextureId = sanitizeTextureBlockId(blockId.toString());
-        if (!this.getWorld().isClient) {
+        if (!this.level().isClientSide) {
             this.setTextureBlockId(newTextureId);
-            player.sendMessage(Text.literal("Ramp texture set to " + newTextureId), true);
+            player.displayClientMessage(Component.literal("Ramp texture set to " + newTextureId), true);
         }
-        return ActionResult.SUCCESS;
+        return InteractionResult.SUCCESS;
     }
 
     public boolean isCurved() {
-        List<Vec3d> pathPoints = this.getPathPoints();
+        List<Vec3> pathPoints = this.getPathPoints();
         if (pathPoints.size() > 2) {
             return true;
         }
-        Vec3d start = this.getStart();
-        Vec3d end = this.getEnd();
+        Vec3 start = this.getStart();
+        Vec3 end = this.getEnd();
         return Math.abs(end.x - start.x) > 0.25D && Math.abs(end.z - start.z) > 0.25D;
     }
 
-    public void setCenterlinePoints(List<Vec3d> points) {
+    public void setCenterlinePoints(List<Vec3> points) {
         this.setCenterlinePoints(points, 0.0D, 1.0D);
     }
 
-    public void setCenterlinePoints(List<Vec3d> points, double pathStartT, double pathEndT) {
+    public void setCenterlinePoints(List<Vec3> points, double pathStartT, double pathEndT) {
         this.setPathPointsEncoded(this.encodePathPoints(points));
         this.setPathTRange(pathStartT, pathEndT);
     }
 
     public void setLinkedSeams(boolean linkedStart, boolean linkedEnd) {
-        this.dataTracker.set(LINKED_START, linkedStart);
-        this.dataTracker.set(LINKED_END, linkedEnd);
+        this.entityData.set(LINKED_START, linkedStart);
+        this.entityData.set(LINKED_END, linkedEnd);
         this.invalidateGeometryCaches();
     }
 
-    public static Vec3d blockCenter(BlockPos pos) {
-        return new Vec3d(pos.getX() + 0.5D, pos.getY() + 1.0D, pos.getZ() + 0.5D);
+    public static Vec3 blockCenter(BlockPos pos) {
+        return new Vec3(pos.getX() + 0.5D, pos.getY() + 1.0D, pos.getZ() + 0.5D);
     }
 
-    public static int resolveInsideCurveSideSign(Vec3d start, Vec3d end) {
-        Vec3d control = computeControlPoint(start, end);
-        Vec3d first = new Vec3d(control.x - start.x, 0.0D, control.z - start.z);
-        Vec3d second = new Vec3d(end.x - control.x, 0.0D, end.z - control.z);
+    public static int resolveInsideCurveSideSign(Vec3 start, Vec3 end) {
+        Vec3 control = computeControlPoint(start, end);
+        Vec3 first = new Vec3(control.x - start.x, 0.0D, control.z - start.z);
+        Vec3 second = new Vec3(end.x - control.x, 0.0D, end.z - control.z);
         double cross = first.x * second.z - first.z * second.x;
         if (Math.abs(cross) < 1.0E-6D) {
             return 1;
@@ -546,7 +546,7 @@ public class SurfRampEntity extends MobEntity {
         return cross > 0.0D ? 1 : -1;
     }
 
-    public static boolean hasNearbyRamp(World world, Box queryBox, double expand) {
+    public static boolean hasNearbyRamp(Level world, AABB queryBox, double expand) {
         if (world == null || queryBox == null) {
             return false;
         }
@@ -554,7 +554,7 @@ public class SurfRampEntity extends MobEntity {
         if (rampsInWorld == null || rampsInWorld.isEmpty()) {
             return false;
         }
-        Box expanded = queryBox.expand(expand);
+        AABB expanded = queryBox.inflate(expand);
         Iterator<SurfRampEntity> iterator = rampsInWorld.iterator();
         while (iterator.hasNext()) {
             SurfRampEntity ramp = iterator.next();
@@ -572,7 +572,7 @@ public class SurfRampEntity extends MobEntity {
         return false;
     }
 
-    public static List<SurfRampEntity> collectNearbyRamps(World world, Box queryBox, double expand) {
+    public static List<SurfRampEntity> collectNearbyRamps(Level world, AABB queryBox, double expand) {
         List<SurfRampEntity> ramps = new ArrayList<>();
         if (world == null || queryBox == null) {
             return ramps;
@@ -581,7 +581,7 @@ public class SurfRampEntity extends MobEntity {
         if (rampsInWorld == null || rampsInWorld.isEmpty()) {
             return ramps;
         }
-        Box expanded = queryBox.expand(expand);
+        AABB expanded = queryBox.inflate(expand);
         Iterator<SurfRampEntity> iterator = rampsInWorld.iterator();
         while (iterator.hasNext()) {
             SurfRampEntity ramp = iterator.next();
@@ -599,7 +599,7 @@ public class SurfRampEntity extends MobEntity {
         return ramps;
     }
 
-    public static List<SurfRampEntity> collectAllActiveRamps(World world) {
+    public static List<SurfRampEntity> collectAllActiveRamps(Level world) {
         List<SurfRampEntity> ramps = new ArrayList<>();
         if (world == null) {
             return ramps;
@@ -624,13 +624,13 @@ public class SurfRampEntity extends MobEntity {
     }
 
     public boolean isNearEndpointXZ(double x, double z, double endpointTThreshold, double lateralToleranceExtra) {
-        int samples = MathHelper.clamp((int) Math.ceil(this.getHorizontalLength() * 10.0D), 24, 220);
+        int samples = Mth.clamp((int) Math.ceil(this.getHorizontalLength() * 10.0D), 24, 220);
         double bestDistanceSquared = Double.MAX_VALUE;
         double bestT = 0.0D;
 
         for (int i = 0; i <= samples; i++) {
             double t = (double) i / (double) samples;
-            Vec3d center = this.getCenterlinePoint(t);
+            Vec3 center = this.getCenterlinePoint(t);
             double dx = x - center.x;
             double dz = z - center.z;
             double distanceSquared = dx * dx + dz * dz;
@@ -645,17 +645,17 @@ public class SurfRampEntity extends MobEntity {
             return false;
         }
 
-        double clampedThreshold = MathHelper.clamp(endpointTThreshold, 0.01D, 0.45D);
+        double clampedThreshold = Mth.clamp(endpointTThreshold, 0.01D, 0.45D);
         return bestT <= clampedThreshold || bestT >= 1.0D - clampedThreshold;
     }
 
     public boolean isNearRampXZ(double x, double z, double lateralToleranceExtra) {
-        int samples = MathHelper.clamp((int) Math.ceil(this.getHorizontalLength() * 10.0D), 24, 220);
+        int samples = Mth.clamp((int) Math.ceil(this.getHorizontalLength() * 10.0D), 24, 220);
         double bestDistanceSquared = Double.MAX_VALUE;
 
         for (int i = 0; i <= samples; i++) {
             double t = (double) i / (double) samples;
-            Vec3d center = this.getCenterlinePoint(t);
+            Vec3 center = this.getCenterlinePoint(t);
             double dx = x - center.x;
             double dz = z - center.z;
             double distanceSquared = dx * dx + dz * dz;
@@ -669,7 +669,7 @@ public class SurfRampEntity extends MobEntity {
     }
 
     private void registerActiveRamp() {
-        World world = this.getWorld();
+        Level world = this.level();
         if (world == null) {
             return;
         }
@@ -681,7 +681,7 @@ public class SurfRampEntity extends MobEntity {
     }
 
     private void unregisterActiveRamp() {
-        World world = this.getWorld();
+        Level world = this.level();
         if (world == null) {
             return;
         }
@@ -744,7 +744,7 @@ public class SurfRampEntity extends MobEntity {
         return new SurfContact(point.normal, point.surfaceY, this.isHardEndpointT(point.t));
     }
 
-    public CollisionAppendStats appendCollisionShapes(Box queryBox, List<VoxelShape> shapes) {
+    public CollisionAppendStats appendCollisionShapes(AABB queryBox, List<VoxelShape> shapes) {
         if (shapes == null || queryBox == null) {
             return CollisionAppendStats.EMPTY;
         }
@@ -756,7 +756,7 @@ public class SurfRampEntity extends MobEntity {
         int segmentsIntersected = 0;
         int patchesTested = 0;
         int patchesAppended = 0;
-        Box expandedQuery = queryBox.expand(0.2D);
+        AABB expandedQuery = queryBox.inflate(0.2D);
         double queryCenterX = (expandedQuery.minX + expandedQuery.maxX) * 0.5D;
         double queryCenterZ = (expandedQuery.minZ + expandedQuery.maxZ) * 0.5D;
 
@@ -767,7 +767,7 @@ public class SurfRampEntity extends MobEntity {
         int requiredSegments = (int) Math.ceil(queryRadiusXZ / segmentLength) + 4;
         int halfWindowSegments = Math.max(6, requiredSegments);
         double closestT = cache.estimateClosestT(queryCenterX, queryCenterZ);
-        int centerSegment = MathHelper.clamp((int) Math.floor(closestT * (double) cache.segmentCount), 0, cache.segmentCount);
+        int centerSegment = Mth.clamp((int) Math.floor(closestT * (double) cache.segmentCount), 0, cache.segmentCount);
         int loopStart = Math.max(
                 cache.minLogicalIndex,
                 centerSegment - halfWindowSegments - cache.extraSegments
@@ -817,7 +817,7 @@ public class SurfRampEntity extends MobEntity {
         return new CollisionAppendStats(segmentsTested, segmentsIntersected, patchesTested, patchesAppended);
     }
 
-    public int prewarmCollisionShapeCache(Box queryBox, int maxSegmentsToBuild) {
+    public int prewarmCollisionShapeCache(AABB queryBox, int maxSegmentsToBuild) {
         if (queryBox == null || maxSegmentsToBuild <= 0) {
             return 0;
         }
@@ -826,7 +826,7 @@ public class SurfRampEntity extends MobEntity {
             return 0;
         }
 
-        Box expandedQuery = queryBox.expand(0.2D);
+        AABB expandedQuery = queryBox.inflate(0.2D);
         double queryCenterX = (expandedQuery.minX + expandedQuery.maxX) * 0.5D;
         double queryCenterZ = (expandedQuery.minZ + expandedQuery.maxZ) * 0.5D;
         double queryHalfX = (expandedQuery.maxX - expandedQuery.minX) * 0.5D;
@@ -835,7 +835,7 @@ public class SurfRampEntity extends MobEntity {
         double segmentLength = Math.max(cache.segmentLength, 0.06D);
         int halfWindowSegments = Math.max(6, (int) Math.ceil(queryRadiusXZ / segmentLength) + 4);
         double closestT = cache.estimateClosestT(queryCenterX, queryCenterZ);
-        int centerSegment = MathHelper.clamp((int) Math.floor(closestT * (double) cache.segmentCount), 0, cache.segmentCount);
+        int centerSegment = Mth.clamp((int) Math.floor(closestT * (double) cache.segmentCount), 0, cache.segmentCount);
         int loopStart = Math.max(
                 cache.minLogicalIndex,
                 centerSegment - halfWindowSegments - cache.extraSegments
@@ -869,7 +869,7 @@ public class SurfRampEntity extends MobEntity {
     }
 
     private boolean isWithinSurfaceSearchBounds(double sampleX, double sampleZ, double minY, double maxY) {
-        Box bounds = this.getBoundingBox();
+        AABB bounds = this.getBoundingBox();
         double lateralExtra = Math.max(this.getRampWidth() * 0.35D, 0.55D);
         if (sampleX < bounds.minX - lateralExtra || sampleX > bounds.maxX + lateralExtra
                 || sampleZ < bounds.minZ - lateralExtra || sampleZ > bounds.maxZ + lateralExtra) {
@@ -920,8 +920,8 @@ public class SurfRampEntity extends MobEntity {
 
         for (int i = 0; i <= segmentCount; i++) {
             double t = (double) i / (double) segmentCount;
-            Vec3d center = this.getCenterlinePoint(t);
-            Vec3d tangent = this.getTangent(t);
+            Vec3 center = this.getCenterlinePoint(t);
+            Vec3 tangent = this.getTangent(t);
 
             double tx = tangent.x;
             double tz = tangent.z;
@@ -1005,23 +1005,23 @@ public class SurfRampEntity extends MobEntity {
                 continue;
             }
 
-            double sampleT0 = MathHelper.clamp(t0, 0.0D, 1.0D);
-            double sampleT1 = MathHelper.clamp(t1, 0.0D, 1.0D);
+            double sampleT0 = Mth.clamp(t0, 0.0D, 1.0D);
+            double sampleT1 = Mth.clamp(t1, 0.0D, 1.0D);
             if (sampleT1 <= sampleT0 + 1.0E-6D) {
                 continue;
             }
 
-            Vec3d center0 = this.getCenterlinePoint(sampleT0);
-            Vec3d center1 = this.getCenterlinePoint(sampleT1);
-            Vec3d left0 = this.getLeftNormal(sampleT0);
-            Vec3d left1 = this.getLeftNormal(sampleT1);
+            Vec3 center0 = this.getCenterlinePoint(sampleT0);
+            Vec3 center1 = this.getCenterlinePoint(sampleT1);
+            Vec3 left0 = this.getLeftNormal(sampleT0);
+            Vec3 left1 = this.getLeftNormal(sampleT1);
             double edgeL0 = lateralStart;
             double edgeL1 = width;
 
-            Vec3d p00 = this.sampleCollisionVertex(sampleT0, center0, left0, edgeL0, width, sideSign);
-            Vec3d p01 = this.sampleCollisionVertex(sampleT0, center0, left0, edgeL1, width, sideSign);
-            Vec3d p10 = this.sampleCollisionVertex(sampleT1, center1, left1, edgeL0, width, sideSign);
-            Vec3d p11 = this.sampleCollisionVertex(sampleT1, center1, left1, edgeL1, width, sideSign);
+            Vec3 p00 = this.sampleCollisionVertex(sampleT0, center0, left0, edgeL0, width, sideSign);
+            Vec3 p01 = this.sampleCollisionVertex(sampleT0, center0, left0, edgeL1, width, sideSign);
+            Vec3 p10 = this.sampleCollisionVertex(sampleT1, center1, left1, edgeL0, width, sideSign);
+            Vec3 p11 = this.sampleCollisionVertex(sampleT1, center1, left1, edgeL1, width, sideSign);
 
             double minX = Math.min(Math.min(p00.x, p01.x), Math.min(p10.x, p11.x)) - COLLISION_PATCH_OVERLAP;
             double maxX = Math.max(Math.max(p00.x, p01.x), Math.max(p10.x, p11.x)) + COLLISION_PATCH_OVERLAP;
@@ -1035,17 +1035,17 @@ public class SurfRampEntity extends MobEntity {
                 segments[logicalIndex - minLogicalIndex] = new CollisionSegmentCache(
                         sampleT0,
                         sampleT1,
-                        new Box(minX, minY, minZ, maxX, maxY, maxZ)
+                        new AABB(minX, minY, minZ, maxX, maxY, maxZ)
                 );
             }
         }
 
-        int sampleCount = MathHelper.clamp(segmentCount, 36, 140);
+        int sampleCount = Mth.clamp(segmentCount, 36, 140);
         double[] sampleCenterX = new double[sampleCount + 1];
         double[] sampleCenterZ = new double[sampleCount + 1];
         for (int i = 0; i <= sampleCount; i++) {
             double t = (double) i / (double) sampleCount;
-            Vec3d center = this.getCenterlinePoint(t);
+            Vec3 center = this.getCenterlinePoint(t);
             sampleCenterX[i] = center.x;
             sampleCenterZ[i] = center.z;
         }
@@ -1081,36 +1081,36 @@ public class SurfRampEntity extends MobEntity {
             return CollisionPatchCache.EMPTY_ARRAY;
         }
 
-        Vec3d center0 = this.getCenterlinePoint(sampleT0);
-        Vec3d center1 = this.getCenterlinePoint(sampleT1);
-        Vec3d left0 = this.getLeftNormal(sampleT0);
-        Vec3d left1 = this.getLeftNormal(sampleT1);
+        Vec3 center0 = this.getCenterlinePoint(sampleT0);
+        Vec3 center1 = this.getCenterlinePoint(sampleT1);
+        Vec3 left0 = this.getLeftNormal(sampleT0);
+        Vec3 left1 = this.getLeftNormal(sampleT1);
         boolean curved = this.isCurved();
         double sampleTMid = (sampleT0 + sampleT1) * 0.5D;
-        Vec3d centerMid = curved ? this.getCenterlinePoint(sampleTMid) : null;
-        Vec3d leftMid = curved ? this.getLeftNormal(sampleTMid) : null;
+        Vec3 centerMid = curved ? this.getCenterlinePoint(sampleTMid) : null;
+        Vec3 leftMid = curved ? this.getLeftNormal(sampleTMid) : null;
         List<CollisionPatchCache> patchList = new ArrayList<>(cache.widthSlices);
 
         for (int j = 0; j < cache.widthSlices; j++) {
             double localL0 = cache.lateralStart + (double) j * cache.lateralStep;
             double localL1 = localL0 + cache.lateralStep;
 
-            Vec3d p00 = this.sampleCollisionVertex(sampleT0, center0, left0, localL0, cache.width, cache.sideSign);
-            Vec3d p01 = this.sampleCollisionVertex(sampleT0, center0, left0, localL1, cache.width, cache.sideSign);
-            Vec3d p10 = this.sampleCollisionVertex(sampleT1, center1, left1, localL0, cache.width, cache.sideSign);
-            Vec3d p11 = this.sampleCollisionVertex(sampleT1, center1, left1, localL1, cache.width, cache.sideSign);
-            Vec3d midA = null;
-            Vec3d midB = null;
+            Vec3 p00 = this.sampleCollisionVertex(sampleT0, center0, left0, localL0, cache.width, cache.sideSign);
+            Vec3 p01 = this.sampleCollisionVertex(sampleT0, center0, left0, localL1, cache.width, cache.sideSign);
+            Vec3 p10 = this.sampleCollisionVertex(sampleT1, center1, left1, localL0, cache.width, cache.sideSign);
+            Vec3 p11 = this.sampleCollisionVertex(sampleT1, center1, left1, localL1, cache.width, cache.sideSign);
+            Vec3 midA = null;
+            Vec3 midB = null;
             if (curved) {
                 midA = this.sampleCollisionVertex(sampleTMid, centerMid, leftMid, localL0, cache.width, cache.sideSign);
                 midB = this.sampleCollisionVertex(sampleTMid, centerMid, leftMid, localL1, cache.width, cache.sideSign);
             }
 
-            Box patchBox = this.makeCollisionPatchBox(p00, p01, p10, p11, midA, midB);
+            AABB patchBox = this.makeCollisionPatchBox(p00, p01, p10, p11, midA, midB);
             if (patchBox == null) {
                 continue;
             }
-            patchList.add(new CollisionPatchCache(patchBox, VoxelShapes.cuboid(patchBox)));
+            patchList.add(new CollisionPatchCache(patchBox, Shapes.create(patchBox)));
         }
 
         if (patchList.isEmpty()) {
@@ -1119,7 +1119,7 @@ public class SurfRampEntity extends MobEntity {
         return patchList.toArray(new CollisionPatchCache[0]);
     }
 
-    private Vec3d sampleCollisionVertex(double t, Vec3d center, Vec3d left, double localLateral, double width, int sideSign) {
+    private Vec3 sampleCollisionVertex(double t, Vec3 center, Vec3 left, double localLateral, double width, int sideSign) {
         double worldLateral;
         double normalizedLateral;
         if (this.isTwoSided()) {
@@ -1130,14 +1130,14 @@ public class SurfRampEntity extends MobEntity {
             normalizedLateral = localLateral / width;
         }
 
-        Vec3d worldPos = center.add(left.multiply(worldLateral));
+        Vec3 worldPos = center.add(left.scale(worldLateral));
         double baseY = this.sampleBaseY(t);
-        double surfaceY = baseY + this.getDrop() * (1.0D - MathHelper.clamp(normalizedLateral, 0.0D, 1.0D));
-        return new Vec3d(worldPos.x, surfaceY, worldPos.z);
+        double surfaceY = baseY + this.getDrop() * (1.0D - Mth.clamp(normalizedLateral, 0.0D, 1.0D));
+        return new Vec3(worldPos.x, surfaceY, worldPos.z);
     }
 
     @Nullable
-    private Box makeCollisionPatchBox(Vec3d p00, Vec3d p01, Vec3d p10, Vec3d p11, @Nullable Vec3d midA, @Nullable Vec3d midB) {
+    private AABB makeCollisionPatchBox(Vec3 p00, Vec3 p01, Vec3 p10, Vec3 p11, @Nullable Vec3 midA, @Nullable Vec3 midB) {
         double minX = Math.min(Math.min(p00.x, p01.x), Math.min(p10.x, p11.x));
         double maxX = Math.max(Math.max(p00.x, p01.x), Math.max(p10.x, p11.x));
         double minZ = Math.min(Math.min(p00.z, p01.z), Math.min(p10.z, p11.z));
@@ -1172,14 +1172,14 @@ public class SurfRampEntity extends MobEntity {
             return null;
         }
 
-        return new Box(minX, minY, minZ, maxX, maxY, maxZ);
+        return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
-    private Vec3d getLeftNormal(double t) {
-        Vec3d tangent = this.getTangent(t);
-        Vec3d left = new Vec3d(-tangent.z, 0.0D, tangent.x);
-        if (left.lengthSquared() < 1.0E-8D) {
-            return new Vec3d(1.0D, 0.0D, 0.0D);
+    private Vec3 getLeftNormal(double t) {
+        Vec3 tangent = this.getTangent(t);
+        Vec3 left = new Vec3(-tangent.z, 0.0D, tangent.x);
+        if (left.lengthSqr() < 1.0E-8D) {
+            return new Vec3(1.0D, 0.0D, 0.0D);
         }
         return left.normalize();
     }
@@ -1197,7 +1197,7 @@ public class SurfRampEntity extends MobEntity {
 
         for (int i = 0; i <= segmentCount; i++) {
             double t = (double) i / (double) segmentCount;
-            Vec3d center = this.getCenterlinePoint(t);
+            Vec3 center = this.getCenterlinePoint(t);
             minX = Math.min(minX, center.x - width - 0.35D);
             maxX = Math.max(maxX, center.x + width + 0.35D);
             minZ = Math.min(minZ, center.z - width - 0.35D);
@@ -1208,8 +1208,8 @@ public class SurfRampEntity extends MobEntity {
         }
 
         if (!Double.isFinite(minBaseY) || !Double.isFinite(maxBaseY)) {
-            Vec3d start = this.getStart();
-            Vec3d end = this.getEnd();
+            Vec3 start = this.getStart();
+            Vec3 end = this.getEnd();
             minBaseY = Math.min(start.y, end.y);
             maxBaseY = Math.max(start.y, end.y);
         }
@@ -1217,7 +1217,7 @@ public class SurfRampEntity extends MobEntity {
         double minY = minBaseY - 0.65D;
         double maxY = maxBaseY + this.getDrop() + 0.45D;
 
-        this.setBoundingBox(new Box(minX, minY, minZ, maxX, maxY, maxZ));
+        this.setBoundingBox(new AABB(minX, minY, minZ, maxX, maxY, maxZ));
         this.boundsDirty = false;
     }
 
@@ -1232,7 +1232,7 @@ public class SurfRampEntity extends MobEntity {
     }
 
     private int getCollisionShapeWidthSlices(double width) {
-        return MathHelper.clamp(
+        return Mth.clamp(
                 (int) Math.ceil(Math.max(width * 3.0D, this.getDrop() * 4.0D)),
                 4,
                 24
@@ -1251,12 +1251,12 @@ public class SurfRampEntity extends MobEntity {
         double horizontalLength = this.computeHorizontalLengthRaw();
         this.cachedHorizontalLength = Math.max(horizontalLength, 0.01D);
         double curveBoost = this.isCurved() ? 1.8D : 1.0D;
-        this.cachedCollisionSegmentCount = MathHelper.clamp(
+        this.cachedCollisionSegmentCount = Mth.clamp(
                 (int) Math.ceil(Math.max(this.cachedHorizontalLength * 14.0D * curveBoost, 36.0D)),
                 24,
                 240
         );
-        this.cachedCollisionShapeSegmentCount = MathHelper.clamp(
+        this.cachedCollisionShapeSegmentCount = Mth.clamp(
                 (int) Math.ceil(Math.max(this.cachedHorizontalLength * 7.0D * curveBoost, 20.0D)),
                 16,
                 160
@@ -1278,28 +1278,28 @@ public class SurfRampEntity extends MobEntity {
     }
 
     private double computeHorizontalLengthRaw() {
-        List<Vec3d> points = this.getPathPoints();
+        List<Vec3> points = this.getPathPoints();
         if (points.size() > 1) {
             double tStart = this.getPathTStart();
             double tEnd = this.getPathTEnd();
-            int samples = MathHelper.clamp(
+            int samples = Mth.clamp(
                     (int) Math.ceil(Math.max((tEnd - tStart) * (points.size() - 1) * 26.0D, 24.0D)),
                     24,
                     320
             );
             double length = 0.0D;
-            Vec3d previous = this.samplePathCenterline(points, tStart);
+            Vec3 previous = this.samplePathCenterline(points, tStart);
             for (int i = 1; i <= samples; i++) {
-                double t = MathHelper.lerp((double) i / (double) samples, tStart, tEnd);
-                Vec3d current = this.samplePathCenterline(points, t);
-                length += new Vec3d(current.x - previous.x, 0.0D, current.z - previous.z).length();
+                double t = Mth.lerp((double) i / (double) samples, tStart, tEnd);
+                Vec3 current = this.samplePathCenterline(points, t);
+                length += new Vec3(current.x - previous.x, 0.0D, current.z - previous.z).length();
                 previous = current;
             }
             return Math.max(length, 0.01D);
         }
-        Vec3d start = this.getStart();
-        Vec3d end = this.getEnd();
-        return new Vec3d(end.x - start.x, 0.0D, end.z - start.z).length();
+        Vec3 start = this.getStart();
+        Vec3 end = this.getEnd();
+        return new Vec3(end.x - start.x, 0.0D, end.z - start.z).length();
     }
 
     @Nullable
@@ -1313,8 +1313,8 @@ public class SurfRampEntity extends MobEntity {
         double halfSegmentLength = Math.max(cache.segmentLength, 0.06D) * 1.30D + COLLISION_PATCH_OVERLAP + 0.06D;
         int seamExtraSamples = (this.isLinkedStart() || this.isLinkedEnd()) ? 5 : 0;
         double estimatedT = cache.estimateClosestT(sampleX, sampleZ);
-        int centerIndex = MathHelper.clamp((int) Math.round(estimatedT * segmentCount), 0, segmentCount);
-        int halfWindow = MathHelper.clamp((int) Math.ceil(segmentCount * 0.10D) + 6 + seamExtraSamples, 10, 64);
+        int centerIndex = Mth.clamp((int) Math.round(estimatedT * segmentCount), 0, segmentCount);
+        int halfWindow = Mth.clamp((int) Math.ceil(segmentCount * 0.10D) + 6 + seamExtraSamples, 10, 64);
 
         SurfacePoint localBest = this.findSurfacePointInIndexRange(
                 sampleX,
@@ -1329,7 +1329,7 @@ public class SurfRampEntity extends MobEntity {
             return localBest;
         }
 
-        int expandedHalfWindow = MathHelper.clamp(halfWindow * 2 + seamExtraSamples, 18, segmentCount + seamExtraSamples);
+        int expandedHalfWindow = Mth.clamp(halfWindow * 2 + seamExtraSamples, 18, segmentCount + seamExtraSamples);
         SurfacePoint expandedBest = this.findSurfacePointInIndexRange(
                 sampleX,
                 sampleZ,
@@ -1373,8 +1373,8 @@ public class SurfRampEntity extends MobEntity {
         }
 
         double bestMetric = Double.MAX_VALUE;
-        int startIndex = MathHelper.clamp(Math.min(minIndex, maxIndex), 0, segmentCount);
-        int endIndex = MathHelper.clamp(Math.max(minIndex, maxIndex), 0, segmentCount);
+        int startIndex = Mth.clamp(Math.min(minIndex, maxIndex), 0, segmentCount);
+        int endIndex = Mth.clamp(Math.max(minIndex, maxIndex), 0, segmentCount);
         double drop = this.getDrop();
         int sideSign = this.getSideSign();
         double crossSlope = -drop / Math.max(width, 0.15D);
@@ -1426,7 +1426,7 @@ public class SurfRampEntity extends MobEntity {
                 if (orientedLateral < -CONTACT_EPSILON || orientedLateral > oneSidedMax) {
                     continue;
                 }
-                normalizedLateral = MathHelper.clamp(orientedLateral / width, 0.0D, 1.0D);
+                normalizedLateral = Mth.clamp(orientedLateral / width, 0.0D, 1.0D);
                 normalSideSign = sideSign;
             }
 
@@ -1466,104 +1466,104 @@ public class SurfRampEntity extends MobEntity {
         if (!found) {
             return null;
         }
-        return new SurfacePoint(bestSurfaceY, new Vec3d(bestNormalX, bestNormalY, bestNormalZ), bestT);
+        return new SurfacePoint(bestSurfaceY, new Vec3(bestNormalX, bestNormalY, bestNormalZ), bestT);
     }
 
     private boolean isHardEndpointT(double t) {
-        double clampedT = MathHelper.clamp(t, 0.0D, 1.0D);
+        double clampedT = Mth.clamp(t, 0.0D, 1.0D);
         double horizontalLength = Math.max(this.getHorizontalLength(), 0.5D);
-        double hardEndpointThreshold = MathHelper.clamp(0.75D / horizontalLength, 0.012D, 0.06D);
+        double hardEndpointThreshold = Mth.clamp(0.75D / horizontalLength, 0.012D, 0.06D);
         if (!this.isLinkedStart() && clampedT <= hardEndpointThreshold) {
             return true;
         }
         return !this.isLinkedEnd() && clampedT >= 1.0D - hardEndpointThreshold;
     }
 
-    private Vec3d getCenterlinePoint(double t) {
-        List<Vec3d> pathPoints = this.getPathPoints();
+    private Vec3 getCenterlinePoint(double t) {
+        List<Vec3> pathPoints = this.getPathPoints();
         if (pathPoints.size() >= 2) {
             double mappedT = this.mapLocalPathTToGlobalPathT(t);
             return this.samplePathCenterline(pathPoints, mappedT);
         }
 
-        Vec3d start = this.getStart();
-        Vec3d end = this.getEnd();
+        Vec3 start = this.getStart();
+        Vec3 end = this.getEnd();
         if (!this.isCurved()) {
             return start.lerp(end, t);
         }
 
-        Vec3d control = computeControlPoint(start, end);
+        Vec3 control = computeControlPoint(start, end);
         double invT = 1.0D - t;
         double x = invT * invT * start.x + 2.0D * invT * t * control.x + t * t * end.x;
         double y = invT * invT * start.y + 2.0D * invT * t * control.y + t * t * end.y;
         double z = invT * invT * start.z + 2.0D * invT * t * control.z + t * t * end.z;
-        return new Vec3d(x, y, z);
+        return new Vec3(x, y, z);
     }
 
-    private Vec3d getTangent(double t) {
-        List<Vec3d> pathPoints = this.getPathPoints();
+    private Vec3 getTangent(double t) {
+        List<Vec3> pathPoints = this.getPathPoints();
         if (pathPoints.size() >= 2) {
             double mappedT = this.mapLocalPathTToGlobalPathT(t);
             double dt = 1.0D / Math.max(64.0D, pathPoints.size() * 32.0D);
             dt = Math.max(dt, 1.0E-4D);
             double t0 = Math.max(0.0D, mappedT - dt);
             double t1 = Math.min(1.0D, mappedT + dt);
-            Vec3d before = this.samplePathCenterline(pathPoints, t0);
-            Vec3d after = this.samplePathCenterline(pathPoints, t1);
-            Vec3d tangent = new Vec3d(after.x - before.x, 0.0D, after.z - before.z);
-            if (tangent.lengthSquared() < 1.0E-8D) {
+            Vec3 before = this.samplePathCenterline(pathPoints, t0);
+            Vec3 after = this.samplePathCenterline(pathPoints, t1);
+            Vec3 tangent = new Vec3(after.x - before.x, 0.0D, after.z - before.z);
+            if (tangent.lengthSqr() < 1.0E-8D) {
                 int segmentCount = pathPoints.size() - 1;
-                int segmentIndex = MathHelper.clamp((int) Math.floor(MathHelper.clamp(mappedT, 0.0D, 1.0D) * segmentCount), 0, segmentCount - 1);
-                Vec3d segStart = pathPoints.get(segmentIndex);
-                Vec3d segEnd = pathPoints.get(segmentIndex + 1);
-                tangent = new Vec3d(segEnd.x - segStart.x, 0.0D, segEnd.z - segStart.z);
-                if (tangent.lengthSquared() < 1.0E-8D && segmentIndex > 0) {
-                    Vec3d prevStart = pathPoints.get(segmentIndex - 1);
-                    tangent = new Vec3d(segStart.x - prevStart.x, 0.0D, segStart.z - prevStart.z);
+                int segmentIndex = Mth.clamp((int) Math.floor(Mth.clamp(mappedT, 0.0D, 1.0D) * segmentCount), 0, segmentCount - 1);
+                Vec3 segStart = pathPoints.get(segmentIndex);
+                Vec3 segEnd = pathPoints.get(segmentIndex + 1);
+                tangent = new Vec3(segEnd.x - segStart.x, 0.0D, segEnd.z - segStart.z);
+                if (tangent.lengthSqr() < 1.0E-8D && segmentIndex > 0) {
+                    Vec3 prevStart = pathPoints.get(segmentIndex - 1);
+                    tangent = new Vec3(segStart.x - prevStart.x, 0.0D, segStart.z - prevStart.z);
                 }
             }
-            if (tangent.lengthSquared() < 1.0E-8D) {
-                Vec3d start = pathPoints.get(0);
-                Vec3d end = pathPoints.get(pathPoints.size() - 1);
-                tangent = new Vec3d(end.x - start.x, 0.0D, end.z - start.z);
+            if (tangent.lengthSqr() < 1.0E-8D) {
+                Vec3 start = pathPoints.get(0);
+                Vec3 end = pathPoints.get(pathPoints.size() - 1);
+                tangent = new Vec3(end.x - start.x, 0.0D, end.z - start.z);
             }
-            if (tangent.lengthSquared() < 1.0E-8D) {
-                return new Vec3d(1.0D, 0.0D, 0.0D);
+            if (tangent.lengthSqr() < 1.0E-8D) {
+                return new Vec3(1.0D, 0.0D, 0.0D);
             }
             return tangent.normalize();
         }
 
-        Vec3d start = this.getStart();
-        Vec3d end = this.getEnd();
+        Vec3 start = this.getStart();
+        Vec3 end = this.getEnd();
 
-        Vec3d tangent;
+        Vec3 tangent;
         if (this.isCurved()) {
-            Vec3d control = computeControlPoint(start, end);
-            Vec3d first = control.subtract(start).multiply(2.0D * (1.0D - t));
-            Vec3d second = end.subtract(control).multiply(2.0D * t);
-            tangent = new Vec3d(first.x + second.x, 0.0D, first.z + second.z);
+            Vec3 control = computeControlPoint(start, end);
+            Vec3 first = control.subtract(start).scale(2.0D * (1.0D - t));
+            Vec3 second = end.subtract(control).scale(2.0D * t);
+            tangent = new Vec3(first.x + second.x, 0.0D, first.z + second.z);
         } else {
-            tangent = new Vec3d(end.x - start.x, 0.0D, end.z - start.z);
+            tangent = new Vec3(end.x - start.x, 0.0D, end.z - start.z);
         }
 
-        if (tangent.lengthSquared() < 1.0E-8D) {
-            return new Vec3d(1.0D, 0.0D, 0.0D);
+        if (tangent.lengthSqr() < 1.0E-8D) {
+            return new Vec3(1.0D, 0.0D, 0.0D);
         }
 
         return tangent.normalize();
     }
 
     private double getPathTStart() {
-        return MathHelper.clamp(this.dataTracker.get(PATH_T_START), 0.0F, 1.0F);
+        return Mth.clamp(this.entityData.get(PATH_T_START), 0.0F, 1.0F);
     }
 
     private double getPathTEnd() {
-        return MathHelper.clamp(this.dataTracker.get(PATH_T_END), 0.0F, 1.0F);
+        return Mth.clamp(this.entityData.get(PATH_T_END), 0.0F, 1.0F);
     }
 
     private void setPathTRange(double pathStartT, double pathEndT) {
-        double start = MathHelper.clamp(pathStartT, 0.0D, 1.0D);
-        double end = MathHelper.clamp(pathEndT, 0.0D, 1.0D);
+        double start = Mth.clamp(pathStartT, 0.0D, 1.0D);
+        double end = Mth.clamp(pathEndT, 0.0D, 1.0D);
         if (end < start) {
             double swap = start;
             start = end;
@@ -1580,13 +1580,13 @@ public class SurfRampEntity extends MobEntity {
             }
         }
 
-        this.dataTracker.set(PATH_T_START, (float) start);
-        this.dataTracker.set(PATH_T_END, (float) end);
+        this.entityData.set(PATH_T_START, (float) start);
+        this.entityData.set(PATH_T_END, (float) end);
         this.invalidateGeometryCaches();
     }
 
     private double mapLocalPathTToGlobalPathT(double localT) {
-        double clampedLocalT = MathHelper.clamp(localT, 0.0D, 1.0D);
+        double clampedLocalT = Mth.clamp(localT, 0.0D, 1.0D);
         double start = this.getPathTStart();
         double end = this.getPathTEnd();
         if (end < start) {
@@ -1594,29 +1594,29 @@ public class SurfRampEntity extends MobEntity {
             start = end;
             end = swap;
         }
-        return MathHelper.lerp(clampedLocalT, start, end);
+        return Mth.lerp(clampedLocalT, start, end);
     }
 
-    private Vec3d samplePathCenterline(List<Vec3d> pathPoints, double pathT) {
-        double clampedT = MathHelper.clamp(pathT, 0.0D, 1.0D);
+    private Vec3 samplePathCenterline(List<Vec3> pathPoints, double pathT) {
+        double clampedT = Mth.clamp(pathT, 0.0D, 1.0D);
         if (pathPoints.size() == 2) {
             return pathPoints.get(0).lerp(pathPoints.get(1), clampedT);
         }
 
         int segmentCount = pathPoints.size() - 1;
         double scaled = clampedT * segmentCount;
-        int segmentIndex = MathHelper.clamp((int) Math.floor(scaled), 0, segmentCount - 1);
+        int segmentIndex = Mth.clamp((int) Math.floor(scaled), 0, segmentCount - 1);
         double localT = scaled - segmentIndex;
 
-        Vec3d p0 = pathPoints.get(Math.max(segmentIndex - 1, 0));
-        Vec3d p1 = pathPoints.get(segmentIndex);
-        Vec3d p2 = pathPoints.get(segmentIndex + 1);
-        Vec3d p3 = pathPoints.get(Math.min(segmentIndex + 2, pathPoints.size() - 1));
+        Vec3 p0 = pathPoints.get(Math.max(segmentIndex - 1, 0));
+        Vec3 p1 = pathPoints.get(segmentIndex);
+        Vec3 p2 = pathPoints.get(segmentIndex + 1);
+        Vec3 p3 = pathPoints.get(Math.min(segmentIndex + 2, pathPoints.size() - 1));
         return catmullRom(p0, p1, p2, p3, localT);
     }
 
-    private List<Vec3d> getPathPoints() {
-        String raw = this.dataTracker.get(PATH_POINTS);
+    private List<Vec3> getPathPoints() {
+        String raw = this.entityData.get(PATH_POINTS);
         if (!Objects.equals(raw, this.cachedPathPointsRaw)) {
             this.cachedPathPointsRaw = raw;
             this.cachedPathPoints = this.parsePathPoints(raw);
@@ -1624,13 +1624,13 @@ public class SurfRampEntity extends MobEntity {
         return this.cachedPathPoints;
     }
 
-    private List<Vec3d> parsePathPoints(String raw) {
+    private List<Vec3> parsePathPoints(String raw) {
         if (raw == null || raw.isBlank()) {
             return List.of();
         }
 
         String[] tokens = raw.split(";");
-        List<Vec3d> parsed = new ArrayList<>();
+        List<Vec3> parsed = new ArrayList<>();
         for (String token : tokens) {
             if (parsed.size() >= MAX_PATH_POINTS) {
                 break;
@@ -1643,7 +1643,7 @@ public class SurfRampEntity extends MobEntity {
                 double x = Double.parseDouble(xyz[0]);
                 double y = Double.parseDouble(xyz[1]);
                 double z = Double.parseDouble(xyz[2]);
-                parsed.add(new Vec3d(x, y, z));
+                parsed.add(new Vec3(x, y, z));
             } catch (NumberFormatException ignored) {
             }
         }
@@ -1654,14 +1654,14 @@ public class SurfRampEntity extends MobEntity {
         return List.copyOf(parsed);
     }
 
-    private String encodePathPoints(List<Vec3d> points) {
+    private String encodePathPoints(List<Vec3> points) {
         if (points == null || points.size() < 2) {
             return "";
         }
 
         StringBuilder builder = new StringBuilder();
         int written = 0;
-        for (Vec3d point : points) {
+        for (Vec3 point : points) {
             if (point == null) {
                 continue;
             }
@@ -1679,13 +1679,13 @@ public class SurfRampEntity extends MobEntity {
 
     private void setPathPointsEncoded(String encodedPoints) {
         String safe = encodedPoints == null ? "" : encodedPoints;
-        this.dataTracker.set(PATH_POINTS, safe);
+        this.entityData.set(PATH_POINTS, safe);
         this.cachedPathPointsRaw = safe;
         this.cachedPathPoints = this.parsePathPoints(safe);
         this.invalidateGeometryCaches();
     }
 
-    private static Vec3d catmullRom(Vec3d p0, Vec3d p1, Vec3d p2, Vec3d p3, double t) {
+    private static Vec3 catmullRom(Vec3 p0, Vec3 p1, Vec3 p2, Vec3 p3, double t) {
         double t2 = t * t;
         double t3 = t2 * t;
 
@@ -1707,68 +1707,68 @@ public class SurfRampEntity extends MobEntity {
                         + (2.0D * p0.z - 5.0D * p1.z + 4.0D * p2.z - p3.z) * t2
                         + (-p0.z + 3.0D * p1.z - 3.0D * p2.z + p3.z) * t3
         );
-        return new Vec3d(x, y, z);
+        return new Vec3(x, y, z);
     }
 
-    private static Vec3d computeControlPoint(Vec3d start, Vec3d end) {
-        return new Vec3d(start.x, MathHelper.lerp(0.5D, start.y, end.y), end.z);
+    private static Vec3 computeControlPoint(Vec3 start, Vec3 end) {
+        return new Vec3(start.x, Mth.lerp(0.5D, start.y, end.y), end.z);
     }
 
     private static String sanitizeTextureBlockId(String textureBlockId) {
-        Identifier parsed = Identifier.tryParse(textureBlockId);
-        if (parsed == null || !Registries.BLOCK.containsId(parsed)) {
+        ResourceLocation parsed = ResourceLocation.tryParse(textureBlockId);
+        if (parsed == null || !BuiltInRegistries.BLOCK.containsKey(parsed)) {
             return DEFAULT_TEXTURE_BLOCK_ID;
         }
-        if (Registries.BLOCK.get(parsed) == Blocks.AIR) {
+        if (BuiltInRegistries.BLOCK.getValue(parsed) == Blocks.AIR) {
             return DEFAULT_TEXTURE_BLOCK_ID;
         }
         return parsed.toString();
     }
 
-    public Vec3d sampleCenterline(double t) {
-        return this.getCenterlinePoint(MathHelper.clamp(t, 0.0D, 1.0D));
+    public Vec3 sampleCenterline(double t) {
+        return this.getCenterlinePoint(Mth.clamp(t, 0.0D, 1.0D));
     }
 
-    public Vec3d sampleCenterlineCached(double t) {
+    public Vec3 sampleCenterlineCached(double t) {
         SurfaceSearchCache cache = this.getOrBuildSurfaceSearchCache();
         if (cache == null || cache.segmentCount <= 0) {
             return this.sampleCenterline(t);
         }
-        double scaled = MathHelper.clamp(t, 0.0D, 1.0D) * (double) cache.segmentCount;
+        double scaled = Mth.clamp(t, 0.0D, 1.0D) * (double) cache.segmentCount;
         double x = sampleInterpolated(cache.centerX, scaled);
         double y = sampleInterpolated(cache.baseY, scaled);
         double z = sampleInterpolated(cache.centerZ, scaled);
-        return new Vec3d(x, y, z);
+        return new Vec3(x, y, z);
     }
 
-    public Vec3d sampleLeft(double t) {
-        Vec3d tangent = this.getTangent(MathHelper.clamp(t, 0.0D, 1.0D));
-        return new Vec3d(-tangent.z, 0.0D, tangent.x).normalize();
+    public Vec3 sampleLeft(double t) {
+        Vec3 tangent = this.getTangent(Mth.clamp(t, 0.0D, 1.0D));
+        return new Vec3(-tangent.z, 0.0D, tangent.x).normalize();
     }
 
-    public Vec3d sampleLeftCached(double t) {
+    public Vec3 sampleLeftCached(double t) {
         SurfaceSearchCache cache = this.getOrBuildSurfaceSearchCache();
         if (cache == null || cache.segmentCount <= 0) {
             return this.sampleLeft(t);
         }
-        double scaled = MathHelper.clamp(t, 0.0D, 1.0D) * (double) cache.segmentCount;
+        double scaled = Mth.clamp(t, 0.0D, 1.0D) * (double) cache.segmentCount;
         double lx = sampleInterpolated(cache.leftX, scaled);
         double lz = sampleInterpolated(cache.leftZ, scaled);
         double length = Math.hypot(lx, lz);
         if (length < 1.0E-8D) {
-            return new Vec3d(1.0D, 0.0D, 0.0D);
+            return new Vec3(1.0D, 0.0D, 0.0D);
         }
-        return new Vec3d(lx / length, 0.0D, lz / length);
+        return new Vec3(lx / length, 0.0D, lz / length);
     }
 
     public double sampleBaseY(double t) {
-        double clamped = MathHelper.clamp(t, 0.0D, 1.0D);
-        List<Vec3d> pathPoints = this.getPathPoints();
+        double clamped = Mth.clamp(t, 0.0D, 1.0D);
+        List<Vec3> pathPoints = this.getPathPoints();
         if (pathPoints.size() >= 2) {
             double mappedT = this.mapLocalPathTToGlobalPathT(clamped);
             return this.samplePathCenterline(pathPoints, mappedT).y;
         }
-        return MathHelper.lerp(clamped, this.getStart().y, this.getEnd().y);
+        return Mth.lerp(clamped, this.getStart().y, this.getEnd().y);
     }
 
     public double sampleBaseYCached(double t) {
@@ -1776,7 +1776,7 @@ public class SurfRampEntity extends MobEntity {
         if (cache == null || cache.segmentCount <= 0) {
             return this.sampleBaseY(t);
         }
-        double scaled = MathHelper.clamp(t, 0.0D, 1.0D) * (double) cache.segmentCount;
+        double scaled = Mth.clamp(t, 0.0D, 1.0D) * (double) cache.segmentCount;
         return sampleInterpolated(cache.baseY, scaled);
     }
 
@@ -1785,10 +1785,10 @@ public class SurfRampEntity extends MobEntity {
             return 0.0D;
         }
         int maxIndex = values.length - 1;
-        int index0 = MathHelper.clamp((int) Math.floor(scaledIndex), 0, maxIndex);
+        int index0 = Mth.clamp((int) Math.floor(scaledIndex), 0, maxIndex);
         int index1 = Math.min(index0 + 1, maxIndex);
-        double t = MathHelper.clamp(scaledIndex - (double) index0, 0.0D, 1.0D);
-        return MathHelper.lerp(t, values[index0], values[index1]);
+        double t = Mth.clamp(scaledIndex - (double) index0, 0.0D, 1.0D);
+        return Mth.lerp(t, values[index0], values[index1]);
     }
 
     private static final class SurfaceSearchCache {
@@ -1845,10 +1845,10 @@ public class SurfRampEntity extends MobEntity {
 
     private static final class CollisionPatchCache {
         private static final CollisionPatchCache[] EMPTY_ARRAY = new CollisionPatchCache[0];
-        private final Box box;
+        private final AABB box;
         private final VoxelShape shape;
 
-        private CollisionPatchCache(Box box, VoxelShape shape) {
+        private CollisionPatchCache(AABB box, VoxelShape shape) {
             this.box = box;
             this.shape = shape;
         }
@@ -1857,11 +1857,11 @@ public class SurfRampEntity extends MobEntity {
     private static final class CollisionSegmentCache {
         private final double sampleT0;
         private final double sampleT1;
-        private final Box bounds;
+        private final AABB bounds;
         @Nullable
         private volatile CollisionPatchCache[] patches;
 
-        private CollisionSegmentCache(double sampleT0, double sampleT1, Box bounds) {
+        private CollisionSegmentCache(double sampleT0, double sampleT1, AABB bounds) {
             this.sampleT0 = sampleT0;
             this.sampleT1 = sampleT1;
             this.bounds = bounds;
@@ -1961,6 +1961,6 @@ public class SurfRampEntity extends MobEntity {
         public static final CollisionAppendStats EMPTY = new CollisionAppendStats(0, 0, 0, 0);
     }
 
-    public record SurfacePoint(double surfaceY, Vec3d normal, double t) {
+    public record SurfacePoint(double surfaceY, Vec3 normal, double t) {
     }
 }

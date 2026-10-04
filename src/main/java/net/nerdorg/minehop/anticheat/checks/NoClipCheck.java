@@ -1,12 +1,12 @@
 package net.nerdorg.minehop.anticheat.checks;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.ShapeContext;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.nerdorg.minehop.anticheat.AntiCheatCheck;
 import net.nerdorg.minehop.anticheat.AntiCheatContext;
 
@@ -33,21 +33,21 @@ public final class NoClipCheck extends AntiCheatCheck {
         if (context.surfing || context.climbing) {
             return CheckResult.OK;
         }
-        if (context.player.noClip || context.player.isSpectator()) {
+        if (context.player.noPhysics || context.player.isSpectator()) {
             return CheckResult.OK;
         }
-        if (context.player.getWorld() == null || context.player.getWorld().isClient) {
+        if (context.player.level() == null || context.player.level().isClientSide) {
             return CheckResult.OK;
         }
 
-        Box bb = context.player.getBoundingBox();
-        World world = context.player.getWorld();
+        AABB bb = context.player.getBoundingBox();
+        Level world = context.player.level();
         SolidCollision collision = getSolidCollision(world, bb, context.player);
         if (collision != SolidCollision.NONE) {
             if (collision == SolidCollision.SHALLOW && hasSneakEdgeGrace(context)) {
                 return CheckResult.OK;
             }
-            Vec3d pos = context.postMovePosition;
+            Vec3 pos = context.postMovePosition;
             String details = String.format(
                     Locale.ROOT,
                     "feetInSolid pos=(%.2f,%.2f,%.2f)",
@@ -59,13 +59,13 @@ public final class NoClipCheck extends AntiCheatCheck {
     }
 
     private static boolean hasSneakEdgeGrace(AntiCheatContext context) {
-        return context.player.isSneaking()
+        return context.player.isShiftKeyDown()
                 && (context.onGround || context.wasOnGround)
                 && Math.abs(context.movedDelta.y) <= 0.25D;
     }
 
-    private static SolidCollision getSolidCollision(World world, Box bb, net.minecraft.entity.player.PlayerEntity player) {
-        Box shrunk = bb.contract(BODY_CONTRACT);
+    private static SolidCollision getSolidCollision(Level world, AABB bb, net.minecraft.world.entity.player.Player player) {
+        AABB shrunk = bb.deflate(BODY_CONTRACT);
         if (shrunk.maxX <= shrunk.minX || shrunk.maxY <= shrunk.minY || shrunk.maxZ <= shrunk.minZ) {
             return SolidCollision.NONE;
         }
@@ -75,8 +75,8 @@ public final class NoClipCheck extends AntiCheatCheck {
         int maxY = (int) Math.floor(shrunk.maxY);
         int minZ = (int) Math.floor(shrunk.minZ);
         int maxZ = (int) Math.floor(shrunk.maxZ);
-        BlockPos.Mutable mutable = new BlockPos.Mutable();
-        ShapeContext shapeContext = ShapeContext.of(player);
+        BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
+        CollisionContext shapeContext = CollisionContext.of(player);
         boolean hasShallowCollision = false;
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
@@ -90,8 +90,8 @@ public final class NoClipCheck extends AntiCheatCheck {
                     if (shape.isEmpty()) {
                         continue;
                     }
-                    Box offsetBox = shrunk.offset(-x, -y, -z);
-                    for (Box partial : shape.getBoundingBoxes()) {
+                    AABB offsetBox = shrunk.move(-x, -y, -z);
+                    for (AABB partial : shape.toAabbs()) {
                         if (partial.intersects(offsetBox)) {
                             if (isDeepCollision(offsetBox, partial)) {
                                 return SolidCollision.DEEP;
@@ -105,7 +105,7 @@ public final class NoClipCheck extends AntiCheatCheck {
         return hasShallowCollision ? SolidCollision.SHALLOW : SolidCollision.NONE;
     }
 
-    private static boolean isDeepCollision(Box playerBox, Box blockBox) {
+    private static boolean isDeepCollision(AABB playerBox, AABB blockBox) {
         double overlapX = Math.min(playerBox.maxX, blockBox.maxX) - Math.max(playerBox.minX, blockBox.minX);
         double overlapY = Math.min(playerBox.maxY, blockBox.maxY) - Math.max(playerBox.minY, blockBox.minY);
         double overlapZ = Math.min(playerBox.maxZ, blockBox.maxZ) - Math.max(playerBox.minZ, blockBox.minZ);

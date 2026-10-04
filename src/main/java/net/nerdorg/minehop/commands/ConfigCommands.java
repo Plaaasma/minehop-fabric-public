@@ -10,8 +10,8 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.level.ServerPlayer;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.util.Logger;
@@ -29,21 +29,21 @@ public class ConfigCommands {
             // Build `set` dynamically from the config fields via reflection so every option
             // (booleans, doubles, ints) appears automatically with tab-completion — no per-field
             // wiring needed when a new config setting is added.
-            LiteralArgumentBuilder<ServerCommandSource> setNode = LiteralArgumentBuilder.literal("set");
+            LiteralArgumentBuilder<CommandSourceStack> setNode = LiteralArgumentBuilder.literal("set");
             appendConfigFields(setNode, MinehopConfig.class, config -> config);
             appendConfigFields(setNode, MinehopConfig.MovementSettings.class, config -> config.movement);
 
             dispatcher.register(
-                LiteralArgumentBuilder.<ServerCommandSource>literal("minehop")
-                    .then(LiteralArgumentBuilder.<ServerCommandSource>literal("config")
-                        .requires(source -> source.hasPermissionLevel(4))
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reload")
+                LiteralArgumentBuilder.<CommandSourceStack>literal("minehop")
+                    .then(LiteralArgumentBuilder.<CommandSourceStack>literal("config")
+                        .requires(source -> source.hasPermission(4))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("reload")
                             .executes(context -> {
                                 handleReload(context);
                                 return Command.SINGLE_SUCCESS;
                             })
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("list")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("list")
                             .executes(context -> {
                                 handleList(context);
                                 return Command.SINGLE_SUCCESS;
@@ -56,7 +56,7 @@ public class ConfigCommands {
     }
 
     private static void appendConfigFields(
-            LiteralArgumentBuilder<ServerCommandSource> setNode,
+            LiteralArgumentBuilder<CommandSourceStack> setNode,
             Class<?> clazz,
             Function<MinehopConfig, Object> targetGetter
     ) {
@@ -75,42 +75,42 @@ public class ConfigCommands {
             }
             Class<?> type = field.getType();
             if (type == boolean.class || type == Boolean.class) {
-                setNode.then(LiteralArgumentBuilder.<ServerCommandSource>literal(name)
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, Boolean>argument("value", BoolArgumentType.bool())
+                setNode.then(LiteralArgumentBuilder.<CommandSourceStack>literal(name)
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, Boolean>argument("value", BoolArgumentType.bool())
                                 .executes(context -> applyBoolean(context, targetGetter, field, name))));
             } else if (type == double.class || type == Double.class) {
-                setNode.then(LiteralArgumentBuilder.<ServerCommandSource>literal(name)
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, Double>argument("value", DoubleArgumentType.doubleArg())
+                setNode.then(LiteralArgumentBuilder.<CommandSourceStack>literal(name)
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, Double>argument("value", DoubleArgumentType.doubleArg())
                                 .executes(context -> applyDouble(context, targetGetter, field, name))));
             } else if (type == int.class || type == Integer.class) {
-                setNode.then(LiteralArgumentBuilder.<ServerCommandSource>literal(name)
-                        .then(RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("value", IntegerArgumentType.integer())
+                setNode.then(LiteralArgumentBuilder.<CommandSourceStack>literal(name)
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("value", IntegerArgumentType.integer())
                                 .executes(context -> applyInt(context, targetGetter, field, name))));
             }
             // String fields (e.g. discord tokens) and nested objects (jHud, movement) are skipped.
         }
     }
 
-    private static int applyBoolean(CommandContext<ServerCommandSource> context, Function<MinehopConfig, Object> targetGetter, Field field, String name) {
+    private static int applyBoolean(CommandContext<CommandSourceStack> context, Function<MinehopConfig, Object> targetGetter, Field field, String name) {
         MinehopConfig config = ConfigWrapper.config;
         boolean value = BoolArgumentType.getBool(context, "value");
         return applyValue(context, config, targetGetter, field, name, value);
     }
 
-    private static int applyDouble(CommandContext<ServerCommandSource> context, Function<MinehopConfig, Object> targetGetter, Field field, String name) {
+    private static int applyDouble(CommandContext<CommandSourceStack> context, Function<MinehopConfig, Object> targetGetter, Field field, String name) {
         MinehopConfig config = ConfigWrapper.config;
         double value = DoubleArgumentType.getDouble(context, "value");
         return applyValue(context, config, targetGetter, field, name, value);
     }
 
-    private static int applyInt(CommandContext<ServerCommandSource> context, Function<MinehopConfig, Object> targetGetter, Field field, String name) {
+    private static int applyInt(CommandContext<CommandSourceStack> context, Function<MinehopConfig, Object> targetGetter, Field field, String name) {
         MinehopConfig config = ConfigWrapper.config;
         int value = IntegerArgumentType.getInteger(context, "value");
         return applyValue(context, config, targetGetter, field, name, value);
     }
 
-    private static int applyValue(CommandContext<ServerCommandSource> context, MinehopConfig config, Function<MinehopConfig, Object> targetGetter, Field field, String name, Object value) {
-        ServerPlayerEntity player = context.getSource().getPlayer();
+    private static int applyValue(CommandContext<CommandSourceStack> context, MinehopConfig config, Function<MinehopConfig, Object> targetGetter, Field field, String name, Object value) {
+        ServerPlayer player = context.getSource().getPlayer();
         try {
             field.set(targetGetter.apply(config), value);
         } catch (IllegalAccessException | IllegalArgumentException e) {
@@ -122,14 +122,14 @@ public class ConfigCommands {
         return Command.SINGLE_SUCCESS;
     }
 
-    private static void handleList(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleList(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         Logger.logSuccess(serverPlayerEntity, "Config Settings \\/\n" + StringFormatting.limitDecimals(gson.toJson(ConfigWrapper.config)));
     }
 
-    private static void handleReload(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleReload(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
         ConfigWrapper.loadConfig();
         Logger.logSuccess(serverPlayerEntity, "Reloading config.");

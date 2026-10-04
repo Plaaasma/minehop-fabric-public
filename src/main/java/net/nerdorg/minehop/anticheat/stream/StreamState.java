@@ -1,10 +1,9 @@
 package net.nerdorg.minehop.anticheat.stream;
 
-import net.minecraft.util.PlayerInput;
-import net.minecraft.util.math.Vec3d;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Per-player movement stream, rebuilt from the client's own packets (one entry per client tick).
@@ -39,7 +38,7 @@ final class StreamState {
     long transactionRttNanos;
 
     // --- the client tick currently being received ---
-    Vec3d tickPos;
+    Vec3 tickPos;
     boolean tickHasYaw;
     float tickYaw;
     boolean tickHorizontalCollision;
@@ -47,8 +46,8 @@ final class StreamState {
     boolean clientOnGround;
 
     // --- history: state at the end of the last finalized client tick ---
-    Vec3d lastPos;
-    Vec3d lastStep;
+    Vec3 lastPos;
+    Vec3 lastStep;
     boolean lastSupported;
     boolean lastHorizontalCollision;
     /** Consecutive ticks the player ended supported (ground). */
@@ -59,8 +58,8 @@ final class StreamState {
     double horizontalVelocityBound2;
     float lastYaw;
     boolean hasLastYaw;
-    PlayerInput input = PlayerInput.DEFAULT;
-    PlayerInput lastTickInput = PlayerInput.DEFAULT;
+    Input input = Input.EMPTY;
+    Input lastTickInput = Input.EMPTY;
     int ticksSinceJumpInput = 1000;
     int ticksSinceSneakChange = 1000;
     /**
@@ -89,7 +88,7 @@ final class StreamState {
     int holdTicks;
 
     /** Position at the end of the last tick that wasn't lagged back (lagback anchor). */
-    Vec3d lastGoodPos;
+    Vec3 lastGoodPos;
 
     // --- violation accumulators (unexplained movement, decaying) ---
     double horizontalBuffer;
@@ -103,7 +102,7 @@ final class StreamState {
     }
 
     /** Forget velocity history: the next ticks rebuild it from realized movement. */
-    void resetBaseline(Vec3d position) {
+    void resetBaseline(Vec3 position) {
         this.lastPos = position;
         this.lastStep = null;
         this.lastWasCheckedAir = false;

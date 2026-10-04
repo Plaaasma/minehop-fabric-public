@@ -4,17 +4,12 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.SpawnReason;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.s2c.play.PositionFlag;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.config.ConfigWrapper;
@@ -41,33 +36,33 @@ public class HNSManager {
             handleMapTimers(server);
             resetMapHasTaggers();
 
-            for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
-                if (!taggedMap.containsKey(playerEntity.getNameForScoreboard())) {
-                    taggedMap.put(playerEntity.getNameForScoreboard(), false);
-                    playerEntity.setGlowing(false);
+            for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
+                if (!taggedMap.containsKey(playerEntity.getScoreboardName())) {
+                    taggedMap.put(playerEntity.getScoreboardName(), false);
+                    playerEntity.setGlowingTag(false);
                 }
                 else {
                     DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
-                    if (taggedMap.get(playerEntity.getNameForScoreboard())) {
+                    if (taggedMap.get(playerEntity.getScoreboardName())) {
                         if (mapData != null) {
                             if (!mapData.hns) {
-                                taggedMap.put(playerEntity.getNameForScoreboard(), false);
+                                taggedMap.put(playerEntity.getScoreboardName(), false);
                             }
                         }
                     }
 
                     if (mapData != null) {
-                        boolean isTagged = taggedMap.get(playerEntity.getNameForScoreboard());
+                        boolean isTagged = taggedMap.get(playerEntity.getScoreboardName());
                         if (isTagged) {
                             mapHasTaggers.put(mapData.name, true);
 
-                            playerEntity.setGlowing(true);
+                            playerEntity.setGlowingTag(true);
                         } else {
-                            playerEntity.setGlowing(false);
+                            playerEntity.setGlowingTag(false);
                         }
                     }
                     else {
-                        playerEntity.setGlowing(false);
+                        playerEntity.setGlowingTag(false);
                     }
                 }
             }
@@ -76,19 +71,19 @@ public class HNSManager {
         });
 
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((livingEntity, damageSource, amount) -> {
-            if (livingEntity instanceof PlayerEntity player) {
+            if (livingEntity instanceof Player player) {
                 DataManager.MapData mapData = ZoneUtil.getCurrentMap(player);
                 if (mapData != null) {
                     if (mapData.hns) {
-                        Entity sourceEntity = damageSource.getSource();
+                        Entity sourceEntity = damageSource.getDirectEntity();
                         if (sourceEntity != null) {
-                            if (sourceEntity instanceof PlayerEntity sourcePlayer) {
-                                if (!sourcePlayer.isCreative() && !sourcePlayer.isSpectator() && taggedMap.containsKey(sourcePlayer.getNameForScoreboard())) {
-                                    boolean sourceIsTagged = taggedMap.get(sourcePlayer.getNameForScoreboard());
+                            if (sourceEntity instanceof Player sourcePlayer) {
+                                if (!sourcePlayer.isCreative() && !sourcePlayer.isSpectator() && taggedMap.containsKey(sourcePlayer.getScoreboardName())) {
+                                    boolean sourceIsTagged = taggedMap.get(sourcePlayer.getScoreboardName());
                                     if (sourceIsTagged) {
-                                        Logger.logFailure(player, "You were tagged by " + sourcePlayer.getNameForScoreboard());
-                                        Logger.logSuccess(sourcePlayer, "You tagged " + player.getNameForScoreboard());
-                                        taggedMap.put(player.getNameForScoreboard(), true);
+                                        Logger.logFailure(player, "You were tagged by " + sourcePlayer.getScoreboardName());
+                                        Logger.logSuccess(sourcePlayer, "You tagged " + player.getScoreboardName());
+                                        taggedMap.put(player.getScoreboardName(), true);
                                     }
                                 }
                             }
@@ -114,17 +109,17 @@ public class HNSManager {
                 if (!resetIfAllTagged(mapData.name, server)) {
                     if (mapHasTaggers.containsKey(mapData.name)) {
                         if (!mapHasTaggers.get(mapData.name)) {
-                            mapTimers.put(mapData.name, server.getTicks());
+                            mapTimers.put(mapData.name, server.getTickCount());
                         }
                     }
 
                     if (mapTimers.containsKey(mapData.name)) {
                         int startTime = mapTimers.get(mapData.name);
-                        if (server.getTicks() >= startTime + 3600) {
+                        if (server.getTickCount() >= startTime + 3600) {
                             removeAllTaggersAndReset(mapData.name, server);
-                            mapTimers.put(mapData.name, server.getTicks());
+                            mapTimers.put(mapData.name, server.getTickCount());
                         } else {
-                            int timeDif = server.getTicks() - startTime;
+                            int timeDif = server.getTickCount() - startTime;
                             if (timeDif % 1200 == 0) {
                                 logToAllParticipants(mapData.name, server, (((3600 - timeDif) / 20) / 60) + " Minutes remaining in HNS round.");
                             }
@@ -149,7 +144,7 @@ public class HNSManager {
     }
 
     private static void logToAllParticipants(String mapName, MinecraftServer server, String message) {
-        for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
             DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
             if (mapData != null) {
                 if (mapData.name.equals(mapName)) {
@@ -160,8 +155,8 @@ public class HNSManager {
     }
 
     private static void assignRandomTagger(String mapName, MinecraftServer server) {
-        List<ServerPlayerEntity> playersOnMap = new ArrayList<>();
-        for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+        List<ServerPlayer> playersOnMap = new ArrayList<>();
+        for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
             DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
             if (mapData != null) {
                 if (mapData.name.equals(mapName)) {
@@ -170,22 +165,22 @@ public class HNSManager {
             }
         }
         if (!playersOnMap.isEmpty()) {
-            ServerPlayerEntity randomPlayer = playersOnMap.get(random.nextInt(playersOnMap.size()));
+            ServerPlayer randomPlayer = playersOnMap.get(random.nextInt(playersOnMap.size()));
             Logger.logFailure(randomPlayer, "You were randomly selected to be tagged because nobody was tagged.");
-            taggedMap.put(randomPlayer.getNameForScoreboard(), true);
+            taggedMap.put(randomPlayer.getScoreboardName(), true);
         }
     }
 
     private static boolean resetIfAllTagged(String mapName, MinecraftServer server) {
         boolean allTagged = true;
         int players = 0;
-        for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
             DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
             if (mapData != null) {
                 if (mapData.name.equals(mapName)) {
                     players += 1;
-                    if (taggedMap.containsKey(playerEntity.getNameForScoreboard())) {
-                        boolean tagged = taggedMap.get(playerEntity.getNameForScoreboard());
+                    if (taggedMap.containsKey(playerEntity.getScoreboardName())) {
+                        boolean tagged = taggedMap.get(playerEntity.getScoreboardName());
                         if (!tagged) {
                             allTagged = false;
                             break;
@@ -204,50 +199,50 @@ public class HNSManager {
     }
 
     private static void removeAllTaggers(String mapName, MinecraftServer server) {
-        for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
             DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
             if (mapData != null) {
                 if (mapData.name.equals(mapName)) {
-                    taggedMap.remove(playerEntity.getNameForScoreboard());
+                    taggedMap.remove(playerEntity.getScoreboardName());
                 }
             }
         }
     }
 
     private static void removeAllTaggersAndReset(String mapName, MinecraftServer server) {
-        for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
             DataManager.MapData mapData = ZoneUtil.getCurrentMap(playerEntity);
             if (mapData != null) {
                 if (mapData.name.equals(mapName)) {
-                    ServerWorld foundWorld = null;
-                    for (ServerWorld serverWorld : server.getWorlds()) {
-                        if (serverWorld.getRegistryKey().toString().equals(mapData.worldKey)) {
+                    ServerLevel foundWorld = null;
+                    for (ServerLevel serverWorld : server.getAllLevels()) {
+                        if (serverWorld.dimension().toString().equals(mapData.worldKey)) {
                             foundWorld = serverWorld;
                             break;
                         }
                     }
                     if (foundWorld != null) {
-                        List<Vec3d> spawnCheck = new ArrayList<>();
-                        spawnCheck.add(new Vec3d(mapData.x, mapData.y, mapData.z));
-                        spawnCheck.add(new Vec3d(mapData.xrot, mapData.yrot, 0));
+                        List<Vec3> spawnCheck = new ArrayList<>();
+                        spawnCheck.add(new Vec3(mapData.x, mapData.y, mapData.z));
+                        spawnCheck.add(new Vec3(mapData.xrot, mapData.yrot, 0));
 
-                        List<List<Vec3d>> checkpointPositions = new ArrayList<>();
+                        List<List<Vec3>> checkpointPositions = new ArrayList<>();
                         if (mapData.checkpointPositions != null) {
                             checkpointPositions.addAll(mapData.checkpointPositions);
                         }
                         checkpointPositions.add(spawnCheck);
 
-                        List<Vec3d> randomCheckpoint = checkpointPositions.get(random.nextInt(0, checkpointPositions.size()));
-                        Vec3d targetPos = randomCheckpoint.get(0);
-                        Vec3d rotPos = randomCheckpoint.get(1);
+                        List<Vec3> randomCheckpoint = checkpointPositions.get(random.nextInt(0, checkpointPositions.size()));
+                        Vec3 targetPos = randomCheckpoint.get(0);
+                        Vec3 rotPos = randomCheckpoint.get(1);
                         boolean tagged = false;
-                        if (taggedMap.containsKey(playerEntity.getNameForScoreboard())) {
-                            tagged = taggedMap.get(playerEntity.getNameForScoreboard());
+                        if (taggedMap.containsKey(playerEntity.getScoreboardName())) {
+                            tagged = taggedMap.get(playerEntity.getScoreboardName());
                         }
                         Logger.logSuccess(playerEntity, "HNS round over, " + (tagged ? "you got tagged :(" : "you survived as a hider!"));
-                        playerEntity.teleportTo(ZoneUtil.makeTeleportTarget(foundWorld, targetPos, (float) rotPos.getY(), (float) rotPos.getX()));
+                        playerEntity.teleport(ZoneUtil.makeTeleportTarget(foundWorld, targetPos, (float) rotPos.y(), (float) rotPos.x()));
                     }
-                    taggedMap.remove(playerEntity.getNameForScoreboard());
+                    taggedMap.remove(playerEntity.getScoreboardName());
                 }
             }
         }

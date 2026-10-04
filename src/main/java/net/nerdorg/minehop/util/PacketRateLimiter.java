@@ -1,9 +1,8 @@
 package net.nerdorg.minehop.util;
 
-import net.minecraft.server.network.ServerPlayerEntity;
-
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Per-player, per-channel minimum-interval throttle for custom C2S payloads.
@@ -25,14 +24,14 @@ public final class PacketRateLimiter {
      * Returns false (drop the packet) if the last accepted packet on this channel was within
      * {@code minIntervalMs}. A null player is always dropped.
      */
-    public static boolean allow(ServerPlayerEntity player, String channel, int minIntervalMs) {
+    public static boolean allow(ServerPlayer player, String channel, int minIntervalMs) {
         if (player == null) {
             return false;
         }
         if (minIntervalMs <= 0) {
             return true;
         }
-        String key = player.getUuid() + "|" + channel;
+        String key = player.getUUID() + "|" + channel;
         long now = System.currentTimeMillis();
         Long previous = LAST_ACCEPTED.get(key);
         if (previous != null && now - previous < minIntervalMs) {

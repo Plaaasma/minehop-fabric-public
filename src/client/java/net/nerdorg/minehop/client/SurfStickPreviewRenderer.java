@@ -1,18 +1,17 @@
 package net.nerdorg.minehop.client;
 
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.entity.custom.SurfRampEntity;
 import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Vector3f;
-
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,8 +24,8 @@ public final class SurfStickPreviewRenderer {
 
     public static void register() {
         WorldRenderEvents.AFTER_ENTITIES.register(context -> {
-            MatrixStack matrices = context.matrixStack();
-            VertexConsumerProvider consumers = context.consumers();
+            PoseStack matrices = context.matrixStack();
+            MultiBufferSource consumers = context.consumers();
             Camera camera = context.camera();
             if (matrices == null || consumers == null || camera == null) {
                 return;
@@ -38,8 +37,8 @@ public final class SurfStickPreviewRenderer {
                 return;
             }
 
-            Vec3d cameraPos = camera.getPos();
-            matrices.push();
+            Vec3 cameraPos = camera.getPosition();
+            matrices.pushPose();
             if (confirmedPoints.size() >= 2) {
                 drawPath(
                         confirmedPoints,
@@ -57,14 +56,14 @@ public final class SurfStickPreviewRenderer {
                 );
             }
 
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client.crosshairTarget instanceof BlockHitResult blockHitResult) {
+            Minecraft client = Minecraft.getInstance();
+            if (client.hitResult instanceof BlockHitResult blockHitResult) {
                 BlockPos lastPoint = confirmedPoints.get(confirmedPoints.size() - 1);
                 BlockPos hovered = blockHitResult.getBlockPos();
                 if (hovered != null && !hovered.equals(lastPoint)) {
                     List<BlockPos> candidate = new ArrayList<>(confirmedPoints.size() + 1);
                     candidate.addAll(confirmedPoints);
-                    candidate.add(hovered.toImmutable());
+                    candidate.add(hovered.immutable());
                     drawPath(
                             candidate,
                             snapshot.width(),
@@ -81,7 +80,7 @@ public final class SurfStickPreviewRenderer {
                     );
                 }
             }
-            matrices.pop();
+            matrices.popPose();
         });
     }
 
@@ -91,9 +90,9 @@ public final class SurfStickPreviewRenderer {
             double drop,
             boolean oneSided,
             boolean outsideCurve,
-            Vec3d cameraPos,
-            VertexConsumerProvider consumers,
-            MatrixStack matrices,
+            Vec3 cameraPos,
+            MultiBufferSource consumers,
+            PoseStack matrices,
             int red,
             int green,
             int blue,
@@ -105,7 +104,7 @@ public final class SurfStickPreviewRenderer {
 
         double clampedWidth = Math.max(0.15D, width);
         double clampedDrop = Math.max(0.1D, drop);
-        List<Vec3d> centerline = toCenterlinePoints(points);
+        List<Vec3> centerline = toCenterlinePoints(points);
         if (centerline.size() < 2) {
             return;
         }
@@ -120,13 +119,13 @@ public final class SurfStickPreviewRenderer {
     }
 
     private static void drawContinuousOneSided(
-            List<Vec3d> centerlinePoints,
+            List<Vec3> centerlinePoints,
             double width,
             double drop,
             int sideSign,
-            Vec3d cameraPos,
-            VertexConsumerProvider consumers,
-            MatrixStack matrices,
+            Vec3 cameraPos,
+            MultiBufferSource consumers,
+            PoseStack matrices,
             int red,
             int green,
             int blue,
@@ -136,31 +135,31 @@ public final class SurfStickPreviewRenderer {
             return;
         }
         double horizontalLength = getHorizontalLength(centerlinePoints);
-        int segments = MathHelper.clamp(
+        int segments = Mth.clamp(
                 (int) Math.ceil(Math.max(horizontalLength * 18.0D, centerlinePoints.size() * 18.0D)),
                 40,
                 420
         );
         int ribStride = Math.max(6, segments / 16);
 
-        Vec3d previousTop = null;
-        Vec3d previousOuter = null;
-        Vec3d previousInner = null;
+        Vec3 previousTop = null;
+        Vec3 previousOuter = null;
+        Vec3 previousInner = null;
 
         for (int i = 0; i <= segments; i++) {
             double t = (double) i / (double) segments;
-            Vec3d center = samplePathCenterline(centerlinePoints, t);
-            Vec3d left = samplePathLeft(centerlinePoints, t);
+            Vec3 center = samplePathCenterline(centerlinePoints, t);
+            Vec3 left = samplePathLeft(centerlinePoints, t);
             double baseY = center.y;
             double topY = baseY + drop;
 
-            Vec3d top = new Vec3d(center.x, topY, center.z);
-            Vec3d outer = new Vec3d(
+            Vec3 top = new Vec3(center.x, topY, center.z);
+            Vec3 outer = new Vec3(
                     center.x + left.x * width * sideSign,
                     baseY,
                     center.z + left.z * width * sideSign
             );
-            Vec3d inner = new Vec3d(center.x, baseY, center.z);
+            Vec3 inner = new Vec3(center.x, baseY, center.z);
 
             if (previousTop != null) {
                 drawLine(consumers, matrices, previousTop, top, cameraPos, red, green, blue, alpha, 2);
@@ -181,12 +180,12 @@ public final class SurfStickPreviewRenderer {
     }
 
     private static void drawContinuousDoubleSided(
-            List<Vec3d> centerlinePoints,
+            List<Vec3> centerlinePoints,
             double width,
             double drop,
-            Vec3d cameraPos,
-            VertexConsumerProvider consumers,
-            MatrixStack matrices,
+            Vec3 cameraPos,
+            MultiBufferSource consumers,
+            PoseStack matrices,
             int red,
             int green,
             int blue,
@@ -196,27 +195,27 @@ public final class SurfStickPreviewRenderer {
             return;
         }
         double horizontalLength = getHorizontalLength(centerlinePoints);
-        int segments = MathHelper.clamp(
+        int segments = Mth.clamp(
                 (int) Math.ceil(Math.max(horizontalLength * 18.0D, centerlinePoints.size() * 18.0D)),
                 40,
                 420
         );
         int ribStride = Math.max(6, segments / 16);
 
-        Vec3d previousRidge = null;
-        Vec3d previousLeft = null;
-        Vec3d previousRight = null;
+        Vec3 previousRidge = null;
+        Vec3 previousLeft = null;
+        Vec3 previousRight = null;
 
         for (int i = 0; i <= segments; i++) {
             double t = (double) i / (double) segments;
-            Vec3d center = samplePathCenterline(centerlinePoints, t);
-            Vec3d left = samplePathLeft(centerlinePoints, t);
+            Vec3 center = samplePathCenterline(centerlinePoints, t);
+            Vec3 left = samplePathLeft(centerlinePoints, t);
             double baseY = center.y;
             double topY = baseY + drop;
 
-            Vec3d ridge = new Vec3d(center.x, topY, center.z);
-            Vec3d leftBase = new Vec3d(center.x + left.x * width, baseY, center.z + left.z * width);
-            Vec3d rightBase = new Vec3d(center.x - left.x * width, baseY, center.z - left.z * width);
+            Vec3 ridge = new Vec3(center.x, topY, center.z);
+            Vec3 leftBase = new Vec3(center.x + left.x * width, baseY, center.z + left.z * width);
+            Vec3 rightBase = new Vec3(center.x - left.x * width, baseY, center.z - left.z * width);
 
             if (previousRidge != null) {
                 drawLine(consumers, matrices, previousRidge, ridge, cameraPos, red, green, blue, alpha, 2);
@@ -237,11 +236,11 @@ public final class SurfStickPreviewRenderer {
     }
 
     private static void drawLine(
-            VertexConsumerProvider consumers,
-            MatrixStack matrices,
-            Vec3d a,
-            Vec3d b,
-            Vec3d cameraPos,
+            MultiBufferSource consumers,
+            PoseStack matrices,
+            Vec3 a,
+            Vec3 b,
+            Vec3 cameraPos,
             int red,
             int green,
             int blue,
@@ -261,15 +260,15 @@ public final class SurfStickPreviewRenderer {
         RenderUtil.drawLine(consumers, matrices, from, to, width, alpha, red, green, blue);
     }
 
-    private static List<Vec3d> toCenterlinePoints(List<BlockPos> points) {
-        List<Vec3d> centerline = new ArrayList<>();
-        Vec3d previous = null;
+    private static List<Vec3> toCenterlinePoints(List<BlockPos> points) {
+        List<Vec3> centerline = new ArrayList<>();
+        Vec3 previous = null;
         for (BlockPos point : points) {
             if (point == null) {
                 continue;
             }
-            Vec3d centered = SurfRampEntity.blockCenter(point);
-            if (previous != null && centered.squaredDistanceTo(previous) < 1.0E-4D) {
+            Vec3 centered = SurfRampEntity.blockCenter(point);
+            if (previous != null && centered.distanceToSqr(previous) < 1.0E-4D) {
                 continue;
             }
             centerline.add(centered);
@@ -278,26 +277,26 @@ public final class SurfStickPreviewRenderer {
         return centerline;
     }
 
-    private static List<Vec3d> extendCenterlineToSelectedBlockEdges(List<Vec3d> points) {
+    private static List<Vec3> extendCenterlineToSelectedBlockEdges(List<Vec3> points) {
         if (points == null || points.size() < 2) {
             return points == null ? List.of() : List.copyOf(points);
         }
 
-        List<Vec3d> extended = new ArrayList<>(points);
-        Vec3d startDirection = horizontalDirection(extended.get(0), extended.get(1));
-        if (startDirection.lengthSquared() > 1.0E-8D) {
-            extended.set(0, extended.get(0).subtract(startDirection.multiply(distanceToBlockEdge(startDirection))));
+        List<Vec3> extended = new ArrayList<>(points);
+        Vec3 startDirection = horizontalDirection(extended.get(0), extended.get(1));
+        if (startDirection.lengthSqr() > 1.0E-8D) {
+            extended.set(0, extended.get(0).subtract(startDirection.scale(distanceToBlockEdge(startDirection))));
         }
 
         int lastIndex = extended.size() - 1;
-        Vec3d endDirection = horizontalDirection(extended.get(lastIndex - 1), extended.get(lastIndex));
-        if (endDirection.lengthSquared() > 1.0E-8D) {
-            extended.set(lastIndex, extended.get(lastIndex).add(endDirection.multiply(distanceToBlockEdge(endDirection))));
+        Vec3 endDirection = horizontalDirection(extended.get(lastIndex - 1), extended.get(lastIndex));
+        if (endDirection.lengthSqr() > 1.0E-8D) {
+            extended.set(lastIndex, extended.get(lastIndex).add(endDirection.scale(distanceToBlockEdge(endDirection))));
         }
         return List.copyOf(extended);
     }
 
-    private static double distanceToBlockEdge(Vec3d direction) {
+    private static double distanceToBlockEdge(Vec3 direction) {
         if (direction == null) {
             return 0.0D;
         }
@@ -308,30 +307,30 @@ public final class SurfStickPreviewRenderer {
         return HALF_BLOCK_EDGE_LENGTH / dominantAxis;
     }
 
-    private static Vec3d horizontalDirection(Vec3d from, Vec3d to) {
+    private static Vec3 horizontalDirection(Vec3 from, Vec3 to) {
         if (from == null || to == null) {
-            return Vec3d.ZERO;
+            return Vec3.ZERO;
         }
-        Vec3d delta = new Vec3d(to.x - from.x, 0.0D, to.z - from.z);
-        if (delta.lengthSquared() < 1.0E-8D) {
-            return Vec3d.ZERO;
+        Vec3 delta = new Vec3(to.x - from.x, 0.0D, to.z - from.z);
+        if (delta.lengthSqr() < 1.0E-8D) {
+            return Vec3.ZERO;
         }
         return delta.normalize();
     }
 
-    private static List<Vec3d> snapOneSidedCenterlineToBlockFaces(List<Vec3d> points, int sideSign) {
+    private static List<Vec3> snapOneSidedCenterlineToBlockFaces(List<Vec3> points, int sideSign) {
         if (points == null || points.size() < 2) {
             return points == null ? List.of() : List.copyOf(points);
         }
 
         int normalizedSideSign = sideSign >= 0 ? 1 : -1;
-        List<Vec3d> snapped = new ArrayList<>();
-        Vec3d previousSnapped = null;
+        List<Vec3> snapped = new ArrayList<>();
+        Vec3 previousSnapped = null;
         for (int i = 0; i < points.size(); i++) {
-            Vec3d point = points.get(i);
-            Vec3d left = getPointLeft(points, i);
-            Vec3d snappedPoint = point.add(left.multiply((-0.5D + ONE_SIDED_BLOCK_FACE_CLEARANCE) * normalizedSideSign));
-            if (previousSnapped == null || snappedPoint.squaredDistanceTo(previousSnapped) > 1.0E-4D) {
+            Vec3 point = points.get(i);
+            Vec3 left = getPointLeft(points, i);
+            Vec3 snappedPoint = point.add(left.scale((-0.5D + ONE_SIDED_BLOCK_FACE_CLEARANCE) * normalizedSideSign));
+            if (previousSnapped == null || snappedPoint.distanceToSqr(previousSnapped) > 1.0E-4D) {
                 snapped.add(snappedPoint);
                 previousSnapped = snappedPoint;
             }
@@ -339,40 +338,40 @@ public final class SurfStickPreviewRenderer {
         return List.copyOf(snapped);
     }
 
-    private static Vec3d getPointLeft(List<Vec3d> points, int index) {
+    private static Vec3 getPointLeft(List<Vec3> points, int index) {
         if (points == null || points.size() < 2) {
-            return new Vec3d(1.0D, 0.0D, 0.0D);
+            return new Vec3(1.0D, 0.0D, 0.0D);
         }
 
-        Vec3d previous = points.get(Math.max(0, index - 1));
-        Vec3d next = points.get(Math.min(points.size() - 1, index + 1));
-        Vec3d tangent = new Vec3d(next.x - previous.x, 0.0D, next.z - previous.z);
-        if (tangent.lengthSquared() < 1.0E-8D && index > 0) {
-            Vec3d current = points.get(index);
+        Vec3 previous = points.get(Math.max(0, index - 1));
+        Vec3 next = points.get(Math.min(points.size() - 1, index + 1));
+        Vec3 tangent = new Vec3(next.x - previous.x, 0.0D, next.z - previous.z);
+        if (tangent.lengthSqr() < 1.0E-8D && index > 0) {
+            Vec3 current = points.get(index);
             previous = points.get(index - 1);
-            tangent = new Vec3d(current.x - previous.x, 0.0D, current.z - previous.z);
+            tangent = new Vec3(current.x - previous.x, 0.0D, current.z - previous.z);
         }
-        if (tangent.lengthSquared() < 1.0E-8D && index < points.size() - 1) {
-            Vec3d current = points.get(index);
+        if (tangent.lengthSqr() < 1.0E-8D && index < points.size() - 1) {
+            Vec3 current = points.get(index);
             next = points.get(index + 1);
-            tangent = new Vec3d(next.x - current.x, 0.0D, next.z - current.z);
+            tangent = new Vec3(next.x - current.x, 0.0D, next.z - current.z);
         }
-        if (tangent.lengthSquared() < 1.0E-8D) {
-            return new Vec3d(1.0D, 0.0D, 0.0D);
+        if (tangent.lengthSqr() < 1.0E-8D) {
+            return new Vec3(1.0D, 0.0D, 0.0D);
         }
 
         tangent = tangent.normalize();
-        return new Vec3d(-tangent.z, 0.0D, tangent.x).normalize();
+        return new Vec3(-tangent.z, 0.0D, tangent.x).normalize();
     }
 
-    private static double getHorizontalLength(List<Vec3d> points) {
+    private static double getHorizontalLength(List<Vec3> points) {
         if (points == null || points.size() < 2) {
             return 0.0D;
         }
         double length = 0.0D;
-        Vec3d previous = points.get(0);
+        Vec3 previous = points.get(0);
         for (int i = 1; i < points.size(); i++) {
-            Vec3d current = points.get(i);
+            Vec3 current = points.get(i);
             double dx = current.x - previous.x;
             double dz = current.z - previous.z;
             length += Math.sqrt(dx * dx + dz * dz);
@@ -381,24 +380,24 @@ public final class SurfStickPreviewRenderer {
         return length;
     }
 
-    private static Vec3d samplePathCenterline(List<Vec3d> points, double t) {
-        double clampedT = MathHelper.clamp(t, 0.0D, 1.0D);
+    private static Vec3 samplePathCenterline(List<Vec3> points, double t) {
+        double clampedT = Mth.clamp(t, 0.0D, 1.0D);
         if (points.size() == 2) {
             return points.get(0).lerp(points.get(1), clampedT);
         }
         int segmentCount = points.size() - 1;
         double scaled = clampedT * segmentCount;
-        int segmentIndex = MathHelper.clamp((int) Math.floor(scaled), 0, segmentCount - 1);
+        int segmentIndex = Mth.clamp((int) Math.floor(scaled), 0, segmentCount - 1);
         double localT = scaled - segmentIndex;
 
-        Vec3d p0 = points.get(Math.max(segmentIndex - 1, 0));
-        Vec3d p1 = points.get(segmentIndex);
-        Vec3d p2 = points.get(segmentIndex + 1);
-        Vec3d p3 = points.get(Math.min(segmentIndex + 2, points.size() - 1));
+        Vec3 p0 = points.get(Math.max(segmentIndex - 1, 0));
+        Vec3 p1 = points.get(segmentIndex);
+        Vec3 p2 = points.get(segmentIndex + 1);
+        Vec3 p3 = points.get(Math.min(segmentIndex + 2, points.size() - 1));
         return catmullRom(p0, p1, p2, p3, localT);
     }
 
-    private static int resolvePreviewSideSign(List<Vec3d> centerlinePoints, boolean outsideCurve) {
+    private static int resolvePreviewSideSign(List<Vec3> centerlinePoints, boolean outsideCurve) {
         int insideCurveSign;
         if (hasCurvedPath(centerlinePoints)) {
             insideCurveSign = resolvePathInsideCurveSideSign(centerlinePoints);
@@ -408,35 +407,35 @@ public final class SurfStickPreviewRenderer {
         return outsideCurve ? -insideCurveSign : insideCurveSign;
     }
 
-    private static int findPlayerSideSign(List<Vec3d> centerlinePoints) {
+    private static int findPlayerSideSign(List<Vec3> centerlinePoints) {
         if (centerlinePoints == null || centerlinePoints.size() < 2) {
             return 1;
         }
-        MinecraftClient client = MinecraftClient.getInstance();
-        Vec3d playerPos = client.player != null ? client.player.getPos() : Vec3d.ZERO;
+        Minecraft client = Minecraft.getInstance();
+        Vec3 playerPos = client.player != null ? client.player.position() : Vec3.ZERO;
 
-        Vec3d start = centerlinePoints.get(0);
-        Vec3d end = centerlinePoints.get(centerlinePoints.size() - 1);
-        Vec3d tangent = new Vec3d(end.x - start.x, 0.0D, end.z - start.z);
-        if (tangent.lengthSquared() < 1.0E-8D) {
+        Vec3 start = centerlinePoints.get(0);
+        Vec3 end = centerlinePoints.get(centerlinePoints.size() - 1);
+        Vec3 tangent = new Vec3(end.x - start.x, 0.0D, end.z - start.z);
+        if (tangent.lengthSqr() < 1.0E-8D) {
             return 1;
         }
         tangent = tangent.normalize();
-        Vec3d left = new Vec3d(-tangent.z, 0.0D, tangent.x).normalize();
-        Vec3d midpoint = start.add(end).multiply(0.5D);
-        Vec3d toPlayer = new Vec3d(playerPos.x - midpoint.x, 0.0D, playerPos.z - midpoint.z);
-        double lateral = toPlayer.dotProduct(left);
+        Vec3 left = new Vec3(-tangent.z, 0.0D, tangent.x).normalize();
+        Vec3 midpoint = start.add(end).scale(0.5D);
+        Vec3 toPlayer = new Vec3(playerPos.x - midpoint.x, 0.0D, playerPos.z - midpoint.z);
+        double lateral = toPlayer.dot(left);
         return lateral >= 0.0D ? 1 : -1;
     }
 
-    private static boolean hasCurvedPath(List<Vec3d> points) {
+    private static boolean hasCurvedPath(List<Vec3> points) {
         if (points == null || points.size() < 3) {
             return false;
         }
         for (int i = 0; i < points.size() - 2; i++) {
-            Vec3d a = points.get(i);
-            Vec3d b = points.get(i + 1);
-            Vec3d c = points.get(i + 2);
+            Vec3 a = points.get(i);
+            Vec3 b = points.get(i + 1);
+            Vec3 c = points.get(i + 2);
             double abx = b.x - a.x;
             double abz = b.z - a.z;
             double bcx = c.x - b.x;
@@ -449,15 +448,15 @@ public final class SurfStickPreviewRenderer {
         return false;
     }
 
-    private static int resolvePathInsideCurveSideSign(List<Vec3d> points) {
+    private static int resolvePathInsideCurveSideSign(List<Vec3> points) {
         if (points == null || points.size() < 3) {
             return 1;
         }
         double weightedCross = 0.0D;
         for (int i = 0; i < points.size() - 2; i++) {
-            Vec3d a = points.get(i);
-            Vec3d b = points.get(i + 1);
-            Vec3d c = points.get(i + 2);
+            Vec3 a = points.get(i);
+            Vec3 b = points.get(i + 1);
+            Vec3 c = points.get(i + 2);
             double abx = b.x - a.x;
             double abz = b.z - a.z;
             double bcx = c.x - b.x;
@@ -470,26 +469,26 @@ public final class SurfStickPreviewRenderer {
         return weightedCross > 0.0D ? 1 : -1;
     }
 
-    private static Vec3d samplePathLeft(List<Vec3d> points, double t) {
+    private static Vec3 samplePathLeft(List<Vec3> points, double t) {
         double dt = 1.0D / Math.max(64.0D, points.size() * 32.0D);
         double t0 = Math.max(0.0D, t - dt);
         double t1 = Math.min(1.0D, t + dt);
-        Vec3d before = samplePathCenterline(points, t0);
-        Vec3d after = samplePathCenterline(points, t1);
-        Vec3d tangent = new Vec3d(after.x - before.x, 0.0D, after.z - before.z);
-        if (tangent.lengthSquared() < 1.0E-8D) {
-            Vec3d start = points.get(0);
-            Vec3d end = points.get(points.size() - 1);
-            tangent = new Vec3d(end.x - start.x, 0.0D, end.z - start.z);
+        Vec3 before = samplePathCenterline(points, t0);
+        Vec3 after = samplePathCenterline(points, t1);
+        Vec3 tangent = new Vec3(after.x - before.x, 0.0D, after.z - before.z);
+        if (tangent.lengthSqr() < 1.0E-8D) {
+            Vec3 start = points.get(0);
+            Vec3 end = points.get(points.size() - 1);
+            tangent = new Vec3(end.x - start.x, 0.0D, end.z - start.z);
         }
-        if (tangent.lengthSquared() < 1.0E-8D) {
-            return new Vec3d(1.0D, 0.0D, 0.0D);
+        if (tangent.lengthSqr() < 1.0E-8D) {
+            return new Vec3(1.0D, 0.0D, 0.0D);
         }
         tangent = tangent.normalize();
-        return new Vec3d(-tangent.z, 0.0D, tangent.x).normalize();
+        return new Vec3(-tangent.z, 0.0D, tangent.x).normalize();
     }
 
-    private static Vec3d catmullRom(Vec3d p0, Vec3d p1, Vec3d p2, Vec3d p3, double t) {
+    private static Vec3 catmullRom(Vec3 p0, Vec3 p1, Vec3 p2, Vec3 p3, double t) {
         double t2 = t * t;
         double t3 = t2 * t;
 
@@ -511,6 +510,6 @@ public final class SurfStickPreviewRenderer {
                         + (2.0D * p0.z - 5.0D * p1.z + 4.0D * p2.z - p3.z) * t2
                         + (-p0.z + 3.0D * p1.z - 3.0D * p2.z + p3.z) * t3
         );
-        return new Vec3d(x, y, z);
+        return new Vec3(x, y, z);
     }
 }

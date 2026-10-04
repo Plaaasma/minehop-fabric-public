@@ -1,16 +1,15 @@
 package net.nerdorg.minehop.item;
 
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.util.Identifier;
 import java.util.function.Supplier;
+import net.minecraft.core.Registry;
+import net.minecraft.resources.ResourceLocation;
 
 public class RegistrySupplier<T> {
-	private final Identifier id;
+	private final ResourceLocation id;
 	private final Supplier<T> supplier;
 	private T instance;
 
-	public RegistrySupplier(Identifier id, Supplier<T> supplier) {
+	public RegistrySupplier(ResourceLocation id, Supplier<T> supplier) {
 		this.id = id;
 		this.supplier = supplier;
 	}
@@ -19,7 +18,7 @@ public class RegistrySupplier<T> {
 		return instance;
 	}
 
-	public Identifier getId() {
+	public ResourceLocation getId() {
 		return id;
 	}
 

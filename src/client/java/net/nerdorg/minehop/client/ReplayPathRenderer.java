@@ -1,13 +1,12 @@
 package net.nerdorg.minehop.client;
 
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Vector3f;
-
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.List;
 
 public final class ReplayPathRenderer {
@@ -18,24 +17,24 @@ public final class ReplayPathRenderer {
 
     public static void register() {
         WorldRenderEvents.AFTER_ENTITIES.register(context -> {
-            MatrixStack matrices = context.matrixStack();
-            VertexConsumerProvider consumers = context.consumers();
+            PoseStack matrices = context.matrixStack();
+            MultiBufferSource consumers = context.consumers();
             Camera camera = context.camera();
             if (matrices == null || consumers == null || camera == null) {
                 return;
             }
 
-            List<Vec3d> points = ReplayPathState.snapshot();
+            List<Vec3> points = ReplayPathState.snapshot();
             if (points.size() < 2) {
                 return;
             }
 
-            Vec3d cameraPos = camera.getPos();
-            matrices.push();
+            Vec3 cameraPos = camera.getPosition();
+            matrices.pushPose();
             for (int i = 1; i < points.size(); i++) {
-                Vec3d from = points.get(i - 1).add(0.0D, Y_OFFSET, 0.0D);
-                Vec3d to = points.get(i).add(0.0D, Y_OFFSET, 0.0D);
-                if (from.squaredDistanceTo(to) < 1.0E-6D) {
+                Vec3 from = points.get(i - 1).add(0.0D, Y_OFFSET, 0.0D);
+                Vec3 to = points.get(i).add(0.0D, Y_OFFSET, 0.0D);
+                if (from.distanceToSqr(to) < 1.0E-6D) {
                     continue;
                 }
 
@@ -47,16 +46,16 @@ public final class ReplayPathRenderer {
                 drawLine(consumers, matrices, from, to, cameraPos, red, green, blue, 80, 7);
                 drawLine(consumers, matrices, from, to, cameraPos, red, green, blue, 230, 3);
             }
-            matrices.pop();
+            matrices.popPose();
         });
     }
 
     private static void drawLine(
-            VertexConsumerProvider consumers,
-            MatrixStack matrices,
-            Vec3d from,
-            Vec3d to,
-            Vec3d cameraPos,
+            MultiBufferSource consumers,
+            PoseStack matrices,
+            Vec3 from,
+            Vec3 to,
+            Vec3 cameraPos,
             int red,
             int green,
             int blue,

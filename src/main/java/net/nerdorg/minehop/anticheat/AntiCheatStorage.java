@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.world.level.storage.LevelResource;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.util.JsonStorage;
 
@@ -34,7 +34,7 @@ public final class AntiCheatStorage {
         if (server == null) {
             return;
         }
-        Path savePath = server.getSavePath(WorldSavePath.ROOT);
+        Path savePath = server.getWorldPath(LevelResource.ROOT);
         try {
             Files.createDirectories(savePath.resolve(FOLDER));
         } catch (IOException e) {
@@ -77,7 +77,7 @@ public final class AntiCheatStorage {
         if (server == null) {
             return;
         }
-        Path savePath = server.getSavePath(WorldSavePath.ROOT);
+        Path savePath = server.getWorldPath(LevelResource.ROOT);
         try {
             Files.createDirectories(savePath.resolve(FOLDER));
         } catch (IOException ignored) {

@@ -11,19 +11,12 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.SpawnReason;
-import net.minecraft.entity.ai.TargetPredicate;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.ModEntities;
@@ -45,24 +38,24 @@ public class ZoneManagementCommands {
 
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-                LiteralArgumentBuilder.<ServerCommandSource>literal("zone")
-                        .requires(source -> source.hasPermissionLevel(4))
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("kill")
+                LiteralArgumentBuilder.<CommandSourceStack>literal("zone")
+                        .requires(source -> source.hasPermission(4))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("kill")
                                 .executes(context -> {
                                     handleKill(context);
                                     return Command.SINGLE_SUCCESS;
                                 })
                         )
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("reset")
-                                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("add")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("reset")
+                                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                                 .suggests((context, builder) -> {
                                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                                         builder.suggest(mapData.name, new LiteralMessage(mapData.name));
                                                     }
                                                     return builder.buildFuture();
                                                 })
-                                                .then(RequiredArgumentBuilder.<ServerCommandSource, Integer>argument("check_index", IntegerArgumentType.integer())
+                                                .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("check_index", IntegerArgumentType.integer())
                                                         .executes(context -> {
                                                             handleAddResetCustom(context);
                                                             return Command.SINGLE_SUCCESS;
@@ -74,8 +67,8 @@ public class ZoneManagementCommands {
                                                 })
                                         )
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("start")
-                                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("start")
+                                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                                 .suggests((context, builder) -> {
                                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                                         builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -88,8 +81,8 @@ public class ZoneManagementCommands {
                                                 })
                                         )
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("end")
-                                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("map_name", StringArgumentType.string())
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("end")
+                                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
                                                 .suggests((context, builder) -> {
                                                     for (DataManager.MapData mapData : Minehop.mapList) {
                                                         builder.suggest(mapData.name, new LiteralMessage(mapData.name));
@@ -106,11 +99,11 @@ public class ZoneManagementCommands {
         ));
     }
 
-    private static void handleKill(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
-        ServerWorld serverWorld = serverPlayerEntity.getServerWorld();
+    private static void handleKill(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
+        ServerLevel serverWorld = serverPlayerEntity.serverLevel();
         List<Zone> zoneEntities = new ArrayList<>();
-        for (Entity entity : serverWorld.iterateEntities()) {
+        for (Entity entity : serverWorld.getAllEntities()) {
             if (entity instanceof Zone zone) {
                 zoneEntities.add(zone);
             }
@@ -133,22 +126,22 @@ public class ZoneManagementCommands {
         }
     }
 
-    private static void handleAddResetCustom(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleAddResetCustom(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         String name = StringArgumentType.getString(context, "map_name");
         int check_index = IntegerArgumentType.getInteger(context, "check_index");
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
-            ServerWorld serverWorld = context.getSource().getWorld();
-            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getNameForScoreboard());
+            ServerLevel serverWorld = context.getSource().getLevel();
+            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getScoreboardName())) {
+                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getScoreboardName());
                 if (setPositions[0] != null && setPositions[1] != null) {
-                    ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(serverWorld, setPositions[0], SpawnReason.NATURAL);
+                    ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(serverWorld, setPositions[0], EntitySpawnReason.NATURAL);
                     resetEntity.setCorner1(setPositions[0]);
                     resetEntity.setCorner2(setPositions[1]);
                     resetEntity.setPairedMap(name);
                     resetEntity.setCheckIndex(check_index);
-                    for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
+                    for (ServerPlayer worldPlayer : serverWorld.players()) {
                         PacketHandler.updateZone(worldPlayer, resetEntity.getId(), setPositions[0], setPositions[1], name, check_index);
                     }
                     BoundsStickItem.clearSelection(serverPlayerEntity);
@@ -165,20 +158,20 @@ public class ZoneManagementCommands {
         }
     }
 
-    private static void handleAddReset(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleAddReset(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         String name = StringArgumentType.getString(context, "map_name");
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
-            ServerWorld serverWorld = context.getSource().getWorld();
-            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getNameForScoreboard());
+            ServerLevel serverWorld = context.getSource().getLevel();
+            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getScoreboardName())) {
+                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getScoreboardName());
                 if (setPositions[0] != null && setPositions[1] != null) {
-                    ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(serverWorld, setPositions[0], SpawnReason.NATURAL);
+                    ResetEntity resetEntity = ModEntities.RESET_ENTITY.spawn(serverWorld, setPositions[0], EntitySpawnReason.NATURAL);
                     resetEntity.setCorner1(setPositions[0]);
                     resetEntity.setCorner2(setPositions[1]);
                     resetEntity.setPairedMap(name);
-                    for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
+                    for (ServerPlayer worldPlayer : serverWorld.players()) {
                         PacketHandler.updateZone(worldPlayer, resetEntity.getId(), setPositions[0], setPositions[1], name, 0);
                     }
                     BoundsStickItem.clearSelection(serverPlayerEntity);
@@ -195,20 +188,20 @@ public class ZoneManagementCommands {
         }
     }
 
-    private static void handleAddStart(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleAddStart(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         String name = StringArgumentType.getString(context, "map_name");
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
-            ServerWorld serverWorld = context.getSource().getWorld();
-            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getNameForScoreboard());
+            ServerLevel serverWorld = context.getSource().getLevel();
+            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getScoreboardName())) {
+                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getScoreboardName());
                 if (setPositions[0] != null && setPositions[1] != null) {
-                    StartEntity startEntity = ModEntities.START_ENTITY.spawn(serverWorld, setPositions[0], SpawnReason.NATURAL);
+                    StartEntity startEntity = ModEntities.START_ENTITY.spawn(serverWorld, setPositions[0], EntitySpawnReason.NATURAL);
                     startEntity.setCorner1(setPositions[0]);
                     startEntity.setCorner2(setPositions[1]);
                     startEntity.setPairedMap(name);
-                    for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
+                    for (ServerPlayer worldPlayer : serverWorld.players()) {
                         PacketHandler.updateZone(worldPlayer, startEntity.getId(), setPositions[0], setPositions[1], name, 0);
                     }
                     BoundsStickItem.clearSelection(serverPlayerEntity);
@@ -225,20 +218,20 @@ public class ZoneManagementCommands {
         }
     }
 
-    private static void handleAddEnd(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleAddEnd(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         String name = StringArgumentType.getString(context, "map_name");
         DataManager.MapData pairedMap = DataManager.getMap(name);
         if (pairedMap != null) {
-            ServerWorld serverWorld = context.getSource().getWorld();
-            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getNameForScoreboard())) {
-                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getNameForScoreboard());
+            ServerLevel serverWorld = context.getSource().getLevel();
+            if (BoundsStickItem.playerPositions.containsKey(serverPlayerEntity.getScoreboardName())) {
+                BlockPos[] setPositions = BoundsStickItem.playerPositions.get(serverPlayerEntity.getScoreboardName());
                 if (setPositions[0] != null && setPositions[1] != null) {
-                    EndEntity endEntity = ModEntities.END_ENTITY.spawn(serverWorld, setPositions[0], SpawnReason.NATURAL);
+                    EndEntity endEntity = ModEntities.END_ENTITY.spawn(serverWorld, setPositions[0], EntitySpawnReason.NATURAL);
                     endEntity.setCorner1(setPositions[0]);
                     endEntity.setCorner2(setPositions[1]);
                     endEntity.setPairedMap(name);
-                    for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
+                    for (ServerPlayer worldPlayer : serverWorld.players()) {
                         PacketHandler.updateZone(worldPlayer, endEntity.getId(), setPositions[0], setPositions[1], name, 0);
                     }
                     BoundsStickItem.clearSelection(serverPlayerEntity);

@@ -3,11 +3,11 @@ package net.nerdorg.minehop.data;
 import com.google.gson.reflect.TypeToken;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.WorldSavePath;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.ReplayCommands;
 import net.nerdorg.minehop.commands.SpectateCommands;
@@ -181,9 +181,9 @@ public final class LeaderboardIntegrity {
             }
         }
         if (server != null) {
-            ServerPlayerEntity online = server.getPlayerManager().getPlayer(raw);
+            ServerPlayer online = server.getPlayerList().getPlayerByName(raw);
             if (online != null) {
-                uuidHits.merge(online.getUuidAsString().toLowerCase(Locale.ROOT), 0, Integer::sum);
+                uuidHits.merge(online.getStringUUID().toLowerCase(Locale.ROOT), 0, Integer::sum);
             }
         }
         for (BanEntry ban : BANS.values()) {
@@ -208,8 +208,8 @@ public final class LeaderboardIntegrity {
         if (legacyName != null) {
             return new Resolution(new Target("", legacyName), null);
         }
-        if (profileLookup && server != null && server.getUserCache() != null) {
-            Optional<com.mojang.authlib.GameProfile> profile = server.getUserCache().findByName(raw);
+        if (profileLookup && server != null && server.getProfileCache() != null) {
+            Optional<com.mojang.authlib.GameProfile> profile = server.getProfileCache().get(raw);
             if (profile.isPresent() && profile.get().getId() != null) {
                 return new Resolution(new Target(profile.get().getId().toString(), profile.get().getName()), null);
             }
@@ -219,9 +219,9 @@ public final class LeaderboardIntegrity {
 
     private static String latestNameForUuid(MinecraftServer server, String uuid) {
         if (server != null) {
-            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                if (player.getUuidAsString().equalsIgnoreCase(uuid)) {
-                    return player.getNameForScoreboard();
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                if (player.getStringUUID().equalsIgnoreCase(uuid)) {
+                    return player.getScoreboardName();
                 }
             }
         }
@@ -505,7 +505,7 @@ public final class LeaderboardIntegrity {
 
     private static void finish(MinecraftServer server, Report report, Map<String, DataManager.RecordData> oldWorldRecords,
                                boolean replaysTouched, String action, String actor, String reason) {
-        ServerWorld world = server == null ? null : server.getOverworld();
+        ServerLevel world = server == null ? null : server.overworld();
         if (world != null) {
             report.saveFailed |= !DataManager.saveDataChecked(world, DataManager.pbListLocation, Minehop.personalRecordList);
             report.saveFailed |= !DataManager.saveDataChecked(world, DataManager.recordsListLocation, Minehop.recordList);
@@ -593,8 +593,8 @@ public final class LeaderboardIntegrity {
     // Leaderboard bans
     // ------------------------------------------------------------------------------------------
 
-    public static boolean isBanned(ServerPlayerEntity player) {
-        return player != null && BANS.containsKey(player.getUuidAsString().toLowerCase(Locale.ROOT));
+    public static boolean isBanned(ServerPlayer player) {
+        return player != null && BANS.containsKey(player.getStringUUID().toLowerCase(Locale.ROOT));
     }
 
     public static boolean isBanned(Target target) {
@@ -636,7 +636,7 @@ public final class LeaderboardIntegrity {
     private static void loadBans(MinecraftServer server) {
         BANS.clear();
         Type type = new TypeToken<List<BanEntry>>() {}.getType();
-        List<BanEntry> loaded = JsonStorage.readData(server.getSavePath(WorldSavePath.ROOT).resolve(BANS_FILE), type);
+        List<BanEntry> loaded = JsonStorage.readData(server.getWorldPath(LevelResource.ROOT).resolve(BANS_FILE), type);
         if (loaded != null) {
             for (BanEntry entry : loaded) {
                 if (entry != null && entry.uuid != null && UUID_PATTERN.matcher(entry.uuid).matches()) {
@@ -650,7 +650,7 @@ public final class LeaderboardIntegrity {
         if (server == null) {
             return;
         }
-        JsonStorage.writeAtomic(server.getSavePath(WorldSavePath.ROOT).resolve(BANS_FILE), BANS_SCHEMA_VERSION,
+        JsonStorage.writeAtomic(server.getWorldPath(LevelResource.ROOT).resolve(BANS_FILE), BANS_SCHEMA_VERSION,
                 new ArrayList<>(BANS.values()));
     }
 
@@ -669,46 +669,46 @@ public final class LeaderboardIntegrity {
         }
         List<String> ejected = ReplayCommands.removeWorldRecordReplayEntities(server, map);
         for (String spectatorName : ejected) {
-            ejectSpectator(server, server.getPlayerManager().getPlayer(spectatorName));
+            ejectSpectator(server, server.getPlayerList().getPlayerByName(spectatorName));
         }
     }
 
-    private static void ejectSpectator(MinecraftServer server, ServerPlayerEntity spectator) {
+    private static void ejectSpectator(MinecraftServer server, ServerPlayer spectator) {
         if (spectator == null) {
             return;
         }
-        spectator.setCameraEntity(spectator);
+        spectator.setCamera(spectator);
         PacketHandler.clearReplayPath(spectator);
         if (spectator.isSpectator()) {
             DataManager.MapData spawn = DataManager.getMap("spawn");
-            ServerWorld world = server.getOverworld();
+            ServerLevel world = server.overworld();
             if (spawn != null && spawn.worldKey != null) {
-                for (ServerWorld candidate : server.getWorlds()) {
-                    if (candidate.getRegistryKey().toString().equals(spawn.worldKey)) {
+                for (ServerLevel candidate : server.getAllLevels()) {
+                    if (candidate.dimension().toString().equals(spawn.worldKey)) {
                         world = candidate;
                         break;
                     }
                 }
             }
             if (spawn != null && world != null) {
-                spectator.teleportTo(ZoneUtil.makeTeleportTarget(world, new Vec3d(spawn.x, spawn.y, spawn.z),
+                spectator.teleport(ZoneUtil.makeTeleportTarget(world, new Vec3(spawn.x, spawn.y, spawn.z),
                         (float) spawn.yrot, (float) spawn.xrot));
             }
-            spectator.changeGameMode(GameMode.ADVENTURE);
+            spectator.setGameMode(GameType.ADVENTURE);
         }
-        SpectateCommands.spectatorList.values().forEach(list -> list.remove(spectator.getNameForScoreboard()));
+        SpectateCommands.spectatorList.values().forEach(list -> list.remove(spectator.getScoreboardName()));
     }
 
     private static void clearLiveRunState(MinecraftServer server, Target target) {
         if (server == null) {
             return;
         }
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             boolean same = target.hasUuid()
-                    ? player.getUuidAsString().equalsIgnoreCase(target.uuid())
-                    : player.getNameForScoreboard().equalsIgnoreCase(target.name());
+                    ? player.getStringUUID().equalsIgnoreCase(target.uuid())
+                    : player.getScoreboardName().equalsIgnoreCase(target.name());
             if (same) {
-                String name = player.getNameForScoreboard();
+                String name = player.getScoreboardName();
                 Minehop.timerManager.remove(name);
                 Minehop.finishTimeManager.remove(name);
                 Minehop.runSignatureManager.remove(name);
@@ -721,15 +721,15 @@ public final class LeaderboardIntegrity {
         if (server == null) {
             return;
         }
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             PacketHandler.sendRecords(player);
             PacketHandler.sendPersonalRecords(player);
         }
     }
 
     private static void runConsoleCommand(MinecraftServer server, String command) {
-        server.getCommandManager().execute(
-                server.getCommandManager().getDispatcher().parse(command, server.getCommandSource()), command);
+        server.getCommands().performCommand(
+                server.getCommands().getDispatcher().parse(command, server.createCommandSourceStack()), command);
     }
 
     /** Appends one line to the invalidation audit log and mirrors it to the server console. */
@@ -742,7 +742,7 @@ public final class LeaderboardIntegrity {
         if (server == null) {
             return;
         }
-        Path file = server.getSavePath(WorldSavePath.ROOT).resolve(AUDIT_FILE);
+        Path file = server.getWorldPath(LevelResource.ROOT).resolve(AUDIT_FILE);
         try {
             Files.createDirectories(file.getParent());
             Files.writeString(file, line + System.lineSeparator(), StandardCharsets.UTF_8,

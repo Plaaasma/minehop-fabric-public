@@ -1,11 +1,11 @@
 package net.nerdorg.minehop.mixin;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.world.World;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.entity.custom.SurfRampEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -58,7 +58,7 @@ public abstract class EntityCollisionMixin {
     private static final Map<Integer, long[]> SURF_COLLISION_PERF = new ConcurrentHashMap<>();
 
     @ModifyVariable(
-            method = "adjustMovementForCollisions(Lnet/minecraft/entity/Entity;Lnet/minecraft/util/math/Vec3d;Lnet/minecraft/util/math/Box;Lnet/minecraft/world/World;Ljava/util/List;)Lnet/minecraft/util/math/Vec3d;",
+            method = "collideBoundingBox(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/phys/AABB;Lnet/minecraft/world/level/Level;Ljava/util/List;)Lnet/minecraft/world/phys/Vec3;",
             at = @At("HEAD"),
             argsOnly = true,
             index = 4
@@ -66,21 +66,21 @@ public abstract class EntityCollisionMixin {
     private static List<VoxelShape> minehop$appendRampCollisionShapes(
             List<VoxelShape> collisions,
             Entity entity,
-            Vec3d movement,
-            Box entityBoundingBox,
-            World world
+            Vec3 movement,
+            AABB entityBoundingBox,
+            Level world
     ) {
         List<VoxelShape> base = collisions == null ? new ArrayList<>() : collisions;
         if (entity == null || world == null || entityBoundingBox == null) {
             return base;
         }
-        if (!(entity instanceof PlayerEntity)) {
+        if (!(entity instanceof Player)) {
             return base;
         }
         if (Minehop.surfHullSolverEnabled) {
             return base;
         }
-        PlayerEntity player = (PlayerEntity) entity;
+        Player player = (Player) entity;
         boolean forceRampCollision = minehop$shouldForceRampCollisions(entity, movement);
         boolean surfBypassMarked = Minehop.surfCollisionBypassEntities.contains(entity.getId());
         if (!forceRampCollision
@@ -88,14 +88,14 @@ public abstract class EntityCollisionMixin {
                 && minehop$canFastBypassCollisionQuery(entity, movement)) {
             return base;
         }
-        boolean clientSide = world.isClient;
+        boolean clientSide = world.isClientSide;
         boolean shouldLogPerf = clientSide && Minehop.surfPerfLoggingEnabled;
         int currentFps = shouldLogPerf ? minehop$getClientFps() : -1;
         long currentFrameNanos = shouldLogPerf ? minehop$getClientFrameNanos() : -1L;
-        long worldTick = world.getTime();
-        Box rampQueryBox = movement == null
-                ? entityBoundingBox.expand(0.15D)
-                : entityBoundingBox.stretch(movement).expand(0.25D);
+        long worldTick = world.getGameTime();
+        AABB rampQueryBox = movement == null
+                ? entityBoundingBox.inflate(0.15D)
+                : entityBoundingBox.expandTowards(movement).inflate(0.25D);
 
         long startNanos = System.nanoTime();
         List<SurfRampEntity> nearbyRamps = SurfRampEntity.collectNearbyRamps(world, rampQueryBox, 1.6D);
@@ -175,12 +175,12 @@ public abstract class EntityCollisionMixin {
         return merged;
     }
 
-    private static boolean minehop$shouldForceRampCollisions(Entity entity, Vec3d movement) {
-        if (entity == null || movement == null || entity.isOnGround()) {
+    private static boolean minehop$shouldForceRampCollisions(Entity entity, Vec3 movement) {
+        if (entity == null || movement == null || entity.onGround()) {
             return false;
         }
         double descentSpeed = -movement.y;
-        double horizontalSpeed = movement.horizontalLength();
+        double horizontalSpeed = movement.horizontalDistance();
         if (descentSpeed >= SURF_FORCE_COLLISION_MIN_DESCENT_SPEED
                 && horizontalSpeed >= SURF_FORCE_COLLISION_MIN_HORIZONTAL_SPEED) {
             return true;
@@ -193,11 +193,11 @@ public abstract class EntityCollisionMixin {
         return movement.length() >= SURF_FORCE_COLLISION_EXTREME_TOTAL_SPEED;
     }
 
-    private static boolean minehop$canFastBypassCollisionQuery(Entity entity, Vec3d movement) {
-        if (entity == null || movement == null || entity.isOnGround()) {
+    private static boolean minehop$canFastBypassCollisionQuery(Entity entity, Vec3 movement) {
+        if (entity == null || movement == null || entity.onGround()) {
             return false;
         }
-        double horizontalSpeed = movement.horizontalLength();
+        double horizontalSpeed = movement.horizontalDistance();
         if (horizontalSpeed < SURF_FAST_BYPASS_MIN_HORIZONTAL_SPEED) {
             return false;
         }
@@ -213,20 +213,20 @@ public abstract class EntityCollisionMixin {
 
     private static boolean minehop$shouldSkipRampCollisionsOnSurfApproach(
             Entity entity,
-            Vec3d movement,
-            Box entityBoundingBox,
+            Vec3 movement,
+            AABB entityBoundingBox,
             List<SurfRampEntity> nearbyRamps
     ) {
         if (entity == null || movement == null || entityBoundingBox == null || nearbyRamps == null || nearbyRamps.isEmpty()) {
             return false;
         }
-        if (entity.isOnGround() || movement.y >= -0.03D) {
+        if (entity.onGround() || movement.y >= -0.03D) {
             return false;
         }
         if (-movement.y > SURF_APPROACH_SKIP_MAX_DESCENT_SPEED) {
             return false;
         }
-        if (movement.horizontalLength() < SURF_APPROACH_SKIP_MIN_HORIZONTAL_SPEED) {
+        if (movement.horizontalDistance() < SURF_APPROACH_SKIP_MIN_HORIZONTAL_SPEED) {
             return false;
         }
 
@@ -244,7 +244,7 @@ public abstract class EntityCollisionMixin {
             if (ramp == null || !ramp.isAlive() || ramp.isRemoved()) {
                 continue;
             }
-            Box rampBounds = ramp.getBoundingBox();
+            AABB rampBounds = ramp.getBoundingBox();
             if (rampBounds.maxY < minFeetY || rampBounds.minY > maxFeetY) {
                 continue;
             }
@@ -262,7 +262,7 @@ public abstract class EntityCollisionMixin {
         return false;
     }
 
-    private static boolean minehop$isNearRampBoundsXZ(Box bounds, double x, double z, double lateralExtra) {
+    private static boolean minehop$isNearRampBoundsXZ(AABB bounds, double x, double z, double lateralExtra) {
         if (bounds == null) {
             return false;
         }
@@ -273,7 +273,7 @@ public abstract class EntityCollisionMixin {
         return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
     }
 
-    private static List<SurfRampEntity> minehop$limitRampsByProximity(List<SurfRampEntity> ramps, Box queryBox) {
+    private static List<SurfRampEntity> minehop$limitRampsByProximity(List<SurfRampEntity> ramps, AABB queryBox) {
         if (ramps == null || queryBox == null || ramps.size() <= MAX_NEARBY_RAMPS_PER_COLLISION_QUERY) {
             return ramps;
         }
@@ -291,7 +291,7 @@ public abstract class EntityCollisionMixin {
         if (ramp == null || !ramp.isAlive() || ramp.isRemoved()) {
             return Double.POSITIVE_INFINITY;
         }
-        Box bounds = ramp.getBoundingBox();
+        AABB bounds = ramp.getBoundingBox();
         double dx = 0.0D;
         if (x < bounds.minX) {
             dx = bounds.minX - x;
@@ -308,7 +308,7 @@ public abstract class EntityCollisionMixin {
     }
 
     private static void minehop$recordSurfCollisionPerf(
-            PlayerEntity player,
+            Player player,
             boolean clientSide,
             int currentFps,
             long currentFrameNanos,
@@ -373,7 +373,7 @@ public abstract class EntityCollisionMixin {
                     Minehop.LOGGER.info(
                             "SurfPerf side={} player={} tick={} {}",
                             "client",
-                            player.getNameForScoreboard(),
+                            player.getScoreboardName(),
                             accumulator[PERF_TICK],
                             message
                     );

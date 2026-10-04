@@ -1,13 +1,13 @@
 package net.nerdorg.minehop.mixin;
 
-import net.minecraft.network.PacketCallbacks;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.c2s.common.CommonPongC2SPacket;
-import net.minecraft.network.packet.s2c.common.CommonPingS2CPacket;
+import net.minecraft.network.PacketSendListener;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.common.ClientboundPingPacket;
+import net.minecraft.network.protocol.common.ServerboundPongPacket;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerCommonNetworkHandler;
-import net.minecraft.server.network.ServerPlayNetworkHandler;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerCommonPacketListenerImpl;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.nerdorg.minehop.anticheat.stream.MovementValidator;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
@@ -25,32 +25,32 @@ import java.util.UUID;
  * has applied that velocity, so the movement check knows exactly which client tick changed —
  * independent of latency.
  */
-@Mixin(ServerCommonNetworkHandler.class)
+@Mixin(ServerCommonPacketListenerImpl.class)
 public abstract class ServerCommonNetworkHandlerStreamMixin {
     @Shadow
     @Final
     protected MinecraftServer server;
 
     @Shadow
-    public abstract void sendPacket(Packet<?> packet);
+    public abstract void send(Packet<?> packet);
 
-    @Inject(method = "send", at = @At("TAIL"))
-    private void minehop$afterSend(Packet<?> packet, @Nullable PacketCallbacks callbacks, CallbackInfo ci) {
-        if (!((Object) this instanceof ServerPlayNetworkHandler handler)) {
+    @Inject(method = "send(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;)V", at = @At("TAIL"))
+    private void minehop$afterSend(Packet<?> packet, @Nullable PacketSendListener callbacks, CallbackInfo ci) {
+        if (!((Object) this instanceof ServerGamePacketListenerImpl handler)) {
             return;
         }
         int pingId = MovementValidator.onPacketSent(handler.player, packet);
         if (pingId != -1) {
-            this.sendPacket(new CommonPingS2CPacket(pingId));
+            this.send(new ClientboundPingPacket(pingId));
         }
     }
 
-    @Inject(method = "onPong", at = @At("HEAD"))
-    private void minehop$onPong(CommonPongC2SPacket packet, CallbackInfo ci) {
-        int id = packet.getParameter();
+    @Inject(method = "handlePong", at = @At("HEAD"))
+    private void minehop$onPong(ServerboundPongPacket packet, CallbackInfo ci) {
+        int id = packet.getId();
         if (MovementValidator.isHeartbeatPing(id)) {
             // Timer heartbeat: timestamp it right here, in order with the tick packets around it.
-            if ((Object) this instanceof ServerPlayNetworkHandler handler) {
+            if ((Object) this instanceof ServerGamePacketListenerImpl handler) {
                 MovementValidator.onHeartbeatPongNetwork(handler.player, id);
             }
             return;
@@ -58,14 +58,14 @@ public abstract class ServerCommonNetworkHandlerStreamMixin {
         if (!MovementValidator.isTransactionPing(id)) {
             return;
         }
-        if (!((Object) this instanceof ServerPlayNetworkHandler handler)) {
+        if (!((Object) this instanceof ServerGamePacketListenerImpl handler)) {
             return;
         }
-        ServerPlayerEntity player = handler.player;
+        ServerPlayer player = handler.player;
         if (player == null) {
             return;
         }
-        UUID uuid = player.getUuid();
+        UUID uuid = player.getUUID();
         // Pongs arrive on the netty thread; queue behind the move packets that arrived before it.
         this.server.execute(() -> MovementValidator.onTransactionPong(uuid, id));
     }

@@ -1,21 +1,21 @@
 package net.nerdorg.minehop.networking.payloads;
 
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.nerdorg.minehop.Minehop;
 
-public record SendPersonalRecordPayload(String buff) implements CustomPayload {
-	public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "send_personal_records");
-	public static final Id<SendPersonalRecordPayload> ID = new Id<>(HANDSHAKE_ID);
-	public static final PacketCodec<PacketByteBuf, SendPersonalRecordPayload> CODEC = PacketCodec.tuple(
-			PacketCodecs.STRING, SendPersonalRecordPayload::buff,
+public record SendPersonalRecordPayload(String buff) implements CustomPacketPayload {
+	public static final ResourceLocation HANDSHAKE_ID = ResourceLocation.fromNamespaceAndPath(Minehop.MOD_ID, "send_personal_records");
+	public static final Type<SendPersonalRecordPayload> ID = new Type<>(HANDSHAKE_ID);
+	public static final StreamCodec<FriendlyByteBuf, SendPersonalRecordPayload> CODEC = StreamCodec.composite(
+			ByteBufCodecs.STRING_UTF8, SendPersonalRecordPayload::buff,
 			SendPersonalRecordPayload::new);
 
 	@Override
-	public Id<? extends CustomPayload> getId() {
+	public Type<? extends CustomPacketPayload> type() {
 		return ID;
 	}
 }

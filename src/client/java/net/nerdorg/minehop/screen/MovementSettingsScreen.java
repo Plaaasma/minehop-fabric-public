@@ -2,12 +2,11 @@ package net.nerdorg.minehop.screen;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import java.util.function.Consumer;
 
 @Environment(EnvType.CLIENT)
@@ -16,35 +15,35 @@ public class MovementSettingsScreen extends Screen {
     private final Consumer<Values> onApply;
     private Values values;
 
-    private TextFieldWidget svFrictionField;
-    private TextFieldWidget svAccelerateField;
-    private TextFieldWidget svAiraccelerateField;
-    private TextFieldWidget svMaxairspeedField;
-    private TextFieldWidget svJumpImpulseField;
-    private TextFieldWidget speedMulField;
-    private TextFieldWidget svGravityField;
-    private TextFieldWidget svStopspeedField;
-    private TextFieldWidget speedCoefficientField;
-    private TextFieldWidget speedCapField;
-    private ButtonWidget overrideButton;
-    private ButtonWidget autoStepButton;
-    private ButtonWidget cssCrouchButton;
-    private ButtonWidget disableSprintButton;
-    private ButtonWidget fallDamageButton;
+    private EditBox svFrictionField;
+    private EditBox svAccelerateField;
+    private EditBox svAiraccelerateField;
+    private EditBox svMaxairspeedField;
+    private EditBox svJumpImpulseField;
+    private EditBox speedMulField;
+    private EditBox svGravityField;
+    private EditBox svStopspeedField;
+    private EditBox speedCoefficientField;
+    private EditBox speedCapField;
+    private Button overrideButton;
+    private Button autoStepButton;
+    private Button cssCrouchButton;
+    private Button disableSprintButton;
+    private Button fallDamageButton;
 
     public MovementSettingsScreen(Screen parent, Values values, Consumer<Values> onApply) {
-        super(Text.translatable("screen.minehop.map_creator.movement.title"));
+        super(Component.translatable("screen.minehop.map_creator.movement.title"));
         this.parent = parent;
         this.values = values == null ? Values.defaults() : values;
         this.onApply = onApply;
     }
 
     @Override
-    protected void applyBlur() {
+    protected void renderBlurredBackground() {
     }
 
     @Override
-    public void blur() {
+    public void clearFocus() {
     }
 
     @Override
@@ -59,10 +58,10 @@ public class MovementSettingsScreen extends Screen {
         int fieldWidth = panelWidth - 208;
         int y = panelY + 32;
 
-        this.overrideButton = this.addDrawableChild(ButtonWidget.builder(Text.empty(), button -> {
+        this.overrideButton = this.addRenderableWidget(Button.builder(Component.empty(), button -> {
             this.values = this.values.withOverride(!this.values.overrideEnabled());
             this.updateButtonText();
-        }).dimensions(fieldX, y, fieldWidth, 20).build());
+        }).bounds(fieldX, y, fieldWidth, 20).build());
         y += 24;
 
         this.svFrictionField = this.addField(fieldX, y, fieldWidth, this.values.svFriction());
@@ -86,50 +85,50 @@ public class MovementSettingsScreen extends Screen {
         this.speedCapField = this.addField(fieldX, y, fieldWidth, this.values.speedCap());
         y += 24;
 
-        this.autoStepButton = this.addDrawableChild(ButtonWidget.builder(Text.empty(), button -> {
+        this.autoStepButton = this.addRenderableWidget(Button.builder(Component.empty(), button -> {
             this.values = this.values.withAutoStepUp(!this.values.autoStepUp());
             this.updateButtonText();
-        }).dimensions(fieldX, y, fieldWidth, 20).build());
+        }).bounds(fieldX, y, fieldWidth, 20).build());
         y += 24;
-        this.cssCrouchButton = this.addDrawableChild(ButtonWidget.builder(Text.empty(), button -> {
+        this.cssCrouchButton = this.addRenderableWidget(Button.builder(Component.empty(), button -> {
             this.values = this.values.withCssCrouchJump(!this.values.cssCrouchJump());
             this.updateButtonText();
-        }).dimensions(fieldX, y, fieldWidth, 20).build());
+        }).bounds(fieldX, y, fieldWidth, 20).build());
         y += 24;
-        this.disableSprintButton = this.addDrawableChild(ButtonWidget.builder(Text.empty(), button -> {
+        this.disableSprintButton = this.addRenderableWidget(Button.builder(Component.empty(), button -> {
             this.values = this.values.withDisableSprint(!this.values.disableSprint());
             this.updateButtonText();
-        }).dimensions(fieldX, y, fieldWidth, 20).build());
+        }).bounds(fieldX, y, fieldWidth, 20).build());
         y += 24;
-        this.fallDamageButton = this.addDrawableChild(ButtonWidget.builder(Text.empty(), button -> {
+        this.fallDamageButton = this.addRenderableWidget(Button.builder(Component.empty(), button -> {
             this.values = this.values.withFallDamage(!this.values.fallDamage());
             this.updateButtonText();
-        }).dimensions(fieldX, y, fieldWidth, 20).build());
+        }).bounds(fieldX, y, fieldWidth, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), button -> this.applyAndClose())
-                .dimensions(panelX + panelWidth - 142, panelY + panelHeight - 26, 60, 20)
+        this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> this.applyAndClose())
+                .bounds(panelX + panelWidth - 142, panelY + panelHeight - 26, 60, 20)
                 .build());
-        this.addDrawableChild(ButtonWidget.builder(Text.translatable("gui.cancel"), button -> this.close())
-                .dimensions(panelX + panelWidth - 76, panelY + panelHeight - 26, 60, 20)
+        this.addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), button -> this.onClose())
+                .bounds(panelX + panelWidth - 76, panelY + panelHeight - 26, 60, 20)
                 .build());
 
         this.updateButtonText();
     }
 
-    private TextFieldWidget addField(int x, int y, int width, double value) {
-        TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 18, Text.empty());
+    private EditBox addField(int x, int y, int width, double value) {
+        EditBox field = new EditBox(this.font, x, y, width, 18, Component.empty());
         field.setMaxLength(16);
-        field.setText(Double.toString(value));
-        return this.addDrawableChild(field);
+        field.setValue(Double.toString(value));
+        return this.addRenderableWidget(field);
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         this.renderBackground(context, mouseX, mouseY, delta);
 
         int panelWidth = 460;
@@ -140,8 +139,8 @@ public class MovementSettingsScreen extends Screen {
         int y = panelY + 37;
 
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xD0101010);
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, panelY + 10, 0xFFFFFF);
+        context.renderOutline(panelX, panelY, panelWidth, panelHeight, 0xFF666666);
+        context.drawCenteredString(this.font, this.title, this.width / 2, panelY + 10, 0xFFFFFF);
 
         this.drawLabel(context, "Use Custom Movement", labelX, y);
         y += 24;
@@ -176,35 +175,35 @@ public class MovementSettingsScreen extends Screen {
         super.render(context, mouseX, mouseY, delta);
     }
 
-    private void drawLabel(DrawContext context, String label, int x, int y) {
-        context.drawTextWithShadow(this.textRenderer, Text.literal(label), x, y, 0xE0E0E0);
+    private void drawLabel(GuiGraphics context, String label, int x, int y) {
+        context.drawString(this.font, Component.literal(label), x, y, 0xE0E0E0);
     }
 
     private void updateButtonText() {
         if (this.overrideButton != null) {
             this.overrideButton.setMessage(this.values.overrideEnabled()
-                    ? Text.translatable("screen.minehop.map_creator.toggle.on")
-                    : Text.translatable("screen.minehop.map_creator.toggle.off"));
+                    ? Component.translatable("screen.minehop.map_creator.toggle.on")
+                    : Component.translatable("screen.minehop.map_creator.toggle.off"));
         }
         if (this.autoStepButton != null) {
             this.autoStepButton.setMessage(this.values.autoStepUp()
-                    ? Text.translatable("screen.minehop.map_creator.toggle.on")
-                    : Text.translatable("screen.minehop.map_creator.toggle.off"));
+                    ? Component.translatable("screen.minehop.map_creator.toggle.on")
+                    : Component.translatable("screen.minehop.map_creator.toggle.off"));
         }
         if (this.cssCrouchButton != null) {
             this.cssCrouchButton.setMessage(this.values.cssCrouchJump()
-                    ? Text.translatable("screen.minehop.map_creator.toggle.on")
-                    : Text.translatable("screen.minehop.map_creator.toggle.off"));
+                    ? Component.translatable("screen.minehop.map_creator.toggle.on")
+                    : Component.translatable("screen.minehop.map_creator.toggle.off"));
         }
         if (this.disableSprintButton != null) {
             this.disableSprintButton.setMessage(this.values.disableSprint()
-                    ? Text.translatable("screen.minehop.map_creator.toggle.on")
-                    : Text.translatable("screen.minehop.map_creator.toggle.off"));
+                    ? Component.translatable("screen.minehop.map_creator.toggle.on")
+                    : Component.translatable("screen.minehop.map_creator.toggle.off"));
         }
         if (this.fallDamageButton != null) {
             this.fallDamageButton.setMessage(this.values.fallDamage()
-                    ? Text.translatable("screen.minehop.map_creator.toggle.on")
-                    : Text.translatable("screen.minehop.map_creator.toggle.off"));
+                    ? Component.translatable("screen.minehop.map_creator.toggle.on")
+                    : Component.translatable("screen.minehop.map_creator.toggle.off"));
         }
     }
 
@@ -229,15 +228,15 @@ public class MovementSettingsScreen extends Screen {
         if (this.onApply != null) {
             this.onApply.accept(updated);
         }
-        this.close();
+        this.onClose();
     }
 
-    private double parse(TextFieldWidget field, double fallback) {
-        if (field == null || field.getText() == null || field.getText().isBlank()) {
+    private double parse(EditBox field, double fallback) {
+        if (field == null || field.getValue() == null || field.getValue().isBlank()) {
             return fallback;
         }
         try {
-            double parsed = Double.parseDouble(field.getText().trim());
+            double parsed = Double.parseDouble(field.getValue().trim());
             return Double.isFinite(parsed) ? parsed : fallback;
         } catch (NumberFormatException ignored) {
             return fallback;
@@ -245,9 +244,9 @@ public class MovementSettingsScreen extends Screen {
     }
 
     @Override
-    public void close() {
-        if (this.client != null) {
-            this.client.setScreen(this.parent);
+    public void onClose() {
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(this.parent);
         }
     }
 

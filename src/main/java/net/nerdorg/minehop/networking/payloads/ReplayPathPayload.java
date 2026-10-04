@@ -1,9 +1,9 @@
 package net.nerdorg.minehop.networking.payloads;
 
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.nerdorg.minehop.Minehop;
 import org.joml.Vector3f;
 
@@ -13,11 +13,11 @@ import java.util.List;
 public record ReplayPathPayload(
         boolean clear,
         List<Vector3f> points
-) implements CustomPayload {
+) implements CustomPacketPayload {
     public static final int MAX_POINTS_PER_PACKET = 2048;
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "replay_path");
-    public static final Id<ReplayPathPayload> ID = new Id<>(HANDSHAKE_ID);
-    public static final PacketCodec<PacketByteBuf, ReplayPathPayload> CODEC = PacketCodec.of(
+    public static final ResourceLocation HANDSHAKE_ID = ResourceLocation.fromNamespaceAndPath(Minehop.MOD_ID, "replay_path");
+    public static final Type<ReplayPathPayload> ID = new Type<>(HANDSHAKE_ID);
+    public static final StreamCodec<FriendlyByteBuf, ReplayPathPayload> CODEC = StreamCodec.ofMember(
             (value, buf) -> {
                 buf.writeBoolean(value.clear);
                 List<Vector3f> list = value.points == null ? List.of() : value.points;
@@ -42,7 +42,7 @@ public record ReplayPathPayload(
     );
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

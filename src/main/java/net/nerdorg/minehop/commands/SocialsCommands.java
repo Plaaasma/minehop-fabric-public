@@ -8,17 +8,12 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.server.level.ServerPlayer;
 import net.nerdorg.minehop.block.entity.BoostBlockEntity;
 import net.nerdorg.minehop.util.Logger;
 
@@ -27,7 +22,7 @@ public class SocialsCommands {
 
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("discord")
+            LiteralArgumentBuilder.<CommandSourceStack>literal("discord")
                 .executes(context -> {
                     handleDiscord(context);
                     return Command.SINGLE_SUCCESS;
@@ -35,15 +30,15 @@ public class SocialsCommands {
             ));
     }
 
-    private static void handleDiscord(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity serverPlayerEntity = context.getSource().getPlayer();
+    private static void handleDiscord(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
 
-        Text urlText = Text.literal("https://discord.gg/hMs97RHEgF")
-                .styled(style -> style
-                        .withColor(Formatting.BLUE)
+        Component urlText = Component.literal("https://discord.gg/hMs97RHEgF")
+                .withStyle(style -> style
+                        .withColor(ChatFormatting.BLUE)
                         .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, "https://discord.gg/hMs97RHEgF"))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Join or else....")))
-                        .withUnderline(true));
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Join or else....")))
+                        .withUnderlined(true));
 
         Logger.log(serverPlayerEntity, urlText);
     }

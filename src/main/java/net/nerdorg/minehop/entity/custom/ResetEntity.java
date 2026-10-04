@@ -2,28 +2,21 @@ package net.nerdorg.minehop.entity.custom;
 
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
 import net.fabricmc.loader.impl.lib.sat4j.core.Vec;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.ai.TargetPredicate;
-import net.minecraft.entity.attribute.DefaultAttributeContainer;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.damage.DamageSources;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
-import net.minecraft.network.packet.s2c.play.PositionFlag;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec2f;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.TeleportTarget;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.portal.TeleportTransition;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec2;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.PacketHandler;
@@ -46,13 +39,13 @@ public class ResetEntity extends Zone {
     private int check_index;
     private boolean preserveSpeed = true;
 
-    public ResetEntity(EntityType<? extends MobEntity> entityType, World world) {
+    public ResetEntity(EntityType<? extends Mob> entityType, Level world) {
         super(entityType, world);
     }
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
+    public void addAdditionalSaveData(CompoundTag nbt) {
+        super.addAdditionalSaveData(nbt);
         if (corner1 != null) {
             nbt.putInt("Corner1X", corner1.getX());
             nbt.putInt("Corner1Y", corner1.getY());
@@ -68,8 +61,8 @@ public class ResetEntity extends Zone {
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
+    public void readAdditionalSaveData(CompoundTag nbt) {
+        super.readAdditionalSaveData(nbt);
         int x1 = nbt.getInt("Corner1X");
         int y1 = nbt.getInt("Corner1Y");
         int z1 = nbt.getInt("Corner1Z");
@@ -116,63 +109,63 @@ public class ResetEntity extends Zone {
         return corner2;
     }
 
-    public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
-        return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+    public static AttributeSupplier.Builder createResetEntityAttributes() {
+        return Mob.createMobAttributes()
+                .add(Attributes.MAX_HEALTH, 1000000);
     }
 
     // Keep the preserved SPEED but point it along the spawn/checkpoint facing (what a bhop/surf
     // reset expects), instead of the stale world-space direction the player entered the zone with.
     // Vertical keeps only downward momentum (no upward launch).
-    private static Vec3d redirectToYaw(Vec3d preserved, float yawDeg) {
-        Vec3d safe = sanitizeVelocity(preserved);
+    private static Vec3 redirectToYaw(Vec3 preserved, float yawDeg) {
+        Vec3 safe = sanitizeVelocity(preserved);
         double horizontalSpeed = Math.sqrt(safe.x * safe.x + safe.z * safe.z);
         double yaw = Math.toRadians(yawDeg);
         double forwardX = -Math.sin(yaw);
         double forwardZ = Math.cos(yaw);
-        return new Vec3d(forwardX * horizontalSpeed, Math.min(safe.y, 0.0D), forwardZ * horizontalSpeed);
+        return new Vec3(forwardX * horizontalSpeed, Math.min(safe.y, 0.0D), forwardZ * horizontalSpeed);
     }
 
-    private static Vec3d sanitizeVelocity(Vec3d velocity) {
+    private static Vec3 sanitizeVelocity(Vec3 velocity) {
         if (velocity == null) {
-            return Vec3d.ZERO;
+            return Vec3.ZERO;
         }
         if (!Double.isFinite(velocity.x) || !Double.isFinite(velocity.y) || !Double.isFinite(velocity.z)) {
-            return Vec3d.ZERO;
+            return Vec3.ZERO;
         }
         return velocity;
     }
 
-    private Vec3d resolvePreservedVelocity(ServerPlayerEntity player) {
+    private Vec3 resolvePreservedVelocity(ServerPlayer player) {
         if (player == null) {
-            return Vec3d.ZERO;
+            return Vec3.ZERO;
         }
         // Use the player's REALIZED movement this tick (how far they actually went), not
         // player.getVelocity() — on surf the solver stores a high pre-collision-clip velocity that
         // overshoots the true speed and made resets feel way too fast. Fall back to the recent
         // observed delta, then the reported velocity, only when the realized delta is missing
         // (e.g. stale around a teleport).
-        Vec3d tickDeltaVelocity = sanitizeVelocity(new Vec3d(
-                player.getX() - player.prevX,
-                player.getY() - player.prevY,
-                player.getZ() - player.prevZ
+        Vec3 tickDeltaVelocity = sanitizeVelocity(new Vec3(
+                player.getX() - player.xo,
+                player.getY() - player.yo,
+                player.getZ() - player.zo
         ));
         double tickDeltaHorizontalSq = (tickDeltaVelocity.x * tickDeltaVelocity.x) + (tickDeltaVelocity.z * tickDeltaVelocity.z);
 
         // The realized movement this tick is the truth when present. If the reset zone ticks before
         // player movement, fall back to the very fresh observed movement sample, then current velocity.
-        Vec3d currentVelocity = sanitizeVelocity(player.getVelocity());
-        Vec3d observedVelocity = this.resolveObservedVelocity(player, 2L);
-        Vec3d preferred = tickDeltaHorizontalSq > 1.0E-6D
+        Vec3 currentVelocity = sanitizeVelocity(player.getDeltaMovement());
+        Vec3 observedVelocity = this.resolveObservedVelocity(player, 2L);
+        Vec3 preferred = tickDeltaHorizontalSq > 1.0E-6D
                 ? tickDeltaVelocity
                 : chooseStrongerHorizontal(observedVelocity, currentVelocity);
         // Keep horizontal momentum and only preserve downward vertical velocity to avoid upward launch spikes.
-        return new Vec3d(preferred.x, Math.min(preferred.y, 0.0D), preferred.z);
+        return new Vec3(preferred.x, Math.min(preferred.y, 0.0D), preferred.z);
     }
 
-    private static Vec3d chooseStrongerHorizontal(Vec3d first, Vec3d second) {
-        Vec3d safeFirst = sanitizeVelocity(first);
-        Vec3d safeSecond = sanitizeVelocity(second);
+    private static Vec3 chooseStrongerHorizontal(Vec3 first, Vec3 second) {
+        Vec3 safeFirst = sanitizeVelocity(first);
+        Vec3 safeSecond = sanitizeVelocity(second);
         double firstHorizontalSq = horizontalLengthSquared(safeFirst);
         double secondHorizontalSq = horizontalLengthSquared(safeSecond);
         if (firstHorizontalSq <= 1.0E-8D) {
@@ -184,50 +177,50 @@ public class ResetEntity extends Zone {
         return firstHorizontalSq >= secondHorizontalSq ? safeFirst : safeSecond;
     }
 
-    private static double horizontalLengthSquared(Vec3d velocity) {
+    private static double horizontalLengthSquared(Vec3 velocity) {
         if (velocity == null) {
             return 0.0D;
         }
         return (velocity.x * velocity.x) + (velocity.z * velocity.z);
     }
 
-    private Vec3d resolveObservedVelocity(ServerPlayerEntity player, long maxAgeTicks) {
+    private Vec3 resolveObservedVelocity(ServerPlayer player, long maxAgeTicks) {
         if (player == null) {
-            return Vec3d.ZERO;
+            return Vec3.ZERO;
         }
-        ObservedVelocitySample sample = LAST_OBSERVED_VELOCITY.get(player.getUuid());
+        ObservedVelocitySample sample = LAST_OBSERVED_VELOCITY.get(player.getUUID());
         if (sample == null) {
-            return Vec3d.ZERO;
+            return Vec3.ZERO;
         }
-        String worldKey = player.getServerWorld().getRegistryKey().getValue().toString();
+        String worldKey = player.serverLevel().dimension().location().toString();
         if (!worldKey.equals(sample.worldKey)) {
-            LAST_OBSERVED_VELOCITY.remove(player.getUuid());
-            return Vec3d.ZERO;
+            LAST_OBSERVED_VELOCITY.remove(player.getUUID());
+            return Vec3.ZERO;
         }
-        long currentTick = player.getServerWorld().getTime();
+        long currentTick = player.serverLevel().getGameTime();
         if (currentTick - sample.worldTick > Math.max(0L, maxAgeTicks)) {
-            LAST_OBSERVED_VELOCITY.remove(player.getUuid());
-            return Vec3d.ZERO;
+            LAST_OBSERVED_VELOCITY.remove(player.getUUID());
+            return Vec3.ZERO;
         }
         return sanitizeVelocity(sample.velocity);
     }
 
-    public static void trackPlayerMotion(ServerPlayerEntity player) {
+    public static void trackPlayerMotion(ServerPlayer player) {
         if (player == null || player.isRemoved() || !player.isAlive()) {
             return;
         }
-        ServerWorld world = player.getServerWorld();
-        String worldKey = world.getRegistryKey().getValue().toString();
-        long worldTick = world.getTime();
-        Vec3d currentPos = player.getPos();
-        UUID uuid = player.getUuid();
+        ServerLevel world = player.serverLevel();
+        String worldKey = world.dimension().location().toString();
+        long worldTick = world.getGameTime();
+        Vec3 currentPos = player.position();
+        UUID uuid = player.getUUID();
 
         ObservedPositionSample previous = LAST_OBSERVED_POSITION.get(uuid);
         if (previous != null
                 && worldTick > previous.worldTick
                 && worldKey.equals(previous.worldKey)) {
-            Vec3d delta = sanitizeVelocity(currentPos.subtract(previous.position));
-            double lengthSq = delta.lengthSquared();
+            Vec3 delta = sanitizeVelocity(currentPos.subtract(previous.position));
+            double lengthSq = delta.lengthSqr();
             // Ignore teleports/chunk corrections; keep real movement-scale samples.
             if (lengthSq > 1.0E-8D && lengthSq <= 64.0D) {
                 LAST_OBSERVED_VELOCITY.put(
@@ -239,72 +232,72 @@ public class ResetEntity extends Zone {
         LAST_OBSERVED_POSITION.put(uuid, new ObservedPositionSample(worldKey, currentPos, worldTick));
     }
 
-    public static void recordObservedVelocity(ServerPlayerEntity player, Vec3d velocity) {
+    public static void recordObservedVelocity(ServerPlayer player, Vec3 velocity) {
         if (player == null || velocity == null) {
             return;
         }
-        Vec3d sanitized = sanitizeVelocity(velocity);
+        Vec3 sanitized = sanitizeVelocity(velocity);
         double horizontalSq = (sanitized.x * sanitized.x) + (sanitized.z * sanitized.z);
         if (horizontalSq <= 1.0E-8D) {
             return;
         }
-        String worldKey = player.getServerWorld().getRegistryKey().getValue().toString();
+        String worldKey = player.serverLevel().dimension().location().toString();
         LAST_OBSERVED_VELOCITY.put(
-                player.getUuid(),
-                new ObservedVelocitySample(worldKey, sanitized, player.getServerWorld().getTime())
+                player.getUUID(),
+                new ObservedVelocitySample(worldKey, sanitized, player.serverLevel().getGameTime())
         );
     }
 
-    private void applyPreservedVelocity(ServerPlayerEntity player, Vec3d velocity) {
+    private void applyPreservedVelocity(ServerPlayer player, Vec3 velocity) {
         if (player == null) {
             return;
         }
-        Vec3d sanitized = sanitizeVelocity(velocity);
-        player.setVelocity(sanitized.x, sanitized.y, sanitized.z);
+        Vec3 sanitized = sanitizeVelocity(velocity);
+        player.setDeltaMovement(sanitized.x, sanitized.y, sanitized.z);
         player.setOnGround(false);
         player.fallDistance = 0.0F;
-        player.networkHandler.sendPacket(new EntityVelocityUpdateS2CPacket(player));
+        player.connection.send(new ClientboundSetEntityMotionPacket(player));
     }
 
     @Override
     public void tick() {
         this.updateInteractionBounds(this.corner1, this.corner2);
-        World world = this.getWorld();
-        if (world instanceof ServerWorld serverWorld) {
-            if (serverWorld.getTime() % 2 == 0) {
+        Level world = this.level();
+        if (world instanceof ServerLevel serverWorld) {
+            if (serverWorld.getGameTime() % 2 == 0) {
                 if (this.corner1 != null && this.corner2 != null) {
-                    Vec3d center = this.getBoundsCenter(this.corner1, this.corner2);
-                    this.requestTeleport(center.x, center.y, center.z);
+                    Vec3 center = this.getBoundsCenter(this.corner1, this.corner2);
+                    this.teleportTo(center.x, center.y, center.z);
                 }
-                for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
+                for (ServerPlayer worldPlayer : serverWorld.players()) {
                     PacketHandler.updateZone(worldPlayer, this.getId(), this.corner1, this.corner2, this.getPairedMap(), this.check_index);
                 }
             }
             if (this.corner1 != null && this.corner2 != null) {
                 DataManager.MapData pairedMap = DataManager.getMap(this.getPairedMap());
                 if (pairedMap != null) {
-                    Box colliderBox = new Box(new Vec3d(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ()), new Vec3d(this.corner2.getX(), this.corner2.getY(), this.corner2.getZ()));
-                    List<ServerPlayerEntity> players = serverWorld.getPlayers();
-                    for (ServerPlayerEntity player : players) {
+                    AABB colliderBox = new AABB(new Vec3(this.corner1.getX(), this.corner1.getY(), this.corner1.getZ()), new Vec3(this.corner2.getX(), this.corner2.getY(), this.corner2.getZ()));
+                    List<ServerPlayer> players = serverWorld.players();
+                    for (ServerPlayer player : players) {
                         if (!player.isCreative() && !player.isSpectator()) {
-                            if (colliderBox.contains(player.getPos())) {
-                                Vec3d targetLocation = new Vec3d(pairedMap.x, pairedMap.y, pairedMap.z);
-                                Vec2f targetRot = new Vec2f((float) pairedMap.xrot, (float) pairedMap.yrot);
+                            if (colliderBox.contains(player.position())) {
+                                Vec3 targetLocation = new Vec3(pairedMap.x, pairedMap.y, pairedMap.z);
+                                Vec2 targetRot = new Vec2((float) pairedMap.xrot, (float) pairedMap.yrot);
                                 if (pairedMap.checkpointPositions != null) {
                                     if (this.check_index > 0 && pairedMap.checkpointPositions.size() > this.check_index - 1) {
                                         targetLocation = pairedMap.checkpointPositions.get(this.check_index - 1).get(0);
-                                        Vec3d rotVec3d = pairedMap.checkpointPositions.get(this.check_index - 1).get(1);
-                                        targetRot = new Vec2f((float) rotVec3d.getX(), (float) rotVec3d.getY());
+                                        Vec3 rotVec3d = pairedMap.checkpointPositions.get(this.check_index - 1).get(1);
+                                        targetRot = new Vec2((float) rotVec3d.x(), (float) rotVec3d.y());
                                     }
                                 } else {
-                                    Minehop.timerManager.remove(player.getNameForScoreboard());
+                                    Minehop.timerManager.remove(player.getScoreboardName());
                                 }
                                 if (!player.isCreative()) {
-                                    player.getInventory().clear();
+                                    player.getInventory().clearContent();
                                 }
 
                                 Zone startZone = null;
-                                for (Entity entity : serverWorld.iterateEntities()) {
+                                for (Entity entity : serverWorld.getAllEntities()) {
                                     if (entity instanceof StartEntity startEntity) {
                                         if (startEntity.getPairedMap().equals(this.getPairedMap())) {
                                             startZone = startEntity;
@@ -313,7 +306,7 @@ public class ResetEntity extends Zone {
                                 }
 
                                 if (startZone != null){
-                                    Minehop.playerMapLocation.put(player.getUuidAsString(), startZone);
+                                    Minehop.playerMapLocation.put(player.getStringUUID(), startZone);
                                 }
                                 // Preserve speed is a PER-MAP setting (default off; meant mainly for
                                 // surf). Preserve the magnitude of the player's speed but redirect it
@@ -321,18 +314,18 @@ public class ResetEntity extends Zone {
                                 // the old DELTA_X/Y/Z flags made the passed velocity RELATIVE (added to
                                 // current), which roughly doubled the speed on reset.
                                 boolean preserve = this.preserveSpeed || pairedMap.preserve_speed;
-                                Vec3d preservedVelocity = preserve
+                                Vec3 preservedVelocity = preserve
                                         ? redirectToYaw(this.resolvePreservedVelocity(player), targetRot.y)
-                                        : Vec3d.ZERO;
-                                player.teleportTo(new TeleportTarget(
+                                        : Vec3.ZERO;
+                                player.teleport(new TeleportTransition(
                                         serverWorld,
-                                        new Vec3d(targetLocation.getX(), targetLocation.getY(), targetLocation.getZ()),
+                                        new Vec3(targetLocation.x(), targetLocation.y(), targetLocation.z()),
                                         preservedVelocity,
                                         targetRot.y,
                                         targetRot.x,
                                         Set.of(),
                                         (playerEntity) -> {
-                                            if (playerEntity instanceof ServerPlayerEntity serverPlayerEntity) {
+                                            if (playerEntity instanceof ServerPlayer serverPlayerEntity) {
                                                 // Authorized server teleport: grants the anticheat
                                                 // teleport/reconciliation grace (like ZoneUtil targets).
                                                 net.nerdorg.minehop.anticheat.AntiCheatManager.markAuthorizedTeleport(serverPlayerEntity);
@@ -359,24 +352,24 @@ public class ResetEntity extends Zone {
 
     private static final class ObservedVelocitySample {
         private final String worldKey;
-        private final Vec3d velocity;
+        private final Vec3 velocity;
         private final long worldTick;
 
-        private ObservedVelocitySample(String worldKey, Vec3d velocity, long worldTick) {
+        private ObservedVelocitySample(String worldKey, Vec3 velocity, long worldTick) {
             this.worldKey = worldKey == null ? "" : worldKey;
-            this.velocity = velocity == null ? Vec3d.ZERO : velocity;
+            this.velocity = velocity == null ? Vec3.ZERO : velocity;
             this.worldTick = Math.max(0L, worldTick);
         }
     }
 
     private static final class ObservedPositionSample {
         private final String worldKey;
-        private final Vec3d position;
+        private final Vec3 position;
         private final long worldTick;
 
-        private ObservedPositionSample(String worldKey, Vec3d position, long worldTick) {
+        private ObservedPositionSample(String worldKey, Vec3 position, long worldTick) {
             this.worldKey = worldKey == null ? "" : worldKey;
-            this.position = position == null ? Vec3d.ZERO : position;
+            this.position = position == null ? Vec3.ZERO : position;
             this.worldTick = Math.max(0L, worldTick);
         }
     }

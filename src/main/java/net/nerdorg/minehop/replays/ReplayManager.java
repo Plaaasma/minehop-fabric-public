@@ -4,8 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.storage.LevelResource;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.util.JsonStorage;
@@ -225,15 +225,15 @@ public class ReplayManager {
         return bestExactMatch;
     }
 
-    public static void saveRecordReplay(ServerWorld world, Replay replay) {
+    public static void saveRecordReplay(ServerLevel world, Replay replay) {
         saveReplay(world, replay);
     }
 
-    public static void savePersonalBestReplay(ServerWorld world, Replay replay) {
+    public static void savePersonalBestReplay(ServerLevel world, Replay replay) {
         saveReplay(world, replay);
     }
 
-    public static void saveReplay(ServerWorld world, Replay replay) {
+    public static void saveReplay(ServerLevel world, Replay replay) {
         if (world == null || replay == null || replay.map_name == null || replay.map_name.isBlank()) {
             return;
         }
@@ -267,23 +267,23 @@ public class ReplayManager {
     }
 
     /** Atomic, backed-up, version-enveloped write (see JsonStorage). Signature kept for other mods. */
-    public static void saveRecordReplays(ServerWorld world, List<Replay> replays) {
+    public static void saveRecordReplays(ServerLevel world, List<Replay> replays) {
         saveRecordReplaysChecked(world, replays);
     }
 
     /** Same as {@link #saveRecordReplays}, returning false if the write failed. */
-    public static boolean saveRecordReplaysChecked(ServerWorld world, List<Replay> replays) {
+    public static boolean saveRecordReplaysChecked(ServerLevel world, List<Replay> replays) {
         if (world == null) {
             return false;
         }
         List<Replay> safeReplays = replays == null ? new ArrayList<>() : replays;
         MinecraftServer server = world.getServer();
-        Path worldDir = server.getSavePath(WorldSavePath.ROOT);
+        Path worldDir = server.getWorldPath(LevelResource.ROOT);
         return JsonStorage.writeAtomic(worldDir.resolve(REPLAYS_FILE), SCHEMA_VERSION, safeReplays);
     }
 
-    public static List<Replay> loadRecordReplays(ServerWorld world) {
-        Path worldDir = world.getServer().getSavePath(WorldSavePath.ROOT);
+    public static List<Replay> loadRecordReplays(ServerLevel world) {
+        Path worldDir = world.getServer().getWorldPath(LevelResource.ROOT);
         // Crash-proof read with .corrupt quarantine + .bak fallback; null = no data yet.
         return JsonStorage.readData(worldDir.resolve(REPLAYS_FILE), replayListType);
     }
@@ -291,7 +291,7 @@ public class ReplayManager {
     public static void register() {
         // Once per server, not per dimension: the replay file lives at the server root (see DataManager).
         ServerWorldEvents.LOAD.register(((server, world) -> {
-            if (world.getRegistryKey() != net.minecraft.world.World.OVERWORLD) {
+            if (world.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
                 return;
             }
             Minehop.replayList = new ArrayList<>();
@@ -327,7 +327,7 @@ public class ReplayManager {
         }));
 
         ServerWorldEvents.UNLOAD.register(((server, world) -> {
-            if (world.getRegistryKey() != net.minecraft.world.World.OVERWORLD) {
+            if (world.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
                 return;
             }
             saveRecordReplays(world, Minehop.replayList);

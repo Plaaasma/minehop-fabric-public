@@ -1,10 +1,5 @@
 package net.nerdorg.minehop.commands;
 
-import net.minecraft.command.argument.ArgumentTypes;
-import net.minecraft.command.argument.serialize.ConstantArgumentSerializer;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.util.Identifier;
 import net.nerdorg.minehop.Minehop;
 
 public class CommandRegister {

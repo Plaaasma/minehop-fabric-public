@@ -3,13 +3,12 @@ package net.nerdorg.minehop.anticheat;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.entity.player.PlayerPosition;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.PositionMoveRotation;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.anticheat.checks.NoClipCheck;
 import net.nerdorg.minehop.anticheat.stream.MovementValidator;
@@ -72,25 +71,25 @@ public final class AntiCheatManager {
             }
         });
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            ServerPlayerEntity player = handler.player;
+            ServerPlayer player = handler.player;
             if (player != null) {
                 AntiCheatPlayerState state = stateOf(player);
-                state.setLastKnownName(player.getNameForScoreboard());
-                state.setLastVerifiedPos(player.getPos());
-                state.setLastReportedPos(player.getPos());
+                state.setLastKnownName(player.getScoreboardName());
+                state.setLastVerifiedPos(player.position());
+                state.setLastReportedPos(player.position());
                 state.markAuthorizedTeleport(currentServerTick);
                 state.resetAirborneTicks();
             }
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            ServerPlayerEntity player = handler.player;
+            ServerPlayer player = handler.player;
             if (player != null) {
-                VERBOSE_LISTENERS.remove(player.getUuid());
-                LAST_VERBOSE_TICK.remove(player.getUuid());
-                AntiCheatAllowLog.clearForDisconnect(player.getUuid());
-                MovementValidator.clear(player.getUuid());
-                clearConsoleFlagThrottle(player.getUuid());
-                LAST_AC_STATUS.remove(player.getUuid());
+                VERBOSE_LISTENERS.remove(player.getUUID());
+                LAST_VERBOSE_TICK.remove(player.getUUID());
+                AntiCheatAllowLog.clearForDisconnect(player.getUUID());
+                MovementValidator.clear(player.getUUID());
+                clearConsoleFlagThrottle(player.getUUID());
+                LAST_AC_STATUS.remove(player.getUUID());
             }
         });
     }
@@ -115,18 +114,18 @@ public final class AntiCheatManager {
      * Records a violation found by the packet-stream movement checks and, if requested and allowed,
      * lags the player back to {@code target}. Returns true if a lagback teleport was issued.
      */
-    public static boolean reportMovementViolation(ServerPlayerEntity player, String checkName, double increment,
-                                                  String details, boolean wantLagback, Vec3d target) {
+    public static boolean reportMovementViolation(ServerPlayer player, String checkName, double increment,
+                                                  String details, boolean wantLagback, Vec3 target) {
         if (player == null || checkName == null) {
             return false;
         }
         AntiCheatPlayerState state = stateOf(player);
         double level = state.addViolation(checkName, increment);
-        Vec3d pos = player.getPos();
+        Vec3 pos = player.position();
         state.addFlag(new AntiCheatFlag(checkName, System.currentTimeMillis(), increment, details, pos.x, pos.y, pos.z));
         broadcastFlag(player, checkName, details, level);
         logFlagToConsole(player, checkName, level, 0.0D, details, pos);
-        if (!wantLagback || !lagbacksEnabled || target == null || player.networkHandler == null) {
+        if (!wantLagback || !lagbacksEnabled || target == null || player.connection == null) {
             return false;
         }
         if (!shouldAllowLagback(state)) {
@@ -135,21 +134,21 @@ public final class AntiCheatManager {
         state.markLagback(currentServerTick);
         Minehop.LOGGER.info(String.format(Locale.ROOT,
                 "[AC] %s LAGBACK (%s) from=(%.2f,%.2f,%.2f) to=(%.2f,%.2f,%.2f)",
-                player.getNameForScoreboard(), checkName, pos.x, pos.y, pos.z, target.x, target.y, target.z));
+                player.getScoreboardName(), checkName, pos.x, pos.y, pos.z, target.x, target.y, target.z));
         MovementValidator.onLagbackIssued(player);
-        player.networkHandler.requestTeleport(
-                new PlayerPosition(target, Vec3d.ZERO, player.getYaw(), player.getPitch()), Collections.emptySet());
-        player.setVelocity(Vec3d.ZERO);
+        player.connection.teleport(
+                new PositionMoveRotation(target, Vec3.ZERO, player.getYRot(), player.getXRot()), Collections.emptySet());
+        player.setDeltaMovement(Vec3.ZERO);
         int consecutive = state.consecutiveLagbacks();
         if (consecutive == 10 || consecutive == 25 || consecutive == 50 || (consecutive > 50 && consecutive % 50 == 0)) {
             Minehop.LOGGER.warn("[AC] {} has {} consecutive lagbacks (persistent invalid movement)",
-                    player.getNameForScoreboard(), consecutive);
+                    player.getScoreboardName(), consecutive);
         }
         return true;
     }
 
     /** A run is armed in a start zone: flags counted from here belong to that run. */
-    public static void onRunArmed(ServerPlayerEntity player) {
+    public static void onRunArmed(ServerPlayer player) {
         AntiCheatPlayerState state = stateOf(player);
         if (state != null) {
             state.resetRunFlags();
@@ -157,36 +156,36 @@ public final class AntiCheatManager {
     }
 
     /** A run finished with anticheat flags: tell the console and every verbose admin. */
-    public static void announceFlaggedRun(ServerPlayerEntity player, String mapName, double time, String flags) {
+    public static void announceFlaggedRun(ServerPlayer player, String mapName, double time, String flags) {
         String line = String.format(Locale.ROOT, "%s finished %s in %.5fs with anticheat flags: %s",
-                player.getNameForScoreboard(), mapName, time, flags);
+                player.getScoreboardName(), mapName, time, flags);
         Minehop.LOGGER.info("[AC] {}", line);
         if (serverInstance == null) {
             return;
         }
-        Text msg = Text.literal("[AC] ").formatted(Formatting.RED)
-                .append(Text.literal(line).formatted(Formatting.GOLD));
+        Component msg = Component.literal("[AC] ").withStyle(ChatFormatting.RED)
+                .append(Component.literal(line).withStyle(ChatFormatting.GOLD));
         for (UUID listenerUuid : new HashSet<>(VERBOSE_LISTENERS)) {
-            ServerPlayerEntity listener = serverInstance.getPlayerManager().getPlayer(listenerUuid);
+            ServerPlayer listener = serverInstance.getPlayerList().getPlayer(listenerUuid);
             if (listener != null) {
-                listener.sendMessage(msg, false);
+                listener.displayClientMessage(msg, false);
             }
         }
     }
 
     /** Anticheat flags raised since the current run was armed, e.g. "Speed x3, Fly x1"; "" if none. */
-    public static String runFlagSummary(ServerPlayerEntity player) {
+    public static String runFlagSummary(ServerPlayer player) {
         AntiCheatPlayerState state = stateOf(player);
         return state == null ? "" : state.runFlagSummary();
     }
 
-    public static AntiCheatPlayerState stateOf(ServerPlayerEntity player) {
+    public static AntiCheatPlayerState stateOf(ServerPlayer player) {
         if (player == null) {
             return null;
         }
-        return PLAYER_STATES.computeIfAbsent(player.getUuid(), uuid -> {
+        return PLAYER_STATES.computeIfAbsent(player.getUUID(), uuid -> {
             AntiCheatPlayerState state = new AntiCheatPlayerState(uuid);
-            state.setLastKnownName(player.getNameForScoreboard());
+            state.setLastKnownName(player.getScoreboardName());
             return state;
         });
     }
@@ -202,21 +201,21 @@ public final class AntiCheatManager {
         return PLAYER_STATES;
     }
 
-    public static boolean isExempt(ServerPlayerEntity player) {
+    public static boolean isExempt(ServerPlayer player) {
         if (player == null) {
             return true;
         }
-        if (player.hasPermissionLevel(4)) {
+        if (player.hasPermissions(4)) {
             return true;
         }
         if (player.isCreative() || player.isSpectator()) {
             return true;
         }
-        return EXEMPT_PLAYERS.contains(player.getUuid());
+        return EXEMPT_PLAYERS.contains(player.getUUID());
     }
 
-    private static String exemptReason(ServerPlayerEntity player) {
-        if (player.hasPermissionLevel(4)) {
+    private static String exemptReason(ServerPlayer player) {
+        if (player.hasPermissions(4)) {
             return "exempt:op4";
         }
         if (player.isCreative()) {
@@ -225,7 +224,7 @@ public final class AntiCheatManager {
         if (player.isSpectator()) {
             return "exempt:spectator";
         }
-        if (EXEMPT_PLAYERS.contains(player.getUuid())) {
+        if (EXEMPT_PLAYERS.contains(player.getUUID())) {
             return "exempt:list";
         }
         return "checked";
@@ -235,11 +234,11 @@ public final class AntiCheatManager {
     // log with zero flags can be told apart from a log where the player was never evaluated.
     private static final Map<UUID, String> LAST_AC_STATUS = new ConcurrentHashMap<>();
 
-    private static void logStatusTransition(ServerPlayerEntity player) {
+    private static void logStatusTransition(ServerPlayer player) {
         String status = exemptReason(player);
-        String previous = LAST_AC_STATUS.put(player.getUuid(), status);
+        String previous = LAST_AC_STATUS.put(player.getUUID(), status);
         if (!status.equals(previous)) {
-            Minehop.LOGGER.info("[AC] {} status {} -> {}", player.getNameForScoreboard(),
+            Minehop.LOGGER.info("[AC] {} status {} -> {}", player.getScoreboardName(),
                     previous == null ? "none" : previous, status);
         }
     }
@@ -270,11 +269,11 @@ public final class AntiCheatManager {
         return removed;
     }
 
-    public static boolean toggleVerbose(ServerPlayerEntity admin) {
+    public static boolean toggleVerbose(ServerPlayer admin) {
         if (admin == null) {
             return false;
         }
-        UUID uuid = admin.getUuid();
+        UUID uuid = admin.getUUID();
         if (VERBOSE_LISTENERS.remove(uuid)) {
             return false;
         }
@@ -290,15 +289,15 @@ public final class AntiCheatManager {
         return currentServerTick;
     }
 
-    public static void markAuthorizedTeleport(ServerPlayerEntity player) {
+    public static void markAuthorizedTeleport(ServerPlayer player) {
         if (player == null) {
             return;
         }
         AntiCheatPlayerState state = stateOf(player);
         if (state != null) {
             state.markAuthorizedTeleport(currentServerTick);
-            state.setLastVerifiedPos(player.getPos());
-            state.setLastReportedPos(player.getPos());
+            state.setLastVerifiedPos(player.position());
+            state.setLastReportedPos(player.position());
             state.resetAirborneTicks();
             state.resetConsecutiveLagbacks();
         }
@@ -322,11 +321,11 @@ public final class AntiCheatManager {
     }
 
     public static void onMovementTick(
-            ServerPlayerEntity player,
-            Vec3d preMovePos,
-            Vec3d postMovePos,
-            Vec3d preMoveVelocity,
-            Vec3d postMoveVelocity,
+            ServerPlayer player,
+            Vec3 preMovePos,
+            Vec3 postMovePos,
+            Vec3 preMoveVelocity,
+            Vec3 postMoveVelocity,
             boolean onGround,
             boolean wasOnGround,
             boolean climbing,
@@ -338,7 +337,7 @@ public final class AntiCheatManager {
         if (!enabled || player == null || preMovePos == null || postMovePos == null) {
             return;
         }
-        if (player.getWorld() == null || player.getWorld().isClient) {
+        if (player.level() == null || player.level().isClientSide) {
             return;
         }
         // Fake players (movement harness, replay stand-ins) are entirely server-driven — there is no
@@ -352,7 +351,7 @@ public final class AntiCheatManager {
             if (exemptState != null) {
                 exemptState.setLastReportedPos(postMovePos);
                 exemptState.setLastVerifiedPos(postMovePos);
-                exemptState.setLastTickVelocity(postMoveVelocity == null ? Vec3d.ZERO : postMoveVelocity);
+                exemptState.setLastTickVelocity(postMoveVelocity == null ? Vec3.ZERO : postMoveVelocity);
                 exemptState.setLastTickTime(currentServerTick);
                 // Keep transient counters benign while exempt so leaving creative/exempt can't insta-flag.
                 // Do NOT markAuthorizedTeleport here: spamming it every tick made every probe/grace
@@ -367,7 +366,7 @@ public final class AntiCheatManager {
         if (state == null) {
             return;
         }
-        state.setLastKnownName(player.getNameForScoreboard());
+        state.setLastKnownName(player.getScoreboardName());
 
         MinehopConfig config = ConfigWrapper.config;
         boolean usingPlotCreative = player.isCreative();
@@ -424,10 +423,10 @@ public final class AntiCheatManager {
                 state.addFlag(flag);
                 broadcastFlag(player, check.name(), result.details, level);
                 logFlagToConsole(player, check.name(), level, check.lagbackThreshold(), result.details, postMovePos);
-                if (Minehop.surfDebugPlayers.contains(player.getUuid())) {
+                if (Minehop.surfDebugPlayers.contains(player.getUUID())) {
                     Minehop.LOGGER.info(String.format(Locale.ROOT,
                             "[ACDBG] %s FLAG %s vl=%.1f thr=%.1f surfing=%b onGround=%b wasOnGround=%b airTicks=%d pos=(%.2f,%.2f,%.2f) %s",
-                            player.getNameForScoreboard(), check.name(), level, check.lagbackThreshold(),
+                            player.getScoreboardName(), check.name(), level, check.lagbackThreshold(),
                             surfing, onGround, wasOnGround, state.airborneTicks(),
                             postMovePos.x, postMovePos.y, postMovePos.z, result.details));
                 }
@@ -444,10 +443,10 @@ public final class AntiCheatManager {
         if (performLagback) {
             // Lagbacks always reach the server console (they are already rate-limited by the lagback
             // cooldown) so an admin has a trail without needing /mdebug on the offender.
-            Vec3d t = state.lastVerifiedPos();
+            Vec3 t = state.lastVerifiedPos();
             Minehop.LOGGER.info(String.format(Locale.ROOT,
                     "[AC] %s LAGBACK from=(%.2f,%.2f,%.2f) to=(%.2f,%.2f,%.2f) surfing=%b onGround=%b airTicks=%d",
-                    player.getNameForScoreboard(), postMovePos.x, postMovePos.y, postMovePos.z,
+                    player.getScoreboardName(), postMovePos.x, postMovePos.y, postMovePos.z,
                     t == null ? 0 : t.x, t == null ? 0 : t.y, t == null ? 0 : t.z,
                     surfing, onGround, state.airborneTicks()));
             triggerLagback(player, state);
@@ -463,14 +462,14 @@ public final class AntiCheatManager {
         // anchor — freeze it so the next allowed lagback returns the player to the last clean position,
         // not somewhere they reached while cheating during the cooldown window.
         state.setLastReportedPos(postMovePos);
-        state.setLastTickVelocity(postMoveVelocity == null ? Vec3d.ZERO : postMoveVelocity);
+        state.setLastTickVelocity(postMoveVelocity == null ? Vec3.ZERO : postMoveVelocity);
         state.setLastTickTime(currentServerTick);
         if (onGround || climbing || inFluid || surfing) {
             state.resetAirborneTicks();
         } else {
             state.incrementAirborneTicks();
         }
-        if (postMovePos.squaredDistanceTo(preMovePos) < 1.0E-8D) {
+        if (postMovePos.distanceToSqr(preMovePos) < 1.0E-8D) {
             state.incrementTicksSinceMoved();
         } else {
             state.resetTicksSinceMoved();
@@ -488,10 +487,10 @@ public final class AntiCheatManager {
     private static final double ALLOW_LOG_SPEED_FLOOR = 0.45D;
 
     private static void recordAllowReason(
-            ServerPlayerEntity player,
-            Vec3d preMovePos,
-            Vec3d postMovePos,
-            Vec3d postMoveVelocity,
+            ServerPlayer player,
+            Vec3 preMovePos,
+            Vec3 postMovePos,
+            Vec3 postMoveVelocity,
             boolean surfing,
             boolean justTeleported,
             boolean inFluid,
@@ -500,7 +499,7 @@ public final class AntiCheatManager {
     ) {
         double speed = postMoveVelocity == null ? 0.0D : Math.hypot(postMoveVelocity.x, postMoveVelocity.z);
         double movedHoriz = Math.hypot(postMovePos.x - preMovePos.x, postMovePos.z - preMovePos.z);
-        boolean vehicle = player.hasVehicle() || player.isGliding();
+        boolean vehicle = player.isPassenger() || player.isFallFlying();
 
         AntiCheatAllowLog.Reason reason = null;
         if (surfing && speed > ALLOW_LOG_SPEED_FLOOR) {
@@ -529,24 +528,24 @@ public final class AntiCheatManager {
         return currentServerTick - lastLagback >= LAGBACK_COOLDOWN_TICKS;
     }
 
-    private static void triggerLagback(ServerPlayerEntity player, AntiCheatPlayerState state) {
-        if (player.networkHandler == null) {
+    private static void triggerLagback(ServerPlayer player, AntiCheatPlayerState state) {
+        if (player.connection == null) {
             return;
         }
-        Vec3d target = state.lastVerifiedPos();
+        Vec3 target = state.lastVerifiedPos();
         if (target == null) {
-            target = player.getPos();
+            target = player.position();
         }
         state.markLagback(currentServerTick);
-        player.networkHandler.requestTeleport(target.x, target.y, target.z, player.getYaw(), player.getPitch());
-        player.setVelocity(Vec3d.ZERO);
-        player.velocityDirty = true;
+        player.connection.teleport(target.x, target.y, target.z, player.getYRot(), player.getXRot());
+        player.setDeltaMovement(Vec3.ZERO);
+        player.hasImpulse = true;
         // M4 escalation: surface persistent rollback (likely a cheater, or a severe desync worth
         // investigating) to the server log — non-punitive, no auto-kick, to avoid false action.
         int consecutive = state.consecutiveLagbacks();
         if (consecutive == 10 || consecutive == 25 || consecutive == 50 || (consecutive > 50 && consecutive % 50 == 0)) {
             Minehop.LOGGER.warn("[AC] {} has {} consecutive lagbacks (persistent invalid movement)",
-                    player.getNameForScoreboard(), consecutive);
+                    player.getScoreboardName(), consecutive);
         }
     }
 
@@ -556,9 +555,9 @@ public final class AntiCheatManager {
     private static final long CONSOLE_FLAG_INTERVAL_TICKS = 10L;
     private static final Map<String, long[]> CONSOLE_FLAG_THROTTLE = new ConcurrentHashMap<>();
 
-    private static void logFlagToConsole(ServerPlayerEntity player, String checkName, double level,
-                                         double lagbackThreshold, String details, Vec3d pos) {
-        String key = player.getUuid() + "|" + checkName;
+    private static void logFlagToConsole(ServerPlayer player, String checkName, double level,
+                                         double lagbackThreshold, String details, Vec3 pos) {
+        String key = player.getUUID() + "|" + checkName;
         long[] slot = CONSOLE_FLAG_THROTTLE.computeIfAbsent(key, k -> new long[]{Long.MIN_VALUE, 0L});
         boolean first = slot[0] == Long.MIN_VALUE;
         if (!first && currentServerTick >= slot[0] && currentServerTick - slot[0] < CONSOLE_FLAG_INTERVAL_TICKS) {
@@ -570,7 +569,7 @@ public final class AntiCheatManager {
         slot[1] = 0L;
         Minehop.LOGGER.info(String.format(Locale.ROOT,
                 "[AC] %s FLAG %s vl=%.1f/%.1f pos=(%.2f,%.2f,%.2f) %s%s",
-                player.getNameForScoreboard(), checkName, level, lagbackThreshold,
+                player.getScoreboardName(), checkName, level, lagbackThreshold,
                 pos.x, pos.y, pos.z, details == null ? "" : details,
                 suppressed > 0 ? " (+" + suppressed + " suppressed)" : ""));
     }
@@ -580,22 +579,22 @@ public final class AntiCheatManager {
         CONSOLE_FLAG_THROTTLE.keySet().removeIf(k -> k.startsWith(prefix));
     }
 
-    private static void broadcastFlag(ServerPlayerEntity offender, String checkName, String details, double level) {
+    private static void broadcastFlag(ServerPlayer offender, String checkName, String details, double level) {
         if (VERBOSE_LISTENERS.isEmpty() || serverInstance == null) {
             return;
         }
-        String offenderName = offender.getNameForScoreboard();
+        String offenderName = offender.getScoreboardName();
         String preview = details == null || details.isEmpty() ? "" : (" " + details);
-        Text msg = Text.literal("[AC] ")
-                .formatted(Formatting.RED)
-                .append(Text.literal(offenderName).formatted(Formatting.YELLOW))
-                .append(Text.literal(" @ ").formatted(Formatting.GRAY))
-                .append(Text.literal(checkName).formatted(Formatting.AQUA))
-                .append(Text.literal(String.format(Locale.ROOT, " (vl=%.1f)", level)).formatted(Formatting.GOLD))
-                .append(Text.literal(preview).formatted(Formatting.GRAY));
+        Component msg = Component.literal("[AC] ")
+                .withStyle(ChatFormatting.RED)
+                .append(Component.literal(offenderName).withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal(" @ ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(checkName).withStyle(ChatFormatting.AQUA))
+                .append(Component.literal(String.format(Locale.ROOT, " (vl=%.1f)", level)).withStyle(ChatFormatting.GOLD))
+                .append(Component.literal(preview).withStyle(ChatFormatting.GRAY));
 
         for (UUID listenerUuid : new HashSet<>(VERBOSE_LISTENERS)) {
-            ServerPlayerEntity listener = serverInstance.getPlayerManager().getPlayer(listenerUuid);
+            ServerPlayer listener = serverInstance.getPlayerList().getPlayer(listenerUuid);
             if (listener == null) {
                 VERBOSE_LISTENERS.remove(listenerUuid);
                 continue;
@@ -605,13 +604,13 @@ public final class AntiCheatManager {
                 continue;
             }
             LAST_VERBOSE_TICK.put(listenerUuid, currentServerTick);
-            listener.sendMessage(msg, false);
+            listener.displayClientMessage(msg, false);
         }
     }
 
-    public static void notifyPlayer(ServerPlayerEntity player, String text) {
+    public static void notifyPlayer(ServerPlayer player, String text) {
         if (player != null && text != null) {
-            Logger.log(player, Text.literal(text));
+            Logger.log(player, Component.literal(text));
         }
     }
 
@@ -620,7 +619,7 @@ public final class AntiCheatManager {
             return;
         }
         serverInstance = server;
-        currentServerTick = server.getOverworld() == null ? currentServerTick + 1 : server.getOverworld().getTime();
+        currentServerTick = server.overworld() == null ? currentServerTick + 1 : server.overworld().getGameTime();
         MovementValidator.onServerTick(server);
         autoSaveCountdown--;
         if (autoSaveCountdown <= 0) {

@@ -1,15 +1,15 @@
 package net.nerdorg.minehop.util;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.registry.Registries;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.SurfRampEntity;
@@ -42,31 +42,31 @@ public class SurfRampPlacementManager {
     private static final int AUTO_SPLIT_CORNER_BLEND_MAX_SAMPLES = 10;
     private static final int MAX_SURF_RAMP_SEGMENTS_PER_PLOT = 64;
 
-    public static void setPoint(ServerPlayerEntity player, BlockPos point) {
+    public static void setPoint(ServerPlayer player, BlockPos point) {
         if (player == null || point == null) {
             return;
         }
-        if (!player.hasPermissionLevel(4)
-                && player.getWorld() instanceof ServerWorld serverWorld
+        if (!player.hasPermissions(4)
+                && player.level() instanceof ServerLevel serverWorld
                 && !UserPlotManager.canBuildAt(player, serverWorld, point)) {
             Logger.logFailure(player, "You can only place surf ramps inside your own plot.");
             return;
         }
 
-        PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUuid(), key -> new PlacementState());
-        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
-        BlockPos immutablePoint = point.toImmutable();
+        PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUUID(), key -> new PlacementState());
+        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUUID(), key -> new PlacementOptions());
+        BlockPos immutablePoint = point.immutable();
         if (!state.points.isEmpty() && state.points.get(state.points.size() - 1).equals(immutablePoint)) {
             Logger.logFailure(player, "Point is identical to the previous point.");
             return;
         }
 
         state.points.add(immutablePoint);
-        state.playerDecisionPosition = player.getPos();
+        state.playerDecisionPosition = player.position();
         if (state.points.size() == 1) {
             Logger.logSuccess(player, "Surf point 1 set to " + immutablePoint.toShortString());
-            Logger.log(player, Text.literal("Surf stick: adjust drop/width/texture in the opened GUI, then right click more blocks."));
-            Logger.log(player, Text.literal("Use /surfstick finish to create the ramp, or /surfstick clear to reset."));
+            Logger.log(player, Component.literal("Surf stick: adjust drop/width/texture in the opened GUI, then right click more blocks."));
+            Logger.log(player, Component.literal("Use /surfstick finish to create the ramp, or /surfstick clear to reset."));
             PacketHandler.openSurfStickSettings(
                     player,
                     options.width,
@@ -88,56 +88,56 @@ public class SurfRampPlacementManager {
         syncPreview(player, state);
     }
 
-    public static int chooseMode(ServerPlayerEntity player, boolean oneSided) {
+    public static int chooseMode(ServerPlayer player, boolean oneSided) {
         if (player == null) {
             return 0;
         }
 
-        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
+        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUUID(), key -> new PlacementOptions());
         options.oneSided = oneSided;
 
         if (oneSided) {
             Logger.logSuccess(player, "Surf ramp mode set to one-sided.");
-            Logger.log(player, Text.literal("Set one-sided face to inside/outside with the surf stick GUI."));
+            Logger.log(player, Component.literal("Set one-sided face to inside/outside with the surf stick GUI."));
         } else {
             Logger.logSuccess(player, "Surf ramp mode set to two-sided.");
         }
 
-        PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUuid(), key -> new PlacementState());
+        PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUUID(), key -> new PlacementState());
         syncPreview(player, state);
         return 1;
     }
 
-    public static int chooseSide(ServerPlayerEntity player, boolean playerSide) {
+    public static int chooseSide(ServerPlayer player, boolean playerSide) {
         if (player == null) {
             return 0;
         }
 
-        PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUuid(), key -> new PlacementState());
-        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
+        PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUUID(), key -> new PlacementState());
+        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUUID(), key -> new PlacementOptions());
         options.outsideCurve = !playerSide;
-        state.playerDecisionPosition = player.getPos();
+        state.playerDecisionPosition = player.position();
         Logger.logSuccess(player, "One-sided face set to " + (playerSide ? "my side / inside" : "other side / outside") + ".");
         syncPreview(player, state);
         return 1;
     }
 
-    public static int finishSelection(ServerPlayerEntity player) {
+    public static int finishSelection(ServerPlayer player) {
         if (player == null) {
             return 0;
         }
 
-        PlacementState state = PLACEMENT_STATES.get(player.getUuid());
+        PlacementState state = PLACEMENT_STATES.get(player.getUUID());
         if (state == null || state.points.size() < 2) {
             Logger.logFailure(player, "Set at least two points with the surf stick first.");
             return 0;
         }
 
-        if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(player.level() instanceof ServerLevel serverWorld)) {
             Logger.logFailure(player, "Could not create ramp in this world.");
             return 0;
         }
-        if (!player.hasPermissionLevel(4)) {
+        if (!player.hasPermissions(4)) {
             for (BlockPos selectedPoint : state.points) {
                 if (selectedPoint == null) {
                     continue;
@@ -149,18 +149,18 @@ public class SurfRampPlacementManager {
             }
         }
 
-        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
-        Vec3d decisionPosition = state.playerDecisionPosition != null ? state.playerDecisionPosition : player.getPos();
+        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUUID(), key -> new PlacementOptions());
+        Vec3 decisionPosition = state.playerDecisionPosition != null ? state.playerDecisionPosition : player.position();
 
-        List<Vec3d> centerlinePoints = toCenterlinePoints(state.points);
+        List<Vec3> centerlinePoints = toCenterlinePoints(state.points);
         if (centerlinePoints.size() < 2) {
             Logger.logFailure(player, "No valid ramp path was created (points may be too close).");
             return 0;
         }
 
-        Vec3d referenceStart = centerlinePoints.get(0);
-        Vec3d referenceEnd = centerlinePoints.get(centerlinePoints.size() - 1);
-        if (referenceStart.squaredDistanceTo(referenceEnd) < 1.0E-4D) {
+        Vec3 referenceStart = centerlinePoints.get(0);
+        Vec3 referenceEnd = centerlinePoints.get(centerlinePoints.size() - 1);
+        if (referenceStart.distanceToSqr(referenceEnd) < 1.0E-4D) {
             Logger.logFailure(player, "Ramp start and end are too close.");
             return 0;
         }
@@ -191,7 +191,7 @@ public class SurfRampPlacementManager {
 
         DataManager.MapData targetPlot = UserPlotManager.getPlotAt(serverWorld, centerlinePoints.get(0));
         if (targetPlot != null) {
-            if (!player.hasPermissionLevel(4)
+            if (!player.hasPermissions(4)
                     && !rampFitsInPlot(targetPlot, centerlinePoints, options.width, twoSided, sideSign)) {
                 Logger.logFailure(player, "The ramp (including its width) must stay fully inside your plot.");
                 return 0;
@@ -208,13 +208,13 @@ public class SurfRampPlacementManager {
                 );
                 return 0;
             }
-        } else if (!player.hasPermissionLevel(4)) {
+        } else if (!player.hasPermissions(4)) {
             Logger.logFailure(player, "Surf ramps can only be placed inside your plot.");
             return 0;
         }
 
         String chainId = UUID.randomUUID().toString();
-        List<Vec3d> sharedPathPoints = List.copyOf(centerlinePoints);
+        List<Vec3> sharedPathPoints = List.copyOf(centerlinePoints);
         int sharedPathSpan = Math.max(sharedPathPoints.size() - 1, 1);
 
         int spawned = 0;
@@ -223,10 +223,10 @@ public class SurfRampPlacementManager {
             if (segmentSlice == null || segmentSlice.endIndex <= segmentSlice.startIndex) {
                 continue;
             }
-            List<Vec3d> segmentPoints = centerlinePoints.subList(segmentSlice.startIndex, segmentSlice.endIndex + 1);
-            Vec3d segmentStart = segmentPoints.get(0);
-            Vec3d segmentEnd = segmentPoints.get(segmentPoints.size() - 1);
-            if (segmentStart.squaredDistanceTo(segmentEnd) < 1.0E-4D) {
+            List<Vec3> segmentPoints = centerlinePoints.subList(segmentSlice.startIndex, segmentSlice.endIndex + 1);
+            Vec3 segmentStart = segmentPoints.get(0);
+            Vec3 segmentEnd = segmentPoints.get(segmentPoints.size() - 1);
+            if (segmentStart.distanceToSqr(segmentEnd) < 1.0E-4D) {
                 continue;
             }
 
@@ -244,7 +244,7 @@ public class SurfRampPlacementManager {
             ramp.setWireframeFillColorRgb(options.wireframeFillColor);
             ramp.setWireframeFillAlpha(options.wireframeFillAlpha);
             ramp.setLinkedSeams(segmentIdx > 0, segmentIdx < rampSegments.size() - 1);
-            if (serverWorld.spawnEntity(ramp)) {
+            if (serverWorld.addFreshEntity(ramp)) {
                 spawned++;
             }
         }
@@ -266,11 +266,11 @@ public class SurfRampPlacementManager {
         return 1;
     }
 
-    public static int clearSelection(ServerPlayerEntity player) {
+    public static int clearSelection(ServerPlayer player) {
         if (player == null) {
             return 0;
         }
-        PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUuid(), key -> new PlacementState());
+        PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUUID(), key -> new PlacementState());
         state.clearPoints();
         PacketHandler.clearSurfStickPreview(player);
         Logger.logSuccess(player, "Cleared surf stick selection.");
@@ -286,22 +286,22 @@ public class SurfRampPlacementManager {
         EDIT_STATES.remove(playerUuid);
     }
 
-    public static void cancelSelectionFromGui(ServerPlayerEntity player) {
+    public static void cancelSelectionFromGui(ServerPlayer player) {
         if (player == null) {
             return;
         }
-        EditState editState = EDIT_STATES.remove(player.getUuid());
+        EditState editState = EDIT_STATES.remove(player.getUUID());
         if (editState != null) {
             Logger.logActionBar(player, "Surf ramp edit canceled.");
             return;
         }
-        PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUuid(), key -> new PlacementState());
+        PlacementState state = PLACEMENT_STATES.computeIfAbsent(player.getUUID(), key -> new PlacementState());
         state.clearPoints();
         PacketHandler.clearSurfStickPreview(player);
         Logger.logActionBar(player, "Surf stick creation canceled.");
     }
 
-    public static void openEditor(ServerPlayerEntity player, SurfRampEntity ramp) {
+    public static void openEditor(ServerPlayer player, SurfRampEntity ramp) {
         if (player == null || ramp == null) {
             return;
         }
@@ -309,7 +309,7 @@ public class SurfRampPlacementManager {
             Logger.logFailure(player, "You can only edit surf ramps in your own plot.");
             return;
         }
-        if (!(player.getWorld() instanceof ServerWorld serverWorld) || ramp.getWorld() != serverWorld) {
+        if (!(player.level() instanceof ServerLevel serverWorld) || ramp.level() != serverWorld) {
             Logger.logFailure(player, "Could not edit that surf ramp in this world.");
             return;
         }
@@ -332,7 +332,7 @@ public class SurfRampPlacementManager {
         List<UUID> targetUuids = new ArrayList<>();
         for (SurfRampEntity segment : connected) {
             if (segment != null && segment.isAlive() && !segment.isRemoved()) {
-                targetUuids.add(segment.getUuid());
+                targetUuids.add(segment.getUUID());
             }
         }
         if (targetUuids.isEmpty()) {
@@ -341,13 +341,13 @@ public class SurfRampPlacementManager {
         }
 
         EditState editState = new EditState(
-                serverWorld.getRegistryKey().getValue().toString(),
+                serverWorld.dimension().location().toString(),
                 ramp.getChainId(),
                 pathPointsEncoded,
                 targetUuids,
                 normalizedInsideSign
         );
-        EDIT_STATES.put(player.getUuid(), editState);
+        EDIT_STATES.put(player.getUUID(), editState);
 
         PacketHandler.openSurfStickSettings(
                 player,
@@ -366,11 +366,11 @@ public class SurfRampPlacementManager {
         Logger.logActionBar(player, "Editing surf ramp chain (" + targetUuids.size() + " segments).");
     }
 
-    public static void deleteEditedRamp(ServerPlayerEntity player) {
+    public static void deleteEditedRamp(ServerPlayer player) {
         if (player == null) {
             return;
         }
-        EditState editState = EDIT_STATES.remove(player.getUuid());
+        EditState editState = EDIT_STATES.remove(player.getUUID());
         if (editState == null) {
             Logger.logFailure(player, "No surf ramp edit is active.");
             return;
@@ -387,10 +387,10 @@ public class SurfRampPlacementManager {
             if (segment == null || segment.isRemoved()) {
                 continue;
             }
-            if (segment.getWorld() instanceof ServerWorld segmentWorld) {
+            if (segment.level() instanceof ServerLevel segmentWorld) {
                 segment.kill(segmentWorld);
             } else {
-                segment.remove(net.minecraft.entity.Entity.RemovalReason.KILLED);
+                segment.remove(net.minecraft.world.entity.Entity.RemovalReason.KILLED);
             }
             removed++;
         }
@@ -402,46 +402,46 @@ public class SurfRampPlacementManager {
         }
     }
 
-    public static int setWidth(ServerPlayerEntity player, double width) {
+    public static int setWidth(ServerPlayer player, double width) {
         if (player == null) {
             return 0;
         }
-        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
-        options.width = MathHelper.clamp(width, 0.15D, 64.0D);
+        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUUID(), key -> new PlacementOptions());
+        options.width = Mth.clamp(width, 0.15D, 64.0D);
         Logger.logSuccess(player, "Surf ramp width set to " + String.format("%.2f", options.width));
 
-        PlacementState state = PLACEMENT_STATES.get(player.getUuid());
+        PlacementState state = PLACEMENT_STATES.get(player.getUUID());
         if (state != null) {
             syncPreview(player, state);
         }
         return 1;
     }
 
-    public static int setDrop(ServerPlayerEntity player, double drop) {
+    public static int setDrop(ServerPlayer player, double drop) {
         if (player == null) {
             return 0;
         }
-        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
-        options.drop = MathHelper.clamp(drop, 0.1D, 64.0D);
+        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUUID(), key -> new PlacementOptions());
+        options.drop = Mth.clamp(drop, 0.1D, 64.0D);
         Logger.logSuccess(player, "Surf ramp drop set to " + String.format("%.2f", options.drop));
 
-        PlacementState state = PLACEMENT_STATES.get(player.getUuid());
+        PlacementState state = PLACEMENT_STATES.get(player.getUUID());
         if (state != null) {
             syncPreview(player, state);
         }
         return 1;
     }
 
-    public static int setTexture(ServerPlayerEntity player, String textureBlockId) {
+    public static int setTexture(ServerPlayer player, String textureBlockId) {
         if (player == null) {
             return 0;
         }
-        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
+        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUUID(), key -> new PlacementOptions());
         String sanitized = sanitizeTextureBlockId(textureBlockId);
         options.textureBlockId = sanitized;
         Logger.logSuccess(player, "Surf ramp texture set to " + sanitized);
 
-        PlacementState state = PLACEMENT_STATES.get(player.getUuid());
+        PlacementState state = PLACEMENT_STATES.get(player.getUUID());
         if (state != null) {
             syncPreview(player, state);
         }
@@ -449,7 +449,7 @@ public class SurfRampPlacementManager {
     }
 
     public static void applyOptionsFromGui(
-            ServerPlayerEntity player,
+            ServerPlayer player,
             double width,
             double drop,
             String textureBlockId,
@@ -464,9 +464,9 @@ public class SurfRampPlacementManager {
         if (player == null) {
             return;
         }
-        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
-        options.width = MathHelper.clamp(width, 0.15D, 64.0D);
-        options.drop = MathHelper.clamp(drop, 0.1D, 64.0D);
+        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUUID(), key -> new PlacementOptions());
+        options.width = Mth.clamp(width, 0.15D, 64.0D);
+        options.drop = Mth.clamp(drop, 0.1D, 64.0D);
         options.textureBlockId = sanitizeTextureBlockId(textureBlockId);
         options.oneSided = oneSided;
         options.outsideCurve = outsideCurve;
@@ -476,17 +476,17 @@ public class SurfRampPlacementManager {
         options.wireframeFillColor = SurfRampVisualStyle.sanitizeColor(wireframeFillColor, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_COLOR);
         options.wireframeFillAlpha = SurfRampVisualStyle.sanitizeAlpha(wireframeFillAlpha, SurfRampVisualStyle.DEFAULT_WIREFRAME_FILL_ALPHA);
 
-        EditState editState = EDIT_STATES.remove(player.getUuid());
+        EditState editState = EDIT_STATES.remove(player.getUUID());
         if (editState != null) {
             applyOptionsToEditedRamps(player, options, editState);
-            PlacementState placementState = PLACEMENT_STATES.get(player.getUuid());
+            PlacementState placementState = PLACEMENT_STATES.get(player.getUUID());
             if (placementState != null && !placementState.points.isEmpty()) {
                 syncPreview(player, placementState);
             }
             return;
         }
 
-        PlacementState state = PLACEMENT_STATES.get(player.getUuid());
+        PlacementState state = PLACEMENT_STATES.get(player.getUUID());
         if (state != null) {
             syncPreview(player, state);
         }
@@ -515,7 +515,7 @@ public class SurfRampPlacementManager {
         return options.textureBlockId;
     }
 
-    private static void syncPreview(ServerPlayerEntity player, PlacementState state) {
+    private static void syncPreview(ServerPlayer player, PlacementState state) {
         if (player == null || state == null) {
             return;
         }
@@ -524,11 +524,11 @@ public class SurfRampPlacementManager {
             return;
         }
 
-        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUuid(), key -> new PlacementOptions());
+        PlacementOptions options = PLACEMENT_OPTIONS.computeIfAbsent(player.getUUID(), key -> new PlacementOptions());
         PacketHandler.sendSurfStickPreview(player, state.points, options.width, options.drop, options.oneSided, options.outsideCurve);
     }
 
-    private static void applyOptionsToEditedRamps(ServerPlayerEntity player, PlacementOptions options, EditState editState) {
+    private static void applyOptionsToEditedRamps(ServerPlayer player, PlacementOptions options, EditState editState) {
         if (player == null || options == null || editState == null) {
             return;
         }
@@ -555,8 +555,8 @@ public class SurfRampPlacementManager {
                     || ramp.isTwoSided() != twoSided
                     || ramp.getSideSign() != sideSign;
             if (geometryChanged) {
-                Vec3d start = ramp.getStart();
-                Vec3d end = ramp.getEnd();
+                Vec3 start = ramp.getStart();
+                Vec3 end = ramp.getEnd();
                 ramp.setGeometry(start, end, options.drop, options.width, twoSided, sideSign);
             }
             ramp.setTextureBlockId(options.textureBlockId);
@@ -582,14 +582,14 @@ public class SurfRampPlacementManager {
         );
     }
 
-    private static List<SurfRampEntity> resolveEditTargets(ServerPlayerEntity player, EditState editState) {
+    private static List<SurfRampEntity> resolveEditTargets(ServerPlayer player, EditState editState) {
         if (player == null || editState == null) {
             return List.of();
         }
-        if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(player.level() instanceof ServerLevel serverWorld)) {
             return List.of();
         }
-        String currentWorldKey = serverWorld.getRegistryKey().getValue().toString();
+        String currentWorldKey = serverWorld.dimension().location().toString();
         if (!currentWorldKey.equals(editState.worldKey)) {
             return List.of();
         }
@@ -599,7 +599,7 @@ public class SurfRampPlacementManager {
             if (uuid == null) {
                 continue;
             }
-            net.minecraft.entity.Entity entity = serverWorld.getEntity(uuid);
+            net.minecraft.world.entity.Entity entity = serverWorld.getEntity(uuid);
             if (entity instanceof SurfRampEntity ramp && ramp.isAlive() && !ramp.isRemoved()) {
                 resolved.add(ramp);
             }
@@ -634,11 +634,11 @@ public class SurfRampPlacementManager {
         return filterEditableTargets(player, resolved);
     }
 
-    private static List<SurfRampEntity> filterEditableTargets(ServerPlayerEntity player, List<SurfRampEntity> candidates) {
+    private static List<SurfRampEntity> filterEditableTargets(ServerPlayer player, List<SurfRampEntity> candidates) {
         if (candidates == null || candidates.isEmpty()) {
             return List.of();
         }
-        if (player == null || player.hasPermissionLevel(4)) {
+        if (player == null || player.hasPermissions(4)) {
             return candidates;
         }
         List<SurfRampEntity> filtered = new ArrayList<>();
@@ -657,7 +657,7 @@ public class SurfRampPlacementManager {
         if (sourceRamp == null) {
             return List.of();
         }
-        if (!(sourceRamp.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(sourceRamp.level() instanceof ServerLevel serverWorld)) {
             return List.of(sourceRamp);
         }
 
@@ -694,12 +694,12 @@ public class SurfRampPlacementManager {
         return List.of(sourceRamp);
     }
 
-    private static List<Vec3d> parsePathPoints(String encoded) {
+    private static List<Vec3> parsePathPoints(String encoded) {
         if (encoded == null || encoded.isBlank()) {
             return List.of();
         }
         String[] tokens = encoded.split(";");
-        List<Vec3d> points = new ArrayList<>();
+        List<Vec3> points = new ArrayList<>();
         for (String token : tokens) {
             String[] xyz = token.split(",");
             if (xyz.length != 3) {
@@ -709,7 +709,7 @@ public class SurfRampPlacementManager {
                 double x = Double.parseDouble(xyz[0]);
                 double y = Double.parseDouble(xyz[1]);
                 double z = Double.parseDouble(xyz[2]);
-                points.add(new Vec3d(x, y, z));
+                points.add(new Vec3(x, y, z));
             } catch (NumberFormatException ignored) {
             }
         }
@@ -719,37 +719,37 @@ public class SurfRampPlacementManager {
         return List.copyOf(points);
     }
 
-    private static int findPlayerSideSign(Vec3d start, Vec3d end, Vec3d playerPos) {
-        Vec3d tangent = new Vec3d(end.x - start.x, 0.0D, end.z - start.z);
-        if (tangent.lengthSquared() < 1.0E-8D) {
+    private static int findPlayerSideSign(Vec3 start, Vec3 end, Vec3 playerPos) {
+        Vec3 tangent = new Vec3(end.x - start.x, 0.0D, end.z - start.z);
+        if (tangent.lengthSqr() < 1.0E-8D) {
             return 1;
         }
 
         tangent = tangent.normalize();
-        Vec3d left = new Vec3d(-tangent.z, 0.0D, tangent.x).normalize();
-        Vec3d midpoint = start.add(end).multiply(0.5D);
-        Vec3d toPlayer = new Vec3d(playerPos.x - midpoint.x, 0.0D, playerPos.z - midpoint.z);
-        double lateral = toPlayer.dotProduct(left);
+        Vec3 left = new Vec3(-tangent.z, 0.0D, tangent.x).normalize();
+        Vec3 midpoint = start.add(end).scale(0.5D);
+        Vec3 toPlayer = new Vec3(playerPos.x - midpoint.x, 0.0D, playerPos.z - midpoint.z);
+        double lateral = toPlayer.dot(left);
         return lateral >= 0.0D ? 1 : -1;
     }
 
-    private static boolean isCurved(Vec3d start, Vec3d end) {
+    private static boolean isCurved(Vec3 start, Vec3 end) {
         return Math.abs(start.x - end.x) > 1.0E-5D && Math.abs(start.z - end.z) > 1.0E-5D;
     }
 
-    private static List<Vec3d> toCenterlinePoints(List<BlockPos> points) {
-        List<Vec3d> centerline = new ArrayList<>();
+    private static List<Vec3> toCenterlinePoints(List<BlockPos> points) {
+        List<Vec3> centerline = new ArrayList<>();
         if (points == null) {
             return centerline;
         }
 
-        Vec3d previous = null;
+        Vec3 previous = null;
         for (BlockPos point : points) {
             if (point == null) {
                 continue;
             }
-            Vec3d centered = SurfRampEntity.blockCenter(point);
-            if (previous != null && centered.squaredDistanceTo(previous) < 1.0E-4D) {
+            Vec3 centered = SurfRampEntity.blockCenter(point);
+            if (previous != null && centered.distanceToSqr(previous) < 1.0E-4D) {
                 continue;
             }
             centerline.add(centered);
@@ -758,26 +758,26 @@ public class SurfRampPlacementManager {
         return centerline;
     }
 
-    private static List<Vec3d> extendCenterlineToSelectedBlockEdges(List<Vec3d> points) {
+    private static List<Vec3> extendCenterlineToSelectedBlockEdges(List<Vec3> points) {
         if (points == null || points.size() < 2) {
             return points == null ? List.of() : List.copyOf(points);
         }
 
-        List<Vec3d> extended = new ArrayList<>(points);
-        Vec3d startDirection = horizontalDirection(extended.get(0), extended.get(1));
-        if (startDirection.lengthSquared() > 1.0E-8D) {
-            extended.set(0, extended.get(0).subtract(startDirection.multiply(distanceToBlockEdge(startDirection))));
+        List<Vec3> extended = new ArrayList<>(points);
+        Vec3 startDirection = horizontalDirection(extended.get(0), extended.get(1));
+        if (startDirection.lengthSqr() > 1.0E-8D) {
+            extended.set(0, extended.get(0).subtract(startDirection.scale(distanceToBlockEdge(startDirection))));
         }
 
         int lastIndex = extended.size() - 1;
-        Vec3d endDirection = horizontalDirection(extended.get(lastIndex - 1), extended.get(lastIndex));
-        if (endDirection.lengthSquared() > 1.0E-8D) {
-            extended.set(lastIndex, extended.get(lastIndex).add(endDirection.multiply(distanceToBlockEdge(endDirection))));
+        Vec3 endDirection = horizontalDirection(extended.get(lastIndex - 1), extended.get(lastIndex));
+        if (endDirection.lengthSqr() > 1.0E-8D) {
+            extended.set(lastIndex, extended.get(lastIndex).add(endDirection.scale(distanceToBlockEdge(endDirection))));
         }
         return List.copyOf(extended);
     }
 
-    private static double distanceToBlockEdge(Vec3d direction) {
+    private static double distanceToBlockEdge(Vec3 direction) {
         if (direction == null) {
             return 0.0D;
         }
@@ -788,60 +788,60 @@ public class SurfRampPlacementManager {
         return HALF_BLOCK_EDGE_LENGTH / dominantAxis;
     }
 
-    private static Vec3d horizontalDirection(Vec3d from, Vec3d to) {
+    private static Vec3 horizontalDirection(Vec3 from, Vec3 to) {
         if (from == null || to == null) {
-            return Vec3d.ZERO;
+            return Vec3.ZERO;
         }
-        Vec3d delta = new Vec3d(to.x - from.x, 0.0D, to.z - from.z);
-        if (delta.lengthSquared() < 1.0E-8D) {
-            return Vec3d.ZERO;
+        Vec3 delta = new Vec3(to.x - from.x, 0.0D, to.z - from.z);
+        if (delta.lengthSqr() < 1.0E-8D) {
+            return Vec3.ZERO;
         }
         return delta.normalize();
     }
 
-    private static List<Vec3d> snapOneSidedCenterlineToBlockFaces(List<Vec3d> points, int sideSign) {
+    private static List<Vec3> snapOneSidedCenterlineToBlockFaces(List<Vec3> points, int sideSign) {
         if (points == null || points.size() < 2) {
             return points == null ? List.of() : List.copyOf(points);
         }
 
         int normalizedSideSign = sideSign >= 0 ? 1 : -1;
-        List<Vec3d> snapped = new ArrayList<>();
+        List<Vec3> snapped = new ArrayList<>();
         for (int i = 0; i < points.size(); i++) {
-            Vec3d point = points.get(i);
-            Vec3d left = getPointLeft(points, i);
-            Vec3d snappedPoint = point.add(left.multiply((-0.5D + ONE_SIDED_BLOCK_FACE_CLEARANCE) * normalizedSideSign));
+            Vec3 point = points.get(i);
+            Vec3 left = getPointLeft(points, i);
+            Vec3 snappedPoint = point.add(left.scale((-0.5D + ONE_SIDED_BLOCK_FACE_CLEARANCE) * normalizedSideSign));
             appendIfDistinct(snapped, snappedPoint);
         }
         return List.copyOf(snapped);
     }
 
-    private static Vec3d getPointLeft(List<Vec3d> points, int index) {
+    private static Vec3 getPointLeft(List<Vec3> points, int index) {
         if (points == null || points.size() < 2) {
-            return new Vec3d(1.0D, 0.0D, 0.0D);
+            return new Vec3(1.0D, 0.0D, 0.0D);
         }
 
-        Vec3d previous = points.get(Math.max(0, index - 1));
-        Vec3d next = points.get(Math.min(points.size() - 1, index + 1));
-        Vec3d tangent = new Vec3d(next.x - previous.x, 0.0D, next.z - previous.z);
-        if (tangent.lengthSquared() < 1.0E-8D && index > 0) {
-            Vec3d current = points.get(index);
+        Vec3 previous = points.get(Math.max(0, index - 1));
+        Vec3 next = points.get(Math.min(points.size() - 1, index + 1));
+        Vec3 tangent = new Vec3(next.x - previous.x, 0.0D, next.z - previous.z);
+        if (tangent.lengthSqr() < 1.0E-8D && index > 0) {
+            Vec3 current = points.get(index);
             previous = points.get(index - 1);
-            tangent = new Vec3d(current.x - previous.x, 0.0D, current.z - previous.z);
+            tangent = new Vec3(current.x - previous.x, 0.0D, current.z - previous.z);
         }
-        if (tangent.lengthSquared() < 1.0E-8D && index < points.size() - 1) {
-            Vec3d current = points.get(index);
+        if (tangent.lengthSqr() < 1.0E-8D && index < points.size() - 1) {
+            Vec3 current = points.get(index);
             next = points.get(index + 1);
-            tangent = new Vec3d(next.x - current.x, 0.0D, next.z - current.z);
+            tangent = new Vec3(next.x - current.x, 0.0D, next.z - current.z);
         }
-        if (tangent.lengthSquared() < 1.0E-8D) {
-            return new Vec3d(1.0D, 0.0D, 0.0D);
+        if (tangent.lengthSqr() < 1.0E-8D) {
+            return new Vec3(1.0D, 0.0D, 0.0D);
         }
 
         tangent = tangent.normalize();
-        return new Vec3d(-tangent.z, 0.0D, tangent.x).normalize();
+        return new Vec3(-tangent.z, 0.0D, tangent.x).normalize();
     }
 
-    private static List<Vec3d> densifyCenterlineForSegmentation(List<Vec3d> points) {
+    private static List<Vec3> densifyCenterlineForSegmentation(List<Vec3> points) {
         if (points == null || points.size() < 2) {
             return points == null ? List.of() : List.copyOf(points);
         }
@@ -850,12 +850,12 @@ public class SurfRampPlacementManager {
                 AUTO_SPLIT_RESAMPLE_MIN_STEP,
                 Math.min(0.5D, AUTO_SPLIT_MAX_HORIZONTAL_LENGTH * 0.25D)
         );
-        List<Vec3d> densified = new ArrayList<>();
-        Vec3d previous = points.get(0);
+        List<Vec3> densified = new ArrayList<>();
+        Vec3 previous = points.get(0);
         densified.add(previous);
 
         for (int i = 1; i < points.size(); i++) {
-            Vec3d current = points.get(i);
+            Vec3 current = points.get(i);
             double dx = current.x - previous.x;
             double dz = current.z - previous.z;
             double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
@@ -863,13 +863,13 @@ public class SurfRampPlacementManager {
             int slices = Math.max(1, (int) Math.ceil(horizontalDistance / targetStep));
             for (int s = 1; s < slices; s++) {
                 double t = (double) s / (double) slices;
-                Vec3d intermediate = previous.lerp(current, t);
-                if (intermediate.squaredDistanceTo(densified.get(densified.size() - 1)) > 1.0E-6D) {
+                Vec3 intermediate = previous.lerp(current, t);
+                if (intermediate.distanceToSqr(densified.get(densified.size() - 1)) > 1.0E-6D) {
                     densified.add(intermediate);
                 }
             }
 
-            if (current.squaredDistanceTo(densified.get(densified.size() - 1)) > 1.0E-6D) {
+            if (current.distanceToSqr(densified.get(densified.size() - 1)) > 1.0E-6D) {
                 densified.add(current);
             }
             previous = current;
@@ -878,18 +878,18 @@ public class SurfRampPlacementManager {
         return List.copyOf(densified);
     }
 
-    private static List<Vec3d> softenCenterlineCorners(List<Vec3d> points) {
+    private static List<Vec3> softenCenterlineCorners(List<Vec3> points) {
         if (points == null || points.size() < 3) {
             return points == null ? List.of() : List.copyOf(points);
         }
 
-        List<Vec3d> softened = new ArrayList<>();
+        List<Vec3> softened = new ArrayList<>();
         appendIfDistinct(softened, points.get(0));
 
         for (int i = 1; i < points.size() - 1; i++) {
-            Vec3d previous = points.get(i - 1);
-            Vec3d current = points.get(i);
-            Vec3d next = points.get(i + 1);
+            Vec3 previous = points.get(i - 1);
+            Vec3 current = points.get(i);
+            Vec3 next = points.get(i + 1);
 
             double incomingHorizontal = horizontalDistance(previous, current);
             double outgoingHorizontal = horizontalDistance(current, next);
@@ -913,26 +913,26 @@ public class SurfRampPlacementManager {
                 continue;
             }
 
-            double beforeT = MathHelper.clamp(blendDistance / incomingHorizontal, 0.0D, 1.0D);
-            double afterT = MathHelper.clamp(blendDistance / outgoingHorizontal, 0.0D, 1.0D);
-            Vec3d beforeCorner = current.lerp(previous, beforeT);
-            Vec3d afterCorner = current.lerp(next, afterT);
+            double beforeT = Mth.clamp(blendDistance / incomingHorizontal, 0.0D, 1.0D);
+            double afterT = Mth.clamp(blendDistance / outgoingHorizontal, 0.0D, 1.0D);
+            Vec3 beforeCorner = current.lerp(previous, beforeT);
+            Vec3 afterCorner = current.lerp(next, afterT);
 
-            if (beforeCorner.squaredDistanceTo(afterCorner) < 1.0E-6D) {
+            if (beforeCorner.distanceToSqr(afterCorner) < 1.0E-6D) {
                 appendIfDistinct(softened, current);
                 continue;
             }
 
             appendIfDistinct(softened, beforeCorner);
 
-            int blendSamples = MathHelper.clamp(
+            int blendSamples = Mth.clamp(
                     (int) Math.ceil(turnDegrees / AUTO_SPLIT_CORNER_BLEND_TURN_STEP_DEGREES),
                     2,
                     AUTO_SPLIT_CORNER_BLEND_MAX_SAMPLES
             );
             for (int sample = 1; sample < blendSamples; sample++) {
                 double t = (double) sample / (double) blendSamples;
-                Vec3d blended = quadraticBezier(beforeCorner, current, afterCorner, t);
+                Vec3 blended = quadraticBezier(beforeCorner, current, afterCorner, t);
                 appendIfDistinct(softened, blended);
             }
 
@@ -943,14 +943,14 @@ public class SurfRampPlacementManager {
         return List.copyOf(softened);
     }
 
-    private static boolean hasCurvedPath(List<Vec3d> points) {
+    private static boolean hasCurvedPath(List<Vec3> points) {
         if (points == null || points.size() < 3) {
             return false;
         }
         for (int i = 0; i < points.size() - 2; i++) {
-            Vec3d a = points.get(i);
-            Vec3d b = points.get(i + 1);
-            Vec3d c = points.get(i + 2);
+            Vec3 a = points.get(i);
+            Vec3 b = points.get(i + 1);
+            Vec3 c = points.get(i + 2);
             double abx = b.x - a.x;
             double abz = b.z - a.z;
             double bcx = c.x - b.x;
@@ -963,16 +963,16 @@ public class SurfRampPlacementManager {
         return false;
     }
 
-    private static int resolvePathInsideCurveSideSign(List<Vec3d> points) {
+    private static int resolvePathInsideCurveSideSign(List<Vec3> points) {
         if (points == null || points.size() < 3) {
             return 1;
         }
 
         double weightedCross = 0.0D;
         for (int i = 0; i < points.size() - 2; i++) {
-            Vec3d a = points.get(i);
-            Vec3d b = points.get(i + 1);
-            Vec3d c = points.get(i + 2);
+            Vec3 a = points.get(i);
+            Vec3 b = points.get(i + 1);
+            Vec3 c = points.get(i + 2);
             double abx = b.x - a.x;
             double abz = b.z - a.z;
             double bcx = c.x - b.x;
@@ -982,14 +982,14 @@ public class SurfRampPlacementManager {
         }
 
         if (Math.abs(weightedCross) < 1.0E-6D) {
-            Vec3d start = points.get(0);
-            Vec3d end = points.get(points.size() - 1);
+            Vec3 start = points.get(0);
+            Vec3 end = points.get(points.size() - 1);
             return SurfRampEntity.resolveInsideCurveSideSign(start, end);
         }
         return weightedCross > 0.0D ? 1 : -1;
     }
 
-    private static List<SegmentSlice> splitCenterlineForSpawn(List<Vec3d> points) {
+    private static List<SegmentSlice> splitCenterlineForSpawn(List<Vec3> points) {
         List<SegmentSlice> segments = new ArrayList<>();
         if (points == null || points.size() < 2) {
             return segments;
@@ -1002,7 +1002,7 @@ public class SurfRampPlacementManager {
         int startIndex = 0;
         int guard = 0;
         while (startIndex < points.size() - 1 && guard++ < points.size() * 3) {
-            List<Vec3d> candidate = new ArrayList<>();
+            List<Vec3> candidate = new ArrayList<>();
             candidate.add(points.get(startIndex));
             int endIndex = startIndex + 1;
 
@@ -1042,7 +1042,7 @@ public class SurfRampPlacementManager {
         return segments;
     }
 
-    private static boolean rampFitsInPlot(DataManager.MapData plot, List<Vec3d> centerlinePoints, double rampWidth, boolean twoSided, int sideSign) {
+    private static boolean rampFitsInPlot(DataManager.MapData plot, List<Vec3> centerlinePoints, double rampWidth, boolean twoSided, int sideSign) {
         if (plot == null || centerlinePoints == null || centerlinePoints.size() < 2) {
             return false;
         }
@@ -1051,8 +1051,8 @@ public class SurfRampPlacementManager {
         int normalizedSideSign = sideSign >= 0 ? 1 : -1;
         for (int i = 0; i <= sampleCount; i++) {
             double t = (double) i / sampleCount;
-            Vec3d center = samplePath(centerlinePoints, t);
-            Vec3d left = samplePathLeft(centerlinePoints, t);
+            Vec3 center = samplePath(centerlinePoints, t);
+            Vec3 left = samplePathLeft(centerlinePoints, t);
             if (!fitsPlotAt(plot, center.x, center.z)) {
                 return false;
             }
@@ -1077,19 +1077,19 @@ public class SurfRampPlacementManager {
                 || z < plot.plotMinZ || z > plot.plotMaxZ);
     }
 
-    private static Vec3d samplePath(List<Vec3d> points, double t) {
-        double clampedT = MathHelper.clamp(t, 0.0D, 1.0D);
+    private static Vec3 samplePath(List<Vec3> points, double t) {
+        double clampedT = Mth.clamp(t, 0.0D, 1.0D);
         if (points.size() == 2) {
             return points.get(0).lerp(points.get(1), clampedT);
         }
         int segmentCount = points.size() - 1;
         double scaled = clampedT * segmentCount;
-        int segmentIndex = MathHelper.clamp((int) Math.floor(scaled), 0, segmentCount - 1);
+        int segmentIndex = Mth.clamp((int) Math.floor(scaled), 0, segmentCount - 1);
         double localT = scaled - segmentIndex;
-        Vec3d p0 = points.get(Math.max(segmentIndex - 1, 0));
-        Vec3d p1 = points.get(segmentIndex);
-        Vec3d p2 = points.get(segmentIndex + 1);
-        Vec3d p3 = points.get(Math.min(segmentIndex + 2, points.size() - 1));
+        Vec3 p0 = points.get(Math.max(segmentIndex - 1, 0));
+        Vec3 p1 = points.get(segmentIndex);
+        Vec3 p2 = points.get(segmentIndex + 1);
+        Vec3 p3 = points.get(Math.min(segmentIndex + 2, points.size() - 1));
         double t2 = localT * localT;
         double t3 = t2 * localT;
         double x = 0.5D * (
@@ -1110,27 +1110,27 @@ public class SurfRampPlacementManager {
                         + (2.0D * p0.z - 5.0D * p1.z + 4.0D * p2.z - p3.z) * t2
                         + (-p0.z + 3.0D * p1.z - 3.0D * p2.z + p3.z) * t3
         );
-        return new Vec3d(x, y, z);
+        return new Vec3(x, y, z);
     }
 
-    private static Vec3d samplePathLeft(List<Vec3d> points, double t) {
+    private static Vec3 samplePathLeft(List<Vec3> points, double t) {
         double dt = 1.0D / Math.max(64.0D, points.size() * 32.0D);
-        Vec3d before = samplePath(points, Math.max(0.0D, t - dt));
-        Vec3d after = samplePath(points, Math.min(1.0D, t + dt));
-        Vec3d tangent = new Vec3d(after.x - before.x, 0.0D, after.z - before.z);
-        if (tangent.lengthSquared() < 1.0E-8D) {
-            Vec3d s = points.get(0);
-            Vec3d e = points.get(points.size() - 1);
-            tangent = new Vec3d(e.x - s.x, 0.0D, e.z - s.z);
+        Vec3 before = samplePath(points, Math.max(0.0D, t - dt));
+        Vec3 after = samplePath(points, Math.min(1.0D, t + dt));
+        Vec3 tangent = new Vec3(after.x - before.x, 0.0D, after.z - before.z);
+        if (tangent.lengthSqr() < 1.0E-8D) {
+            Vec3 s = points.get(0);
+            Vec3 e = points.get(points.size() - 1);
+            tangent = new Vec3(e.x - s.x, 0.0D, e.z - s.z);
         }
-        if (tangent.lengthSquared() < 1.0E-8D) {
-            return new Vec3d(1.0D, 0.0D, 0.0D);
+        if (tangent.lengthSqr() < 1.0E-8D) {
+            return new Vec3(1.0D, 0.0D, 0.0D);
         }
         tangent = tangent.normalize();
-        return new Vec3d(-tangent.z, 0.0D, tangent.x).normalize();
+        return new Vec3(-tangent.z, 0.0D, tangent.x).normalize();
     }
 
-    private static int countSpawnableSegments(List<Vec3d> centerlinePoints, List<SegmentSlice> rampSegments) {
+    private static int countSpawnableSegments(List<Vec3> centerlinePoints, List<SegmentSlice> rampSegments) {
         if (centerlinePoints == null || centerlinePoints.size() < 2 || rampSegments == null || rampSegments.isEmpty()) {
             return 0;
         }
@@ -1142,9 +1142,9 @@ public class SurfRampPlacementManager {
             if (segmentSlice.startIndex < 0 || segmentSlice.endIndex >= centerlinePoints.size()) {
                 continue;
             }
-            Vec3d segmentStart = centerlinePoints.get(segmentSlice.startIndex);
-            Vec3d segmentEnd = centerlinePoints.get(segmentSlice.endIndex);
-            if (segmentStart.squaredDistanceTo(segmentEnd) < 1.0E-4D) {
+            Vec3 segmentStart = centerlinePoints.get(segmentSlice.startIndex);
+            Vec3 segmentEnd = centerlinePoints.get(segmentSlice.endIndex);
+            if (segmentStart.distanceToSqr(segmentEnd) < 1.0E-4D) {
                 continue;
             }
             count++;
@@ -1162,14 +1162,14 @@ public class SurfRampPlacementManager {
         }
     }
 
-    private static double computeHorizontalLength(List<Vec3d> points) {
+    private static double computeHorizontalLength(List<Vec3> points) {
         if (points == null || points.size() < 2) {
             return 0.0D;
         }
         double length = 0.0D;
-        Vec3d previous = points.get(0);
+        Vec3 previous = points.get(0);
         for (int i = 1; i < points.size(); i++) {
-            Vec3d current = points.get(i);
+            Vec3 current = points.get(i);
             double dx = current.x - previous.x;
             double dz = current.z - previous.z;
             length += Math.sqrt(dx * dx + dz * dz);
@@ -1178,7 +1178,7 @@ public class SurfRampPlacementManager {
         return length;
     }
 
-    private static double computeMaxLocalTurnDegrees(List<Vec3d> points) {
+    private static double computeMaxLocalTurnDegrees(List<Vec3> points) {
         if (points == null || points.size() < 3) {
             return 0.0D;
         }
@@ -1192,15 +1192,15 @@ public class SurfRampPlacementManager {
         return maxTurn;
     }
 
-    private static double computeSegmentDirectionDeltaDegrees(List<Vec3d> points) {
+    private static double computeSegmentDirectionDeltaDegrees(List<Vec3> points) {
         if (points == null || points.size() < 3) {
             return 0.0D;
         }
 
-        Vec3d start = points.get(0);
-        Vec3d next = points.get(1);
-        Vec3d previous = points.get(points.size() - 2);
-        Vec3d end = points.get(points.size() - 1);
+        Vec3 start = points.get(0);
+        Vec3 next = points.get(1);
+        Vec3 previous = points.get(points.size() - 2);
+        Vec3 end = points.get(points.size() - 1);
 
         double startDx = next.x - start.x;
         double startDz = next.z - start.z;
@@ -1213,11 +1213,11 @@ public class SurfRampPlacementManager {
             return 0.0D;
         }
 
-        double dot = MathHelper.clamp((startDx * endDx + startDz * endDz) / (startLen * endLen), -1.0D, 1.0D);
+        double dot = Mth.clamp((startDx * endDx + startDz * endDz) / (startLen * endLen), -1.0D, 1.0D);
         return Math.toDegrees(Math.acos(dot));
     }
 
-    private static double computeTurnDegrees(Vec3d a, Vec3d b, Vec3d c) {
+    private static double computeTurnDegrees(Vec3 a, Vec3 b, Vec3 c) {
         double abx = b.x - a.x;
         double abz = b.z - a.z;
         double bcx = c.x - b.x;
@@ -1229,30 +1229,30 @@ public class SurfRampPlacementManager {
             return 0.0D;
         }
 
-        double dot = MathHelper.clamp((abx * bcx + abz * bcz) / (abLen * bcLen), -1.0D, 1.0D);
+        double dot = Mth.clamp((abx * bcx + abz * bcz) / (abLen * bcLen), -1.0D, 1.0D);
         return Math.toDegrees(Math.acos(dot));
     }
 
-    private static double horizontalDistance(Vec3d a, Vec3d b) {
+    private static double horizontalDistance(Vec3 a, Vec3 b) {
         double dx = b.x - a.x;
         double dz = b.z - a.z;
         return Math.sqrt(dx * dx + dz * dz);
     }
 
-    private static Vec3d quadraticBezier(Vec3d start, Vec3d control, Vec3d end, double t) {
-        double clampedT = MathHelper.clamp(t, 0.0D, 1.0D);
+    private static Vec3 quadraticBezier(Vec3 start, Vec3 control, Vec3 end, double t) {
+        double clampedT = Mth.clamp(t, 0.0D, 1.0D);
         double invT = 1.0D - clampedT;
         double x = invT * invT * start.x + 2.0D * invT * clampedT * control.x + clampedT * clampedT * end.x;
         double y = invT * invT * start.y + 2.0D * invT * clampedT * control.y + clampedT * clampedT * end.y;
         double z = invT * invT * start.z + 2.0D * invT * clampedT * control.z + clampedT * clampedT * end.z;
-        return new Vec3d(x, y, z);
+        return new Vec3(x, y, z);
     }
 
-    private static void appendIfDistinct(List<Vec3d> points, Vec3d point) {
+    private static void appendIfDistinct(List<Vec3> points, Vec3 point) {
         if (points == null || point == null) {
             return;
         }
-        if (points.isEmpty() || points.get(points.size() - 1).squaredDistanceTo(point) > 1.0E-6D) {
+        if (points.isEmpty() || points.get(points.size() - 1).distanceToSqr(point) > 1.0E-6D) {
             points.add(point);
         }
     }
@@ -1261,11 +1261,11 @@ public class SurfRampPlacementManager {
         if (textureBlockId == null) {
             return DEFAULT_SURF_TEXTURE_BLOCK_ID;
         }
-        Identifier parsed = Identifier.tryParse(textureBlockId.trim());
-        if (parsed == null || !Registries.BLOCK.containsId(parsed)) {
+        ResourceLocation parsed = ResourceLocation.tryParse(textureBlockId.trim());
+        if (parsed == null || !BuiltInRegistries.BLOCK.containsKey(parsed)) {
             return DEFAULT_SURF_TEXTURE_BLOCK_ID;
         }
-        Block block = Registries.BLOCK.get(parsed);
+        Block block = BuiltInRegistries.BLOCK.getValue(parsed);
         if (block == Blocks.AIR) {
             return DEFAULT_SURF_TEXTURE_BLOCK_ID;
         }
@@ -1274,7 +1274,7 @@ public class SurfRampPlacementManager {
 
     private static final class PlacementState {
         private final List<BlockPos> points = new ArrayList<>();
-        private Vec3d playerDecisionPosition;
+        private Vec3 playerDecisionPosition;
 
         private void clearPoints() {
             this.points.clear();

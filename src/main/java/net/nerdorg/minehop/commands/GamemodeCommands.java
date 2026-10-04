@@ -11,12 +11,11 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.command.EntitySelector;
-import net.minecraft.command.argument.EntityArgumentType;
-import net.minecraft.network.packet.s2c.play.GameStateChangeS2CPacket;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.world.GameMode;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.selector.EntitySelector;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.util.Logger;
 
@@ -25,13 +24,13 @@ public class GamemodeCommands {
 
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("gmc")
-                .requires(source -> source.hasPermissionLevel(4))
+            LiteralArgumentBuilder.<CommandSourceStack>literal("gmc")
+                .requires(source -> source.hasPermission(4))
                 .executes(context -> {
                     handleCreative(context);
                     return Command.SINGLE_SUCCESS;
                 })
-                .then(RequiredArgumentBuilder.<ServerCommandSource, EntitySelector>argument("player", EntityArgumentType.player())
+                .then(RequiredArgumentBuilder.<CommandSourceStack, EntitySelector>argument("player", EntityArgument.player())
                     .executes(context -> {
                         handleCreativeArg(context);
                         return Command.SINGLE_SUCCESS;
@@ -40,13 +39,13 @@ public class GamemodeCommands {
         ));
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("gmsp")
-                .requires(source -> source.hasPermissionLevel(4))
+            LiteralArgumentBuilder.<CommandSourceStack>literal("gmsp")
+                .requires(source -> source.hasPermission(4))
                 .executes(context -> {
                     handleSpectator(context);
                     return Command.SINGLE_SUCCESS;
                 })
-                .then(RequiredArgumentBuilder.<ServerCommandSource, EntitySelector>argument("player", EntityArgumentType.player())
+                .then(RequiredArgumentBuilder.<CommandSourceStack, EntitySelector>argument("player", EntityArgument.player())
                     .executes(context -> {
                         handleSpectatorArg(context);
                         return Command.SINGLE_SUCCESS;
@@ -55,13 +54,13 @@ public class GamemodeCommands {
         ));
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("gms")
-                .requires(source -> source.hasPermissionLevel(4))
+            LiteralArgumentBuilder.<CommandSourceStack>literal("gms")
+                .requires(source -> source.hasPermission(4))
                 .executes(context -> {
                     handleSurvival(context);
                     return Command.SINGLE_SUCCESS;
                 })
-                .then(RequiredArgumentBuilder.<ServerCommandSource, EntitySelector>argument("player", EntityArgumentType.player())
+                .then(RequiredArgumentBuilder.<CommandSourceStack, EntitySelector>argument("player", EntityArgument.player())
                     .executes(context -> {
                         handleSurvivalArg(context);
                         return Command.SINGLE_SUCCESS;
@@ -70,13 +69,13 @@ public class GamemodeCommands {
         ));
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("gma")
-                .requires(source -> source.hasPermissionLevel(4))
+            LiteralArgumentBuilder.<CommandSourceStack>literal("gma")
+                .requires(source -> source.hasPermission(4))
                 .executes(context -> {
                     handleAdventure(context);
                     return Command.SINGLE_SUCCESS;
                 })
-                .then(RequiredArgumentBuilder.<ServerCommandSource, EntitySelector>argument("player", EntityArgumentType.player())
+                .then(RequiredArgumentBuilder.<CommandSourceStack, EntitySelector>argument("player", EntityArgument.player())
                     .executes(context -> {
                         handleAdventureArg(context);
                         return Command.SINGLE_SUCCESS;
@@ -85,50 +84,50 @@ public class GamemodeCommands {
         ));
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-            LiteralArgumentBuilder.<ServerCommandSource>literal("gm")
-                .requires(source -> source.hasPermissionLevel(4))
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("c")
+            LiteralArgumentBuilder.<CommandSourceStack>literal("gm")
+                .requires(source -> source.hasPermission(4))
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("c")
                     .executes(context -> {
                         handleCreative(context);
                         return Command.SINGLE_SUCCESS;
                     })
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, EntitySelector>argument("player", EntityArgumentType.player())
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, EntitySelector>argument("player", EntityArgument.player())
                         .executes(context -> {
                             handleCreativeArg(context);
                             return Command.SINGLE_SUCCESS;
                         })
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("sp")
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("sp")
                     .executes(context -> {
                         handleSpectator(context);
                         return Command.SINGLE_SUCCESS;
                     })
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, EntitySelector>argument("player", EntityArgumentType.player())
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, EntitySelector>argument("player", EntityArgument.player())
                         .executes(context -> {
                             handleSpectatorArg(context);
                             return Command.SINGLE_SUCCESS;
                         })
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("s")
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("s")
                     .executes(context -> {
                         handleSurvival(context);
                         return Command.SINGLE_SUCCESS;
                     })
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, EntitySelector>argument("player", EntityArgumentType.player())
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, EntitySelector>argument("player", EntityArgument.player())
                         .executes(context -> {
                             handleSurvivalArg(context);
                             return Command.SINGLE_SUCCESS;
                         })
                     )
                 )
-                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("a")
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("a")
                     .executes(context -> {
                         handleAdventure(context);
                         return Command.SINGLE_SUCCESS;
                     })
-                    .then(RequiredArgumentBuilder.<ServerCommandSource, EntitySelector>argument("player", EntityArgumentType.player())
+                    .then(RequiredArgumentBuilder.<CommandSourceStack, EntitySelector>argument("player", EntityArgument.player())
                         .executes(context -> {
                             handleAdventureArg(context);
                             return Command.SINGLE_SUCCESS;
@@ -138,63 +137,63 @@ public class GamemodeCommands {
         ));
     }
 
-    private static void handleCreative(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
+    private static void handleCreative(CommandContext<CommandSourceStack> context) {
+        ServerPlayer senderEntity = context.getSource().getPlayer();
 
-        senderEntity.changeGameMode(GameMode.CREATIVE);
+        senderEntity.setGameMode(GameType.CREATIVE);
         Logger.logSuccess(senderEntity, "Setting gamemode to creative.");
     }
 
-    private static void handleCreativeArg(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
-        ServerPlayerEntity serverPlayerEntity = EntityArgumentType.getPlayer(context, "player");
+    private static void handleCreativeArg(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer senderEntity = context.getSource().getPlayer();
+        ServerPlayer serverPlayerEntity = EntityArgument.getPlayer(context, "player");
 
-        serverPlayerEntity.changeGameMode(GameMode.CREATIVE);
-        Logger.logSuccess(senderEntity, "Setting gamemode to creative for " + serverPlayerEntity.getNameForScoreboard() + ".");
+        serverPlayerEntity.setGameMode(GameType.CREATIVE);
+        Logger.logSuccess(senderEntity, "Setting gamemode to creative for " + serverPlayerEntity.getScoreboardName() + ".");
     }
 
-    private static void handleSpectator(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
+    private static void handleSpectator(CommandContext<CommandSourceStack> context) {
+        ServerPlayer senderEntity = context.getSource().getPlayer();
 
-        senderEntity.changeGameMode(GameMode.SPECTATOR);
+        senderEntity.setGameMode(GameType.SPECTATOR);
         Logger.logSuccess(senderEntity, "Setting gamemode to spectator.");
     }
 
-    private static void handleSpectatorArg(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
-        ServerPlayerEntity serverPlayerEntity = EntityArgumentType.getPlayer(context, "player");
+    private static void handleSpectatorArg(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer senderEntity = context.getSource().getPlayer();
+        ServerPlayer serverPlayerEntity = EntityArgument.getPlayer(context, "player");
 
-        serverPlayerEntity.changeGameMode(GameMode.SPECTATOR);
-        Logger.logSuccess(senderEntity, "Setting gamemode to spectator for " + serverPlayerEntity.getNameForScoreboard() + ".");
+        serverPlayerEntity.setGameMode(GameType.SPECTATOR);
+        Logger.logSuccess(senderEntity, "Setting gamemode to spectator for " + serverPlayerEntity.getScoreboardName() + ".");
     }
 
-    private static void handleSurvival(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
+    private static void handleSurvival(CommandContext<CommandSourceStack> context) {
+        ServerPlayer senderEntity = context.getSource().getPlayer();
 
-        senderEntity.changeGameMode(GameMode.SURVIVAL);
+        senderEntity.setGameMode(GameType.SURVIVAL);
         Logger.logSuccess(senderEntity, "Setting gamemode to survival.");
     }
 
-    private static void handleSurvivalArg(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
-        ServerPlayerEntity serverPlayerEntity = EntityArgumentType.getPlayer(context, "player");
+    private static void handleSurvivalArg(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer senderEntity = context.getSource().getPlayer();
+        ServerPlayer serverPlayerEntity = EntityArgument.getPlayer(context, "player");
 
-        serverPlayerEntity.changeGameMode(GameMode.SURVIVAL);
-        Logger.logSuccess(senderEntity, "Setting gamemode to survival for " + serverPlayerEntity.getNameForScoreboard() + ".");
+        serverPlayerEntity.setGameMode(GameType.SURVIVAL);
+        Logger.logSuccess(senderEntity, "Setting gamemode to survival for " + serverPlayerEntity.getScoreboardName() + ".");
     }
 
-    private static void handleAdventure(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
+    private static void handleAdventure(CommandContext<CommandSourceStack> context) {
+        ServerPlayer senderEntity = context.getSource().getPlayer();
 
-        senderEntity.changeGameMode(GameMode.ADVENTURE);
+        senderEntity.setGameMode(GameType.ADVENTURE);
         Logger.logSuccess(senderEntity, "Setting gamemode to adventure.");
     }
 
-    private static void handleAdventureArg(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity senderEntity = context.getSource().getPlayer();
-        ServerPlayerEntity serverPlayerEntity = EntityArgumentType.getPlayer(context, "player");
+    private static void handleAdventureArg(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer senderEntity = context.getSource().getPlayer();
+        ServerPlayer serverPlayerEntity = EntityArgument.getPlayer(context, "player");
 
-        serverPlayerEntity.changeGameMode(GameMode.ADVENTURE);
-        Logger.logSuccess(senderEntity, "Setting gamemode to adventure for " + serverPlayerEntity.getNameForScoreboard() + ".");
+        serverPlayerEntity.setGameMode(GameType.ADVENTURE);
+        Logger.logSuccess(senderEntity, "Setting gamemode to adventure for " + serverPlayerEntity.getScoreboardName() + ".");
     }
 }

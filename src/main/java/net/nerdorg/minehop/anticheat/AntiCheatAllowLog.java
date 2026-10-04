@@ -2,9 +2,9 @@ package net.nerdorg.minehop.anticheat;
 
 import com.google.gson.reflect.TypeToken;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.WorldSavePath;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.util.JsonStorage;
 
@@ -79,17 +79,17 @@ public final class AntiCheatAllowLog {
     }
 
     /** Record an allow-reason for a player, at most once per {@value #THROTTLE_TICKS} ticks each. */
-    public static void record(ServerPlayerEntity player, Reason reason, double speed, double cap, Vec3d pos, long tick) {
+    public static void record(ServerPlayer player, Reason reason, double speed, double cap, Vec3 pos, long tick) {
         if (player == null || reason == null || pos == null) {
             return;
         }
-        Long last = LAST_LOG_TICK.get(player.getUuid());
+        Long last = LAST_LOG_TICK.get(player.getUUID());
         if (last != null && tick - last < THROTTLE_TICKS) {
             return;
         }
-        LAST_LOG_TICK.put(player.getUuid(), tick);
+        LAST_LOG_TICK.put(player.getUUID(), tick);
 
-        Entry entry = new Entry(System.currentTimeMillis(), player.getNameForScoreboard(), reason.name(),
+        Entry entry = new Entry(System.currentTimeMillis(), player.getScoreboardName(), reason.name(),
                 speed, cap, pos.x, pos.y, pos.z);
         RING.addLast(entry);
         while (RING.size() > MAX_ENTRIES) {
@@ -116,7 +116,7 @@ public final class AntiCheatAllowLog {
         if (server == null) {
             return;
         }
-        Path path = server.getSavePath(WorldSavePath.ROOT).resolve(FILE);
+        Path path = server.getWorldPath(LevelResource.ROOT).resolve(FILE);
         JsonStorage.writeAtomic(path, SCHEMA_VERSION, new ArrayList<>(RING));
     }
 
@@ -124,7 +124,7 @@ public final class AntiCheatAllowLog {
         if (server == null) {
             return;
         }
-        Path path = server.getSavePath(WorldSavePath.ROOT).resolve(FILE);
+        Path path = server.getWorldPath(LevelResource.ROOT).resolve(FILE);
         Type type = new TypeToken<List<Entry>>() {}.getType();
         List<Entry> loaded = JsonStorage.readData(path, type);
         if (loaded != null) {

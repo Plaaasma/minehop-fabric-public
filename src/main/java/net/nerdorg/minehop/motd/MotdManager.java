@@ -25,7 +25,7 @@ public class MotdManager {
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register((server -> {
             if (ConfigWrapper.config.minehop_motd) {
-                if (server.getTicks() % 200 == 0) {
+                if (server.getTickCount() % 200 == 0) {
                     server.setMotd("§2NerdOrg §7(§d§oMinehop§7) §8-> §b" + randomMessages.get(random.nextInt(0, randomMessages.size() - 1)));
                 }
             }

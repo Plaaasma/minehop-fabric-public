@@ -1,21 +1,21 @@
 package net.nerdorg.minehop.networking.payloads;
 
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.nerdorg.minehop.Minehop;
 
-public record OtherVTogglePayload(boolean test) implements CustomPayload {
-    public static final Identifier HANDSHAKE_ID = Identifier.of(Minehop.MOD_ID, "other_v_toggle");
-    public static final Id<OtherVTogglePayload> ID = new Id<>(HANDSHAKE_ID);
-    public static final PacketCodec<PacketByteBuf, OtherVTogglePayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.BOOLEAN, OtherVTogglePayload::test,
+public record OtherVTogglePayload(boolean test) implements CustomPacketPayload {
+    public static final ResourceLocation HANDSHAKE_ID = ResourceLocation.fromNamespaceAndPath(Minehop.MOD_ID, "other_v_toggle");
+    public static final Type<OtherVTogglePayload> ID = new Type<>(HANDSHAKE_ID);
+    public static final StreamCodec<FriendlyByteBuf, OtherVTogglePayload> CODEC = StreamCodec.composite(
+            ByteBufCodecs.BOOL, OtherVTogglePayload::test,
             OtherVTogglePayload::new);
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

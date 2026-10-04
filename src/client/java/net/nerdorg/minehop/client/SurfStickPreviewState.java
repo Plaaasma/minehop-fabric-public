@@ -1,9 +1,8 @@
 package net.nerdorg.minehop.client;
 
-import net.minecraft.util.math.BlockPos;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.core.BlockPos;
 
 public final class SurfStickPreviewState {
     private static final Object LOCK = new Object();
@@ -28,7 +27,7 @@ public final class SurfStickPreviewState {
             if (newPoints != null) {
                 for (BlockPos point : newPoints) {
                     if (point != null) {
-                        immutable.add(point.toImmutable());
+                        immutable.add(point.immutable());
                     }
                 }
             }

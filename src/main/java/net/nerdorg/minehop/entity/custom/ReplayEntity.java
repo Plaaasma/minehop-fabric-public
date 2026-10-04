@@ -1,18 +1,18 @@
 package net.nerdorg.minehop.entity.custom;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.attribute.DefaultAttributeContainer;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.damage.DamageTypes;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.world.World;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.replays.ReplayManager;
@@ -21,7 +21,7 @@ import net.nerdorg.minehop.util.ZoneUtil;
 
 import java.util.List;
 
-public class ReplayEntity extends MobEntity {
+public class ReplayEntity extends Mob {
     private String map_name = "";
     private String replay_player_name = "";
     private boolean hide_head = false;
@@ -29,8 +29,8 @@ public class ReplayEntity extends MobEntity {
     private int replayIndex = 0;
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
+    public void addAdditionalSaveData(CompoundTag nbt) {
+        super.addAdditionalSaveData(nbt);
         nbt.putString("map", map_name);
         nbt.putString("replay_player", replay_player_name);
         nbt.putBoolean("hide_head", hide_head);
@@ -38,20 +38,20 @@ public class ReplayEntity extends MobEntity {
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
+    public void readAdditionalSaveData(CompoundTag nbt) {
+        super.readAdditionalSaveData(nbt);
         map_name = nbt.getString("map");
         replay_player_name = nbt.getString("replay_player");
         hide_head = nbt.getBoolean("hide_head");
         temporary = nbt.getBoolean("temporary");
     }
 
-    public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
-        return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+    public static AttributeSupplier.Builder createResetEntityAttributes() {
+        return Mob.createMobAttributes()
+                .add(Attributes.MAX_HEALTH, 1000000);
     }
 
-    public ReplayEntity(EntityType<? extends MobEntity> entityType, World world) {
+    public ReplayEntity(EntityType<? extends Mob> entityType, Level world) {
         super(entityType, world);
     }
 
@@ -89,17 +89,17 @@ public class ReplayEntity extends MobEntity {
     }
 
     @Override
-    public boolean cannotDespawn() {
+    public boolean requiresCustomPersistence() {
         return true;
     }
 
     @Override
-    public boolean hasNoGravity() {
+    public boolean isNoGravity() {
         return true;
     }
 
     @Override
-    public boolean isPersistent() {
+    public boolean isPersistenceRequired() {
         return true;
     }
 
@@ -109,14 +109,14 @@ public class ReplayEntity extends MobEntity {
     }
 
     @Override
-    public boolean collidesWith(Entity other) {
+    public boolean canCollideWith(Entity other) {
         return false;
     }
 
     @Override
-    public boolean damage(ServerWorld world, DamageSource source, float amount) {
-        if (source.isOf(DamageTypes.GENERIC_KILL)) {
-            return super.damage(world, source, amount);
+    public boolean hurtServer(ServerLevel world, DamageSource source, float amount) {
+        if (source.is(DamageTypes.GENERIC_KILL)) {
+            return super.hurtServer(world, source, amount);
         }
         else {
             return false;
@@ -124,31 +124,31 @@ public class ReplayEntity extends MobEntity {
     }
 
     @Override
-    public boolean isPushedByFluids() {
+    public boolean isPushedByFluid() {
         return false;
     }
 
     @Override
-    protected void pushAway(Entity entity) {
+    protected void doPush(Entity entity) {
     }
 
     @Override
-    public boolean doesNotCollide(double offsetX, double offsetY, double offsetZ) {
+    public boolean isFree(double offsetX, double offsetY, double offsetZ) {
         return true;
     }
 
     @Override
-    public void onPlayerCollision(PlayerEntity player) { }
+    public void playerTouch(Player player) { }
 
     @Override
-    public void setPitch(float pitch) {
+    public void setXRot(float pitch) {
         if (pitch != 0f) {
-            super.setPitch(pitch);
+            super.setXRot(pitch);
         }
     }
 
     @Override
-    public String getNameForScoreboard() {
+    public String getScoreboardName() {
         if (map_name == null || map_name.isBlank()) {
             return "replay";
         }
@@ -159,20 +159,20 @@ public class ReplayEntity extends MobEntity {
     }
 
     @Override
-    public Text getName() {
+    public Component getName() {
         String mapNameValue = map_name == null ? "" : map_name;
         String replayPlayerNameValue = replay_player_name == null ? "" : replay_player_name;
         if (replayPlayerNameValue.isBlank()) {
-            return Text.literal(mapNameValue + "_replay");
+            return Component.literal(mapNameValue + "_replay");
         }
-        return Text.literal(mapNameValue + "_replay_" + replayPlayerNameValue);
+        return Component.literal(mapNameValue + "_replay_" + replayPlayerNameValue);
     }
 
     @Override
     public void tick() {
-        if (this.getWorld() instanceof ServerWorld) {
-            if (temporary && !SpectateCommands.spectatorList.containsKey(this.getNameForScoreboard())) {
-                this.kill((ServerWorld) this.getWorld());
+        if (this.level() instanceof ServerLevel) {
+            if (temporary && !SpectateCommands.spectatorList.containsKey(this.getScoreboardName())) {
+                this.kill((ServerLevel) this.level());
                 super.tick();
                 return;
             }
@@ -198,22 +198,22 @@ public class ReplayEntity extends MobEntity {
                     xrot = 0.01;
                 }
 
-                this.requestTeleport(x, y, z);
-                this.setYaw((float) yrot);
-                this.setHeadYaw((float) yrot);
-                this.setPitch((float) xrot);
+                this.teleportTo(x, y, z);
+                this.setYRot((float) yrot);
+                this.setYHeadRot((float) yrot);
+                this.setXRot((float) xrot);
 
-                if (SpectateCommands.spectatorList.containsKey(this.getNameForScoreboard())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(this.getNameForScoreboard());
+                if (SpectateCommands.spectatorList.containsKey(this.getScoreboardName())) {
+                    List<String> spectators = SpectateCommands.spectatorList.get(this.getScoreboardName());
                     for (String spectatorName : spectators) {
-                        if (!spectatorName.equals(this.getNameForScoreboard())) {
-                            ServerPlayerEntity spectatorPlayer = this.getServer().getPlayerManager().getPlayer(spectatorName);
+                        if (!spectatorName.equals(this.getScoreboardName())) {
+                            ServerPlayer spectatorPlayer = this.getServer().getPlayerList().getPlayerByName(spectatorName);
                             if (spectatorPlayer != null) {
                                 if (!spectatorPlayer.isCreative()) {
-                                    spectatorPlayer.getInventory().clear();
+                                    spectatorPlayer.getInventory().clearContent();
                                 }
-                                spectatorPlayer.teleportTo(ZoneUtil.makeTeleportTarget((ServerWorld) this.getWorld(), this.getPos(), this.getYaw(), this.getPitch()));
-                                spectatorPlayer.setCameraEntity(this);
+                                spectatorPlayer.teleport(ZoneUtil.makeTeleportTarget((ServerLevel) this.level(), this.position(), this.getYRot(), this.getXRot()));
+                                spectatorPlayer.setCamera(this);
                                 PacketHandler.sendSpecEfficiency(spectatorPlayer, last_jump_speed, (int) jump_count, efficiency);
                                 Logger.logActionBar(spectatorPlayer, "End Time: " + String.format("%.5f", replay.time));
                             }

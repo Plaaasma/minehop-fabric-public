@@ -8,15 +8,15 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ServerInfo;
-import net.minecraft.client.option.ServerList;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.entity.Entity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.ServerList;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.block.ModBlocks;
 import net.nerdorg.minehop.client.SqueedometerHud;
 import net.nerdorg.minehop.client.BoundsStickPreviewRenderer;
@@ -66,7 +66,7 @@ public class MinehopClient implements ClientModInitializer {
 	private static boolean wasInsideStartZone = false;
 	private static boolean wasInsideEndZone = false;
 	private static String activeRunMapName = "";
-	private static Vec3d lastFinishSamplePos = null;
+	private static Vec3 lastFinishSamplePos = null;
 	private static long lastFinishSampleNanos = 0L;
 	private static long lastFinishSampleStartNanos = 0L;
 
@@ -81,14 +81,14 @@ public class MinehopClient implements ClientModInitializer {
 
     @Override
 	public void onInitializeClient() {
-		MinecraftClient minecraft = MinecraftClient.getInstance();
+		Minecraft minecraft = Minecraft.getInstance();
 		minecraft.execute(() -> {
 			ServerList serverList = new ServerList(minecraft);
-			serverList.loadFile();
+			serverList.load();
 			if (!isServerInList(serverList, "play.minehop.net")) {
-				serverList.add(new ServerInfo("§c§l§nOfficial Minehop Server", "play.minehop.net", ServerInfo.ServerType.OTHER), false);
-				serverList.swapEntries(0, serverList.size() - 1);
-				serverList.saveFile();
+				serverList.add(new ServerData("§c§l§nOfficial Minehop Server", "play.minehop.net", ServerData.Type.OTHER), false);
+				serverList.swap(0, serverList.size() - 1);
+				serverList.save();
 			}
 		});
 
@@ -140,12 +140,12 @@ public class MinehopClient implements ClientModInitializer {
 		EntityModelLayerRegistry.registerModelLayer(ModModelLayers.SURF_RAMP_ENTITY, SurfRampModel::getTexturedModelData);
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
-			if (!client.isInSingleplayer()) {
+			if (!client.isLocalServer()) {
 				Minehop.override_config = true;
 			}
 			if (client.player != null) {
 				if (resetCarryTicks > 0) {
-					client.player.setVelocity(resetCarryX, resetCarryY, resetCarryZ);
+					client.player.setDeltaMovement(resetCarryX, resetCarryY, resetCarryZ);
 					client.player.setOnGround(false);
 					resetCarryTicks--;
 					if (resetCarryTicks <= 0) {
@@ -154,7 +154,7 @@ public class MinehopClient implements ClientModInitializer {
 						resetCarryZ = 0.0D;
 					}
 				}
-				if (client.options.jumpKey.isPressed()) {
+				if (client.options.keyJump.isDown()) {
 					jumping = true;
 				}
 				else {
@@ -165,7 +165,7 @@ public class MinehopClient implements ClientModInitializer {
 				// lands AND jumps in the same tick, so onGround is never true at a tick boundary —
 				// counting on isOnGround() missed jumps. Detect the jump impulse directly instead.
 				if (!client.player.isSpectator()) {
-					Vec3d jv = client.player.getVelocity();
+					Vec3 jv = client.player.getDeltaMovement();
 					double jumpImpulseBpt = (Minehop.override_config && Minehop.receivedConfig
 							? Minehop.o_sv_jump_impulse
 							: ConfigWrapper.config.movement.sv_jump_impulse) / 800.0D;
@@ -176,7 +176,7 @@ public class MinehopClient implements ClientModInitializer {
 							last_jump_speed = Math.sqrt(jv.x * jv.x + jv.z * jv.z);
 							jump_count += 1;
 							old_jump_time = last_jump_time;
-							last_jump_time = client.world != null ? client.world.getTime() : 0L;
+							last_jump_time = client.level != null ? client.level.getGameTime() : 0L;
 						}
 					} else {
 						old_jump_speed = 0;
@@ -208,19 +208,19 @@ public class MinehopClient implements ClientModInitializer {
 				if (frameNanos > 0L) {
 					double instantFps = 1_000_000_000.0D / (double) frameNanos;
 					int fps = (int) Math.round(instantFps);
-					Minehop.clientRenderFps = MathHelper.clamp(fps, 1, 4000);
+					Minehop.clientRenderFps = Mth.clamp(fps, 1, 4000);
 					Minehop.clientRenderFrameNanos = frameNanos;
 				}
 			}
 			lastRenderFrameNanos[0] = now;
-			updateRunTimerFinishZones(MinecraftClient.getInstance(), now);
+			updateRunTimerFinishZones(Minecraft.getInstance(), now);
 		});
 
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.BOOSTER_BLOCK, RenderLayer.getTranslucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.BOOSTER_BLOCK, RenderType.translucent());
 	}
 
-	private static void updateRunTimerStartZones(MinecraftClient client) {
-		if (client == null || client.player == null || client.world == null) {
+	private static void updateRunTimerStartZones(Minecraft client) {
+		if (client == null || client.player == null || client.level == null) {
 			return;
 		}
 		if (client.player.isCreative() || client.player.isSpectator()) {
@@ -228,15 +228,15 @@ public class MinehopClient implements ClientModInitializer {
 			return;
 		}
 
-		Vec3d playerPos = client.player.getPos();
-		boolean grounded = client.player.isOnGround();
+		Vec3 playerPos = client.player.position();
+		boolean grounded = client.player.onGround();
 
 		boolean insideStartZone = false;
 		String startMapName = null;
 
-		List<Entity> nearbyZones = client.world.getOtherEntities(
+		List<Entity> nearbyZones = client.level.getEntities(
 				client.player,
-				client.player.getBoundingBox().expand(256.0D),
+				client.player.getBoundingBox().inflate(256.0D),
 				entity -> entity instanceof StartEntity
 		);
 		for (Entity entity : nearbyZones) {
@@ -253,7 +253,7 @@ public class MinehopClient implements ClientModInitializer {
 		// Arm a fresh start by slowing below walk on the ground in the start zone (circling never
 		// goes below walk, so it can't re-arm/reset). While armed + grounded the timer is held at 0
 		// (ground prestrafe is free); the run STARTS the moment they go airborne. Mirrors StartEntity.
-		Vec3d vel = client.player.getVelocity();
+		Vec3 vel = client.player.getDeltaMovement();
 		double horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
 		boolean belowWalk = horizontalSpeed < net.nerdorg.minehop.entity.custom.StartEntity.WALK_SPEED_BPT;
 		if (insideStartZone && grounded && belowWalk) {
@@ -276,8 +276,8 @@ public class MinehopClient implements ClientModInitializer {
 		wasInsideStartZone = insideStartZone;
 	}
 
-	private static void updateRunTimerFinishZones(MinecraftClient client, long nowNanos) {
-		if (client == null || client.player == null || client.world == null) {
+	private static void updateRunTimerFinishZones(Minecraft client, long nowNanos) {
+		if (client == null || client.player == null || client.level == null) {
 			return;
 		}
 		if (client.player.isCreative() || client.player.isSpectator() || startTime == 0L) {
@@ -290,7 +290,7 @@ public class MinehopClient implements ClientModInitializer {
 			lastFinishSampleStartNanos = startTime;
 		}
 
-		Vec3d samplePos = getInterpolatedPlayerPosition(client);
+		Vec3 samplePos = getInterpolatedPlayerPosition(client);
 		if (samplePos == null) {
 			return;
 		}
@@ -300,7 +300,7 @@ public class MinehopClient implements ClientModInitializer {
 		if (finishHit != null && (!wasInsideEndZone || finishHit.fraction > 0.0D)) {
 			long finishNanos = nowNanos;
 			if (lastFinishSampleNanos > 0L && nowNanos > lastFinishSampleNanos) {
-				double fraction = MathHelper.clamp(finishHit.fraction, 0.0D, 1.0D);
+				double fraction = Mth.clamp(finishHit.fraction, 0.0D, 1.0D);
 				finishNanos = lastFinishSampleNanos + Math.round((nowNanos - lastFinishSampleNanos) * fraction);
 			}
 			double elapsedTime = ((double) (finishNanos - startTime)) / 1_000_000_000.0D;
@@ -316,11 +316,11 @@ public class MinehopClient implements ClientModInitializer {
 		wasInsideEndZone = insideEndZone;
 	}
 
-	private static FinishZoneHit findFinishZoneHit(MinecraftClient client, Vec3d previousPos, Vec3d samplePos) {
+	private static FinishZoneHit findFinishZoneHit(Minecraft client, Vec3 previousPos, Vec3 samplePos) {
 		FinishZoneHit bestHit = null;
-		List<Entity> nearbyZones = client.world.getOtherEntities(
+		List<Entity> nearbyZones = client.level.getEntities(
 				client.player,
-				client.player.getBoundingBox().expand(256.0D),
+				client.player.getBoundingBox().inflate(256.0D),
 				entity -> entity instanceof EndEntity
 		);
 		for (Entity entity : nearbyZones) {
@@ -331,7 +331,7 @@ public class MinehopClient implements ClientModInitializer {
 			if (activeRunMapName != null && !activeRunMapName.isBlank() && !activeRunMapName.equals(mapName)) {
 				continue;
 			}
-			Box box = getZoneBoundsBox(endEntity.getCorner1(), endEntity.getCorner2());
+			AABB box = getZoneBoundsBox(endEntity.getCorner1(), endEntity.getCorner2());
 			if (box == null) {
 				continue;
 			}
@@ -340,22 +340,22 @@ public class MinehopClient implements ClientModInitializer {
 				continue;
 			}
 			if (bestHit == null || fraction < bestHit.fraction) {
-				Vec3d hitPosition = previousPos == null ? samplePos : previousPos.lerp(samplePos, MathHelper.clamp(fraction, 0.0D, 1.0D));
+				Vec3 hitPosition = previousPos == null ? samplePos : previousPos.lerp(samplePos, Mth.clamp(fraction, 0.0D, 1.0D));
 				bestHit = new FinishZoneHit(mapName, fraction, hitPosition, box.contains(samplePos));
 			}
 		}
 		return bestHit;
 	}
 
-	private static Vec3d getInterpolatedPlayerPosition(MinecraftClient client) {
+	private static Vec3 getInterpolatedPlayerPosition(Minecraft client) {
 		if (client == null || client.player == null) {
 			return null;
 		}
-		float tickDelta = client.getRenderTickCounter().getTickDelta(true);
-		return new Vec3d(
-				MathHelper.lerp((double) tickDelta, client.player.prevX, client.player.getX()),
-				MathHelper.lerp((double) tickDelta, client.player.prevY, client.player.getY()),
-				MathHelper.lerp((double) tickDelta, client.player.prevZ, client.player.getZ())
+		float tickDelta = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+		return new Vec3(
+				Mth.lerp((double) tickDelta, client.player.xo, client.player.getX()),
+				Mth.lerp((double) tickDelta, client.player.yo, client.player.getY()),
+				Mth.lerp((double) tickDelta, client.player.zo, client.player.getZ())
 		);
 	}
 
@@ -376,7 +376,7 @@ public class MinehopClient implements ClientModInitializer {
 		lastFinishSampleStartNanos = startTime;
 	}
 
-	private static boolean isInsideZoneBounds(Vec3d pos, BlockPos corner1, BlockPos corner2) {
+	private static boolean isInsideZoneBounds(Vec3 pos, BlockPos corner1, BlockPos corner2) {
 		if (pos == null || corner1 == null || corner2 == null) {
 			return false;
 		}
@@ -396,10 +396,10 @@ public class MinehopClient implements ClientModInitializer {
 		if (maxZ <= minZ) {
 			maxZ = minZ + 1.0D;
 		}
-		return new Box(minX, minY, minZ, maxX, maxY, maxZ).contains(pos);
+		return new AABB(minX, minY, minZ, maxX, maxY, maxZ).contains(pos);
 	}
 
-	private static Box getZoneBoundsBox(BlockPos corner1, BlockPos corner2) {
+	private static AABB getZoneBoundsBox(BlockPos corner1, BlockPos corner2) {
 		if (corner1 == null || corner2 == null) {
 			return null;
 		}
@@ -418,10 +418,10 @@ public class MinehopClient implements ClientModInitializer {
 		if (maxZ <= minZ) {
 			maxZ = minZ + 1.0D;
 		}
-		return new Box(minX, minY, minZ, maxX, maxY, maxZ);
+		return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
 	}
 
-	private static double segmentEntryFraction(Box box, Vec3d start, Vec3d end) {
+	private static double segmentEntryFraction(AABB box, Vec3 start, Vec3 end) {
 		if (box == null || start == null || end == null) {
 			return Double.NaN;
 		}
@@ -468,13 +468,13 @@ public class MinehopClient implements ClientModInitializer {
 		return tMin;
 	}
 
-	private record FinishZoneHit(String mapName, double fraction, Vec3d position, boolean insideAtSample) {
+	private record FinishZoneHit(String mapName, double fraction, Vec3 position, boolean insideAtSample) {
 	}
 
 	private boolean isServerInList(ServerList serverList, String ip) {
 		for (int i = 0; i < serverList.size(); i++) {
-			ServerInfo info = serverList.get(i);
-			if (info.address.equals(ip)) {
+			ServerData info = serverList.get(i);
+			if (info.ip.equals(ip)) {
 				return true;
 			}
 		}

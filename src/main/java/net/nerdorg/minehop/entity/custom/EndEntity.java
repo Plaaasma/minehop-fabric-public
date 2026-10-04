@@ -1,18 +1,16 @@
 package net.nerdorg.minehop.entity.custom;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.attribute.DefaultAttributeContainer;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.PacketHandler;
@@ -25,13 +23,13 @@ public class EndEntity extends Zone {
     private BlockPos corner1;
     private BlockPos corner2;
 
-    public EndEntity(EntityType<? extends MobEntity> entityType, World world) {
+    public EndEntity(EntityType<? extends Mob> entityType, Level world) {
         super(entityType, world);
     }
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
+    public void addAdditionalSaveData(CompoundTag nbt) {
+        super.addAdditionalSaveData(nbt);
         if (corner1 != null) {
             nbt.putInt("Corner1X", corner1.getX());
             nbt.putInt("Corner1Y", corner1.getY());
@@ -45,8 +43,8 @@ public class EndEntity extends Zone {
     }
 
     @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
+    public void readAdditionalSaveData(CompoundTag nbt) {
+        super.readAdditionalSaveData(nbt);
         int x1 = nbt.getInt("Corner1X");
         int y1 = nbt.getInt("Corner1Y");
         int z1 = nbt.getInt("Corner1Z");
@@ -74,22 +72,22 @@ public class EndEntity extends Zone {
         return corner2;
     }
 
-    public static DefaultAttributeContainer.Builder createResetEntityAttributes() {
-        return MobEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 1000000);
+    public static AttributeSupplier.Builder createResetEntityAttributes() {
+        return Mob.createMobAttributes()
+                .add(Attributes.MAX_HEALTH, 1000000);
     }
 
     @Override
     public void tick() {
         this.updateInteractionBounds(this.corner1, this.corner2);
-        World world = this.getWorld();
-        if (world instanceof ServerWorld serverWorld) {
-            if (serverWorld.getTime() % 2 == 0) {
+        Level world = this.level();
+        if (world instanceof ServerLevel serverWorld) {
+            if (serverWorld.getGameTime() % 2 == 0) {
                 if (this.corner1 != null && this.corner2 != null) {
-                    Vec3d center = this.getBoundsCenter(this.corner1, this.corner2);
-                    this.requestTeleport(center.x, center.y, center.z);
+                    Vec3 center = this.getBoundsCenter(this.corner1, this.corner2);
+                    this.teleportTo(center.x, center.y, center.z);
                 }
-                for (ServerPlayerEntity worldPlayer : serverWorld.getPlayers()) {
+                for (ServerPlayer worldPlayer : serverWorld.players()) {
                     PacketHandler.updateZone(worldPlayer, this.getId(), this.corner1, this.corner2, this.getPairedMap(), 0);
                 }
             }
@@ -98,19 +96,19 @@ public class EndEntity extends Zone {
                 if (pairedMap == null) {
                     this.kill(serverWorld);
                 } else {
-                    Box endBox = this.getBoundsBox();
+                    AABB endBox = this.getBoundsBox();
                     String mapName = this.getPairedMap();
-                    for (ServerPlayerEntity player : serverWorld.getPlayers()) {
+                    for (ServerPlayer player : serverWorld.players()) {
                         if (player.isCreative() || player.isSpectator()) {
                             continue;
                         }
-                        String playerName = player.getNameForScoreboard();
+                        String playerName = player.getScoreboardName();
                         HashMap<String, Long> timerMap = Minehop.timerManager.get(playerName);
                         // Only stamp while a run for this map is actually active.
                         if (timerMap == null || !timerMap.containsKey(mapName)) {
                             continue;
                         }
-                        if (!endBox.contains(player.getPos())) {
+                        if (!endBox.contains(player.position())) {
                             continue;
                         }
                         HashMap<String, Long> finishMap = Minehop.finishTimeManager.computeIfAbsent(playerName, k -> new HashMap<>());
@@ -126,7 +124,7 @@ public class EndEntity extends Zone {
         super.tick();
     }
 
-    private Box getBoundsBox() {
+    private AABB getBoundsBox() {
         double minX = Math.min(this.corner1.getX(), this.corner2.getX());
         double minY = Math.min(this.corner1.getY(), this.corner2.getY());
         double minZ = Math.min(this.corner1.getZ(), this.corner2.getZ());
@@ -142,6 +140,6 @@ public class EndEntity extends Zone {
         if (maxZ <= minZ) {
             maxZ = minZ + 1.0D;
         }
-        return new Box(minX, minY, minZ, maxX, maxY, maxZ);
+        return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }
 }

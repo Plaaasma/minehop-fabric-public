@@ -2,11 +2,11 @@ package net.nerdorg.minehop.config;
 
 import me.shedaniel.autoconfig.AutoConfig;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.entity.Entity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.data.DataManager;
@@ -23,44 +23,44 @@ public class ConfigWrapper {
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register((server) -> {
             HashMap<String, List<String>> newSpectatorList = new HashMap<>();
-            for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+            for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
                 ResetEntity.trackPlayerMotion(playerEntity);
                 DataManager.MapData currentMap = resolveEffectiveMap(playerEntity);
 
                 if (playerEntity.isSpectator() || playerEntity.isCreative()) {
-                    if (Minehop.timerManager.containsKey(playerEntity.getNameForScoreboard())) {
-                        Minehop.timerManager.remove(playerEntity.getNameForScoreboard());
+                    if (Minehop.timerManager.containsKey(playerEntity.getScoreboardName())) {
+                        Minehop.timerManager.remove(playerEntity.getScoreboardName());
                     }
                 }
 
-                if (newSpectatorList.containsKey(playerEntity.getCameraEntity().getNameForScoreboard())) {
-                    List<String> newList = newSpectatorList.get(playerEntity.getCameraEntity().getNameForScoreboard());
-                    newList.add(playerEntity.getNameForScoreboard());
-                    newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), newList);
+                if (newSpectatorList.containsKey(playerEntity.getCamera().getScoreboardName())) {
+                    List<String> newList = newSpectatorList.get(playerEntity.getCamera().getScoreboardName());
+                    newList.add(playerEntity.getScoreboardName());
+                    newSpectatorList.put(playerEntity.getCamera().getScoreboardName(), newList);
                 }
                 else {
-                    newSpectatorList.put(playerEntity.getCameraEntity().getNameForScoreboard(), new ArrayList<>(Arrays.asList(playerEntity.getNameForScoreboard())));
+                    newSpectatorList.put(playerEntity.getCamera().getScoreboardName(), new ArrayList<>(Arrays.asList(playerEntity.getScoreboardName())));
                 }
 
                 double speedCap = resolveSpeedCap(playerEntity);
                 if (speedCap > 0.0D) {
-                    Minehop.speedCapMap.put(playerEntity.getNameForScoreboard(), speedCap);
+                    Minehop.speedCapMap.put(playerEntity.getScoreboardName(), speedCap);
                 } else {
-                    playerEntity.setGlowing(false);
-                    Minehop.speedCapMap.remove(playerEntity.getNameForScoreboard());
+                    playerEntity.setGlowingTag(false);
+                    Minehop.speedCapMap.remove(playerEntity.getScoreboardName());
                 }
                 PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
             }
             SpectateCommands.spectatorList = newSpectatorList;
-            if (server.getTicks() % 100 == 0) {
+            if (server.getTickCount() % 100 == 0) {
                 refreshPlayerCounts(server);
-                for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+                for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
                     DataManager.MapData mapData = ZoneUtil.getCurrentMapForPlayerCount(playerEntity);
                     if (mapData != null && mapData.arena && !playerEntity.isSpectator()) {
-                        for (int slotNum = 1; slotNum < playerEntity.getInventory().size(); slotNum++) {
-                            playerEntity.getInventory().setStack(slotNum, new ItemStack(Items.AIR));
+                        for (int slotNum = 1; slotNum < playerEntity.getInventory().getContainerSize(); slotNum++) {
+                            playerEntity.getInventory().setItem(slotNum, new ItemStack(Items.AIR));
                         }
-                        playerEntity.getInventory().setStack(0, new ItemStack(ModItems.INSTAGIB_GUN));
+                        playerEntity.getInventory().setItem(0, new ItemStack(ModItems.INSTAGIB_GUN));
                     }
                     PacketHandler.sendSpectators(playerEntity);
                     PacketHandler.sendRecords(playerEntity);
@@ -152,7 +152,7 @@ public class ConfigWrapper {
         if (entity == null) {
             return null;
         }
-        if (entity instanceof ServerPlayerEntity serverPlayer) {
+        if (entity instanceof ServerPlayer serverPlayer) {
             DataManager.MapData byLocation = ZoneUtil.getCurrentMapForPlayerCount(serverPlayer);
             if (byLocation != null) {
                 return byLocation;
@@ -201,7 +201,7 @@ public class ConfigWrapper {
             return;
         }
         DataManager.resetPlayerCounts();
-        for (ServerPlayerEntity playerEntity : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
             if (playerEntity == null || playerEntity.isSpectator()) {
                 continue;
             }

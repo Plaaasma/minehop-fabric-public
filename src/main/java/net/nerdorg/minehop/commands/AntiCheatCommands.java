@@ -10,11 +10,11 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.server.level.ServerPlayer;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.anticheat.AntiCheatFlag;
 import net.nerdorg.minehop.anticheat.AntiCheatManager;
@@ -38,63 +38,63 @@ public final class AntiCheatCommands {
 
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-                LiteralArgumentBuilder.<ServerCommandSource>literal("minehop")
-                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("anticheat")
-                                .requires(source -> source.hasPermissionLevel(2))
+                LiteralArgumentBuilder.<CommandSourceStack>literal("minehop")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("anticheat")
+                                .requires(source -> source.hasPermission(2))
                                 .executes(AntiCheatCommands::handleHelp)
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("verbose")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("verbose")
                                         .executes(AntiCheatCommands::handleVerbose)
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("enable")
-                                        .requires(source -> source.hasPermissionLevel(4))
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("enable")
+                                        .requires(source -> source.hasPermission(4))
                                         .executes(context -> handleSetEnabled(context, true))
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("disable")
-                                        .requires(source -> source.hasPermissionLevel(4))
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("disable")
+                                        .requires(source -> source.hasPermission(4))
                                         .executes(context -> handleSetEnabled(context, false))
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("lagback")
-                                        .requires(source -> source.hasPermissionLevel(4))
-                                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("on")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("lagback")
+                                        .requires(source -> source.hasPermission(4))
+                                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("on")
                                                 .executes(context -> handleSetLagbacks(context, true)))
-                                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("off")
+                                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("off")
                                                 .executes(context -> handleSetLagbacks(context, false)))
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("list")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("list")
                                         .executes(AntiCheatCommands::handleList)
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("gui")
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("gui")
                                         .executes(AntiCheatCommands::handleGui)
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("info")
-                                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("info")
+                                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player", StringArgumentType.string())
                                                 .suggests((ctx, builder) -> suggestKnownPlayers(ctx, builder))
                                                 .executes(AntiCheatCommands::handleInfo)
                                         )
                                 )
                                 // Wiping evidence and exempting players defeat the anticheat: admins only.
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("clear")
-                                        .requires(source -> source.hasPermissionLevel(4))
-                                        .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("clear")
+                                        .requires(source -> source.hasPermission(4))
+                                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player", StringArgumentType.string())
                                                 .suggests((ctx, builder) -> suggestKnownPlayers(ctx, builder))
                                                 .executes(AntiCheatCommands::handleClear)
                                         )
                                 )
-                                .then(LiteralArgumentBuilder.<ServerCommandSource>literal("exempt")
-                                        .requires(source -> source.hasPermissionLevel(4))
-                                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("add")
-                                                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("exempt")
+                                        .requires(source -> source.hasPermission(4))
+                                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("add")
+                                                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player", StringArgumentType.string())
                                                         .suggests((ctx, builder) -> suggestOnlinePlayers(ctx, builder))
                                                         .executes(context -> handleExempt(context, true))
                                                 )
                                         )
-                                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("remove")
-                                                .then(RequiredArgumentBuilder.<ServerCommandSource, String>argument("player", StringArgumentType.string())
+                                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("remove")
+                                                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player", StringArgumentType.string())
                                                         .suggests((ctx, builder) -> suggestOnlinePlayers(ctx, builder))
                                                         .executes(context -> handleExempt(context, false))
                                                 )
                                         )
-                                        .then(LiteralArgumentBuilder.<ServerCommandSource>literal("list")
+                                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("list")
                                                 .executes(AntiCheatCommands::handleExemptList)
                                         )
                                 )
@@ -103,13 +103,13 @@ public final class AntiCheatCommands {
     }
 
     private static java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestKnownPlayers(
-            CommandContext<ServerCommandSource> ctx,
+            CommandContext<CommandSourceStack> ctx,
             com.mojang.brigadier.suggestion.SuggestionsBuilder builder
     ) {
         MinecraftServer server = ctx.getSource().getServer();
         if (server != null) {
-            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                builder.suggest(player.getNameForScoreboard(), new LiteralMessage("online"));
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                builder.suggest(player.getScoreboardName(), new LiteralMessage("online"));
             }
         }
         for (AntiCheatPlayerState state : AntiCheatManager.allStates().values()) {
@@ -122,35 +122,35 @@ public final class AntiCheatCommands {
     }
 
     private static java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestOnlinePlayers(
-            CommandContext<ServerCommandSource> ctx,
+            CommandContext<CommandSourceStack> ctx,
             com.mojang.brigadier.suggestion.SuggestionsBuilder builder
     ) {
         MinecraftServer server = ctx.getSource().getServer();
         if (server != null) {
-            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                builder.suggest(player.getNameForScoreboard(), new LiteralMessage("online"));
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                builder.suggest(player.getScoreboardName(), new LiteralMessage("online"));
             }
         }
         return builder.buildFuture();
     }
 
-    private static int handleHelp(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
-        source.sendFeedback(() -> Text.literal("Minehop AntiCheat commands:").formatted(Formatting.GOLD), false);
-        source.sendFeedback(() -> Text.literal("  /minehop anticheat verbose").formatted(Formatting.AQUA), false);
-        source.sendFeedback(() -> Text.literal("  /minehop anticheat list").formatted(Formatting.AQUA), false);
-        source.sendFeedback(() -> Text.literal("  /minehop anticheat info <player>").formatted(Formatting.AQUA), false);
-        source.sendFeedback(() -> Text.literal("  /minehop anticheat clear <player>").formatted(Formatting.AQUA), false);
-        source.sendFeedback(() -> Text.literal("  /minehop anticheat exempt <add|remove|list> [player]").formatted(Formatting.AQUA), false);
-        source.sendFeedback(() -> Text.literal("  /minehop anticheat gui").formatted(Formatting.AQUA), false);
-        source.sendFeedback(() -> Text.literal("  /minehop anticheat enable|disable (op only)").formatted(Formatting.AQUA), false);
+    private static int handleHelp(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        source.sendSuccess(() -> Component.literal("Minehop AntiCheat commands:").withStyle(ChatFormatting.GOLD), false);
+        source.sendSuccess(() -> Component.literal("  /minehop anticheat verbose").withStyle(ChatFormatting.AQUA), false);
+        source.sendSuccess(() -> Component.literal("  /minehop anticheat list").withStyle(ChatFormatting.AQUA), false);
+        source.sendSuccess(() -> Component.literal("  /minehop anticheat info <player>").withStyle(ChatFormatting.AQUA), false);
+        source.sendSuccess(() -> Component.literal("  /minehop anticheat clear <player>").withStyle(ChatFormatting.AQUA), false);
+        source.sendSuccess(() -> Component.literal("  /minehop anticheat exempt <add|remove|list> [player]").withStyle(ChatFormatting.AQUA), false);
+        source.sendSuccess(() -> Component.literal("  /minehop anticheat gui").withStyle(ChatFormatting.AQUA), false);
+        source.sendSuccess(() -> Component.literal("  /minehop anticheat enable|disable (op only)").withStyle(ChatFormatting.AQUA), false);
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int handleVerbose(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity player = context.getSource().getPlayer();
+    private static int handleVerbose(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = context.getSource().getPlayer();
         if (player == null) {
-            context.getSource().sendError(Text.literal("Verbose toggle requires a player."));
+            context.getSource().sendFailure(Component.literal("Verbose toggle requires a player."));
             return 0;
         }
         boolean enabled = AntiCheatManager.toggleVerbose(player);
@@ -162,35 +162,35 @@ public final class AntiCheatCommands {
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int handleSetEnabled(CommandContext<ServerCommandSource> context, boolean enabled) {
+    private static int handleSetEnabled(CommandContext<CommandSourceStack> context, boolean enabled) {
         AntiCheatManager.setEnabled(enabled);
-        context.getSource().sendFeedback(
-                () -> Text.literal("AntiCheat " + (enabled ? "enabled" : "disabled") + ".").formatted(enabled ? Formatting.GREEN : Formatting.RED),
+        context.getSource().sendSuccess(
+                () -> Component.literal("AntiCheat " + (enabled ? "enabled" : "disabled") + ".").withStyle(enabled ? ChatFormatting.GREEN : ChatFormatting.RED),
                 true
         );
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int handleSetLagbacks(CommandContext<ServerCommandSource> context, boolean enabled) {
+    private static int handleSetLagbacks(CommandContext<CommandSourceStack> context, boolean enabled) {
         AntiCheatManager.setLagbacksEnabled(enabled);
-        context.getSource().sendFeedback(
-                () -> Text.literal("AntiCheat lagbacks " + (enabled ? "ON" : "OFF (checks still flag)") + ".")
-                        .formatted(enabled ? Formatting.GREEN : Formatting.YELLOW),
+        context.getSource().sendSuccess(
+                () -> Component.literal("AntiCheat lagbacks " + (enabled ? "ON" : "OFF (checks still flag)") + ".")
+                        .withStyle(enabled ? ChatFormatting.GREEN : ChatFormatting.YELLOW),
                 true
         );
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int handleList(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
+    private static int handleList(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
         List<AntiCheatPlayerState> sorted = new ArrayList<>(AntiCheatManager.allStates().values());
         sorted.removeIf(state -> state == null || state.totalFlagCount() <= 0);
         sorted.sort(Comparator.comparingInt(AntiCheatPlayerState::totalFlagCount).reversed());
         if (sorted.isEmpty()) {
-            source.sendFeedback(() -> Text.literal("No players have any flags.").formatted(Formatting.GRAY), false);
+            source.sendSuccess(() -> Component.literal("No players have any flags.").withStyle(ChatFormatting.GRAY), false);
             return Command.SINGLE_SUCCESS;
         }
-        source.sendFeedback(() -> Text.literal("=== AntiCheat Flag List ===").formatted(Formatting.GOLD), false);
+        source.sendSuccess(() -> Component.literal("=== AntiCheat Flag List ===").withStyle(ChatFormatting.GOLD), false);
         int shown = 0;
         for (AntiCheatPlayerState state : sorted) {
             if (shown >= 25) {
@@ -199,26 +199,26 @@ public final class AntiCheatCommands {
             String name = state.lastKnownName().isBlank() ? state.playerUuid().toString() : state.lastKnownName();
             int recent = state.recentFlags().size();
             int total = state.totalFlagCount();
-            source.sendFeedback(() -> Text.literal(" " + name + " ")
-                    .formatted(Formatting.YELLOW)
-                    .append(Text.literal("recent=" + recent + " total=" + total).formatted(Formatting.GRAY)), false);
+            source.sendSuccess(() -> Component.literal(" " + name + " ")
+                    .withStyle(ChatFormatting.YELLOW)
+                    .append(Component.literal("recent=" + recent + " total=" + total).withStyle(ChatFormatting.GRAY)), false);
             shown++;
         }
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int handleInfo(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
+    private static int handleInfo(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
         String name = StringArgumentType.getString(context, "player");
         AntiCheatPlayerState state = findStateByName(context.getSource().getServer(), name);
         if (state == null) {
-            source.sendError(Text.literal("No anticheat data for " + name));
+            source.sendFailure(Component.literal("No anticheat data for " + name));
             return 0;
         }
-        source.sendFeedback(() -> Text.literal("=== AntiCheat: " + state.lastKnownName() + " ===").formatted(Formatting.GOLD), false);
-        source.sendFeedback(() -> Text.literal("UUID: " + state.playerUuid()).formatted(Formatting.GRAY), false);
-        source.sendFeedback(() -> Text.literal("Total flags: " + state.totalFlagCount() + ", recent: " + state.recentFlags().size()).formatted(Formatting.GRAY), false);
-        source.sendFeedback(() -> Text.literal("Last 8 flags:").formatted(Formatting.AQUA), false);
+        source.sendSuccess(() -> Component.literal("=== AntiCheat: " + state.lastKnownName() + " ===").withStyle(ChatFormatting.GOLD), false);
+        source.sendSuccess(() -> Component.literal("UUID: " + state.playerUuid()).withStyle(ChatFormatting.GRAY), false);
+        source.sendSuccess(() -> Component.literal("Total flags: " + state.totalFlagCount() + ", recent: " + state.recentFlags().size()).withStyle(ChatFormatting.GRAY), false);
+        source.sendSuccess(() -> Component.literal("Last 8 flags:").withStyle(ChatFormatting.AQUA), false);
         List<AntiCheatFlag> recent = new ArrayList<>(state.recentFlags());
         int limit = Math.min(8, recent.size());
         for (int i = recent.size() - limit; i < recent.size(); i++) {
@@ -226,41 +226,41 @@ public final class AntiCheatCommands {
             String stamp = String.format(Locale.ROOT, "[%s]", new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date(flag.timestamp)));
             String line = stamp + " " + flag.checkName + " (vl=" + String.format(Locale.ROOT, "%.1f", flag.severity) + ") "
                     + flag.details + " @ " + String.format(Locale.ROOT, "%.1f,%.1f,%.1f", flag.posX, flag.posY, flag.posZ);
-            source.sendFeedback(() -> Text.literal(" " + line).formatted(Formatting.YELLOW), false);
+            source.sendSuccess(() -> Component.literal(" " + line).withStyle(ChatFormatting.YELLOW), false);
         }
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int handleClear(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
+    private static int handleClear(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
         String name = StringArgumentType.getString(context, "player");
         AntiCheatPlayerState state = findStateByName(context.getSource().getServer(), name);
         if (state == null) {
-            source.sendError(Text.literal("No anticheat data for " + name));
+            source.sendFailure(Component.literal("No anticheat data for " + name));
             return 0;
         }
         AntiCheatManager.clearFlagsFor(state.playerUuid());
-        source.sendFeedback(() -> Text.literal("Cleared anticheat flags for " + state.lastKnownName() + ".").formatted(Formatting.GREEN), true);
+        source.sendSuccess(() -> Component.literal("Cleared anticheat flags for " + state.lastKnownName() + ".").withStyle(ChatFormatting.GREEN), true);
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int handleExempt(CommandContext<ServerCommandSource> context, boolean add) {
-        ServerCommandSource source = context.getSource();
+    private static int handleExempt(CommandContext<CommandSourceStack> context, boolean add) {
+        CommandSourceStack source = context.getSource();
         String name = StringArgumentType.getString(context, "player");
         MinecraftServer server = source.getServer();
         if (server == null) {
             return 0;
         }
-        ServerPlayerEntity target = server.getPlayerManager().getPlayer(name);
+        ServerPlayer target = server.getPlayerList().getPlayerByName(name);
         UUID uuid;
         String displayName;
         if (target != null) {
-            uuid = target.getUuid();
-            displayName = target.getNameForScoreboard();
+            uuid = target.getUUID();
+            displayName = target.getScoreboardName();
         } else {
             AntiCheatPlayerState state = findStateByName(server, name);
             if (state == null) {
-                source.sendError(Text.literal("Player not found: " + name));
+                source.sendFailure(Component.literal("Player not found: " + name));
                 return 0;
             }
             uuid = state.playerUuid();
@@ -268,31 +268,31 @@ public final class AntiCheatCommands {
         }
         boolean changed = add ? AntiCheatManager.addExempt(uuid) : AntiCheatManager.removeExempt(uuid);
         if (!changed) {
-            source.sendFeedback(() -> Text.literal(displayName + " is already " + (add ? "exempt" : "not exempt") + ".").formatted(Formatting.GRAY), false);
+            source.sendSuccess(() -> Component.literal(displayName + " is already " + (add ? "exempt" : "not exempt") + ".").withStyle(ChatFormatting.GRAY), false);
             return Command.SINGLE_SUCCESS;
         }
-        source.sendFeedback(
-                () -> Text.literal((add ? "Added " : "Removed ") + displayName + (add ? " to" : " from") + " anticheat exempt list.").formatted(Formatting.GREEN),
+        source.sendSuccess(
+                () -> Component.literal((add ? "Added " : "Removed ") + displayName + (add ? " to" : " from") + " anticheat exempt list.").withStyle(ChatFormatting.GREEN),
                 true
         );
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int handleExemptList(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
+    private static int handleExemptList(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
         MinecraftServer server = source.getServer();
         Collection<UUID> exempt = AntiCheatManager.exemptList();
         if (exempt.isEmpty()) {
-            source.sendFeedback(() -> Text.literal("No players in exempt list.").formatted(Formatting.GRAY), false);
+            source.sendSuccess(() -> Component.literal("No players in exempt list.").withStyle(ChatFormatting.GRAY), false);
             return Command.SINGLE_SUCCESS;
         }
-        source.sendFeedback(() -> Text.literal("=== AntiCheat Exempt List (" + exempt.size() + ") ===").formatted(Formatting.GOLD), false);
+        source.sendSuccess(() -> Component.literal("=== AntiCheat Exempt List (" + exempt.size() + ") ===").withStyle(ChatFormatting.GOLD), false);
         for (UUID uuid : exempt) {
             String label = uuid.toString();
             if (server != null) {
-                ServerPlayerEntity p = server.getPlayerManager().getPlayer(uuid);
+                ServerPlayer p = server.getPlayerList().getPlayer(uuid);
                 if (p != null) {
-                    label = p.getNameForScoreboard() + " (" + uuid + ")";
+                    label = p.getScoreboardName() + " (" + uuid + ")";
                 } else {
                     AntiCheatPlayerState state = AntiCheatManager.stateByUuid(uuid);
                     if (state != null && !state.lastKnownName().isBlank()) {
@@ -301,15 +301,15 @@ public final class AntiCheatCommands {
                 }
             }
             String finalLabel = label;
-            source.sendFeedback(() -> Text.literal(" - " + finalLabel).formatted(Formatting.YELLOW), false);
+            source.sendSuccess(() -> Component.literal(" - " + finalLabel).withStyle(ChatFormatting.YELLOW), false);
         }
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int handleGui(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity player = context.getSource().getPlayer();
+    private static int handleGui(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = context.getSource().getPlayer();
         if (player == null) {
-            context.getSource().sendError(Text.literal("GUI requires a player."));
+            context.getSource().sendFailure(Component.literal("GUI requires a player."));
             return 0;
         }
         String json = buildAdminSnapshotJson(player.getServer());
@@ -329,7 +329,7 @@ public final class AntiCheatCommands {
             AdminPlayerEntry data = new AdminPlayerEntry();
             data.uuid = entry.getKey().toString();
             data.name = state.lastKnownName();
-            data.online = server != null && server.getPlayerManager().getPlayer(entry.getKey()) != null;
+            data.online = server != null && server.getPlayerList().getPlayer(entry.getKey()) != null;
             data.totalFlags = state.totalFlagCount();
             data.recentFlagCount = state.recentFlags().size();
             data.exempt = AntiCheatManager.exemptList().contains(entry.getKey());
@@ -348,25 +348,25 @@ public final class AntiCheatCommands {
             snapshot.players.add(data);
         }
         if (server != null) {
-            for (ServerPlayerEntity online : server.getPlayerManager().getPlayerList()) {
+            for (ServerPlayer online : server.getPlayerList().getPlayers()) {
                 if (online == null) {
                     continue;
                 }
                 boolean exists = false;
                 for (AdminPlayerEntry existing : snapshot.players) {
-                    if (online.getUuidAsString().equals(existing.uuid)) {
+                    if (online.getStringUUID().equals(existing.uuid)) {
                         existing.online = true;
-                        existing.name = online.getNameForScoreboard();
+                        existing.name = online.getScoreboardName();
                         exists = true;
                         break;
                     }
                 }
                 if (!exists) {
                     AdminPlayerEntry data = new AdminPlayerEntry();
-                    data.uuid = online.getUuidAsString();
-                    data.name = online.getNameForScoreboard();
+                    data.uuid = online.getStringUUID();
+                    data.name = online.getScoreboardName();
                     data.online = true;
-                    data.exempt = AntiCheatManager.exemptList().contains(online.getUuid());
+                    data.exempt = AntiCheatManager.exemptList().contains(online.getUUID());
                     snapshot.players.add(data);
                 }
             }
@@ -382,7 +382,7 @@ public final class AntiCheatCommands {
             return null;
         }
         if (server != null) {
-            ServerPlayerEntity player = server.getPlayerManager().getPlayer(name);
+            ServerPlayer player = server.getPlayerList().getPlayerByName(name);
             if (player != null) {
                 return AntiCheatManager.stateOf(player);
             }
@@ -428,15 +428,15 @@ public final class AntiCheatCommands {
             if (!net.nerdorg.minehop.util.PacketRateLimiter.allow(ctx.player(), net.nerdorg.minehop.networking.payloads.AntiCheatActionPayload.ID.id().toString(), 100)) {
                 return;
             }
-            ServerPlayerEntity player = ctx.player();
+            ServerPlayer player = ctx.player();
             String action = payload.action() == null ? "" : payload.action();
             String targetUuidString = payload.targetUuid() == null ? "" : payload.targetUuid();
             ctx.server().execute(() -> handleAction(player, action, targetUuidString));
         });
     }
 
-    private static void handleAction(ServerPlayerEntity player, String action, String targetUuidString) {
-        if (player == null || !player.hasPermissionLevel(2)) {
+    private static void handleAction(ServerPlayer player, String action, String targetUuidString) {
+        if (player == null || !player.hasPermissions(2)) {
             return;
         }
         UUID targetUuid = null;
@@ -463,12 +463,12 @@ public final class AntiCheatCommands {
                 }
             }
             case net.nerdorg.minehop.networking.payloads.AntiCheatActionPayload.ACTION_KICK -> {
-                if (targetUuid != null && player.hasPermissionLevel(3)) {
+                if (targetUuid != null && player.hasPermissions(3)) {
                     MinecraftServer server = player.getServer();
                     if (server != null) {
-                        ServerPlayerEntity target = server.getPlayerManager().getPlayer(targetUuid);
+                        ServerPlayer target = server.getPlayerList().getPlayer(targetUuid);
                         if (target != null) {
-                            target.networkHandler.disconnect(Text.literal("Kicked by anticheat admin."));
+                            target.connection.disconnect(Component.literal("Kicked by anticheat admin."));
                         }
                     }
                 }

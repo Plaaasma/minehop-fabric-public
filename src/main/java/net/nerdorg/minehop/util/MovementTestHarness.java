@@ -2,12 +2,12 @@ package net.nerdorg.minehop.util;
 
 import net.fabricmc.fabric.api.entity.FakePlayer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.block.Blocks;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.SurfRampEntity;
@@ -64,7 +64,7 @@ public final class MovementTestHarness {
     private static final double STEEP_WIDTH = 8.0D;
 
     private static FakePlayer fakePlayer;
-    private static ServerWorld testWorld;
+    private static ServerLevel testWorld;
     private static SurfRampEntity testRamp;
     private static SurfRampEntity testRampCurved;
     private static SurfRampEntity testRampDecline;
@@ -186,9 +186,9 @@ public final class MovementTestHarness {
             return;
         }
         if (testWorld == null) {
-            testWorld = server.getOverworld();
+            testWorld = server.overworld();
             fakePlayer = FakePlayer.get(testWorld, new com.mojang.authlib.GameProfile(UUID.randomUUID(), "MTestBot"));
-            Minehop.surfDebugPlayers.add(fakePlayer.getUuid());
+            Minehop.surfDebugPlayers.add(fakePlayer.getUUID());
             spawnRamp();
             Minehop.LOGGER.info("[MTEST] === harness ready, beginning scenarios ===");
         }
@@ -219,7 +219,7 @@ public final class MovementTestHarness {
             surfTick = 0;
             if (surfIndex >= SURF_SCENARIOS.size()) {
                 Minehop.LOGGER.info("[MTEST] === ALL SCENARIOS DONE ===");
-                server.stop(false);
+                server.halt(false);
                 return;
             }
             beginSurfScenario(SURF_SCENARIOS.get(surfIndex));
@@ -239,14 +239,14 @@ public final class MovementTestHarness {
         }
         testRamp = new SurfRampEntity(ModEntities.SURF_RAMP_ENTITY, testWorld);
         testRamp.setGeometry(
-                new Vec3d(RAMP_X, RAMP_Y, RAMP_Z),
-                new Vec3d(RAMP_X + RAMP_LENGTH, RAMP_Y, RAMP_Z),
+                new Vec3(RAMP_X, RAMP_Y, RAMP_Z),
+                new Vec3(RAMP_X + RAMP_LENGTH, RAMP_Y, RAMP_Z),
                 RAMP_DROP,
                 RAMP_WIDTH,
                 false,
                 1
         );
-        testWorld.spawnEntity(testRamp);
+        testWorld.addFreshEntity(testRamp);
         Minehop.LOGGER.info("[MTEST] spawned ramp start=({}, {}, {}) len={} drop={} width={}",
                 RAMP_X, RAMP_Y, RAMP_Z, RAMP_LENGTH, RAMP_DROP, RAMP_WIDTH);
 
@@ -254,7 +254,7 @@ public final class MovementTestHarness {
         int floorY = (int) Math.floor(FLOOR_TOP_Y) - 1;
         for (int bx = (int) RAMP_X - 2; bx <= (int) (RAMP_X + RAMP_LENGTH) + 2; bx++) {
             for (int bz = (int) (RAMP_Z + RAMP_WIDTH) - 4; bz <= (int) (RAMP_Z + RAMP_WIDTH) + 12; bz++) {
-                testWorld.setBlockState(new BlockPos(bx, floorY, bz), Blocks.STONE.getDefaultState());
+                testWorld.setBlockAndUpdate(new BlockPos(bx, floorY, bz), Blocks.STONE.defaultBlockState());
             }
         }
 
@@ -270,14 +270,14 @@ public final class MovementTestHarness {
         }
         testRampCurved = new SurfRampEntity(ModEntities.SURF_RAMP_ENTITY, testWorld);
         testRampCurved.setGeometry(
-                new Vec3d(CURVE_X, CURVE_Y, CURVE_Z),
-                new Vec3d(CURVE_X + 40.0D, CURVE_Y, CURVE_Z + 40.0D),
+                new Vec3(CURVE_X, CURVE_Y, CURVE_Z),
+                new Vec3(CURVE_X + 40.0D, CURVE_Y, CURVE_Z + 40.0D),
                 10.0D,
                 14.0D,
                 false,
                 1
         );
-        testWorld.spawnEntity(testRampCurved);
+        testWorld.addFreshEntity(testRampCurved);
         Minehop.LOGGER.info("[MTEST] spawned CURVED ramp start=({}, {}, {}) end=(+40,+0,+40)",
                 CURVE_X, CURVE_Y, CURVE_Z);
 
@@ -292,14 +292,14 @@ public final class MovementTestHarness {
         }
         testRampDecline = new SurfRampEntity(ModEntities.SURF_RAMP_ENTITY, testWorld);
         testRampDecline.setGeometry(
-                new Vec3d(DECL_X, DECL_Y_TOP, DECL_Z),
-                new Vec3d(DECL_X + DECL_LEN, DECL_Y_BOT, DECL_Z),
+                new Vec3(DECL_X, DECL_Y_TOP, DECL_Z),
+                new Vec3(DECL_X + DECL_LEN, DECL_Y_BOT, DECL_Z),
                 DECL_DROP,
                 DECL_WIDTH,
                 false,
                 1
         );
-        testWorld.spawnEntity(testRampDecline);
+        testWorld.addFreshEntity(testRampDecline);
         Minehop.LOGGER.info("[MTEST] spawned DECLINE ramp start=({}, {}, {}) end=(+{}, {}, +0) drop={} width={}",
                 DECL_X, DECL_Y_TOP, DECL_Z, DECL_LEN, DECL_Y_BOT, DECL_DROP, DECL_WIDTH);
 
@@ -307,14 +307,14 @@ public final class MovementTestHarness {
         forceChunksAround(DIAG_X, DIAG_Z, DIAG_LEN, DIAG_LEN);
         testRampDiag = new SurfRampEntity(ModEntities.SURF_RAMP_ENTITY, testWorld);
         testRampDiag.setGeometry(
-                new Vec3d(DIAG_X, DIAG_Y_TOP, DIAG_Z),
-                new Vec3d(DIAG_X + DIAG_LEN, DIAG_Y_BOT, DIAG_Z + DIAG_LEN),
+                new Vec3(DIAG_X, DIAG_Y_TOP, DIAG_Z),
+                new Vec3(DIAG_X + DIAG_LEN, DIAG_Y_BOT, DIAG_Z + DIAG_LEN),
                 DIAG_DROP,
                 DIAG_WIDTH,
                 false,
                 1
         );
-        testWorld.spawnEntity(testRampDiag);
+        testWorld.addFreshEntity(testRampDiag);
         Minehop.LOGGER.info("[MTEST] spawned DIAG ramp start=({}, {}, {}) end=(+{},{},+{})",
                 DIAG_X, DIAG_Y_TOP, DIAG_Z, DIAG_LEN, DIAG_Y_BOT, DIAG_LEN);
 
@@ -322,28 +322,28 @@ public final class MovementTestHarness {
         forceChunksAround(STEEP_X, STEEP_Z, STEEP_LEN, 0.0D);
         testRampSteep = new SurfRampEntity(ModEntities.SURF_RAMP_ENTITY, testWorld);
         testRampSteep.setGeometry(
-                new Vec3d(STEEP_X, STEEP_Y, STEEP_Z),
-                new Vec3d(STEEP_X + STEEP_LEN, STEEP_Y, STEEP_Z),
+                new Vec3(STEEP_X, STEEP_Y, STEEP_Z),
+                new Vec3(STEEP_X + STEEP_LEN, STEEP_Y, STEEP_Z),
                 STEEP_DROP,
                 STEEP_WIDTH,
                 false,
                 1
         );
-        testWorld.spawnEntity(testRampSteep);
+        testWorld.addFreshEntity(testRampSteep);
         Minehop.LOGGER.info("[MTEST] spawned STEEP ramp start=({}, {}, {}) drop={} width={}",
                 STEEP_X, STEEP_Y, STEEP_Z, STEEP_DROP, STEEP_WIDTH);
 
         // BIG ramps built the in-game way (densified path points), width/drop > 3 — repro for the
         // "big straight ramp = fall straight through" report (curved control should work).
-        java.util.List<Vec3d> straightPts = java.util.List.of(
-                new Vec3d(700.0D, 130.0D, 700.0D),
-                new Vec3d(730.0D, 130.0D, 700.0D));
+        java.util.List<Vec3> straightPts = java.util.List.of(
+                new Vec3(700.0D, 130.0D, 700.0D),
+                new Vec3(730.0D, 130.0D, 700.0D));
         testRampBigStraight = spawnPathRamp(straightPts, 6.0D, 6.0D, 1);
-        java.util.List<Vec3d> curvePts = java.util.List.of(
-                new Vec3d(800.0D, 130.0D, 700.0D),
-                new Vec3d(810.0D, 130.0D, 703.0D),
-                new Vec3d(820.0D, 130.0D, 710.0D),
-                new Vec3d(830.0D, 130.0D, 721.0D));
+        java.util.List<Vec3> curvePts = java.util.List.of(
+                new Vec3(800.0D, 130.0D, 700.0D),
+                new Vec3(810.0D, 130.0D, 703.0D),
+                new Vec3(820.0D, 130.0D, 710.0D),
+                new Vec3(830.0D, 130.0D, 721.0D));
         testRampBigCurve = spawnPathRamp(curvePts, 6.0D, 6.0D, 1);
     }
 
@@ -351,11 +351,11 @@ public final class MovementTestHarness {
     // <=5-length LINKED segments (each a separate SurfRampEntity sharing the full path with a sub
     // pathT range + linked seams), so the real multi-segment/seam code runs. Returns all segments.
     private static final double SPLIT_MAX_LEN = 5.0D;
-    private static List<SurfRampEntity> spawnPathRamp(List<Vec3d> points, double drop, double width, int sideSign) {
-        List<Vec3d> dense = new ArrayList<>();
+    private static List<SurfRampEntity> spawnPathRamp(List<Vec3> points, double drop, double width, int sideSign) {
+        List<Vec3> dense = new ArrayList<>();
         dense.add(points.get(0));
         for (int i = 1; i < points.size(); i++) {
-            Vec3d a = points.get(i - 1), b = points.get(i);
+            Vec3 a = points.get(i - 1), b = points.get(i);
             double dist = Math.hypot(b.x - a.x, b.z - a.z);
             int slices = Math.max(1, (int) Math.ceil(dist / 0.4D));
             for (int s = 1; s <= slices; s++) {
@@ -363,7 +363,7 @@ public final class MovementTestHarness {
             }
         }
         double minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
-        for (Vec3d p : dense) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+        for (Vec3 p : dense) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
         forceChunksAround(minX - width - 2, minZ - width - 2, (maxX - minX) + 2 * width + 4, (maxZ - minZ) + 2 * width + 4);
 
         // Split into index ranges of <=SPLIT_MAX_LEN horizontal length (share the boundary point).
@@ -381,18 +381,18 @@ public final class MovementTestHarness {
             startIdx = endIdx;
         }
 
-        List<Vec3d> shared = List.copyOf(dense);
+        List<Vec3> shared = List.copyOf(dense);
         int span = Math.max(dense.size() - 1, 1);
         List<SurfRampEntity> segs = new ArrayList<>();
         for (int r = 0; r < ranges.size(); r++) {
             int s0 = ranges.get(r)[0], s1 = ranges.get(r)[1];
-            Vec3d segStart = dense.get(s0), segEnd = dense.get(s1);
+            Vec3 segStart = dense.get(s0), segEnd = dense.get(s1);
             SurfRampEntity ramp = new SurfRampEntity(ModEntities.SURF_RAMP_ENTITY, testWorld);
             ramp.setGeometry(segStart, segEnd, drop, width, false, sideSign);
             ramp.setCenterlinePoints(shared, (double) s0 / span, (double) s1 / span);
             ramp.setChainId("mtest-chain-" + Math.round(points.get(0).x));
             ramp.setLinkedSeams(r > 0, r < ranges.size() - 1);
-            testWorld.spawnEntity(ramp);
+            testWorld.addFreshEntity(ramp);
             segs.add(ramp);
         }
         Minehop.LOGGER.info("[MTEST] spawned PATH ramp pts={} dense={} SEGMENTS={} start=({},{},{}) drop={} width={}",
@@ -424,50 +424,50 @@ public final class MovementTestHarness {
     private static void beginScenario(Scenario scenario) {
         double spawnX = 8.0D;
         double spawnZ = 8.0D;
-        fakePlayer.refreshPositionAndAngles(spawnX, TEST_Y, spawnZ, 0.0F, 0.0F);
+        fakePlayer.moveTo(spawnX, TEST_Y, spawnZ, 0.0F, 0.0F);
         double initBpt = scenario.initSpeedUps / BLOCKS_PER_TICK_TO_UPS;
-        fakePlayer.setVelocity(new Vec3d(0.0D, 0.0D, initBpt));
-        fakePlayer.setYaw(0.0F);
-        fakePlayer.prevYaw = 0.0F;
+        fakePlayer.setDeltaMovement(new Vec3(0.0D, 0.0D, initBpt));
+        fakePlayer.setYRot(0.0F);
+        fakePlayer.yRotO = 0.0F;
         fakePlayer.setOnGround(!scenario.airborne);
-        fakePlayer.changeGameMode(GameMode.SURVIVAL);
+        fakePlayer.setGameMode(GameType.SURVIVAL);
         Minehop.LOGGER.info("[MTEST] --- air '{}' start ---", scenario.name);
     }
 
     private static void runScenarioTick(Scenario scenario) {
-        float prevYaw = fakePlayer.getYaw();
+        float prevYaw = fakePlayer.getYRot();
         float newYaw = prevYaw + (float) scenario.yawDeltaPerTick;
-        fakePlayer.prevYaw = prevYaw;
-        fakePlayer.setYaw(newYaw);
-        fakePlayer.setMovementSpeed(0.1F);
+        fakePlayer.yRotO = prevYaw;
+        fakePlayer.setYRot(newYaw);
+        fakePlayer.setSpeed(0.1F);
         if (!scenario.airborne) {
             fakePlayer.setOnGround(true);
         }
 
-        Vec3d before = fakePlayer.getVelocity();
+        Vec3 before = fakePlayer.getDeltaMovement();
         double beforeUps = horizontalUps(before);
 
-        fakePlayer.travel(new Vec3d(scenario.sideways, 0.0D, scenario.forward));
+        fakePlayer.travel(new Vec3(scenario.sideways, 0.0D, scenario.forward));
 
-        Vec3d after = fakePlayer.getVelocity();
+        Vec3 after = fakePlayer.getDeltaMovement();
         double afterUps = horizontalUps(after);
         double velHeading = afterUps > 1.0E-6D ? Math.toDegrees(Math.atan2(after.x, after.z)) : 0.0D;
 
-        net.nerdorg.minehop.util.StrafeStats st = Minehop.strafeStatsMap.get(fakePlayer.getNameForScoreboard());
+        net.nerdorg.minehop.util.StrafeStats st = Minehop.strafeStatsMap.get(fakePlayer.getScoreboardName());
         String statStr = st != null
                 ? String.format(Locale.ROOT, " eff=%.1f sync=%.1f gauge=%.1f", st.liveEfficiency, st.liveSync, st.liveGauge)
                 : " eff=- sync=- gauge=-";
         Minehop.LOGGER.info(String.format(Locale.ROOT,
                 "[MTEST] %s t=%02d yaw=%.1f velHead=%.1f onGround=%b beforeH=%.1f afterH=%.1f dH=%+.2f vy=%.3f%s",
-                scenario.name, scenarioTick, newYaw, velHeading, fakePlayer.isOnGround(),
+                scenario.name, scenarioTick, newYaw, velHeading, fakePlayer.onGround(),
                 beforeUps, afterUps, afterUps - beforeUps, after.y, statStr));
     }
 
     private static void beginSurfScenario(SurfScenario s) {
         double sx = s.x, sy = s.y, sz = s.z, svx = s.vx, svy = s.vy, svz = s.vz;
         if (s.curveSpawnT >= 0.0D && testRampCurved != null) {
-            Vec3d center = testRampCurved.sampleCenterline(s.curveSpawnT);
-            Vec3d left = testRampCurved.sampleLeft(s.curveSpawnT);
+            Vec3 center = testRampCurved.sampleCenterline(s.curveSpawnT);
+            Vec3 left = testRampCurved.sampleLeft(s.curveSpawnT);
             int side = testRampCurved.getSideSign();
             double width = 14.0D;
             double drop = 10.0D;
@@ -488,8 +488,8 @@ public final class MovementTestHarness {
         }
         if (s.name.startsWith("diag_") && testRampDiag != null) {
             double t = 0.18D;
-            Vec3d center = testRampDiag.sampleCenterline(t);
-            Vec3d left = testRampDiag.sampleLeft(t);
+            Vec3 center = testRampDiag.sampleCenterline(t);
+            Vec3 left = testRampDiag.sampleLeft(t);
             int side = testRampDiag.getSideSign();
             double lat = 5.0D;
             double normLat = Math.max(0.0D, Math.min(1.0D, lat / DIAG_WIDTH));
@@ -524,29 +524,29 @@ public final class MovementTestHarness {
                 }
             }
         }
-        fakePlayer.refreshPositionAndAngles(sx, sy, sz, s.yawDeg, 0.0F);
-        fakePlayer.setVelocity(new Vec3d(svx, svy, svz));
-        fakePlayer.setYaw(s.yawDeg);
-        fakePlayer.prevYaw = s.yawDeg;
+        fakePlayer.moveTo(sx, sy, sz, s.yawDeg, 0.0F);
+        fakePlayer.setDeltaMovement(new Vec3(svx, svy, svz));
+        fakePlayer.setYRot(s.yawDeg);
+        fakePlayer.yRotO = s.yawDeg;
         fakePlayer.setOnGround(false);
-        fakePlayer.changeGameMode(GameMode.SURVIVAL);
-        fakePlayer.setMovementSpeed(0.1F);
+        fakePlayer.setGameMode(GameType.SURVIVAL);
+        fakePlayer.setSpeed(0.1F);
         Minehop.LOGGER.info(String.format(Locale.ROOT,
                 "[MTEST] --- surf '%s' start pos=(%.2f,%.3f,%.2f) vel=(%.3f,%.3f,%.3f) in=(%.1f,%.1f) yaw=%.0f ---",
                 s.name, s.x, s.y, s.z, s.vx, s.vy, s.vz, s.inSideways, s.inForward, s.yawDeg));
     }
 
     private static void runSurfScenarioTick(SurfScenario s) {
-        fakePlayer.setYaw(s.yawDeg);
-        fakePlayer.prevYaw = s.yawDeg;
-        fakePlayer.setMovementSpeed(0.1F);
+        fakePlayer.setYRot(s.yawDeg);
+        fakePlayer.yRotO = s.yawDeg;
+        fakePlayer.setSpeed(0.1F);
 
-        if (s.holdSpace && fakePlayer.isOnGround()) {
-            Vec3d jv = fakePlayer.getVelocity();
-            fakePlayer.setVelocity(jv.x, 300.0D / BLOCKS_PER_TICK_TO_UPS, jv.z);
+        if (s.holdSpace && fakePlayer.onGround()) {
+            Vec3 jv = fakePlayer.getDeltaMovement();
+            fakePlayer.setDeltaMovement(jv.x, 300.0D / BLOCKS_PER_TICK_TO_UPS, jv.z);
         }
 
-        fakePlayer.travel(new Vec3d(s.inSideways, 0.0D, s.inForward));
+        fakePlayer.travel(new Vec3(s.inSideways, 0.0D, s.inForward));
 
         double feetY = fakePlayer.getBoundingBox().minY;
         double x = fakePlayer.getX();
@@ -565,9 +565,9 @@ public final class MovementTestHarness {
         } else {
             r = s.curved ? testRampCurved : testRamp;
         }
-        Vec3d v = fakePlayer.getVelocity();
+        Vec3 v = fakePlayer.getDeltaMovement();
         boolean bypass = Minehop.surfCollisionBypassEntities.contains(fakePlayer.getId());
-        boolean onGround = fakePlayer.isOnGround();
+        boolean onGround = fakePlayer.onGround();
         var contact = r.sampleNearestContact(x, z, feetY, 12.0D);
         String contactStr;
         if (contact == null) {
@@ -582,7 +582,7 @@ public final class MovementTestHarness {
                 s.name, surfTick, x, feetY, z, v.x, v.y, v.z, bypass, onGround, contactStr));
     }
 
-    private static double horizontalUps(Vec3d v) {
+    private static double horizontalUps(Vec3 v) {
         return Math.sqrt(v.x * v.x + v.z * v.z) * BLOCKS_PER_TICK_TO_UPS;
     }
 
