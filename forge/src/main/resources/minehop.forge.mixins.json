@@ -8,7 +8,9 @@
     "PlayerListMixin"
   ],
   "client": [
-    "client.LevelRendererMixin"
+    "client.ClientPacketListenerMixin",
+    "client.LevelRendererMixin",
+    "client.NetworkContextAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

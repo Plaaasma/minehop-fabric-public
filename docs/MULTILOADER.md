@@ -328,6 +328,15 @@ reference server: 4 registries (block, block_entity_type, entity_type, item) / 2
 exactly the numbers below. Forge needs nothing else to join a non-Forge server: the connection is treated as VANILLA
 (Fabric ignores the `\0FORGE` host-name marker), and every Minehop channel is optional.
 
+Behind a proxy (verified with Velocity 3.5.1, modern forwarding, FabricProxy-Lite on the Fabric backends) all three
+clients join as above. Switching backends sends the client back into the configuration phase on the same connection
+(`ClientboundStartConfigurationPacket`), and the new Fabric backend repeats its `minecraft:register` exchange and the
+registry sync. Fabric and NeoForge clients re-announce their channels in every configuration phase; Forge announces
+each channel only once per connection (`ChannelListManager#addChannels`), so the new backend would kick the client
+("requires Fabric Loader and Fabric API"). `ClientPacketListenerMixin` (forge module, client) therefore clears Forge's
+sent-channel list (`NetworkContextAccessor`) when a new configuration phase starts, so Forge re-announces everything,
+as on the first join. The first join never goes through that packet, so direct joins are unaffected.
+
 The reverse direction (Fabric client on a NeoForge/Forge server): the NeoForge server treats a Fabric client as an
 "other" connection; it is accepted when all Minehop payloads are `optional()`, but NeoForge does not sync registries
 to it, so the raw ids above must match there as well. Test it explicitly.
