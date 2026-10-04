@@ -6,26 +6,36 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.nerdorg.minehop.Minehop;
+import net.nerdorg.minehop.block.ModBlocks;
+import net.nerdorg.minehop.forge.network.FabricRegistrySyncClient;
+import net.nerdorg.minehop.forge.platform.ForgeNetworkHelper;
 
 /**
- * Forge entrypoint (PHASE 3 SKELETON). Only calls into common; the platform services in
- * {@code net.nerdorg.minehop.forge.platform} are TODO stubs.
+ * Forge entrypoint: runs the common initialization (and the client initialization on the physical client) from the mod
+ * constructor, then builds the Forge network channels from the payloads the common code declared.
  */
 @Mod(Minehop.MOD_ID)
 public class MinehopForge {
     private static IEventBus modEventBus;
 
     public MinehopForge(FMLJavaModLoadingContext context) {
-        // TODO(phase 3): the registry/network/client services need the mod event bus (DeferredRegister#register,
-        //  EntityAttributeCreationEvent, BuildCreativeModeTabContentsEvent, client registration events). It must be
-        //  available BEFORE the common init below runs.
+        // The registry/client services register DeferredRegisters and mod-bus listeners while the common init runs.
         MinehopForge.modEventBus = context.getModEventBus();
 
         new Minehop().onInitialize();
 
+        // On Fabric, registering ModBlockEntities runs its factory immediately, which loads ModBlocks and registers the
+        // boost pad block and block item right then. Forge defers that factory to the block entity RegisterEvent, which
+        // is too late to add a block or an item. Load ModBlocks now instead: on Fabric it also comes after ModItems'
+        // items, so the item raw ids stay identical (bounds_stick, surf_stick, instagib_gun, boost_pad).
+        ModBlocks.BOOSTER_BLOCK.id();
+
         if (FMLEnvironment.dist == Dist.CLIENT) {
             MinehopForgeClient.init(context);
+            FabricRegistrySyncClient.register();
         }
+
+        ForgeNetworkHelper.buildChannel();
     }
 
     /**

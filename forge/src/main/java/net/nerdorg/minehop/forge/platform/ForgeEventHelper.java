@@ -1,115 +1,207 @@
 package net.nerdorg.minehop.forge.platform;
 
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.entity.living.LivingAttackEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.level.LevelEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.eventbus.api.Event;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.nerdorg.minehop.platform.services.IEventHelper;
 
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
+
 /**
- * PHASE 3 TODO: Forge implementation of {@link IEventHelper}. All events are on {@code MinecraftForge.EVENT_BUS}
- * (EventBus 6 in Forge 54).
+ * Forge implementation of {@link IEventHelper}: every listener goes on {@code MinecraftForge.EVENT_BUS} (EventBus 6),
+ * at the Forge event that fires where the corresponding Fabric API event fires. The one exception is
+ * {@link #onGameMessage} (no Forge event): {@code PlayerListMixin} in this module calls {@link #fireGameMessage}.
  */
 public class ForgeEventHelper implements IEventHelper {
+    private static final List<GameMessageListener> GAME_MESSAGE_LISTENERS = new CopyOnWriteArrayList<>();
+    /** new player -> old player, from PlayerEvent.Clone until the PlayerRespawnEvent of the same respawn. */
+    private static final Map<Player, Player> RESPAWN_ORIGINALS = new WeakHashMap<>();
+
+    private static <T extends Event> void listen(Class<T> type, Consumer<T> listener) {
+        MinecraftForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, type, listener);
+    }
 
     @Override
     public void onServerStarting(ServerListener listener) {
-        // TODO(phase 3): net.minecraftforge.event.server.ServerStartingEvent -> listener.onServer(event.getServer())
-        throw Todo.notImplemented("IEventHelper.onServerStarting");
+        listen(ServerStartingEvent.class, event -> listener.onServer(event.getServer()));
     }
 
     @Override
     public void onServerStarted(ServerListener listener) {
-        // TODO(phase 3): ServerStartedEvent
-        throw Todo.notImplemented("IEventHelper.onServerStarted");
+        listen(ServerStartedEvent.class, event -> listener.onServer(event.getServer()));
     }
 
     @Override
     public void onServerStopping(ServerListener listener) {
-        // TODO(phase 3): ServerStoppingEvent
-        throw Todo.notImplemented("IEventHelper.onServerStopping");
+        listen(ServerStoppingEvent.class, event -> listener.onServer(event.getServer()));
     }
 
     @Override
     public void onServerStopped(ServerListener listener) {
-        // TODO(phase 3): ServerStoppedEvent
-        throw Todo.notImplemented("IEventHelper.onServerStopped");
+        listen(ServerStoppedEvent.class, event -> listener.onServer(event.getServer()));
     }
 
     @Override
     public void onServerTickStart(ServerListener listener) {
-        // TODO(phase 3): net.minecraftforge.event.TickEvent.ServerTickEvent.Pre -> event.getServer()
-        throw Todo.notImplemented("IEventHelper.onServerTickStart");
+        listen(TickEvent.ServerTickEvent.Pre.class, event -> listener.onServer(event.getServer()));
     }
 
     @Override
     public void onServerTickEnd(ServerListener listener) {
-        // TODO(phase 3): TickEvent.ServerTickEvent.Post -> event.getServer()
-        throw Todo.notImplemented("IEventHelper.onServerTickEnd");
+        listen(TickEvent.ServerTickEvent.Post.class, event -> listener.onServer(event.getServer()));
     }
 
     @Override
     public void onServerLevelLoad(ServerLevelListener listener) {
-        // TODO(phase 3): net.minecraftforge.event.level.LevelEvent.Load, ServerLevel only -> (level.getServer(), level)
-        throw Todo.notImplemented("IEventHelper.onServerLevelLoad");
+        listen(LevelEvent.Load.class, event -> {
+            if (event.getLevel() instanceof ServerLevel level) {
+                listener.onLevel(level.getServer(), level);
+            }
+        });
     }
 
     @Override
     public void onServerLevelUnload(ServerLevelListener listener) {
-        // TODO(phase 3): LevelEvent.Unload, ServerLevel only
-        throw Todo.notImplemented("IEventHelper.onServerLevelUnload");
+        listen(LevelEvent.Unload.class, event -> {
+            if (event.getLevel() instanceof ServerLevel level) {
+                listener.onLevel(level.getServer(), level);
+            }
+        });
     }
 
     @Override
     public void onRegisterCommands(CommandRegistrationListener listener) {
-        // TODO(phase 3): net.minecraftforge.event.RegisterCommandsEvent ->
-        //  listener.register(event.getDispatcher(), event.getBuildContext(), event.getCommandSelection())
-        throw Todo.notImplemented("IEventHelper.onRegisterCommands");
+        listen(RegisterCommandsEvent.class, event -> listener.register(event.getDispatcher(), event.getBuildContext(), event.getCommandSelection()));
     }
 
     @Override
     public void onPlayerRespawn(PlayerRespawnListener listener) {
-        // TODO(phase 3): PlayerEvent.Clone (remember getOriginal()) + PlayerEvent.PlayerRespawnEvent
-        //  (alive = isEndConquered()), server side only - same as NeoForge.
-        throw Todo.notImplemented("IEventHelper.onPlayerRespawn");
+        // Fabric's AFTER_RESPAWN hands over (old, new, alive). Forge fires PlayerEvent.Clone (new player + original)
+        // and then PlayerRespawnEvent (new player, endConquered == alive) during the same PlayerList#respawn.
+        listen(PlayerEvent.Clone.class, event -> {
+            if (event.getEntity() instanceof ServerPlayer) {
+                synchronized (RESPAWN_ORIGINALS) {
+                    RESPAWN_ORIGINALS.put(event.getEntity(), event.getOriginal());
+                }
+            }
+        });
+        listen(PlayerEvent.PlayerRespawnEvent.class, event -> {
+            if (event.getEntity() instanceof ServerPlayer newPlayer) {
+                Player original;
+                synchronized (RESPAWN_ORIGINALS) {
+                    original = RESPAWN_ORIGINALS.remove(newPlayer);
+                }
+                listener.afterRespawn(original instanceof ServerPlayer oldPlayer ? oldPlayer : null, newPlayer, event.isEndConquered());
+            }
+        });
     }
 
     @Override
     public void onEntityLoad(EntityLoadListener listener) {
-        // TODO(phase 3): net.minecraftforge.event.entity.EntityJoinLevelEvent, ServerLevel only
-        throw Todo.notImplemented("IEventHelper.onEntityLoad");
+        listen(EntityJoinLevelEvent.class, event -> {
+            if (event.getLevel() instanceof ServerLevel level) {
+                listener.onLoad(event.getEntity(), level);
+            }
+        });
     }
 
     @Override
     public void onAllowDamage(AllowDamageListener listener) {
-        // TODO(phase 3): net.minecraftforge.event.entity.living.LivingAttackEvent (cancel when the listener returns false)
-        throw Todo.notImplemented("IEventHelper.onAllowDamage");
+        listen(LivingAttackEvent.class, event -> {
+            if (!event.getEntity().level().isClientSide() && !listener.allowDamage(event.getEntity(), event.getSource(), event.getAmount())) {
+                event.setCanceled(true);
+            }
+        });
     }
 
     @Override
     public void onBeforeBlockBreak(BeforeBlockBreakListener listener) {
-        // TODO(phase 3): net.minecraftforge.event.level.BlockEvent.BreakEvent (cancel when false)
-        throw Todo.notImplemented("IEventHelper.onBeforeBlockBreak");
+        listen(BlockEvent.BreakEvent.class, event -> {
+            if (event.getLevel() instanceof Level level
+                    && !listener.beforeBlockBreak(level, event.getPlayer(), event.getPos(), event.getState(), level.getBlockEntity(event.getPos()))) {
+                event.setCanceled(true);
+            }
+        });
     }
 
     @Override
     public void onUseBlock(UseBlockListener listener) {
-        // TODO(phase 3): PlayerInteractEvent.RightClickBlock (non-PASS -> setCanceled(true) + setCancellationResult(result))
-        throw Todo.notImplemented("IEventHelper.onUseBlock");
+        listen(PlayerInteractEvent.RightClickBlock.class, event -> {
+            InteractionResult result = listener.interact(event.getEntity(), event.getLevel(), event.getHand(), event.getHitVec());
+            if (result != InteractionResult.PASS) {
+                event.setCanceled(true);
+                event.setCancellationResult(result);
+            }
+        });
     }
 
     @Override
     public void onUseItem(UseItemListener listener) {
-        // TODO(phase 3): PlayerInteractEvent.RightClickItem (same cancel pattern)
-        throw Todo.notImplemented("IEventHelper.onUseItem");
+        listen(PlayerInteractEvent.RightClickItem.class, event -> {
+            InteractionResult result = listener.interact(event.getEntity(), event.getLevel(), event.getHand());
+            if (result != InteractionResult.PASS) {
+                event.setCanceled(true);
+                event.setCancellationResult(result);
+            }
+        });
     }
 
     @Override
     public void onUseEntity(UseEntityListener listener) {
-        // TODO(phase 3): PlayerInteractEvent.EntityInteractSpecific / EntityInteract (same pattern; invoke once per click)
-        throw Todo.notImplemented("IEventHelper.onUseEntity");
+        // Fabric fires UseEntityCallback for both the "interact at" (with hit result) and the plain "interact" packet.
+        listen(PlayerInteractEvent.EntityInteractSpecific.class, event -> {
+            EntityHitResult hit = new EntityHitResult(event.getTarget(), event.getLocalPos().add(event.getTarget().position()));
+            InteractionResult result = listener.interact(event.getEntity(), event.getLevel(), event.getHand(), event.getTarget(), hit);
+            if (result != InteractionResult.PASS) {
+                event.setCanceled(true);
+                event.setCancellationResult(result);
+            }
+        });
+        listen(PlayerInteractEvent.EntityInteract.class, event -> {
+            InteractionResult result = listener.interact(event.getEntity(), event.getLevel(), event.getHand(), event.getTarget(), null);
+            if (result != InteractionResult.PASS) {
+                event.setCanceled(true);
+                event.setCancellationResult(result);
+            }
+        });
     }
 
     @Override
     public void onGameMessage(GameMessageListener listener) {
-        // TODO(phase 3): no Forge event; forge-only mixin at the TAIL of
-        //  PlayerList#broadcastSystemMessage(Component, Function<ServerPlayer, Component>, boolean).
-        throw Todo.notImplemented("IEventHelper.onGameMessage");
+        GAME_MESSAGE_LISTENERS.add(listener);
+    }
+
+    /**
+     * Called by {@code PlayerListMixin} at the tail of {@code PlayerList#broadcastSystemMessage(Component, Function,
+     * boolean)}, where Fabric fires {@code ServerMessageEvents.GAME_MESSAGE}.
+     */
+    public static void fireGameMessage(MinecraftServer server, Component message, boolean overlay) {
+        for (GameMessageListener listener : GAME_MESSAGE_LISTENERS) {
+            listener.onGameMessage(server, message, overlay);
+        }
     }
 }

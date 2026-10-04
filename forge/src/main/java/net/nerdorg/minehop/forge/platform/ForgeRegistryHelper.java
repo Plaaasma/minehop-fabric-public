@@ -1,5 +1,6 @@
 package net.nerdorg.minehop.forge.platform;
 
+import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -8,46 +9,101 @@ import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
+import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.RegistryObject;
+import net.nerdorg.minehop.forge.MinehopForge;
 import net.nerdorg.minehop.platform.registry.RegistryEntry;
 import net.nerdorg.minehop.platform.services.IRegistryHelper;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * PHASE 3 TODO: Forge implementation of {@link IRegistryHelper}.
+ * Forge registration: one {@link DeferredRegister} per registry, registered on the mod event bus as soon as it is
+ * created (during the mod constructor). Entries keep their call order inside each registry, so the raw ids match the
+ * Fabric build (which registers eagerly in the same order).
  */
 public class ForgeRegistryHelper implements IRegistryHelper {
+    private static final Map<ResourceKey<? extends Registry<?>>, DeferredRegister<?>> REGISTERS = new LinkedHashMap<>();
+    private static final List<AttributeRegistration> ATTRIBUTES = new ArrayList<>();
+    private static final List<TabModification> TAB_MODIFICATIONS = new ArrayList<>();
+    private static boolean modBusListenersAdded;
 
     @Override
     public <R, T extends R> RegistryEntry<T> register(ResourceKey<R> key, Supplier<T> factory) {
-        // TODO(phase 3): one net.minecraftforge.registries.DeferredRegister per registry key
-        //  (DeferredRegister.create(key.registryKey(), key.location().getNamespace()), registered on
-        //  MinehopForge.modEventBus() when created); wrap the returned RegistryObject. Keep call order = raw id order.
-        throw Todo.notImplemented("IRegistryHelper.register");
+        DeferredRegister<R> register = deferredRegister(key);
+        RegistryObject<T> object = register.register(key.location().getPath(), factory);
+        return new Entry<>(key, object);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static synchronized <R> DeferredRegister<R> deferredRegister(ResourceKey<R> key) {
+        return (DeferredRegister<R>) REGISTERS.computeIfAbsent(key.registryKey(), registryKey -> {
+            DeferredRegister<R> register = DeferredRegister.create((ResourceKey<? extends Registry<R>>) registryKey, key.location().getNamespace());
+            register.register(MinehopForge.modEventBus());
+            return register;
+        });
     }
 
     @Override
     public <T extends BlockEntity> BlockEntityType<T> createBlockEntityType(BlockEntityFactory<T> factory, Block... validBlocks) {
-        // TODO(phase 3): new BlockEntityType<>(factory::create, java.util.Set.of(validBlocks)) (opened by Forge's AT)
-        throw Todo.notImplemented("IRegistryHelper.createBlockEntityType");
+        return new BlockEntityType<>(factory::create, Set.of(validBlocks));
     }
 
     @Override
-    public void registerEntityAttributes(Supplier<? extends EntityType<? extends LivingEntity>> type, AttributeSupplier.Builder attributes) {
-        // TODO(phase 3): buffer; mod-bus net.minecraftforge.event.entity.EntityAttributeCreationEvent -> put(type.get(), attributes.build())
-        throw Todo.notImplemented("IRegistryHelper.registerEntityAttributes");
+    public void registerEntityAttributes(Supplier<? extends EntityType<? extends LivingEntity>> type, Supplier<AttributeSupplier.Builder> attributes) {
+        addModBusListeners();
+        ATTRIBUTES.add(new AttributeRegistration(type, attributes));
     }
 
     @Override
     public CreativeModeTab.Builder creativeModeTabBuilder() {
-        // TODO(phase 3): CreativeModeTab.builder() (Forge's no-arg builder)
-        throw Todo.notImplemented("IRegistryHelper.creativeModeTabBuilder");
+        return CreativeModeTab.builder();
     }
 
     @Override
     public void modifyCreativeModeTab(ResourceKey<CreativeModeTab> tab, CreativeTabModifier modifier) {
-        // TODO(phase 3): buffer; mod-bus net.minecraftforge.event.BuildCreativeModeTabContentsEvent:
-        //  if (event.getTabKey() == tab) modifier.modifyEntries(event)
-        throw Todo.notImplemented("IRegistryHelper.modifyCreativeModeTab");
+        addModBusListeners();
+        TAB_MODIFICATIONS.add(new TabModification(tab, modifier));
+    }
+
+    private static synchronized void addModBusListeners() {
+        if (modBusListenersAdded) {
+            return;
+        }
+        modBusListenersAdded = true;
+        MinehopForge.modEventBus().addListener(EventPriority.NORMAL, false, EntityAttributeCreationEvent.class, event -> {
+            for (AttributeRegistration registration : ATTRIBUTES) {
+                // Built only now: attribute builders read registry holders that aren't bound at mod construction.
+                event.put(registration.type().get(), registration.attributes().get().build());
+            }
+        });
+        MinehopForge.modEventBus().addListener(EventPriority.NORMAL, false, BuildCreativeModeTabContentsEvent.class, event -> {
+            for (TabModification modification : TAB_MODIFICATIONS) {
+                if (modification.tab().equals(event.getTabKey())) {
+                    modification.modifier().modifyEntries(event);
+                }
+            }
+        });
+    }
+
+    private record AttributeRegistration(Supplier<? extends EntityType<? extends LivingEntity>> type, Supplier<AttributeSupplier.Builder> attributes) {
+    }
+
+    private record TabModification(ResourceKey<CreativeModeTab> tab, CreativeTabModifier modifier) {
+    }
+
+    private record Entry<T>(ResourceKey<? super T> key, RegistryObject<T> object) implements RegistryEntry<T> {
+        @Override
+        public T get() {
+            return this.object.get();
+        }
     }
 }

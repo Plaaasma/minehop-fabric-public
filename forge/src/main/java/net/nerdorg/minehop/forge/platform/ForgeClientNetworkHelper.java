@@ -1,41 +1,80 @@
 package net.nerdorg.minehop.forge.platform;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.nerdorg.minehop.platform.services.IClientNetworkHelper;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
- * PHASE 3 TODO: Forge implementation of {@link IClientNetworkHelper} (client only).
+ * Forge implementation of {@link IClientNetworkHelper} (physical client only). Payloads arrive through the
+ * {@code minehop:network} channel built by {@link ForgeNetworkHelper}, which hands them to {@link #dispatch} on the
+ * client thread.
  */
 public class ForgeClientNetworkHelper implements IClientNetworkHelper {
+    private static final Map<ResourceLocation, ClientPayloadHandler<?>> HANDLERS = new ConcurrentHashMap<>();
+
+    public ForgeClientNetworkHelper() {
+        ForgeNetworkHelper.setClientDispatcher(ForgeClientNetworkHelper::dispatch);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends CustomPacketPayload> void dispatch(T payload) {
+        ClientPayloadHandler<T> handler = (ClientPayloadHandler<T>) HANDLERS.get(payload.type().id());
+        if (handler != null) {
+            Minecraft client = Minecraft.getInstance();
+            handler.receive(payload, new Context(client, client.player));
+        }
+    }
 
     @Override
     public <T extends CustomPacketPayload> void registerClientReceiver(CustomPacketPayload.Type<T> type, ClientPayloadHandler<T> handler) {
-        // TODO(phase 3): putIfAbsent into the client handler map read by ForgeNetworkHelper's channel dispatcher.
-        //  Context: client() = Minecraft.getInstance(), player() = Minecraft.getInstance().player.
-        throw Todo.notImplemented("IClientNetworkHelper.registerClientReceiver");
+        // Fabric's registerGlobalReceiver keeps the first handler of a type (Minehop re-registers on every connection).
+        HANDLERS.putIfAbsent(type.id(), handler);
     }
 
     @Override
     public void sendToServer(CustomPacketPayload payload) {
-        // TODO(phase 3): channel.send(payload, net.minecraftforge.network.PacketDistributor.SERVER.noArg())
-        throw Todo.notImplemented("IClientNetworkHelper.sendToServer");
+        // Fabric: ClientPlayNetworking.send == getConnection().send(new ServerboundCustomPayloadPacket(payload)).
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        if (connection == null) {
+            throw new IllegalStateException("Cannot send packets when not in game!");
+        }
+        connection.send(new ServerboundCustomPayloadPacket(payload));
     }
 
     @Override
     public void onConnectionInit(ConnectionListener listener) {
-        // TODO(phase 3): fire from ClientPlayerNetworkEvent.LoggingIn at EventPriority.HIGHEST
-        throw Todo.notImplemented("IClientNetworkHelper.onConnectionInit");
+        // Fabric's INIT (play connection created) fires before JOIN; Forge has one login event, so INIT runs first.
+        MinecraftForge.EVENT_BUS.addListener(EventPriority.HIGHEST, false, ClientPlayerNetworkEvent.LoggingIn.class,
+                event -> fire(listener));
     }
 
     @Override
     public void onConnectionJoin(ConnectionListener listener) {
-        // TODO(phase 3): MinecraftForge.EVENT_BUS ClientPlayerNetworkEvent.LoggingIn
-        throw Todo.notImplemented("IClientNetworkHelper.onConnectionJoin");
+        MinecraftForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, ClientPlayerNetworkEvent.LoggingIn.class,
+                event -> fire(listener));
     }
 
     @Override
     public void onConnectionDisconnect(ConnectionListener listener) {
-        // TODO(phase 3): ClientPlayerNetworkEvent.LoggingOut
-        throw Todo.notImplemented("IClientNetworkHelper.onConnectionDisconnect");
+        MinecraftForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, ClientPlayerNetworkEvent.LoggingOut.class,
+                event -> fire(listener));
+    }
+
+    private static void fire(ConnectionListener listener) {
+        Minecraft client = Minecraft.getInstance();
+        listener.onConnection(client.getConnection(), client);
+    }
+
+    private record Context(Minecraft client, LocalPlayer player) implements ClientPayloadContext {
     }
 }
