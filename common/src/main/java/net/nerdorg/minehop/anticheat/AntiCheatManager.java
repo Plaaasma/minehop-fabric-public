@@ -53,6 +53,10 @@ public final class AntiCheatManager {
         Services.EVENTS.onServerStarted(server -> {
             serverInstance = server;
             AntiCheatStorage.load(server, PLAYER_STATES, EXEMPT_PLAYERS);
+            AntiCheatStorage.PersistedSettings settings = AntiCheatStorage.loadSettings(server);
+            enabled = settings.enabled;
+            lagbacksEnabled = settings.lagbacks;
+            Minehop.LOGGER.info("[AC] settings: anticheat {}, lagbacks {}", enabled ? "on" : "OFF", lagbacksEnabled ? "on" : "OFF");
             AntiCheatAllowLog.load(server);
         });
         Services.EVENTS.onServerStopping(server -> {
@@ -98,6 +102,7 @@ public final class AntiCheatManager {
 
     public static void setEnabled(boolean enabledValue) {
         enabled = enabledValue;
+        AntiCheatStorage.saveSettings(serverInstance, enabled, lagbacksEnabled);
     }
 
     public static boolean lagbacksEnabled() {
@@ -106,6 +111,7 @@ public final class AntiCheatManager {
 
     public static void setLagbacksEnabled(boolean value) {
         lagbacksEnabled = value;
+        AntiCheatStorage.saveSettings(serverInstance, enabled, lagbacksEnabled);
     }
 
     /**
