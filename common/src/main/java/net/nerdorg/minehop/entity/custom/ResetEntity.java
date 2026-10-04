@@ -16,6 +16,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
+import net.nerdorg.minehop.anticheat.stream.MovementValidator;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.util.Logger;
@@ -150,12 +151,18 @@ public class ResetEntity extends Zone {
         ));
         double tickDeltaHorizontalSq = (tickDeltaVelocity.x * tickDeltaVelocity.x) + (tickDeltaVelocity.z * tickDeltaVelocity.z);
 
-        // The realized movement this tick is the truth when present. If the reset zone ticks before
-        // player movement, fall back to the very fresh observed movement sample, then current velocity.
+        // The realized movement this tick is the truth when present. A client-driven player's position
+        // only changes when its move packets are handled (which also resets xo), so for it take the
+        // movement of its last client tick from the packet stream. The observed sample is a delta
+        // between server ticks: it covers two client ticks whenever two move packets land in one server
+        // tick, which doubled the preserved speed. It, then the current velocity, are the fallbacks.
         Vec3 currentVelocity = sanitizeVelocity(player.getDeltaMovement());
         Vec3 observedVelocity = this.resolveObservedVelocity(player, 2L);
+        Vec3 clientStep = MovementValidator.lastClientStep(player);
         Vec3 preferred = tickDeltaHorizontalSq > 1.0E-6D
                 ? tickDeltaVelocity
+                : clientStep != null
+                ? sanitizeVelocity(clientStep)
                 : chooseStrongerHorizontal(observedVelocity, currentVelocity);
         // Keep horizontal momentum and only preserve downward vertical velocity to avoid upward launch spikes.
         return new Vec3(preferred.x, Math.min(preferred.y, 0.0D), preferred.z);

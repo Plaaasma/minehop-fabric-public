@@ -50,8 +50,10 @@ final class StreamState {
     Vec3 lastStep;
     boolean lastSupported;
     boolean lastHorizontalCollision;
-    /** Consecutive ticks the player ended supported (ground). */
+    /** Consecutive ticks the player ended with ground under the client's friction test. */
     int groundTicks;
+    /** Consecutive ticks the player ended 0.20-0.26 above ground (supported, but frictionless). */
+    int bandHoverTicks;
     /** Previous tick was a fully checked airborne tick (its step is the exact air velocity). */
     boolean lastWasCheckedAir;
     /** Upper bound on horizontal velocity² entering the next tick. */
@@ -111,6 +113,7 @@ final class StreamState {
         this.horizontalVelocityBound2 = 0.0D;
         this.sneakCarryTicks = 0;
         this.groundTicks = 0;
+        this.bandHoverTicks = 0;
         this.inAir = false;
         this.airVy = 0.0D;
         this.airExcess = 0.0D;

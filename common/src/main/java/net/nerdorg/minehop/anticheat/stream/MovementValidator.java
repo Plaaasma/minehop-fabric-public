@@ -92,6 +92,9 @@ public final class MovementValidator {
     private static final double SOURCE_MAX_AIR_YAW_DELTA = 90.0D;
     private static final double SUPPORT_PROBE_DEPTH = 0.26D;
     private static final double CLIENT_GROUND_DEPTH = 0.6D;
+    /** The client's friction ground test (LivingEntityMixin#minehop$hasRealGroundBelow). */
+    private static final double FRICTION_GROUND_DEPTH = 0.20D;
+    private static final double FRICTION_GROUND_INSET = 0.001D;
     // LivingEntityMixin's jump buffer fires only while vertical velocity <= 0.10 b/t.
     private static final double JUMP_BUFFER_MAX_VY = 0.10D;
     private static final double VANILLA_STEP_HEIGHT = 0.6D;
@@ -167,6 +170,16 @@ public final class MovementValidator {
     public static long clientTicks(ServerPlayer player) {
         StreamState st = player == null ? null : STATES.get(player.getUUID());
         return st == null ? -1L : st.clientTicks;
+    }
+
+    /**
+     * The player's realized movement over its last client tick (null if unknown, e.g. right after a
+     * teleport). Exactly one client tick, unlike a server-tick position delta, which covers however many
+     * of the client's move packets the server handled during that tick.
+     */
+    public static Vec3 lastClientStep(ServerPlayer player) {
+        StreamState st = player == null ? null : STATES.get(player.getUUID());
+        return st == null ? null : st.lastStep;
     }
 
     // ------------------------------------------------------------------------------------------
@@ -520,6 +533,17 @@ public final class MovementValidator {
         boolean supportedNow = !stillRising && (isSupported(world, player, pos)
                 || isSupported(world, player, new Vec3(st.lastPos.x, pos.y, st.lastPos.z))
                 || (st.clientOnGround && isGroundUnderFeet(world, player, pos)));
+        // Ground friction: the client applies it only after two ticks that START with ground within 0.20
+        // under its box (LivingEntityMixin#minehop$hasRealGroundBelow), a narrower test than the 0.26
+        // support reach, so a tick ending 0.20-0.26 above ground leaves the next one frictionless.
+        // Hovering in that band isn't legit though (a ballistic arc crosses it within a few ticks), so a
+        // longer stay there counts as ground.
+        boolean realGroundNow = hasFrictionGround(world, player, pos, FRICTION_GROUND_INSET);
+        boolean hoverNow = !realGroundNow && isSupported(world, player, pos)
+                && !hasFrictionGround(world, player, pos, 0.0D);
+        st.bandHoverTicks = hoverNow ? st.bandHoverTicks + 1 : 0;
+        boolean frictionGroundNow = realGroundNow
+                || (hoverNow && st.bandHoverTicks > maxBandDwellTicks(effectiveGravity));
 
         String exemptReason = environmentExemption(player, world, st.lastPos, pos);
         if (exemptReason != null) {
@@ -553,7 +577,7 @@ public final class MovementValidator {
 
         if (isUnchecked(player) || !config.enabled) {
             st.crouchLiftOwed = true;
-            rebuildBaseline(st, step, h2, supportedNow, crouchOffset);
+            rebuildBaseline(st, step, h2, supportedNow, frictionGroundNow, crouchOffset);
             commit(st, pos, step, supportedNow, horizontalCollision, yaw);
             st.lastGoodPos = pos;
             st.graceSpeed = 0.0D;
@@ -576,7 +600,7 @@ public final class MovementValidator {
                     return;
                 }
             }
-            rebuildBaseline(st, step, h2, supportedNow, crouchOffset);
+            rebuildBaseline(st, step, h2, supportedNow, frictionGroundNow, crouchOffset);
             commit(st, pos, step, supportedNow, horizontalCollision, yaw);
             st.lastGoodPos = pos;
             if (st.graceTicks == 0 && st.pendingPings.isEmpty() && exemptReason == null) {
@@ -609,7 +633,8 @@ public final class MovementValidator {
         double vRef2 = st.horizontalVelocityBound2;
         double airBound2 = vRef2 + MAX_AIR_SUBSTEPS * effectiveCap * effectiveCap;
         double groundBound2 = groundBound2(player, config, vRef2);
-        // Two ticks on the ground without jumping = ground movement: friction always applies.
+        // Two ticks starting on the client's friction ground (groundTicks) without jumping = ground
+        // movement: friction always applies.
         boolean walking = supportedPrev && supportedNow && st.groundTicks >= 2 && st.ticksSinceJumpInput > 1;
         double bound2 = walking ? groundBound2
                 : (groundBelowPrev || supportedNow) ? Math.max(airBound2, groundBound2) : airBound2;
@@ -787,7 +812,7 @@ public final class MovementValidator {
         // Walking carries keep the count (friction only shrinks a bank); realizing the bound ends it.
         st.sneakCarryTicks = !sneakClip || bound2 <= h2 ? 0 : walking ? st.sneakCarryTicks : st.sneakCarryTicks + 1;
         st.lastWasCheckedAir = airTick;
-        st.groundTicks = supportedNow ? st.groundTicks + 1 : 0;
+        st.groundTicks = frictionGroundNow ? st.groundTicks + 1 : 0;
         commit(st, pos, step, supportedNow, horizontalCollision, yaw);
         // Flag-only ticks still advance the anchor, so a later lagback only rubberbands one tick.
         st.lastGoodPos = pos;
@@ -809,11 +834,12 @@ public final class MovementValidator {
     }
 
     /** After a grace or unchecked tick: take the realized movement as the new baseline. */
-    private static void rebuildBaseline(StreamState st, Vec3 step, double h2, boolean supportedNow, double crouchOffset) {
+    private static void rebuildBaseline(StreamState st, Vec3 step, double h2, boolean supportedNow,
+                                        boolean frictionGroundNow, double crouchOffset) {
         st.horizontalVelocityBound2 = h2;
         st.sneakCarryTicks = 0;
         st.lastWasCheckedAir = false;
-        st.groundTicks = supportedNow ? st.groundTicks + 1 : 0;
+        st.groundTicks = frictionGroundNow ? st.groundTicks + 1 : 0;
         if (supportedNow) {
             st.inAir = false;
         } else {
@@ -1039,6 +1065,30 @@ public final class MovementValidator {
     private static boolean canFall(ServerLevel world, ServerPlayer player, AABB box, double dx, double dz, double depth) {
         return world.noCollision(player, new AABB(box.minX + dx, box.minY - depth - 1.0E-5D, box.minZ + dz,
                 box.maxX + dx, box.minY, box.maxZ + dz));
+    }
+
+    /**
+     * The client's friction ground test ({@code LivingEntityMixin#minehop$hasRealGroundBelow}): ground
+     * within 0.20 under the box, which it insets by 0.001 ({@code inset} 0 tells a real gap below from
+     * a box resting on a sliver of a block edge).
+     */
+    private static boolean hasFrictionGround(ServerLevel world, ServerPlayer player, Vec3 pos, double inset) {
+        AABB box = player.getDimensions(Pose.STANDING).makeBoundingBox(pos);
+        AABB below = new AABB(box.minX + inset, box.minY - FRICTION_GROUND_DEPTH, box.minZ + inset,
+                box.maxX - inset, box.minY - FRICTION_GROUND_INSET, box.maxZ - inset);
+        return !world.noCollision(player, below);
+    }
+
+    /**
+     * Most consecutive tick ends a ballistic arc can spend 0.20-0.26 above ground (around its apex);
+     * staying there longer is hovering. Without gravity hovering is legit.
+     */
+    private static int maxBandDwellTicks(double gravity) {
+        if (gravity <= 1.0E-6D) {
+            return Integer.MAX_VALUE;
+        }
+        double band = SUPPORT_PROBE_DEPTH - FRICTION_GROUND_DEPTH;
+        return (int) Math.floor(2.0D * Math.sqrt(2.0D * band / gravity)) + 2;
     }
 
     /**
