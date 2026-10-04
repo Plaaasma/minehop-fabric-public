@@ -56,6 +56,8 @@ final class StreamState {
     boolean lastWasCheckedAir;
     /** Upper bound on horizontal velocity² entering the next tick. */
     double horizontalVelocityBound2;
+    /** Consecutive ticks that bound was carried past the realized movement by a sneak clip. */
+    int sneakCarryTicks;
     float lastYaw;
     boolean hasLastYaw;
     Input input = Input.EMPTY;
@@ -107,6 +109,7 @@ final class StreamState {
         this.lastStep = null;
         this.lastWasCheckedAir = false;
         this.horizontalVelocityBound2 = 0.0D;
+        this.sneakCarryTicks = 0;
         this.groundTicks = 0;
         this.inAir = false;
         this.airVy = 0.0D;

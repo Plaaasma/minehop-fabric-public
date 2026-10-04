@@ -96,6 +96,15 @@ public final class MovementValidator {
     private static final double JUMP_BUFFER_MAX_VY = 0.10D;
     private static final double VANILLA_STEP_HEIGHT = 0.6D;
     private static final double AUTO_STEP_HEIGHT = 1.12D;
+    /** Player#maybeBackOffFromEdge shortens the displacement in steps of this size. */
+    private static final double SNEAK_BACK_OFF_STEP = 0.05D;
+    /**
+     * Consecutive non-walking ticks a sneak clip may carry the speed bound without re-anchoring it to the
+     * realized movement. A legit clip lasts the few ticks the client descends within step height of a
+     * ledge plus its landing (under 12 even with auto-step); walking carries include friction and
+     * can't grow the bound, so they aren't capped (nor counted).
+     */
+    private static final int MAX_SNEAK_CARRY_TICKS = 12;
     private static final double SPRINT_MARGIN = 1.3D;
     private static final double ENTITY_PUSH_PER_TICK = 0.055D;
     private static final double MAX_ENVIRONMENT_SCAN_STEP = 8.0D;
@@ -593,6 +602,8 @@ public final class MovementValidator {
         }
         boolean groundBelowPrev = supportedPrev || (dropNow > 0.0D
                 && isSupported(world, player, st.lastPos.add(0.0D, -dropNow, 0.0D)));
+        // Lift allowance: on a sneak change, or while a lift is still owed (delayed by a ceiling).
+        double crouchNow = (st.ticksSinceSneakChange <= 1 || (input.shift() && st.crouchLiftOwed)) ? crouchOffset : 0.0D;
 
         // ---------------- horizontal: speed² gain bound ----------------
         double vRef2 = st.horizontalVelocityBound2;
@@ -632,8 +643,16 @@ public final class MovementValidator {
         }
         // Upper bound on the true horizontal velocity entering next tick. A sneak edge-clip (or an
         // auto-step) can cut the displacement without cutting the velocity, so keep this tick's bound
-        // there; on the ground that bound already includes friction, so it can't creep upward.
-        double nextBound2 = (sneakingNearGround || autoStep) ? Math.max(h2, bound2) : h2;
+        // there; on the ground that bound already includes friction, so it can't creep upward. The
+        // clip also happens in the air up to step height above a ledge (isSneakEdgeClip). Without
+        // friction a carried bound still grows by a tick of air-accelerate, so that carry is capped:
+        // it can defer a few ticks of legit gain, never bank speed.
+        double backOffReach = Math.max(config.movement.auto_step_up ? AUTO_STEP_HEIGHT : VANILLA_STEP_HEIGHT,
+                player.getAttributeValue(Attributes.STEP_HEIGHT));
+        boolean sneakClip = (sneakingNearGround
+                || (input.shift() && isSneakEdgeClip(world, player, st.lastPos, step, backOffReach, crouchNow)))
+                && (walking || st.sneakCarryTicks < MAX_SNEAK_CARRY_TICKS);
+        double nextBound2 = (sneakClip || autoStep) ? Math.max(h2, bound2) : h2;
 
         // ---------------- strafe: replay real inputs (flag-only) ----------------
         boolean airTick = !supportedPrev && !supportedNow;
@@ -663,8 +682,6 @@ public final class MovementValidator {
 
         // ---------------- vertical: ballistic arc ----------------
         double dy = step.y;
-        // Lift allowance: on a sneak change, or while a lift is still owed (delayed by a ceiling).
-        double crouchNow = (st.ticksSinceSneakChange <= 1 || (input.shift() && st.crouchLiftOwed)) ? crouchOffset : 0.0D;
         // Height above the arc the offset can account for: while crouched, and briefly after release.
         double crouchHeld = (input.shift() || st.ticksSinceSneakChange <= CROUCH_RESTORE_WINDOW_TICKS) ? crouchOffset : 0.0D;
         double stepHeight = config.movement.auto_step_up ? AUTO_STEP_HEIGHT : VANILLA_STEP_HEIGHT;
@@ -767,6 +784,8 @@ public final class MovementValidator {
             return; // baseline is rebuilt when the client confirms the lagback teleport
         }
         st.horizontalVelocityBound2 = nextBound2;
+        // Walking carries keep the count (friction only shrinks a bank); realizing the bound ends it.
+        st.sneakCarryTicks = !sneakClip || bound2 <= h2 ? 0 : walking ? st.sneakCarryTicks : st.sneakCarryTicks + 1;
         st.lastWasCheckedAir = airTick;
         st.groundTicks = supportedNow ? st.groundTicks + 1 : 0;
         commit(st, pos, step, supportedNow, horizontalCollision, yaw);
@@ -792,6 +811,7 @@ public final class MovementValidator {
     /** After a grace or unchecked tick: take the realized movement as the new baseline. */
     private static void rebuildBaseline(StreamState st, Vec3 step, double h2, boolean supportedNow, double crouchOffset) {
         st.horizontalVelocityBound2 = h2;
+        st.sneakCarryTicks = 0;
         st.lastWasCheckedAir = false;
         st.groundTicks = supportedNow ? st.groundTicks + 1 : 0;
         if (supportedNow) {
@@ -958,6 +978,67 @@ public final class MovementValidator {
         AABB box = player.getDimensions(Pose.STANDING).makeBoundingBox(pos);
         AABB below = new AABB(box.minX, box.minY - SUPPORT_PROBE_DEPTH, box.minZ, box.maxX, box.minY - 1.0E-6D, box.maxZ);
         return !world.noCollision(player, below);
+    }
+
+    /**
+     * Whether vanilla's sneak back-off ({@code Player#maybeBackOffFromEdge}) can have cut this tick's
+     * displacement short. The client backs off whenever it sneaks, isn't rising and has ground within
+     * its step height below ({@code isAboveGround}; the client never accumulates fall distance, so that
+     * holds up to the step height above a ledge, not only on it). The velocity is left untouched, so the
+     * next unclipped tick (e.g. the jump off the ledge) moves at full speed again. Checked with the
+     * server's own blocks the way the client tests them, from the start height: ground within reach
+     * below the start box and below the realized end box, and a drop one back-off step beyond the end
+     * (the shortening is real: the box stopped at a ledge). {@code lift} is a css crouch lift the client
+     * may have applied before moving.
+     */
+    private static boolean isSneakEdgeClip(ServerLevel world, ServerPlayer player, Vec3 from, Vec3 step,
+                                           double reach, double lift) {
+        AABB base = player.getDimensions(Pose.STANDING).makeBoundingBox(from);
+        double[] lifts = lift > 0.0D ? new double[]{0.0D, lift} : new double[]{0.0D};
+        double[] xSteps = backOffSteps(step.x);
+        double[] zSteps = backOffSteps(step.z);
+        for (double l : lifts) {
+            if (step.y - l > VERTICAL_EPSILON) {
+                continue; // rising: no back-off
+            }
+            AABB start = base.move(0.0D, l, 0.0D);
+            if (canFall(world, player, start, 0.0D, 0.0D, reach) || canFall(world, player, start, step.x, step.z, reach)) {
+                continue;
+            }
+            // The back-off tries each axis alone, then both together (Player#maybeBackOffFromEdge).
+            for (double ex : xSteps) {
+                if (canFall(world, player, start, step.x + ex, 0.0D, reach)
+                        || canFall(world, player, start, step.x + ex, step.z, reach)) {
+                    return true;
+                }
+                for (double ez : zSteps) {
+                    if (canFall(world, player, start, step.x + ex, step.z + ez, reach)) {
+                        return true;
+                    }
+                }
+            }
+            for (double ez : zSteps) {
+                if (canFall(world, player, start, 0.0D, step.z + ez, reach)
+                        || canFall(world, player, start, step.x, step.z + ez, reach)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** One back-off step further along a realized displacement component (either way if it is zero). */
+    private static double[] backOffSteps(double d) {
+        if (Math.abs(d) > 1.0E-7D) {
+            return new double[]{Math.signum(d) * SNEAK_BACK_OFF_STEP};
+        }
+        return new double[]{SNEAK_BACK_OFF_STEP, -SNEAK_BACK_OFF_STEP};
+    }
+
+    /** {@code Player#canFallAtLeast}: nothing to stand on within {@code depth} below {@code box} moved by (dx, dz). */
+    private static boolean canFall(ServerLevel world, ServerPlayer player, AABB box, double dx, double dz, double depth) {
+        return world.noCollision(player, new AABB(box.minX + dx, box.minY - depth - 1.0E-5D, box.minZ + dz,
+                box.maxX + dx, box.minY, box.maxZ + dz));
     }
 
     /**
