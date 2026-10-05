@@ -8,6 +8,7 @@
 		"EntityRemovalMixin",
 		"LivingEntityMixin",
 		"ServerCommonNetworkHandlerStreamMixin",
+		"ServerConfigurationDisconnectLogMixin",
 		"ServerPlayNetworkHandlerMixin",
 		"ServerPlayNetworkHandlerStreamMixin"
 	],
