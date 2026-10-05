@@ -1,0 +1,46 @@
+plugins {
+    id 'multiloader-common'
+    id 'net.neoforged.moddev'
+}
+
+// Common code is compiled against vanilla Minecraft (Mojang names) through NeoForm. Nothing in here may reference a
+// mod loader: loader-specific behaviour goes through net.nerdorg.minehop.platform (see docs/MULTILOADER.md).
+neoForge {
+    neoFormVersion = neo_form_version
+    // Automatically enable AccessTransformers if the file exists
+    def at = file('src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers.from(at.absolutePath)
+    }
+}
+
+dependencies {
+    compileOnly group: 'org.spongepowered', name: 'mixin', version: '0.8.5'
+    // fabric and neoforge both bundle mixinextras, so it is safe to use it in common
+    compileOnly group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
+    annotationProcessor group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
+
+    // cloth-config's AutoConfig API is identical on every loader; the NeoForge artifact is used here because it is
+    // published in Mojang names (the Fabric one is intermediary-mapped). Each loader module depends on its own artifact.
+    compileOnly("me.shedaniel.cloth:cloth-config-neoforge:${cloth_version}") {
+        transitive = false
+    }
+    // Discord bot. Loader modules decide the packaging (Fabric: compile/dev-runtime only, NOT bundled - see fabric/build.gradle).
+    compileOnly "net.dv8tion:JDA:${jda_version}"
+}
+
+configurations {
+    commonJava {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+    commonResources {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+}
+
+artifacts {
+    commonJava sourceSets.main.java.sourceDirectories.singleFile
+    commonResources sourceSets.main.resources.sourceDirectories.singleFile
+}

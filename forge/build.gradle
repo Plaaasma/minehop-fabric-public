@@ -1,0 +1,88 @@
+// Forge loader module (see docs/MULTILOADER.md). 26.1 uses ForgeGradle 7 (the Forge MDK's toolchain); Forge runs Mojang
+// names at compile time and at runtime, so there are no mappings to configure, no reobf and no mixin refmap.
+plugins {
+    id 'multiloader-loader'
+    id 'net.minecraftforge.gradle'
+}
+
+minecraft {
+    // Forge 26.1 reads Mojang-named access transformers, so common's file is used as is (Forge itself reads
+    // META-INF/accesstransformer.cfg from the mod jar at runtime: the common copy, see processResources).
+    accessTransformers = files(project(':common').file('src/main/resources/META-INF/accesstransformer.cfg'))
+
+    runs {
+        configureEach {
+            systemProperty 'eventbus.api.strictRuntimeChecks', 'true'
+            // Mixin needs the configs on the command line in dev (the jar's manifest names them in production).
+            args "--mixin.config=${mod_id}.mixins.json", "--mixin.config=${mod_id}.client.mixins.json",
+                    "--mixin.config=${mod_id}.forge.mixins.json"
+            // Same switches as the Fabric runs (movement test harness etc.): -Pmovementtest, -PsurfHull
+            if (project.hasProperty('movementtest')) {
+                systemProperty 'minehop.movementtest', 'true'
+            }
+            if (project.hasProperty('surfHull')) {
+                systemProperty 'minehop.surfHullSolver', 'true'
+            }
+        }
+        // Run dirs: forge/runs/client and forge/runs/server (override with -PforgeClientRunDir / -PforgeServerRunDir).
+        register('client') {
+            workingDir = file(project.findProperty('forgeClientRunDir') ?: 'runs/client')
+            args '--width', '384', '--height', '216'
+            if (project.hasProperty('quickPlay')) {
+                args '--quickPlayMultiplayer', project.property('quickPlay')
+            }
+            if (project.hasProperty('clientUsername')) {
+                args '--username', project.property('clientUsername')
+            }
+        }
+        register('server') {
+            workingDir = file(project.findProperty('forgeServerRunDir') ?: 'runs/server')
+            args '--nogui'
+        }
+        register('data') {
+            workingDir = file('runs/data')
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+        }
+    }
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    // cloth-config has no official Forge build after 1.21.3; the 26.1 Forge port (modId cloth_config, LGPLv3,
+    // https://modrinth.com/mod/cloth-config-forge) is only on Modrinth.
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'Modrinth'
+                url = 'https://api.modrinth.com/maven'
+            }
+        }
+        filter { includeGroup('maven.modrinth') }
+    }
+}
+
+sourceSets.main.resources.srcDir 'src/generated/resources'
+
+dependencies {
+    implementation minecraft.dependency("net.minecraftforge:forge:${minecraft_version}-${forge_version}")
+    // EventBus 7 moved its validation to compile time (Forge MDK).
+    annotationProcessor 'net.minecraftforge:eventbus-validator:7.0.5'
+
+    // cloth-config AutoConfig (shared config/minehop.json5 + config screen)
+    implementation "maven.modrinth:cloth-config-forge:${cloth_version}"
+
+    // Discord bot. Fabric does NOT bundle JDA (see fabric/build.gradle); keep the same packaging here: compile + dev
+    // runtime only. Without JDA at runtime the bot is simply unavailable (see DiscordIntegration).
+    implementation("net.dv8tion:JDA:${jda_version}") {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
+}
+
+tasks.named('jar', Jar) {
+    manifest {
+        // Mixin finds the configs through the manifest in production.
+        attributes['MixinConfigs'] = "${mod_id}.mixins.json,${mod_id}.client.mixins.json,${mod_id}.forge.mixins.json"
+    }
+}

@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "net.nerdorg.minehop.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"mixins": [
+		"EntityCollisionMixin",
+		"LivingEntityMixin",
+		"ServerCommonNetworkHandlerStreamMixin",
+		"ServerPlayNetworkHandlerMixin",
+		"ServerPlayNetworkHandlerStreamMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
