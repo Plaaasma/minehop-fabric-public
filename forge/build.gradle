@@ -1,0 +1,114 @@
+// Forge loader module (see docs/MULTILOADER.md). Forge 1.20.1 is built with ModDevGradle's legacyforge plugin, like
+// MultiLoader-Template 1.20.1: development uses Mojang names, the jar is reobfuscated to SRG (Forge 1.20.1 runs SRG names)
+// and the mixin annotation processor writes an SRG refmap.
+plugins {
+    id 'multiloader-loader'
+    id 'net.neoforged.moddev.legacyforge'
+}
+
+mixin {
+    add(sourceSets.main, "${mod_id}.refmap.json")
+
+    config("${mod_id}.mixins.json")
+    config("${mod_id}.client.mixins.json")
+    // Forge-only mixins (game-message hook, registry-sync and channel helpers), see docs/MULTILOADER.md.
+    config("${mod_id}.forge.mixins.json")
+}
+
+legacyForge {
+    version = "${minecraft_version}-${forge_version}"
+
+    validateAccessTransformers = true
+
+    // Forge reads META-INF/accesstransformer.cfg from the mod jar; legacyforge ATs use SRG names, so this module keeps its
+    // own file instead of common's Mojang-named one (see processResources below).
+    def at = file('src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers = [at.absolutePath]
+    }
+
+    runs {
+        configureEach {
+            // Same switches as the Fabric runs (movement test harness etc.): -Pmovementtest, -PsurfHull
+            if (project.hasProperty('movementtest')) {
+                systemProperty('minehop.movementtest', 'true')
+            }
+            if (project.hasProperty('surfHull')) {
+                systemProperty('minehop.surfHullSolver', 'true')
+            }
+        }
+        // The run names keep a root-level `gradlew runClient` / `runServer` on the Fabric module only (ModDevGradle names
+        // run tasks "run" + run name). Tasks: :forge:runForgeClient / :forge:runForgeServer / :forge:runForgeData, with the
+        // template-style aliases :forge:Client / :forge:Server / :forge:Data below.
+        forgeClient {
+            client()
+            gameDirectory = project.file(project.findProperty('forgeClientRunDir') ?: 'runs/client')
+            programArguments.addAll('--width', '384', '--height', '216')
+            if (project.hasProperty('quickPlay')) {
+                programArguments.addAll('--quickPlayMultiplayer', project.property('quickPlay').toString())
+            }
+            if (project.hasProperty('clientUsername')) {
+                programArguments.addAll('--username', project.property('clientUsername').toString())
+            }
+        }
+        forgeServer {
+            server()
+            gameDirectory = project.file(project.findProperty('forgeServerRunDir') ?: 'runs/server')
+            programArguments.add('--nogui')
+        }
+        forgeData {
+            data()
+            gameDirectory = project.file('runs/data')
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+['Client', 'Server', 'Data'].each { n ->
+    tasks.register(n) {
+        group = 'mod development/forge'
+        description = "Alias of runForge${n}"
+        dependsOn "runForge${n}"
+    }
+}
+
+sourceSets.main.resources.srcDir 'src/generated/resources'
+
+dependencies {
+    annotationProcessor("org.spongepowered:mixin:0.8.5:processor")
+
+    // cloth-config AutoConfig (shared config/minehop.json5 + config screen); remapped from SRG for development.
+    modImplementation "me.shedaniel.cloth:cloth-config-forge:${cloth_version}"
+
+    // Discord bot. Fabric does NOT bundle JDA (see fabric/build.gradle); keep the same packaging here: compile + dev
+    // runtime only, not in the mod jar. Without JDA at runtime the bot is simply unavailable (see DiscordIntegration).
+    implementation "net.dv8tion:JDA:${jda_version}"
+    additionalRuntimeClasspath "net.dv8tion:JDA:${jda_version}"
+}
+
+def forgeAt = file('src/main/resources/META-INF/accesstransformer.cfg')
+// Common's META-INF/accesstransformer.cfg is in Mojang names; Forge reads this module's own META-INF/accesstransformer.cfg
+// (SRG names) from the jar instead.
+def keepForgeAtOnly = { details ->
+    if (details.path == 'META-INF/accesstransformer.cfg' && details.file.canonicalPath != forgeAt.canonicalPath) {
+        details.exclude()
+    }
+}
+processResources {
+    eachFile keepForgeAtOnly
+}
+tasks.named('sourcesJar', Jar) {
+    eachFile keepForgeAtOnly
+}
+
+jar {
+    manifest.attributes([
+            "MixinConfigs": "${mod_id}.mixins.json,${mod_id}.client.mixins.json,${mod_id}.forge.mixins.json"
+    ])
+}
