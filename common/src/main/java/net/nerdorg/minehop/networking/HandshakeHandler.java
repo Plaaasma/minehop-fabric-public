@@ -54,7 +54,7 @@ public class HandshakeHandler {
                     }
                     if (toDisconnect != null) {
                         for (ServerPlayer serverPlayerEntity : toDisconnect) {
-                            serverPlayerEntity.connection.disconnect(Component.nullToEmpty("Please install/update to at least version " + Minehop.MOD_VERSION_STRING + " of the Minehop mod before joining this server."));
+                            serverPlayerEntity.connection.disconnect(Component.nullToEmpty("Please install/update to at least version " + Minehop.MIN_CLIENT_MOD_VERSION_STRING + " of the Minehop mod before joining this server."));
                         }
                     }
                 }
@@ -80,7 +80,7 @@ public class HandshakeHandler {
                 if (player == null) {
                     return;
                 }
-                if (mod_version == Minehop.MOD_VERSION) {
+                if (mod_version >= Minehop.MIN_CLIENT_MOD_VERSION) {
                     waitingForShake.remove(player.getUUID());
                 }
             });
