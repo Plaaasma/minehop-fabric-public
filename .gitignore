@@ -5,3 +5,6 @@ run/
 logs/
 *.log
 run-testserver/
+
+# multiloader (MultiLoader-Template): per-module run dirs of the NeoForge/Forge modules
+runs/

@@ -1,0 +1,88 @@
+// Forge loader module (see docs/MULTILOADER.md). Forge 61.1.6+ (1.21.11) is built with ForgeDev 7 and its userdev
+// setup no longer works with ForgeGradle 6 ("duplicate entry: mcp/client/Start.class"), so this module uses
+// ForgeGradle 7 (Gradle 9), like Forge's own 1.21.11 MDK. ForgeGradle 7 maps Minecraft to official names directly:
+// access transformers are written in Mojang names (common's file is used as is), no reobf, no refmap, no MixinGradle.
+plugins {
+    id 'multiloader-loader'
+    id 'net.minecraftforge.gradle' version '[7.0.40,8.0)'
+}
+
+def mixinConfigs = ["${mod_id}.mixins.json", "${mod_id}.client.mixins.json", "${mod_id}.forge.mixins.json"]
+
+jar {
+    manifest {
+        attributes["MixinConfigs"] = mixinConfigs.join(',')
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+
+    // Common's META-INF/accesstransformer.cfg (Mojang names) is applied to the dev Minecraft jar and, listed in
+    // mods.toml (Forge 61.0.10+), at runtime.
+    accessTransformers = files(project(':common').file('src/main/resources/META-INF/accesstransformer.cfg'))
+
+    runs {
+        configureEach {
+            // Mixin reads MixinConfigs from the jar manifest in production; in dev the configs are passed as arguments.
+            mixinConfigs.each { args "--mixin.config=${it}" }
+            // Same switches as the Fabric runs (movement test harness etc.): -Pmovementtest, -PsurfHull
+            if (project.hasProperty('movementtest')) {
+                systemProperty 'minehop.movementtest', 'true'
+            }
+            if (project.hasProperty('surfHull')) {
+                systemProperty 'minehop.surfHullSolver', 'true'
+            }
+        }
+        // Run dirs: forge/runs/client and forge/runs/server (override with -PforgeClientRunDir / -PforgeServerRunDir).
+        register('client') {
+            workingDir = layout.projectDirectory.dir(project.findProperty('forgeClientRunDir') ?: 'runs/client')
+            args '--width', '384', '--height', '216'
+            if (project.hasProperty('quickPlay')) {
+                args '--quickPlayMultiplayer', project.property('quickPlay')
+            }
+            if (project.hasProperty('clientUsername')) {
+                args '--username', project.property('clientUsername')
+            }
+        }
+        register('server') {
+            workingDir = layout.projectDirectory.dir(project.findProperty('forgeServerRunDir') ?: 'runs/server')
+            args '--nogui'
+        }
+        register('data') {
+            workingDir = layout.projectDirectory.dir('runs/data')
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+        }
+    }
+}
+
+// ForgeGradle 7 names the run tasks runClient / runServer / runData; keep the documented :forge:Client / :forge:Server.
+['Client', 'Server', 'Data'].each { name ->
+    tasks.register(name) {
+        group = 'forgegradle runs'
+        description = "Alias of :forge:run${name}"
+        dependsOn "run${name}"
+    }
+}
+
+sourceSets.main.resources.srcDir 'src/generated/resources'
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+}
+
+dependencies {
+    implementation minecraft.dependency("net.minecraftforge:forge:${minecraft_version}-${forge_version}")
+    // Forge 1.21.6+ uses EventBus 7, which validates listeners at compile time.
+    annotationProcessor 'net.minecraftforge:eventbus-validator:7.0.5'
+
+    // cloth-config AutoConfig (shared config/minehop.json5 + config screen). There is no official Forge build for
+    // 1.21.5+; this is the unofficial Forge port of the same version (same API and mod id, see multiloader-common.gradle).
+    implementation "maven.modrinth:cloth-config-forge:${cloth_version}"
+
+    // Discord bot. Fabric does NOT bundle JDA (see fabric/build.gradle); keep the same packaging here: compile only,
+    // not in the mod jar. Without JDA at runtime the bot is simply unavailable (see DiscordIntegration).
+    compileOnly "net.dv8tion:JDA:${jda_version}"
+}
