@@ -44,8 +44,11 @@ public class Minehop {
 	// That way, it's clear which mod wrote info, warnings, and errors.
     public static final Logger LOGGER = LoggerFactory.getLogger("minehop");
     public static final String MOD_ID = "minehop";
-    public static final int MOD_VERSION = 11500;
-    public static final String MOD_VERSION_STRING = "1.1.5";
+    public static final int MOD_VERSION = 11600;
+    public static final String MOD_VERSION_STRING = "1.1.6";
+    // Oldest client the server still accepts in the handshake: its network protocol matches this build's.
+    public static final int MIN_CLIENT_MOD_VERSION = 11500;
+    public static final String MIN_CLIENT_MOD_VERSION_STRING = "1.1.5";
     // Minecraft version the official server (play.minehop.net) runs; clients on other versions can't join it.
     public static final String OFFICIAL_SERVER_MC_VERSION = "1.21.4";
 
