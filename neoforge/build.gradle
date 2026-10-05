@@ -1,0 +1,59 @@
+// NeoForge loader module (see docs/MULTILOADER.md).
+plugins {
+    id 'multiloader-loader'
+    id 'net.neoforged.moddev'
+}
+
+neoForge {
+    version = neoforge_version
+    // Automatically enable neoforge AccessTransformers if the file exists
+    def at = project(':common').file('src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers.from(at.absolutePath)
+    }
+    runs {
+        configureEach {
+            systemProperty('neoforge.enabledGameTestNamespaces', mod_id)
+            ideName = "NeoForge ${it.name.capitalize()} (${project.path})" // Unify the run config names with fabric
+            // Same switches as the Fabric runs (movement test harness etc.): -Pmovementtest
+            if (project.hasProperty('movementtest')) {
+                systemProperty('minehop.movementtest', 'true')
+            }
+        }
+        client {
+            client()
+            gameDirectory = project.file('runs/client')
+        }
+        data {
+            clientData()
+            gameDirectory = project.file('runs/data')
+        }
+        server {
+            server()
+            gameDirectory = project.file('runs/server')
+        }
+    }
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    // cloth-config AutoConfig (shared config/minehop.json5 + config screen)
+    implementation "me.shedaniel.cloth:cloth-config-neoforge:${cloth_version}"
+
+    // Discord bot. Fabric does NOT bundle JDA (see fabric/build.gradle); keep the same packaging here:
+    // compile + dev runtime only, not in the mod jar. To bundle it instead, use `jarJar(...)` (and keep it on
+    // additionalRuntimeClasspath). Jackson is excluded: Minecraft's runtime pins it (strictly 2.13.x), which conflicts with
+    // JDA's 2.16 and would break the dev runs; JDA uses the game's copy.
+    implementation("net.dv8tion:JDA:${jda_version}") {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
+    additionalRuntimeClasspath("net.dv8tion:JDA:${jda_version}") {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }

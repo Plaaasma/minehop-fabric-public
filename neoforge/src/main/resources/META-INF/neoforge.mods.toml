@@ -1,0 +1,44 @@
+modLoader = "javafml" #mandatory
+loaderVersion = "${neoforge_loader_version_range}" #mandatory
+license = "${license}"
+[[mods]] #mandatory
+modId = "${mod_id}" #mandatory
+version = "${version}" #mandatory
+displayName = "${mod_name}" #mandatory
+displayURL = "https://modrinth.com/mod/minehop" #optional
+logoFile = "assets/minehop/logo.png" #optional
+credits = "${credits}" #optional
+authors = "${mod_author}" #optional
+description = '''${description}''' #mandatory (Supports multiline text)
+
+# Common's access transformer (Mojang names).
+[[accessTransformers]]
+file = "META-INF/accesstransformer.cfg"
+
+# minehop.mixins.json / minehop.client.mixins.json live in common (shared with Fabric); minehop.neoforge.mixins.json
+# holds the NeoForge-only mixins (game message event, joining Fabric servers).
+[[mixins]]
+config = "${mod_id}.mixins.json"
+[[mixins]]
+config = "${mod_id}.client.mixins.json"
+[[mixins]]
+config = "${mod_id}.neoforge.mixins.json"
+
+[[dependencies.${mod_id}]] #optional
+modId = "neoforge" #mandatory
+type = "required" #mandatory (Can be one of "required", "optional", "incompatible" or "discouraged")
+versionRange = "[${neoforge_version},)" #mandatory
+ordering = "NONE"
+side = "BOTH"
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_version_range}"
+ordering = "NONE"
+side = "BOTH"
+[[dependencies.${mod_id}]]
+modId = "cloth_config"
+type = "required"
+versionRange = "[${cloth_version},)"
+ordering = "NONE"
+side = "BOTH"
