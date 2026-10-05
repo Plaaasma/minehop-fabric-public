@@ -46,6 +46,8 @@ public class Minehop {
     public static final String MOD_ID = "minehop";
     public static final int MOD_VERSION = 11500;
     public static final String MOD_VERSION_STRING = "1.1.5";
+    // Minecraft version the official server (play.minehop.net) runs; clients on other versions can't join it.
+    public static final String OFFICIAL_SERVER_MC_VERSION = "1.21.4";
 
 	public static boolean override_config = false;
 	public static double o_sv_friction = 0;

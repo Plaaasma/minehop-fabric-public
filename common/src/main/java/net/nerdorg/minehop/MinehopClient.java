@@ -2,6 +2,7 @@ package net.nerdorg.minehop;
 
 import net.nerdorg.minehop.platform.ClientServices;
 import net.minecraft.client.Minecraft;
+import net.minecraft.SharedConstants;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.ServerList;
 import net.minecraft.client.renderer.RenderType;
@@ -76,14 +77,26 @@ public class MinehopClient {
 
 	public static List<String> spectatorList = new ArrayList<>();
 
+	private static final String OFFICIAL_SERVER_IP = "play.minehop.net";
+	private static final String OFFICIAL_SERVER_NAME = "§c§l§nOfficial Minehop Server";
+	// Builds for other Minecraft versions list the official server too, with a warning: they can't join it.
+	private static final String OFFICIAL_SERVER_NAME_OTHER_VERSION = "§c§l§nOfficial Minehop§r §e(requires " + Minehop.OFFICIAL_SERVER_MC_VERSION + ")";
+
 	public void onInitializeClient() {
 		Minecraft minecraft = Minecraft.getInstance();
 		minecraft.execute(() -> {
 			ServerList serverList = new ServerList(minecraft);
 			serverList.load();
-			if (!isServerInList(serverList, "play.minehop.net")) {
-				serverList.add(new ServerData("§c§l§nOfficial Minehop Server", "play.minehop.net", ServerData.Type.OTHER), false);
+			String officialName = isOfficialServerVersion() ? OFFICIAL_SERVER_NAME : OFFICIAL_SERVER_NAME_OTHER_VERSION;
+			ServerData official = findServer(serverList, OFFICIAL_SERVER_IP);
+			if (official == null) {
+				serverList.add(new ServerData(officialName, OFFICIAL_SERVER_IP, ServerData.Type.OTHER), false);
 				serverList.swap(0, serverList.size() - 1);
+				serverList.save();
+			} else if (!official.name.equals(officialName)
+					&& (official.name.equals(OFFICIAL_SERVER_NAME) || official.name.equals(OFFICIAL_SERVER_NAME_OTHER_VERSION))) {
+				// Launchers can share servers.dat between Minecraft versions: label our entry for the running one.
+				official.name = officialName;
 				serverList.save();
 			}
 		});
@@ -468,13 +481,17 @@ public class MinehopClient {
 	private record FinishZoneHit(String mapName, double fraction, Vec3 position, boolean insideAtSample) {
 	}
 
-	private boolean isServerInList(ServerList serverList, String ip) {
+	private static boolean isOfficialServerVersion() {
+		return SharedConstants.getCurrentVersion().getName().equals(Minehop.OFFICIAL_SERVER_MC_VERSION);
+	}
+
+	private static ServerData findServer(ServerList serverList, String ip) {
 		for (int i = 0; i < serverList.size(); i++) {
 			ServerData info = serverList.get(i);
 			if (info.ip.equals(ip)) {
-				return true;
+				return info;
 			}
 		}
-		return false;
+		return null;
 	}
 }
