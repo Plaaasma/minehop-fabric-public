@@ -52,11 +52,23 @@ public class JoinLeaveManager {
                     }
                     if (foundWorld != null) {
                         networkHandler.player.getInventory().clearContent();
-                        networkHandler.player.teleportTo(
-                                mapData.x,
-                                mapData.y,
-                                mapData.z
-                        );
+                        if (networkHandler.player.serverLevel() == foundWorld) {
+                            networkHandler.player.teleportTo(
+                                    mapData.x,
+                                    mapData.y,
+                                    mapData.z
+                            );
+                        } else {
+                            // Logged out in another dimension (a map built in its own dimension, a plot): move them to
+                            // the spawn map's world. teleportTo(x, y, z) stays in the current dimension, which put
+                            // them at the lobby's coordinates in that dimension's void (instant death on rejoin).
+                            networkHandler.player.teleport(net.nerdorg.minehop.util.ZoneUtil.makeTeleportTarget(
+                                    foundWorld,
+                                    new net.minecraft.world.phys.Vec3(mapData.x, mapData.y, mapData.z),
+                                    networkHandler.player.getYRot(),
+                                    networkHandler.player.getXRot()
+                            ));
+                        }
                     }
                 }
             }
