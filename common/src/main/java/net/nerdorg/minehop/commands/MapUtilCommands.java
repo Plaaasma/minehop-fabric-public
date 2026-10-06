@@ -398,6 +398,25 @@ public class MapUtilCommands {
                                 })
                         )
                 )
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("set")
+                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
+                                .suggests((context, builder) -> {
+                                    suggestMapNames(builder);
+                                    return builder.buildFuture();
+                                })
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("field", StringArgumentType.word())
+                                        .suggests((context, builder) -> {
+                                            for (String field : SETTABLE_MAP_FIELDS) {
+                                                builder.suggest(field);
+                                            }
+                                            return builder.buildFuture();
+                                        })
+                                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("value", StringArgumentType.greedyString())
+                                                .executes(MapUtilCommands::handleSetField)
+                                        )
+                                )
+                        )
+                )
                 .then(LiteralArgumentBuilder.<CommandSourceStack>literal("info")
                     .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("search_name", StringArgumentType.string())
                         .executes(context -> {
@@ -528,13 +547,17 @@ public class MapUtilCommands {
                 mapToAddTo.checkpointPositions = new ArrayList<>();
             }
             Logger.logSuccess(serverPlayerEntity, "Added checkpoint " + (mapToAddTo.checkpointPositions.size() + 1) + " to " + name);
+            consoleReply(context, serverPlayerEntity, "Added checkpoint " + (mapToAddTo.checkpointPositions.size() + 1) + " to " + name, true);
             Minehop.mapList.remove(mapToAddTo);
-            mapToAddTo.checkpointPositions.add(new ArrayList<>(Arrays.asList(serverPlayerEntity.position(), new Vec3(serverPlayerEntity.getRotationVector().x, serverPlayerEntity.getRotationVector().y, 0))));
+            Vec3 checkpointPos = serverPlayerEntity != null ? serverPlayerEntity.position() : context.getSource().getPosition();
+            net.minecraft.world.phys.Vec2 checkpointRot = serverPlayerEntity != null ? serverPlayerEntity.getRotationVector() : context.getSource().getRotation();
+            mapToAddTo.checkpointPositions.add(new ArrayList<>(Arrays.asList(checkpointPos, new Vec3(checkpointRot.x, checkpointRot.y, 0))));
             Minehop.mapList.add(mapToAddTo);
             DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
         }
         else {
             Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
+            consoleReply(context, serverPlayerEntity, "The map " + name + " does not exist.", false);
         }
     }
 
@@ -733,18 +756,29 @@ public class MapUtilCommands {
             Logger.logFailure(serverPlayerEntity, "Map name cannot be blank.");
             return;
         }
-        double spawn_x = serverPlayerEntity.getX();
-        double spawn_y = serverPlayerEntity.getY();
-        double spawn_z = serverPlayerEntity.getZ();
-        double spawn_xrot = serverPlayerEntity.getXRot();
-        double spawn_yrot = serverPlayerEntity.getYRot();
+        if (serverPlayerEntity == null && DataManager.getMap(name) != null) {
+            // Console builds are scripted: never create a second entry under an existing name.
+            consoleReply(context, null, "The map " + name + " already exists.", false);
+            return;
+        }
+        CommandSourceStack source = context.getSource();
+        double spawn_x = serverPlayerEntity != null ? serverPlayerEntity.getX() : source.getPosition().x;
+        double spawn_y = serverPlayerEntity != null ? serverPlayerEntity.getY() : source.getPosition().y;
+        double spawn_z = serverPlayerEntity != null ? serverPlayerEntity.getZ() : source.getPosition().z;
+        double spawn_xrot = serverPlayerEntity != null ? serverPlayerEntity.getXRot() : source.getRotation().x;
+        double spawn_yrot = serverPlayerEntity != null ? serverPlayerEntity.getYRot() : source.getRotation().y;
+        String worldKey = serverPlayerEntity != null ? serverPlayerEntity.level().dimension().toString() : source.getLevel().dimension().toString();
 
-        DataManager.MapData mapData = new DataManager.MapData(name, spawn_x, spawn_y, spawn_z, spawn_xrot, spawn_yrot, serverPlayerEntity.level().dimension().toString());
+        DataManager.MapData mapData = new DataManager.MapData(name, spawn_x, spawn_y, spawn_z, spawn_xrot, spawn_yrot, worldKey);
         mapData.copyMovementFrom(ConfigWrapper.config, false);
         Minehop.mapList.add(mapData);
         DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
 
         Logger.logSuccess(serverPlayerEntity, "Created map \\/\n" + StringFormatting.limitDecimals(gson.toJson(mapData)));
+        consoleReply(context, serverPlayerEntity, "Created map " + name + " at " + StringFormatting.limitDecimals(spawn_x + " " + spawn_y + " " + spawn_z) + " in " + worldKey, true);
+        if (serverPlayerEntity == null) {
+            syncMapsForAll(source.getServer());
+        }
 
 
     }
@@ -807,9 +841,14 @@ public class MapUtilCommands {
             net.nerdorg.minehop.data.LeaderboardIntegrity.Report cascade = net.nerdorg.minehop.data.LeaderboardIntegrity.purgeMap(
                     context.getSource().getServer(), name, true, true, context.getSource().getTextName(), "map removed");
             Logger.logSuccess(serverPlayerEntity, "Removed map (and " + cascade.summary() + ") \\/\n" + StringFormatting.limitDecimals(gson.toJson(removedData)));
+            consoleReply(context, serverPlayerEntity, "Removed map " + name + " (and " + cascade.summary() + ")", true);
+            if (serverPlayerEntity == null) {
+                syncMapsForAll(context.getSource().getServer());
+            }
         }
         else {
             Logger.logFailure(serverPlayerEntity, "The map " + name + " does not exist.");
+            consoleReply(context, serverPlayerEntity, "The map " + name + " does not exist.", false);
         }
     }
 
@@ -848,11 +887,12 @@ public class MapUtilCommands {
 
         String name = StringArgumentType.getString(context, "map_name");
 
-        double spawn_x = serverPlayerEntity.getX();
-        double spawn_y = serverPlayerEntity.getY();
-        double spawn_z = serverPlayerEntity.getZ();
-        double spawn_xrot = serverPlayerEntity.getXRot();
-        double spawn_yrot = serverPlayerEntity.getYRot();
+        CommandSourceStack source = context.getSource();
+        double spawn_x = serverPlayerEntity != null ? serverPlayerEntity.getX() : source.getPosition().x;
+        double spawn_y = serverPlayerEntity != null ? serverPlayerEntity.getY() : source.getPosition().y;
+        double spawn_z = serverPlayerEntity != null ? serverPlayerEntity.getZ() : source.getPosition().z;
+        double spawn_xrot = serverPlayerEntity != null ? serverPlayerEntity.getXRot() : source.getRotation().x;
+        double spawn_yrot = serverPlayerEntity != null ? serverPlayerEntity.getYRot() : source.getRotation().y;
 
         DataManager.MapData spawnData = null;
 
@@ -876,9 +916,123 @@ public class MapUtilCommands {
             DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
 
             Logger.logSuccess(serverPlayerEntity, "Set map spawn \\/\n" + StringFormatting.limitDecimals(gson.toJson(spawnData)));
+            consoleReply(context, serverPlayerEntity, "Set spawn of " + name, true);
         }
         else {
             Logger.logSuccess(serverPlayerEntity, "There is no map called " + name + ".");
+            consoleReply(context, serverPlayerEntity, "There is no map called " + name + ".", false);
+        }
+    }
+
+    // Fields `map manage set` may change. Identity (name/worldKey/spawn), ownership, plot bounds and
+    // rating/play counters are deliberately excluded: they have their own commands or are maintained by the mod.
+    private static final List<String> SETTABLE_MAP_FIELDS = List.of(
+            "surf", "kz", "hns", "arena", "preserve_speed", "difficulty", "description",
+            "movement_override", "movement_sv_friction", "movement_sv_accelerate", "movement_sv_airaccelerate",
+            "movement_sv_maxairspeed", "movement_sv_jump_impulse", "movement_speed_mul", "movement_sv_gravity",
+            "movement_sv_stopspeed", "movement_speed_coefficient", "movement_speed_cap", "movement_auto_step_up",
+            "movement_css_crouch_jump", "movement_disable_sprint", "movement_fall_damage"
+    );
+
+    // `map manage set <map> <field> <value>`: sets one map setting without the GUI, so maps can be configured
+    // from the server console (scripted map builds). Movement values go through applyMovementSettings, so they
+    // get exactly the clamping the map creator GUI applies.
+    private static int handleSetField(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
+        String name = StringArgumentType.getString(context, "map_name");
+        String field = StringArgumentType.getString(context, "field");
+        String rawValue = StringArgumentType.getString(context, "value").trim();
+
+        DataManager.MapData mapData = DataManager.getMap(name);
+        if (mapData == null) {
+            Logger.logFailure(serverPlayerEntity, "There is no map called " + name + ".");
+            consoleReply(context, serverPlayerEntity, "There is no map called " + name + ".", false);
+            return 0;
+        }
+        if (!SETTABLE_MAP_FIELDS.contains(field)) {
+            Logger.logFailure(serverPlayerEntity, "Unknown map field " + field + ". Settable: " + String.join(", ", SETTABLE_MAP_FIELDS));
+            consoleReply(context, serverPlayerEntity, "Unknown map field " + field + ". Settable: " + String.join(", ", SETTABLE_MAP_FIELDS), false);
+            return 0;
+        }
+
+        try {
+            java.lang.reflect.Field target = DataManager.MapData.class.getField(field);
+            Class<?> type = target.getType();
+            if (type == boolean.class) {
+                if (!rawValue.equalsIgnoreCase("true") && !rawValue.equalsIgnoreCase("false")) {
+                    throw new IllegalArgumentException("expected true or false");
+                }
+                target.setBoolean(mapData, Boolean.parseBoolean(rawValue));
+            } else if (type == int.class) {
+                int value = Integer.parseInt(rawValue);
+                if (field.equals("difficulty")) {
+                    value = Math.max(0, Math.min(5, value));
+                }
+                target.setInt(mapData, value);
+            } else if (type == double.class) {
+                double value = Double.parseDouble(rawValue);
+                if (!Double.isFinite(value)) {
+                    throw new IllegalArgumentException("expected a finite number");
+                }
+                target.setDouble(mapData, value);
+            } else if (type == String.class) {
+                String value = rawValue;
+                if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                target.set(mapData, DescriptionCensor.sanitize(value));
+            } else {
+                throw new IllegalArgumentException("unsupported field type");
+            }
+        } catch (NoSuchFieldException | IllegalAccessException | IllegalArgumentException exception) {
+            String message = "Could not set " + field + " to '" + rawValue + "': " + exception.getMessage();
+            Logger.logFailure(serverPlayerEntity, message);
+            consoleReply(context, serverPlayerEntity, message, false);
+            return 0;
+        }
+
+        if (field.startsWith("movement_")) {
+            mapData.applyMovementSettings(
+                    mapData.movement_override,
+                    mapData.movement_sv_friction,
+                    mapData.movement_sv_accelerate,
+                    mapData.movement_sv_airaccelerate,
+                    mapData.movement_sv_maxairspeed,
+                    mapData.movement_sv_jump_impulse,
+                    mapData.movement_speed_mul,
+                    mapData.movement_sv_gravity,
+                    mapData.movement_sv_stopspeed,
+                    mapData.movement_speed_coefficient,
+                    mapData.movement_speed_cap,
+                    mapData.movement_auto_step_up,
+                    mapData.movement_css_crouch_jump,
+                    mapData.movement_disable_sprint,
+                    mapData.movement_fall_damage
+            );
+        }
+        DataManager.saveData(context.getSource().getLevel(), DataManager.mapListLocation, Minehop.mapList);
+        syncMapsForAll(context.getSource().getServer());
+
+        String result;
+        try {
+            result = String.valueOf(DataManager.MapData.class.getField(field).get(mapData));
+        } catch (NoSuchFieldException | IllegalAccessException exception) {
+            result = rawValue;
+        }
+        Logger.logSuccess(serverPlayerEntity, "Set " + field + " of " + name + " to " + result + ".");
+        consoleReply(context, serverPlayerEntity, "Set " + field + " of " + name + " to " + result + ".", true);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    // Feedback for commands run without a player (server console / RCON); players keep the existing chat messages.
+    private static void consoleReply(CommandContext<CommandSourceStack> context, ServerPlayer player, String message, boolean success) {
+        if (player != null) {
+            return;
+        }
+        if (success) {
+            context.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal(message), false);
+        } else {
+            context.getSource().sendFailure(net.minecraft.network.chat.Component.literal(message));
         }
     }
 
