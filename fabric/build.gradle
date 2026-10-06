@@ -80,6 +80,10 @@ tasks.named("runServer") {
     if (project.hasProperty("surfHull")) {
         jvmArgs "-Dminehop.surfHullSolver=true"
     }
+    // `-Pmaptest=<request.json>`: MapRouteHarness (bot rollouts on a built map; dev only)
+    if (project.hasProperty("maptest")) {
+        jvmArgs "-Dminehop.maptest=" + project.property("maptest")
+    }
 }
 
 tasks.register('jarWithType', Jar) {
