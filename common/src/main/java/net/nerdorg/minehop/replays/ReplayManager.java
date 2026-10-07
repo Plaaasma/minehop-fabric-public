@@ -314,7 +314,26 @@ public class ReplayManager {
         if (entry != null) {
             return entry.bounds();
         }
-        return replay == null || replay.replayEntries == null ? null : toFrames(replay.replayEntries).bounds();
+        if (replay == null || replay.replayEntries == null) {
+            return null;
+        }
+        double[] bounds = null;
+        for (ReplayEntry frame : replay.replayEntries) {
+            if (frame == null || !Double.isFinite(frame.x) || !Double.isFinite(frame.y) || !Double.isFinite(frame.z)) {
+                continue;
+            }
+            if (bounds == null) {
+                bounds = new double[]{frame.x, frame.y, frame.z, frame.x, frame.y, frame.z};
+            } else {
+                bounds[0] = Math.min(bounds[0], frame.x);
+                bounds[1] = Math.min(bounds[1], frame.y);
+                bounds[2] = Math.min(bounds[2], frame.z);
+                bounds[3] = Math.max(bounds[3], frame.x);
+                bounds[4] = Math.max(bounds[4], frame.y);
+                bounds[5] = Math.max(bounds[5], frame.z);
+            }
+        }
+        return bounds;
     }
 
     /**
