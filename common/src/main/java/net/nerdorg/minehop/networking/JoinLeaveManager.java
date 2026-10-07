@@ -21,6 +21,9 @@ public class JoinLeaveManager {
                 net.nerdorg.minehop.replays.RunStats.forget(networkHandler.player);
                 net.nerdorg.minehop.commands.SpectateCommands.forget(networkHandler.player.getUUID());
                 PacketHandler.clearRunState(networkHandler.player, server);
+                // A finished run's replay keeps the post-run frames recorded so far.
+                net.nerdorg.minehop.replays.RunRecorder.onDisconnect(networkHandler.player);
+                net.nerdorg.minehop.replays.RunClock.forget(networkHandler.player);
                 SurfRampPlacementManager.onPlayerDisconnect(networkHandler.player.getUUID());
                 UserPlotManager.onPlayerDisconnect(networkHandler.player);
                 net.nerdorg.minehop.util.PacketRateLimiter.clear(networkHandler.player.getUUID());

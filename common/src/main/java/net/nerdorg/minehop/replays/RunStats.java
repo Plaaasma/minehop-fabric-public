@@ -67,6 +67,10 @@ public final class RunStats {
                 state == null ? 0.0D : state.efficiency);
     }
 
+    /** One client tick of the player (ReplayEvents#onClientTick). */
+    static void onClientTick(ServerPlayer player, net.nerdorg.minehop.anticheat.stream.ClientTick tick) {
+    }
+
     public static void forget(ServerPlayer player) {
         if (player != null) {
             EFFICIENCY.remove(player.getUUID());
