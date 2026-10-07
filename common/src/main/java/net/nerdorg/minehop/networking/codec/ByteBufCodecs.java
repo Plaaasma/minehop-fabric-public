@@ -6,7 +6,7 @@ import org.joml.Vector3f;
 /**
  * 1.20.1 backport shim of the 1.20.5+ {@code net.minecraft.network.codec.ByteBufCodecs} entries the payloads use. Wire
  * formats match the vanilla codecs (STRING_UTF8 = VarInt-length UTF-8 capped at 32767 chars, INT = 4-byte int,
- * VECTOR3F = three floats).
+ * VECTOR3F = three floats, BYTE = one byte, byteArray = VarInt length + the bytes, length checked both ways).
  */
 public final class ByteBufCodecs {
     private ByteBufCodecs() {
@@ -23,6 +23,18 @@ public final class ByteBufCodecs {
     public static final StreamCodec<FriendlyByteBuf, String> STRING_UTF8 = stringUtf8(32767);
     public static final StreamCodec<FriendlyByteBuf, Vector3f> VECTOR3F = StreamCodec.ofMember(
             (value, buf) -> buf.writeVector3f(value), FriendlyByteBuf::readVector3f);
+
+    public static final StreamCodec<FriendlyByteBuf, Byte> BYTE = StreamCodec.ofMember(
+            (value, buf) -> buf.writeByte(value), FriendlyByteBuf::readByte);
+
+    public static StreamCodec<FriendlyByteBuf, byte[]> byteArray(int maxSize) {
+        return StreamCodec.ofMember((value, buf) -> {
+            if (value.length > maxSize) {
+                throw new io.netty.handler.codec.EncoderException("ByteArray with size " + value.length + " is bigger than allowed " + maxSize);
+            }
+            buf.writeByteArray(value);
+        }, buf -> buf.readByteArray(maxSize));
+    }
 
     public static StreamCodec<FriendlyByteBuf, String> stringUtf8(int maxLength) {
         return StreamCodec.ofMember((value, buf) -> buf.writeUtf(value, maxLength), buf -> buf.readUtf(maxLength));

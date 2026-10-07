@@ -811,6 +811,18 @@ public final class ReplayStore {
         }
     }
 
+    /**
+     * The run's file, if it has been written and can be read (not still being written, not quarantined or missing);
+     * else null. Replay streaming sends its column blocks as they are (see MhrpCodec#rewriteHeader).
+     */
+    public Path writtenFile(ReplayManager.Replay replay) {
+        Entry entry = entry(replay);
+        if (entry == null || !entry.unavailable.isEmpty() || this.pendingWrites.containsKey(replay.replay_id) || this.closing) {
+            return null;
+        }
+        return StorePaths.resolveRunFile(this.root, entry.file);
+    }
+
     // ------------------------------------------------------------------------------------------
     // Frames
     // ------------------------------------------------------------------------------------------
