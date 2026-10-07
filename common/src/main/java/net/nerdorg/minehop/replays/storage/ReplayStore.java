@@ -714,6 +714,9 @@ public final class ReplayStore {
                 present.add(replay.replay_id);
                 Entry entry = this.entries.get(replay.replay_id);
                 if (entry == null) {
+                    if (ReplayManager.isSavePending(replay)) {
+                        continue; // a finish still taking its post-run frames: added when they are complete
+                    }
                     if (replay.replayEntries != null && !replay.replayEntries.isEmpty()) {
                         addRun(replay, new ArrayList<>(replay.replayEntries), Double.NaN, -1L, 0);
                     } else {

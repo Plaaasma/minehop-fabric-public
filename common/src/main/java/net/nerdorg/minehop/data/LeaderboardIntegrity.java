@@ -9,7 +9,7 @@ import net.minecraft.world.level.storage.LevelResource;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.ReplayCommands;
 import net.nerdorg.minehop.networking.PacketHandler;
-import net.nerdorg.minehop.replays.ReplayEvents;
+import net.nerdorg.minehop.replays.RunRecorder;
 import net.nerdorg.minehop.replays.ReplayManager;
 import net.nerdorg.minehop.util.JsonStorage;
 
@@ -717,7 +717,7 @@ public final class LeaderboardIntegrity {
                 Minehop.timerManager.remove(name);
                 Minehop.finishTimeManager.remove(name);
                 Minehop.runSignatureManager.remove(name);
-                ReplayEvents.replayEntryMap.remove(name);
+                RunRecorder.discardRun(player);
             }
         }
     }

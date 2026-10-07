@@ -18,7 +18,8 @@ import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.PacketHandler;
-import net.nerdorg.minehop.replays.ReplayEvents;
+import net.nerdorg.minehop.replays.RunClock;
+import net.nerdorg.minehop.replays.RunRecorder;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -100,6 +101,9 @@ public class StartEntity extends Zone {
         this.updateInteractionBounds(this.corner1, this.corner2);
         Level world = this.level();
         if (world instanceof ServerLevel serverWorld) {
+            if (this.corner1 != null && this.corner2 != null) {
+                RunZones.register(this);
+            }
             if (serverWorld.getGameTime() % 2 == 0) {
                 if (this.corner1 != null && this.corner2 != null) {
                     Vec3 center = this.getBoundsCenter(this.corner1, this.corner2);
@@ -138,14 +142,14 @@ public class StartEntity extends Zone {
                                     this.startArmed.add(playerName);
                                 }
                                 // While armed + grounded, hold the timer at 0 (ground prestrafe is
-                                // free); it begins the moment they leave the ground (below).
-                                if (this.startArmed.contains(playerName)) {
+                                // free); it begins the moment they leave the ground (below). A player
+                                // with a packet stream is timed per client tick instead (RunClock):
+                                // here only players without one (fake players, test bots).
+                                if (this.startArmed.contains(playerName) && !RunClock.usesStream(player)) {
                                     Minehop.playerMapLocation.put(player.getStringUUID(), this);
                                     HashMap<String, Long> informationMap = new HashMap<>();
                                     informationMap.put(this.getPairedMap(), System.nanoTime());
-                                    if (ReplayEvents.replayEntryMap.containsKey(playerName)) {
-                                        ReplayEvents.replayEntryMap.remove(playerName);
-                                    }
+                                    RunRecorder.restartServerTickRecording(player);
                                     Minehop.timerManager.put(playerName, informationMap);
                                     Minehop.finishTimeManager.remove(playerName);
                                     Minehop.runStartClientTicks.put(playerName,
@@ -184,6 +188,11 @@ public class StartEntity extends Zone {
             }
         }
         super.tick();
+    }
+
+    /** The zone's box (what a player must be inside), or null while its corners aren't set. */
+    public AABB runBounds() {
+        return this.corner1 == null || this.corner2 == null ? null : this.getBoundsBox();
     }
 
     public static boolean isPlayerInsideAnyStartZone(ServerPlayer player) {
