@@ -424,6 +424,10 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     public void travel(Vec3 movementInput, CallbackInfo ci) {
+        // Only players move the Minehop way. Every other living entity (replay ghosts, zone entities, mobs)
+        // leaves here before the config and speed cap below are resolved for it, which cost a map lookup
+        // and a config copy per entity per tick. For players nothing changes: the code below runs as before.
+        if (this.getType() != EntityType.PLAYER) { return; }
         MinehopConfig config;
         double speedCap = 0.0D;
         if (Minehop.override_config && Minehop.receivedConfig) {
@@ -449,7 +453,6 @@ public abstract class LivingEntityMixin extends Entity {
             speedCap = ConfigWrapper.resolveSpeedCap(this);
         }
 
-        if (this.getType() != EntityType.PLAYER) { return; }
         boolean hnsKzSpeedCapMode = speedCap > 0.0D && this.minehop$isHnsKzSpeedCapMap();
 
         // Fully disable sprinting when configured (global or per-map). Runs on both client and
