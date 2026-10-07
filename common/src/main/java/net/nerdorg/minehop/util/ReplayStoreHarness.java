@@ -28,6 +28,10 @@ import java.util.Random;
  * the replay store's codec self-test and operator commands to inspect and stress the store (status, heap, verify every
  * file, load a run, synthetic finishes, injected write failures). With {@code selftest} the codec self-test runs once
  * the server has started and the server stops afterwards. Not registered otherwise.
+ *
+ * <p>Recording and run-timer tests: {@code stall <ms>} blocks the server thread (like a GC pause, chunk generation or a
+ * slow save) while clients keep sending; {@code frames <id|latest>} reports a stored run's layout (pre/post frames,
+ * ticks vs time, teleports) and {@code dump <id|latest>} writes its frames to a CSV next to the server.
  */
 public final class ReplayStoreHarness {
     private ReplayStoreHarness() {
@@ -85,6 +89,15 @@ public final class ReplayStoreHarness {
                                         .executes(context -> load(context, StringArgumentType.getString(context, "id")))))
                         .then(LiteralArgumentBuilder.<CommandSourceStack>literal("loadall")
                                 .executes(ReplayStoreHarness::loadAll))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("stall")
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("ms", IntegerArgumentType.integer(0, 60000))
+                                        .executes(context -> stall(context, IntegerArgumentType.getInteger(context, "ms")))))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("frames")
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("id", StringArgumentType.word())
+                                        .executes(context -> frames(context, StringArgumentType.getString(context, "id"), false))))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("dump")
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("id", StringArgumentType.word())
+                                        .executes(context -> frames(context, StringArgumentType.getString(context, "id"), true))))
                         .then(LiteralArgumentBuilder.<CommandSourceStack>literal("synth")
                                 .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map", StringArgumentType.string())
                                         .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("frames", IntegerArgumentType.integer(1, 200000))
@@ -160,6 +173,64 @@ public final class ReplayStoreHarness {
             return reply(context, "no v2 store");
         }
         store.verifyAll(text -> reply(context, text));
+        return 1;
+    }
+
+    /** Blocks the server thread, as a GC pause, chunk generation or a slow save would. */
+    private static int stall(CommandContext<CommandSourceStack> context, int millis) {
+        Minehop.LOGGER.warn("[RTEST] stalling the server thread for {} ms", millis);
+        long start = System.nanoTime();
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return reply(context, String.format(Locale.ROOT, "server thread stalled for %.1f ms", (System.nanoTime() - start) / 1.0E6D));
+    }
+
+    /** A stored run's layout (and with {@code dump} its frames as CSV in the server directory). */
+    private static int frames(CommandContext<CommandSourceStack> context, String prefix, boolean dump) {
+        ReplayManager.Replay replay = "latest".equals(prefix) && !Minehop.replayList.isEmpty()
+                ? Minehop.replayList.get(Minehop.replayList.size() - 1) : find(prefix);
+        if (replay == null) {
+            return reply(context, "no run with id " + prefix + "...");
+        }
+        ReplayManager.loadFrames(replay, frames -> {
+            if (frames == null) {
+                reply(context, replay.replay_id + ": frames unavailable");
+                return;
+            }
+            List<Integer> teleports = new ArrayList<>();
+            for (int i = 0; i < frames.size(); i++) {
+                if ((frames.flags(i) & net.nerdorg.minehop.replays.storage.ReplayFrames.FLAG_DISCONTINUITY) != 0) {
+                    teleports.add(i);
+                }
+            }
+            int runTicks = frames.runEnd() - frames.runStart() - 1;
+            reply(context, String.format(Locale.ROOT,
+                    "%s %s %s time=%.5fs: %d frames = %d pre + %d run + %d post, tickStream=%b; run frames-1 = %d ticks = %.3fs"
+                            + " (time/ticks ratio %.4f); teleport frames %s",
+                    replay.replay_id, replay.map_name, replay.player_name, replay.time, frames.size(), frames.preFrames(),
+                    frames.runEnd() - frames.runStart(), frames.postFrames(), frames.tickStream(), runTicks, runTicks * 0.05D,
+                    runTicks > 0 ? replay.time / (runTicks * 0.05D) : Double.NaN,
+                    teleports.size() > 20 ? teleports.subList(0, 20) + "..." : teleports));
+            if (dump) {
+                java.nio.file.Path file = context.getSource().getServer().getServerDirectory()
+                        .resolve("replaytest_dump_" + replay.replay_id + ".csv");
+                StringBuilder csv = new StringBuilder("i,x,y,z,yaw,pitch,jumps,speed,efficiency,flags\n");
+                for (int i = 0; i < frames.size(); i++) {
+                    csv.append(String.format(Locale.ROOT, "%d,%.6f,%.6f,%.6f,%.4f,%.4f,%d,%.5f,%.3f,%d%n", i, frames.x(i), frames.y(i),
+                            frames.z(i), frames.yaw(i), frames.pitch(i), frames.jumpCount(i), frames.lastJumpSpeed(i),
+                            frames.efficiency(i), frames.flags(i)));
+                }
+                try {
+                    java.nio.file.Files.writeString(file, csv.toString());
+                    reply(context, "wrote " + file.toAbsolutePath());
+                } catch (java.io.IOException e) {
+                    reply(context, "could not write " + file + ": " + e);
+                }
+            }
+        });
         return 1;
     }
 
