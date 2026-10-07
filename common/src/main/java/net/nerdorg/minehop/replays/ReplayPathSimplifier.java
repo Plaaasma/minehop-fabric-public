@@ -22,7 +22,7 @@ import java.util.List;
 public final class ReplayPathSimplifier {
     public static final int MAX_POINTS = 4096;
     /** A step longer than this between two frames is a teleport, not movement (~160 blocks/s). */
-    public static final double TELEPORT_STEP = 8.0D;
+    public static final double TELEPORT_STEP = net.nerdorg.minehop.replays.storage.ReplayTiming.TELEPORT_STEP;
     private static final double MIN_TOLERANCE = 0.02D;
     private static final double MAX_TOLERANCE = 64.0D;
 
