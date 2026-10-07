@@ -316,7 +316,10 @@ public final class MhrpCodec {
     // Decoding
     // ------------------------------------------------------------------------------------------
 
-    /** Decodes a whole file: version, CRC, header and every frame are checked. */
+    /**
+     * Decodes a whole file: version, CRC, header and every frame are checked. The frames carry the header's layout
+     * (pre/post frames, tick-stream flag).
+     */
     public static Decoded decode(byte[] file) throws MhrpFormatException {
         Reader in = checkedBody(file, true);
         MhrpHeader h = readHeaderSection(in);
@@ -324,7 +327,7 @@ public final class MhrpCodec {
         if (in.position() != file.length - 4) {
             throw new MhrpFormatException(MhrpFormatException.Kind.CORRUPT, "trailing bytes after the last block");
         }
-        return new Decoded(h, frames);
+        return new Decoded(h, frames.withLayout(h.preFrames, h.postFrames, (h.flags & MhrpHeader.FLAG_TICK_STREAM) != 0));
     }
 
     /**
@@ -343,7 +346,8 @@ public final class MhrpCodec {
 
     /**
      * Decodes one inflated block of column data holding {@code count} frames and appends them to {@code out}. Blocks
-     * are independent, so a client can be streamed a replay block by block (phase 4) and decode each on arrival.
+     * are independent, so a client can be streamed a replay block by block (phase 4) and decode each on arrival; the
+     * caller applies the header's layout ({@link ReplayFrames#withLayout}) to the frames it builds.
      */
     public static void decodeBlockColumns(MhrpHeader h, byte[] raw, int offset, int length, int count, ReplayFrames.Builder out)
             throws MhrpFormatException {
