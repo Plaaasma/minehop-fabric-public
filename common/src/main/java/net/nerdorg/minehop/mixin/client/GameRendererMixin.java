@@ -17,6 +17,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class GameRendererMixin {
     @Shadow @Final private Minecraft minecraft;
 
+    /**
+     * Client replay playback: put its camera at the interpolated view of this frame before the level renders. (1.21.11:
+     * GameRenderer#render sets the camera up in updateCamera, before renderLevel, so the camera is placed there.)
+     */
+    @Inject(method = "updateCamera", at = @At("HEAD"))
+    private void minehop$placeReplayCamera(net.minecraft.client.DeltaTracker deltaTracker, CallbackInfo ci) {
+        net.nerdorg.minehop.client.replay.ReplayPlayback.onRenderFrame();
+    }
+
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void onRenderHand(CallbackInfo ci) {
         if (net.nerdorg.minehop.client.ClientVisibility.hideSelf() && !this.minecraft.player.isHolding(ModItems.INSTAGIB_GUN.get())) {
