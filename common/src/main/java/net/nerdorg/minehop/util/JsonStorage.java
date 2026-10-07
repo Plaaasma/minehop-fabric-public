@@ -214,7 +214,8 @@ public final class JsonStorage {
      * readable). Streams the file, so a large store is never held as one string or JSON tree.
      *
      * <p>A corrupt main file (malformed or truncated JSON) is quarantined and the {@code .bak} tried, as
-     * before. A load that fails for any other reason (out of memory, an I/O error) is NOT corruption:
+     * before. A load that fails for any other reason (out of memory, an I/O error, valid JSON of the
+     * wrong shape) is NOT corruption:
      * nothing is quarantined, null is returned, and the file is marked load-failed so no later write
      * can replace it with the incomplete data in memory. (Gson reports an OutOfMemoryError while
      * parsing as a parse error, which used to quarantine the file and start with no data.)
@@ -232,8 +233,10 @@ public final class JsonStorage {
                     return main.value;
                 }
                 case SHAPE -> {
-                    // Valid JSON that doesn't match the type (unchanged behaviour: no quarantine).
-                    Minehop.LOGGER.error("Failed to deserialize {}", file.getFileName(), main.error);
+                    // Valid JSON that doesn't match the type: not quarantined, but not saved over either, since the
+                    // empty data the caller is left with would replace it.
+                    LOAD_FAILED.add(key);
+                    Minehop.LOGGER.error("Failed to deserialize {} (left untouched; saving disabled this session)", file.getFileName(), main.error);
                     return null;
                 }
                 case FAILED -> {
@@ -258,7 +261,11 @@ public final class JsonStorage {
                     Minehop.LOGGER.warn("Recovered {} from backup", file.getFileName());
                     return recovered.value;
                 }
-                case SHAPE -> Minehop.LOGGER.error("Failed to deserialize backup of {}", file.getFileName(), recovered.error);
+                case SHAPE -> {
+                    LOAD_FAILED.add(key);
+                    Minehop.LOGGER.error("Failed to deserialize backup of {} (left untouched; saving disabled this session)",
+                            file.getFileName(), recovered.error);
+                }
                 case FAILED -> {
                     LOAD_FAILED.add(key);
                     Minehop.LOGGER.error("Failed to load backup of {} (left untouched; saving disabled this session)",
