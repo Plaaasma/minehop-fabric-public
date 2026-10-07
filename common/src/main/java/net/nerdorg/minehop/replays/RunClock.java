@@ -84,12 +84,6 @@ public final class RunClock {
         STATES.clear();
     }
 
-    /** Server-thread time the player's current run start was handled, or Long.MIN_VALUE (diagnostics only). */
-    public static long startHandledNanos(ServerPlayer player) {
-        State st = player == null ? null : STATES.get(player.getUUID());
-        return st == null ? Long.MIN_VALUE : st.startHandledNanos;
-    }
-
     /** One client tick (see ReplayEvents#onClientTick). Returns what it did to the player's run. */
     static Event onClientTick(ServerPlayer player, ClientTick tick) {
         State st = STATES.computeIfAbsent(player.getUUID(), uuid -> new State());
