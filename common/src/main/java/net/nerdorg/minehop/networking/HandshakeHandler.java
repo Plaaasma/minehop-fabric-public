@@ -14,9 +14,33 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class HandshakeHandler {
     private static final HashMap<UUID, Integer> waitingForShake = new HashMap<>();
+    /**
+     * The Minehop version each connected client announced in its handshake (MOD_VERSION, e.g. 11700), until it
+     * disconnects. A player without an entry has not sent one (yet): treat them as the oldest accepted client.
+     */
+    private static final Map<UUID, Integer> CLIENT_VERSIONS = new ConcurrentHashMap<>();
+
+    /** The Minehop version the player's client announced, or 0 if it hasn't (yet). */
+    public static int clientVersion(ServerPlayer player) {
+        if (player == null) {
+            return 0;
+        }
+        Integer version = CLIENT_VERSIONS.get(player.getUUID());
+        return version == null ? 0 : version;
+    }
+
+    /**
+     * True if the player's client plays replays itself (1.1.7+): only then may it be sent the replay streaming
+     * payloads, which older clients don't know. Old clients keep watching the server's ghost entities.
+     */
+    public static boolean supportsClientReplays(ServerPlayer player) {
+        return clientVersion(player) >= Minehop.CLIENT_REPLAY_MOD_VERSION;
+    }
+
     private static boolean registered = false;
     public static void register() {
         if (registered){return;}
@@ -67,6 +91,7 @@ public class HandshakeHandler {
 
         Services.NETWORK.onPlayConnectionDisconnect(((networkHandler, server) -> {
             waitingForShake.remove(networkHandler.player.getUUID());
+            CLIENT_VERSIONS.remove(networkHandler.player.getUUID());
         }));
 
         registerReceivers();
@@ -80,6 +105,11 @@ public class HandshakeHandler {
                 if (player == null) {
                     return;
                 }
+                if (player.connection == null || player.hasDisconnected()) {
+                    return;
+                }
+                // Kept even below the minimum (client_validation off): gating only ever looks for newer versions.
+                CLIENT_VERSIONS.put(player.getUUID(), mod_version);
                 if (mod_version >= Minehop.MIN_CLIENT_MOD_VERSION) {
                     waitingForShake.remove(player.getUUID());
                 }
