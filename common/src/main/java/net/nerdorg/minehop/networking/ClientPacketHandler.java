@@ -177,8 +177,13 @@ public class ClientPacketHandler {
             Minecraft client = ctx.client();
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             client.execute(() -> {
-                // Assign the read values to your variables or fields here
-                Entity entity = client.level.getEntity(payload.entityId());
+                // A zone update can arrive while there is no level (a proxy server switch: the new server's packets
+                // start before its world is loaded). The entity isn't there then anyway; the server resends zones.
+                ClientLevel level = client.level;
+                if (level == null) {
+                    return;
+                }
+                Entity entity = level.getEntity(payload.entityId());
                 if (entity instanceof ResetEntity resetEntity) {
                     resetEntity.setCorner1(pos1);
                     resetEntity.setCorner2(pos2);
@@ -545,8 +550,12 @@ public class ClientPacketHandler {
             // Ensure you are on the main thread when modifying the game or accessing client side only classes
             client.execute(() -> {
                 // Assign the read values to your variables or fields here
+                ClientLevel level = client.level;
+                if (level == null) {
+                    return; // between worlds (server switch)
+                }
                 new Thread(() -> {
-                    BlockEntity blockEntity = client.player.level().getBlockEntity(boosterPos);
+                    BlockEntity blockEntity = level.getBlockEntity(boosterPos);
                     if (blockEntity instanceof BoostBlockEntity boostBlockEntity) {
                         boostBlockEntity.setXPower(power_x);
                         boostBlockEntity.setYPower(power_y);
