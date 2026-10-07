@@ -129,6 +129,7 @@ public class Minehop {
 		net.nerdorg.minehop.util.MovementTestHarness.register();
 		net.nerdorg.minehop.util.SurfStressHarness.register();
 		net.nerdorg.minehop.util.MapRouteHarness.register();
+		net.nerdorg.minehop.util.SpectateTestHarness.register();
 
 		HNSManager.register();
 
