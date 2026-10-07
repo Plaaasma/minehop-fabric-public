@@ -4,13 +4,10 @@ import net.nerdorg.minehop.platform.Services;
 import net.nerdorg.minehop.util.PermissionUtil;
 import net.minecraft.server.level.ServerLevel;
 import net.nerdorg.minehop.Minehop;
-import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.spectate.SpectateSessions;
 import net.nerdorg.minehop.util.SurfRampPlacementManager;
 import net.nerdorg.minehop.util.UserPlotManager;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class JoinLeaveManager {
     public static void register() {
@@ -20,14 +17,8 @@ public class JoinLeaveManager {
 
         Services.NETWORK.onPlayConnectionDisconnect(((networkHandler, server) -> {
             if (networkHandler.player != null) {
-                if (networkHandler.player.getCamera() != null) {
-                    if (SpectateCommands.spectatorList.containsKey(networkHandler.player.getCamera().getScoreboardName())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(networkHandler.player.getCamera().getScoreboardName());
-                        if (spectators.contains(networkHandler.player.getScoreboardName())) {
-                            spectators.remove(networkHandler.player.getScoreboardName());
-                        }
-                    }
-                }
+                // A spectating player gets their game mode and position back before they are saved.
+                SpectateSessions.onDisconnect(networkHandler.player);
                 PacketHandler.clearRunState(networkHandler.player, server);
                 SurfRampPlacementManager.onPlayerDisconnect(networkHandler.player.getUUID());
                 UserPlotManager.onPlayerDisconnect(networkHandler.player);
@@ -76,6 +67,7 @@ public class JoinLeaveManager {
                     }
                 }
             }
+            SpectateSessions.onJoin(networkHandler.player);
         }));
     }
 }

@@ -138,6 +138,7 @@ public class Minehop {
 		ReplayManager.register();
 		ReplayEvents.register();
 		net.nerdorg.minehop.replays.ReplayGhosts.register();
+		net.nerdorg.minehop.spectate.SpectateSessions.register();
 
 		ModItems.initialize();
 		ModItems.registerModItems();

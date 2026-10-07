@@ -620,23 +620,7 @@ public class MapUtilCommands {
                             serverPlayerEntity.getInventory().clearContent();
                         }
                         serverPlayerEntity.teleport(ZoneUtil.makeTeleportTarget(foundWorld, new Vec3(currentMapData.x, currentMapData.y, currentMapData.z), (float) currentMapData.yrot, (float) currentMapData.xrot));
-                        if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getScoreboardName())) {
-                            List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getScoreboardName());
-                            for (String spectator : spectators) {
-                                if (!spectator.equals(serverPlayerEntity.getScoreboardName())) {
-                                    ServerPlayer spectatorPlayer = context.getSource().getServer().getPlayerList().getPlayerByName(spectator);
-                                    if (spectatorPlayer == null) {
-                                        continue;
-                                    }
-                                    UserPlotManager.consumeForcedCreativeState(spectatorPlayer);
-                                    if (!spectatorPlayer.isCreative()) {
-                                        spectatorPlayer.getInventory().clearContent();
-                                    }
-                                    spectatorPlayer.teleport(ZoneUtil.makeTeleportTarget(serverPlayerEntity.level(), new Vec3(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYRot(), serverPlayerEntity.getXRot()));
-                                    spectatorPlayer.setCamera(serverPlayerEntity);
-                                }
-                            }
-                        }
+                        // Spectators follow on their own (SpectateSessions), also into another dimension.
                     }
                 }
             }
@@ -713,23 +697,7 @@ public class MapUtilCommands {
                         serverPlayerEntity.getInventory().clearContent();
                     }
                     serverPlayerEntity.teleport(ZoneUtil.makeTeleportTarget(foundWorld, targetPos, (float) rotPos.y(), (float) rotPos.x()));
-                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getScoreboardName())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getScoreboardName());
-                        for (String spectator : spectators) {
-                            if (!spectator.equals(serverPlayerEntity.getScoreboardName())) {
-                                ServerPlayer spectatorPlayer = context.getSource().getServer().getPlayerList().getPlayerByName(spectator);
-                                if (spectatorPlayer == null) {
-                                    continue;
-                                }
-                                UserPlotManager.consumeForcedCreativeState(spectatorPlayer);
-                                if (!spectatorPlayer.isCreative()) {
-                                    spectatorPlayer.getInventory().clearContent();
-                                }
-                                spectatorPlayer.teleport(ZoneUtil.makeTeleportTarget(serverPlayerEntity.level(), new Vec3(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYRot(), serverPlayerEntity.getXRot()));
-                                spectatorPlayer.setCamera(serverPlayerEntity);
-                            }
-                        }
-                    }
+                    // Spectators follow on their own (SpectateSessions), also into another dimension.
                     if (tpData.arena) {
                         for (int slotNum = 1; slotNum < serverPlayerEntity.getInventory().getContainerSize(); slotNum++) {
                             serverPlayerEntity.getInventory().setItem(slotNum, new ItemStack(Items.AIR));
