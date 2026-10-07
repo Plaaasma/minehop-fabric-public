@@ -15,6 +15,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.PacketHandler;
+import net.nerdorg.minehop.replays.RunClock;
 import net.nerdorg.minehop.util.Logger;
 
 import java.util.HashMap;
@@ -83,6 +84,9 @@ public class EndEntity extends Zone {
         this.updateInteractionBounds(this.corner1, this.corner2);
         Level world = this.level();
         if (world instanceof ServerLevel serverWorld) {
+            if (this.corner1 != null && this.corner2 != null) {
+                RunZones.register(this);
+            }
             if (serverWorld.getGameTime() % 2 == 0) {
                 if (this.corner1 != null && this.corner2 != null) {
                     Vec3 center = this.getBoundsCenter(this.corner1, this.corner2);
@@ -101,6 +105,11 @@ public class EndEntity extends Zone {
                     String mapName = this.getPairedMap();
                     for (ServerPlayer player : serverWorld.players()) {
                         if (player.isCreative() || player.isSpectator()) {
+                            continue;
+                        }
+                        // A player with a packet stream is timed per client tick (RunClock, also for a pass
+                        // through the zone between two server ticks); here only players without one.
+                        if (RunClock.usesStream(player)) {
                             continue;
                         }
                         String playerName = player.getScoreboardName();
@@ -123,6 +132,11 @@ public class EndEntity extends Zone {
             }
         }
         super.tick();
+    }
+
+    /** The zone's box (what a finishing player must enter), or null while its corners aren't set. */
+    public AABB runBounds() {
+        return this.corner1 == null || this.corner2 == null ? null : this.getBoundsBox();
     }
 
     private AABB getBoundsBox() {
