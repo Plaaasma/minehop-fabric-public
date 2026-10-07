@@ -185,6 +185,15 @@ public final class MovementValidator {
         }
     }
 
+    /**
+     * True once the player's client has delivered a client tick this session (every real client does from its first
+     * tick; fake players and bots never do).
+     */
+    public static boolean hasStream(ServerPlayer player) {
+        StreamState st = player == null ? null : STATES.get(player.getUUID());
+        return st != null && st.clientTicks > 0L;
+    }
+
     /** 1.20.1: client ticks handed on so far, inferred idle ticks included (ClientTick#streamIndex); -1 if none. */
     public static long streamTicks(ServerPlayer player) {
         StreamState st = player == null ? null : STATES.get(player.getUUID());

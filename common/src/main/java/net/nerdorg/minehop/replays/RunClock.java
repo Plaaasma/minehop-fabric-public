@@ -72,9 +72,12 @@ public final class RunClock {
     private RunClock() {
     }
 
-    /** True if the player is timed from its packet stream (every real client); false for fake players and bots. */
+    /**
+     * True if the player is timed and recorded from its packet stream: every real client, from its first client tick;
+     * not fake players or bots (no client sends their ticks).
+     */
     public static boolean usesStream(ServerPlayer player) {
-        return player != null && !Services.PLATFORM.isFakePlayer(player);
+        return player != null && !Services.PLATFORM.isFakePlayer(player) && MovementValidator.hasStream(player);
     }
 
     public static void forget(ServerPlayer player) {
