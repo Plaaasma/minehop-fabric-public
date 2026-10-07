@@ -108,14 +108,25 @@ public final class SpectateTestHarness {
                                             return reply(context, String.format(Locale.ROOT, "jumps=%d lastJumpSpeed=%.4f b/t (%.2f b/s) efficiency=%.2f",
                                                     stats.jumpCount(), stats.lastJumpSpeed(), stats.lastJumpSpeed() * 20.0D, stats.efficiency()));
                                         })))
-                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("bhop")
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("respawn")
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, net.minecraft.commands.arguments.selector.EntitySelector>argument("player", EntityArgument.player())
+                                        .executes(context -> {
+                                            ServerPlayer player = EntityArgument.getPlayer(context, "player");
+                                            // What the death screen's "Respawn" button sends.
+                                            player.connection.handleClientCommand(new net.minecraft.network.protocol.game.ServerboundClientCommandPacket(
+                                                    net.minecraft.network.protocol.game.ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
+                                            return reply(context, "respawn requested for " + player.getScoreboardName());
+                                        })))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("replays")
+                                .executes(context -> reply(context, replayCensus())))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("pulsehop")
                                 .then(RequiredArgumentBuilder.<CommandSourceStack, net.minecraft.commands.arguments.selector.EntitySelector>argument("player", EntityArgument.player())
                                         .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("jumps", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 20))
                                                 .executes(context -> {
                                                     ServerPlayer player = EntityArgument.getPlayer(context, "player");
                                                     int jumps = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "jumps");
-                                                    planBhop(player, jumps);
-                                                    return reply(context, "feeding " + player.getScoreboardName() + " a synthetic bhop of " + jumps + " jumps");
+                                                    planPulseHop(player, jumps);
+                                                    return reply(context, "making " + player.getScoreboardName() + "'s client jump " + jumps + " times");
                                                 }))))
                         .then(LiteralArgumentBuilder.<CommandSourceStack>literal("path")
                                 .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map", StringArgumentType.string())
@@ -123,47 +134,95 @@ public final class SpectateTestHarness {
         ));
     }
 
-    private record PlannedTick(java.util.UUID player, boolean jump, double x, double y, double z, boolean onGround) {
+    /**
+     * Which stored replays can be watched (they back a current PB or WR row), using the same lookups as the commands;
+     * the rest are kept but never offered. Lists every replay under 1 s with its status.
+     */
+    private static String replayCensus() {
+        java.util.Set<ReplayManager.Replay> watchable = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        java.util.Set<String> maps = new java.util.TreeSet<>();
+        for (ReplayManager.Replay replay : Minehop.replayList) {
+            if (replay != null && replay.map_name != null) {
+                maps.add(replay.map_name);
+            }
+        }
+        for (String map : maps) {
+            for (java.util.Map.Entry<net.nerdorg.minehop.data.DataManager.RecordData, ReplayManager.Replay> entry : ReplayManager.watchablePersonalBests(map)) {
+                watchable.add(entry.getValue());
+            }
+        }
+        watchable.addAll(ReplayManager.worldRecordReplays().values());
+        int total = 0;
+        int invalidated = 0;
+        int noPbRow = 0;
+        int fasterThanPb = 0;
+        int slowerThanPb = 0;
+        StringBuilder impossible = new StringBuilder();
+        for (ReplayManager.Replay replay : Minehop.replayList) {
+            if (replay == null) {
+                continue;
+            }
+            total++;
+            if (!ReplayManager.isPlayable(replay)) {
+                invalidated++;
+            } else if (!watchable.contains(replay)) {
+                net.nerdorg.minehop.data.DataManager.RecordData pb = net.nerdorg.minehop.data.DataManager.getPersonalRecord(
+                        replay.player_name, replay.player_uuid, replay.map_name);
+                if (pb == null) {
+                    noPbRow++;
+                } else if (replay.time < pb.time) {
+                    fasterThanPb++;
+                } else {
+                    slowerThanPb++;
+                }
+            }
+            if (replay.time < 1.0D) {
+                impossible.append(String.format(Locale.ROOT, "\n  %s %s %.3fs watchable=%s", replay.map_name, replay.player_name,
+                        replay.time, watchable.contains(replay)));
+            }
+        }
+        return "replays=" + total + " watchable(back a current PB/WR)=" + watchable.size() + " hidden: noPbRow=" + noPbRow
+                + " fasterThanPb(orphan)=" + fasterThanPb + " slowerThanPb(kept run)=" + slowerThanPb + " invalidated=" + invalidated
+                + "\n under 1s:" + impossible;
     }
 
-    private static final java.util.ArrayDeque<PlannedTick> PLAN = new java.util.ArrayDeque<>();
-    private static boolean tickRegistered;
+    private static final java.util.Map<java.util.UUID, int[]> PULSES = new java.util.HashMap<>();
+    private static boolean pulseTickRegistered;
 
     /**
-     * Queues a bhop as client packets, one client tick per server tick: input (jump held), a position and the
-     * tick-end packet, through the real handlers - what MovementValidator derives the jump stats from. Jump k
-     * leaves the ground at (0.50 + 0.05k) blocks/tick; jump is released after the last landing.
+     * Makes a real client jump without key input: jump is marked held (input packet), and every 20 ticks the client is
+     * given a take-off velocity (ResetVelocityCarry, which the client applies to itself), so its own physics produce
+     * the arc and its own move packets carry it. Jump k leaves at (0.40 + 0.05k) blocks/tick horizontally.
      */
-    private static void planBhop(ServerPlayer player, int jumps) {
-        double x = player.getX();
-        double y = player.getY();
-        double z = player.getZ();
-        for (int k = 0; k < jumps; k++) {
-            double vx = 0.50D + 0.05D * k;
-            double vy = 0.42D;
-            double height = 0.0D;
-            do {
-                x += vx;
-                height += vy;
-                vy -= 0.08D;
-                PLAN.add(new PlannedTick(player.getUUID(), true, x, y + Math.max(0.0D, height), z, height <= 0.0D));
-            } while (height > 0.0D);
-        }
-        PLAN.add(new PlannedTick(player.getUUID(), false, x, y, z, true));
-        if (!tickRegistered) {
-            tickRegistered = true;
-            Services.EVENTS.onServerTickStart(server -> {
-                PlannedTick tick = PLAN.poll();
-                ServerPlayer target = tick == null ? null : server.getPlayerList().getPlayer(tick.player());
-                if (target == null) {
-                    return;
+    private static void planPulseHop(ServerPlayer player, int jumps) {
+        player.connection.handlePlayerInput(new ServerboundPlayerInputPacket(new Input(false, false, false, false, true, false, false)));
+        PULSES.put(player.getUUID(), new int[]{jumps, 0, 0});
+        if (!pulseTickRegistered) {
+            pulseTickRegistered = true;
+            Services.EVENTS.onServerTickEnd(server -> {
+                for (java.util.Iterator<java.util.Map.Entry<java.util.UUID, int[]>> it = PULSES.entrySet().iterator(); it.hasNext(); ) {
+                    java.util.Map.Entry<java.util.UUID, int[]> entry = it.next();
+                    ServerPlayer target = server.getPlayerList().getPlayer(entry.getKey());
+                    int[] state = entry.getValue(); // jumps left, ticks until next, jumps done
+                    if (target == null) {
+                        it.remove();
+                        continue;
+                    }
+                    if (state[1]-- > 0) {
+                        continue;
+                    }
+                    if (state[0] <= 0) {
+                        target.connection.handlePlayerInput(new ServerboundPlayerInputPacket(new Input(false, false, false, false, false, false, false)));
+                        it.remove();
+                        continue;
+                    }
+                    double vx = 0.40D + 0.05D * state[2];
+                    net.nerdorg.minehop.networking.PacketHandler.sendResetVelocityCarry(target, new net.minecraft.world.phys.Vec3(vx, 0.42D, 0.0D), 1);
+                    Minehop.LOGGER.info("[SPECTEST] pulse {} vx={} -> server stats before: {}", state[2] + 1, vx, RunStats.of(target));
+                    state[0]--;
+                    state[2]++;
+                    state[1] = 20;
                 }
-                target.connection.handlePlayerInput(new ServerboundPlayerInputPacket(new Input(false, false, false, false, tick.jump(), false, false)));
-                target.connection.handleMovePlayer(new ServerboundMovePlayerPacket.Pos(tick.x(), tick.y(), tick.z(), tick.onGround(), false));
-                target.connection.handleClientTickEnd(net.minecraft.network.protocol.game.ServerboundClientTickEndPacket.INSTANCE);
-                RunStats.Snapshot stats = RunStats.of(target);
-                Minehop.LOGGER.info("[SPECTEST] bhop tick y={} jump={} -> jumps={} lastJumpSpeed={} b/t", String.format(Locale.ROOT, "%.3f", tick.y()),
-                        tick.jump(), stats.jumpCount(), String.format(Locale.ROOT, "%.3f", stats.lastJumpSpeed()));
             });
         }
     }
@@ -206,7 +265,7 @@ public final class SpectateTestHarness {
                 + " pos=" + fmt(player.getX(), player.getY(), player.getZ())
                 + " camera=" + (camera == player ? "self" : camera.getScoreboardName() + "#" + camera.getId())
                 + " session=" + (session == null ? "none" : session.kind() + ":" + (session.mapName() != null ? session.mapName() + "/" : "") + session.targetName()
-                        + " clientAttached=" + session.clientAttached());
+                        + " clientAttached=" + session.clientAttached() + " [" + SpectateSessions.trackingDebug(player) + "]");
     }
 
     private static String fmt(double x, double y, double z) {
