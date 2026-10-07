@@ -610,21 +610,28 @@ public final class ReplayStore {
      */
     public void addRun(ReplayManager.Replay replay, List<ReplayManager.ReplayEntry> frames, double serverTime, long clientTicks, int headerFlags) {
         // Recordings hold no null frames; if one ever does, the writer corrects the count once it has the columns.
-        addRun(replay, new FrameSource(frames), frames.size(), null, serverTime, clientTicks, headerFlags);
+        addRun(replay, new FrameSource(frames), frames.size(), null, serverTime, clientTicks, headerFlags, 0, 0);
     }
 
-    /** {@link #addRun(ReplayManager.Replay, List, double, long, int)} with frames already in columns. */
+    /**
+     * {@link #addRun(ReplayManager.Replay, List, double, long, int)} with frames already in columns. Their layout
+     * (pre/post frames, tick-stream recording) goes into the file and the run log.
+     */
     public void addRun(ReplayManager.Replay replay, ReplayFrames frames, double serverTime, long clientTicks, int headerFlags) {
-        addRun(replay, new FrameSource(frames), frames.size(), frames.bounds(), serverTime, clientTicks, headerFlags);
+        int flags = headerFlags | (frames.tickStream() ? MhrpHeader.FLAG_TICK_STREAM : 0);
+        addRun(replay, new FrameSource(frames), frames.size(), frames.bounds(), serverTime, clientTicks, flags,
+                frames.preFrames(), frames.postFrames());
         cachePut(replay.replay_id, frames);
     }
 
     private void addRun(ReplayManager.Replay replay, FrameSource frames, int frameCount, double[] bounds, double serverTime,
-                        long clientTicks, int headerFlags) {
+                        long clientTicks, int headerFlags, int preFrames, int postFrames) {
         String file = StorePaths.relativeFile(replay.map_name, replay.replay_id);
         Entry entry = new Entry(replay, file, frameCount, bounds, "", replay.player_uuid);
         entry.serverTime = serverTime;
         entry.clientTicks = clientTicks;
+        entry.preFrames = preFrames;
+        entry.postFrames = postFrames;
         this.entries.put(replay.replay_id, entry);
         this.deleted.remove(replay.replay_id);
         MhrpHeader header = header(entry);

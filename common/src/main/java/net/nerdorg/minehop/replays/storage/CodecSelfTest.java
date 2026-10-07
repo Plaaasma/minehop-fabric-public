@@ -12,7 +12,7 @@ import java.util.zip.Deflater;
  * standalone ({@code java ... CodecSelfTest [seed]}, the package has no Minecraft dependencies). Never used by the game.
  *
  * <p>Checked: random runs round-trip within the quantisation bounds (positions 1/8192 block also at x = 5.4M, angles
- * 1/131072 turn) with exact flags and header fields; encoding is deterministic; non-finite values are repaired and
+ * 1/131072 turn) with exact flags, header fields and layout (pre/post frames, tick stream); encoding is deterministic; non-finite values are repaired and
  * flagged; every truncation, every single-bit flip and random garbage are rejected with a {@link MhrpFormatException};
  * structurally invalid files that carry a VALID CRC (huge lengths, frame counts, bad compressed data, overlong
  * varints, bad UTF-8, trailing bytes) are rejected without large allocations; a newer version is reported as
@@ -84,7 +84,12 @@ public final class CodecSelfTest {
         h.serverTime = this.random.nextBoolean() ? Double.NaN : h.time + this.random.nextGaussian() * 0.01D;
         h.clientTicks = this.random.nextBoolean() ? -1L : this.random.nextInt(200000);
         h.acFlags = this.random.nextInt(6) == 0 ? "Speed x2, Fly x1" : "";
-        h.flags = this.random.nextBoolean() ? MhrpHeader.FLAG_MIGRATED : 0;
+        h.flags = (this.random.nextBoolean() ? MhrpHeader.FLAG_MIGRATED : 0)
+                | (this.random.nextBoolean() ? MhrpHeader.FLAG_TICK_STREAM : 0);
+        if (n > 0 && this.random.nextBoolean()) {
+            h.preFrames = this.random.nextInt(Math.min(31, n + 1));
+            h.postFrames = this.random.nextInt(Math.min(21, n - h.preFrames + 1));
+        }
         return h;
     }
 
@@ -159,8 +164,12 @@ public final class CodecSelfTest {
         check(g.replayId.equals(h.replayId) && g.mapName.equals(h.mapName) && g.playerUuid.equals(h.playerUuid)
                 && g.playerName.equals(h.playerName) && g.acFlags.equals(h.acFlags), what + ": header strings");
         check(Double.compare(g.time, h.time) == 0 && g.savedAt == h.savedAt && Double.compare(g.serverTime, h.serverTime) == 0
-                && g.clientTicks == h.clientTicks && g.flags == h.flags && g.frameCount == f.size(), what + ": header numbers");
+                && g.clientTicks == h.clientTicks && g.flags == h.flags && g.frameCount == f.size()
+                && g.preFrames == h.preFrames && g.postFrames == h.postFrames, what + ": header numbers");
         ReplayFrames e = d.frames();
+        check(e.preFrames() == h.preFrames && e.postFrames() == h.postFrames
+                && e.tickStream() == ((h.flags & MhrpHeader.FLAG_TICK_STREAM) != 0)
+                && e.runStart() == h.preFrames && e.runEnd() == f.size() - h.postFrames, what + ": frame layout");
         if (e.size() != f.size()) {
             check(false, what + ": frame count " + e.size() + " != " + f.size());
             return;
