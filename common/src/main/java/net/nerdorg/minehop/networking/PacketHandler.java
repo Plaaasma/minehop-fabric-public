@@ -14,7 +14,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.ReplayCommands;
-import net.nerdorg.minehop.commands.SpectateCommands;
+import net.nerdorg.minehop.spectate.SpectateSessions;
 import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
 import net.nerdorg.minehop.data.DataManager;
@@ -27,7 +27,6 @@ import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.MapCreationManager;
 import net.nerdorg.minehop.util.PacketRateLimiter;
 import net.nerdorg.minehop.util.SurfRampPlacementManager;
-import net.nerdorg.minehop.util.ZoneUtil;
 import net.nerdorg.minehop.util.ZonePlacementManager;
 import org.joml.Vector3f;
 
@@ -205,21 +204,17 @@ public class PacketHandler {
         Services.NETWORK.sendToPlayer(player,  new SendEfficiencyPayload(efficiency));
     }
 
-    public static void sendSpectators(ServerPlayer player) {
-        if (SpectateCommands.spectatorList.containsKey(player.getScoreboardName())) {
-            List<String> spectators = SpectateCommands.spectatorList.get(player.getScoreboardName());
-            if (spectators.size() > 1) {
-                String buff = "";
-                buff += (spectators.size() - 1);
-                for (String spectator : spectators) {
-                    if (!spectator.equals(player.getScoreboardName())) {
-                        buff += ("~" + spectator);
-                    }
-                }
-
-                Services.NETWORK.sendToPlayer(player,  new SendSpectatorsPayload(buff));
-            }
+    /** Tells a spectated player who is watching them (sent by SpectateSessions whenever the list changes). */
+    public static void sendSpectatorList(ServerPlayer player, List<String> spectators) {
+        if (player == null || spectators == null || spectators.isEmpty()) {
+            return;
         }
+        StringBuilder buff = new StringBuilder();
+        buff.append(spectators.size());
+        for (String spectator : spectators) {
+            buff.append('~').append(spectator);
+        }
+        Services.NETWORK.sendToPlayer(player, new SendSpectatorsPayload(buff.toString()));
     }
 
     private static String resolveActiveMapName(HashMap<String, Long> timerMap) {
@@ -392,16 +387,8 @@ public class PacketHandler {
         if (server == null) {
             return;
         }
-        List<String> spectators = SpectateCommands.spectatorList.get(runner.getScoreboardName());
-        if (spectators == null || spectators.isEmpty()) {
-            return;
-        }
-        for (String spectatorName : spectators) {
-            if (spectatorName == null || spectatorName.equals(runner.getScoreboardName())) {
-                continue;
-            }
-            ServerPlayer spectatorPlayer = server.getPlayerList().getPlayerByName(spectatorName);
-            clearRunTimerHud(spectatorPlayer);
+        for (ServerPlayer spectator : SpectateSessions.spectatorsOf(runner)) {
+            clearRunTimerHud(spectator);
         }
     }
 
@@ -1030,22 +1017,9 @@ public class PacketHandler {
                 }
                 float safeTime = Math.max(0.0F, time);
                 float safePb = (float) Math.max(0.0D, personalRecord);
-                if (SpectateCommands.spectatorList.containsKey(player.getScoreboardName())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(player.getScoreboardName());
-                    for (String spectatorName : spectators) {
-                        if (!spectatorName.equals(player.getScoreboardName())) {
-                            ServerPlayer spectatorPlayer = server.getPlayerList().getPlayerByName(spectatorName);
-                            if (spectatorPlayer == null) {
-                                continue;
-                            }
-                            if (!spectatorPlayer.isCreative()) {
-                                spectatorPlayer.getInventory().clearContent();
-                            }
-                            spectatorPlayer.teleport(ZoneUtil.makeTeleportTarget(player.serverLevel(), new Vec3(player.getX(), player.getY(), player.getZ()), player.getYRot(), player.getXRot()));
-                            spectatorPlayer.setCamera(player);
-                            sendRunTimerHud(spectatorPlayer, safeTime, safePb);
-                        }
-                    }
+                // Spectators see the runner's timer. (Their camera and position are kept by SpectateSessions.)
+                for (ServerPlayer spectator : SpectateSessions.spectatorsOf(player)) {
+                    sendRunTimerHud(spectator, safeTime, safePb);
                 }
                 sendRunTimerHud(player, safeTime, safePb);
             });
@@ -1153,16 +1127,8 @@ public class PacketHandler {
                 }
                 Minehop.lastEfficiencyMap.put(player.getScoreboardName(), new ReplayManager.SSJEntry(jump_count, last_jump_speed, last_efficiency));
 
-                if (SpectateCommands.spectatorList.containsKey(player.getScoreboardName())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(player.getScoreboardName());
-                    for (String spectator : spectators) {
-                        ServerPlayer spectatorPlayer = server.getPlayerList().getPlayerByName(spectator);
-                        if (spectatorPlayer != null) {
-                            if (!spectatorPlayer.getScoreboardName().equals(player.getScoreboardName())) {
-                                sendSpecEfficiency(spectatorPlayer, last_jump_speed, jump_count, last_efficiency);
-                            }
-                        }
-                    }
+                for (ServerPlayer spectator : SpectateSessions.spectatorsOf(player)) {
+                    sendSpecEfficiency(spectator, last_jump_speed, jump_count, last_efficiency);
                 }
             });
         });

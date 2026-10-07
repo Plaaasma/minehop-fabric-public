@@ -11,6 +11,7 @@ import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ReplayEntity;
 import net.nerdorg.minehop.platform.Services;
+import net.nerdorg.minehop.spectate.SpectateSessions;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -60,7 +61,6 @@ public final class ReplayGhosts {
         private long pausedSince = -1L;
         private ReplayEntity entity;
         private int frame;
-        private boolean viewerAttached;
 
         private Ghost(String mapName, UUID viewer, ReplayManager.Replay replay, long now) {
             this.mapName = mapName;
@@ -310,8 +310,9 @@ public final class ReplayGhosts {
             refreshAllWorldRecords(server);
             List<UUID> stale = new ArrayList<>();
             for (Map.Entry<UUID, Ghost> entry : VIEWER_GHOSTS.entrySet()) {
-                // Purged/invalidated meanwhile, or no longer the player's PB: stop showing it.
-                if (!ReplayManager.isPlayable(entry.getValue().replay) || !Minehop.replayList.contains(entry.getValue().replay)) {
+                // Invalidated or deleted meanwhile (its viewer's session then ends), or nobody watching it any more.
+                if (!ReplayManager.isPlayable(entry.getValue().replay) || !Minehop.replayList.contains(entry.getValue().replay)
+                        || !SpectateSessions.isWatched(entry.getValue())) {
                     stale.add(entry.getKey());
                 }
             }
@@ -350,56 +351,15 @@ public final class ReplayGhosts {
             ghost.frame = ghost.frameAt(now);
             entry = ghost.currentEntry();
             spawn(level, ghost, entry);
-            attachSpectators(server, ghost);
             return;
         }
-        if (!ready && ghost.isWorldRecord() && !isWatched(ghost)) {
+        if (!ready && ghost.isWorldRecord() && !SpectateSessions.isWatched(ghost)) {
             // Nobody near the route ahead: don't let it walk into chunks that unload. It returns when they tick again.
+            // A watched ghost keeps moving: its spectators load the chunks ahead of it.
             despawn(ghost);
             return;
         }
         apply(ghost.entity, entry);
-        attachSpectators(server, ghost);
-    }
-
-    /** Keeps the cameras of the players watching this ghost on it (also after it was respawned). */
-    private static void attachSpectators(MinecraftServer server, Ghost ghost) {
-        ReplayEntity entity = ghost.entity;
-        if (entity == null) {
-            return;
-        }
-        if (ghost.viewer != null) {
-            net.minecraft.server.level.ServerPlayer viewer = server.getPlayerList().getPlayer(ghost.viewer);
-            if (viewer == null || !viewer.isSpectator() || (ghost.viewerAttached && viewer.getCamera() != entity
-                    && !(viewer.getCamera() instanceof ReplayEntity old && BY_ENTITY.get(old.getUUID()) == null && old.isRemoved()))) {
-                stopViewerGhost(ghost.viewer);
-                return;
-            }
-            if (viewer.getCamera() != entity) {
-                viewer.setCamera(entity);
-            }
-            ghost.viewerAttached = true;
-            return;
-        }
-        java.util.List<String> spectators = net.nerdorg.minehop.commands.SpectateCommands.spectatorList.get(entity.getScoreboardName());
-        if (spectators == null) {
-            return;
-        }
-        for (String name : new ArrayList<>(spectators)) {
-            net.minecraft.server.level.ServerPlayer spectator = server.getPlayerList().getPlayerByName(name);
-            if (spectator != null && spectator.isSpectator() && spectator.getCamera() != entity) {
-                spectator.setCamera(entity);
-            }
-        }
-    }
-
-    /** Whether anyone is spectating this ghost (then it keeps moving: its spectators load the chunks ahead). */
-    private static boolean isWatched(Ghost ghost) {
-        if (ghost.entity == null) {
-            return false;
-        }
-        java.util.List<String> spectators = net.nerdorg.minehop.commands.SpectateCommands.spectatorList.get(ghost.entity.getScoreboardName());
-        return spectators != null && !spectators.isEmpty();
     }
 
     private static void spawn(ServerLevel level, Ghost ghost, ReplayManager.ReplayEntry entry) {
