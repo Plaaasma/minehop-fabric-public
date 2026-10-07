@@ -177,18 +177,32 @@ public class SpectateCommands {
         }
         LAST_PATH_REQUEST.put(viewer.getUUID(), now);
         ResolvedReplayPath resolved = resolveReplayPath(context, viewer, requestedName);
-        if (resolved == null || resolved.replay == null || resolved.replay.replayEntries == null || resolved.replay.replayEntries.size() < 2) {
+        if (resolved == null || resolved.replay == null || ReplayManager.frameCount(resolved.replay) < 2) {
             Logger.logFailure(viewer, "No saved replay path found for " + requestedName + ".");
             return;
         }
 
-        // Simplifying a long run takes some milliseconds: do it off the server thread (saved replays never change),
-        // then send from the server thread.
+        // The frames are loaded by the replay store's reader thread; simplifying a long run takes some milliseconds,
+        // so that happens off the server thread too (frames never change), then the path is sent from the server thread.
         net.minecraft.server.MinecraftServer server = context.getSource().getServer();
         java.util.UUID viewerUuid = viewer.getUUID();
-        java.util.List<net.nerdorg.minehop.replays.ReplayManager.ReplayEntry> entries = resolved.replay.replayEntries;
+        ReplayManager.loadFrames(resolved.replay, frames -> {
+            if (frames == null || frames.size() < 2) {
+                ServerPlayer player = server.getPlayerList().getPlayer(viewerUuid);
+                if (player != null) {
+                    Logger.logFailure(player, "The replay of " + resolved.displayName + " on " + resolved.mapName + " can't be loaded.");
+                }
+                return;
+            }
+            sendSimplifiedPath(server, viewerUuid, frames, resolved, requestedName);
+        });
+    }
+
+    private static void sendSimplifiedPath(net.minecraft.server.MinecraftServer server, java.util.UUID viewerUuid,
+                                           net.nerdorg.minehop.replays.storage.ReplayFrames frames, ResolvedReplayPath resolved,
+                                           String requestedName) {
         java.util.concurrent.CompletableFuture
-                .supplyAsync(() -> net.nerdorg.minehop.replays.ReplayPathSimplifier.simplify(entries))
+                .supplyAsync(() -> net.nerdorg.minehop.replays.ReplayPathSimplifier.simplify(ReplayManager.asEntries(frames)))
                 .thenAccept(points -> server.execute(() -> {
                     ServerPlayer player = server.getPlayerList().getPlayer(viewerUuid);
                     if (player == null) {

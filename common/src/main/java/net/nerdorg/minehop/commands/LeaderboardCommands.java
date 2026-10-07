@@ -267,6 +267,10 @@ public final class LeaderboardCommands {
         if (run.invalidated != null && !run.invalidated.isBlank()) {
             line.append(Component.literal(" [" + run.invalidated + "]").withStyle(ChatFormatting.DARK_RED));
         }
+        String unavailable = ReplayManager.unavailableReason(run);
+        if (!unavailable.isEmpty()) {
+            line.append(Component.literal(" [no replay: " + unavailable + "]").withStyle(ChatFormatting.DARK_GRAY));
+        }
         return line;
     }
 }

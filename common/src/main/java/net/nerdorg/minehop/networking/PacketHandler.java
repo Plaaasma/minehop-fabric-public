@@ -503,6 +503,9 @@ public class PacketHandler {
         // timerManager[map] = launch nanoTime (StartEntity), finishTimeManager[map] = first end-zone
         // crossing nanoTime (EndEntity); their difference is continuous nanoseconds, not 0.05-quantized.
         Long startStamp = timerMap.get(activeMapName);
+        // Kept with the run's replay (the leaderboard keeps the client-reported time).
+        double serverRunSeconds = Double.NaN;
+        long runClientTicks = -1L;
         if (startStamp != null) {
             boolean haveServerFinish = finishStamp != null;
             long endNanos = haveServerFinish ? finishStamp : System.nanoTime();
@@ -512,6 +515,9 @@ public class PacketHandler {
             double tolerance = haveServerFinish
                     ? TIMER_VALIDATION_TOLERANCE_SECONDS
                     : TIMER_VALIDATION_TOLERANCE_SECONDS + 0.25D;
+            if (haveServerFinish) {
+                serverRunSeconds = serverSpan;
+            }
             if (!Double.isFinite(serverSpan) || serverSpan <= 0.0D || Math.abs(time - serverSpan) > tolerance) {
                 Logger.logServer(server, "Rejected map finish from " + player.getScoreboardName()
                         + " on " + activeMapName + ": client time " + String.format("%.5f", time)
@@ -530,6 +536,7 @@ public class PacketHandler {
             if (startTicks != null && endTicks != null && startTicks >= 0L && endTicks >= startTicks) {
                 double secondsPerTick = server.tickRateManager().millisecondsPerTick() / 1000.0D;
                 long runTicks = endTicks - startTicks;
+                runClientTicks = runTicks;
                 double maxTicks = (serverSpan + tolerance) / secondsPerTick + 2.0D;
                 if (runTicks > maxTicks) {
                     Logger.logServer(server, "Rejected map finish from " + player.getScoreboardName()
@@ -570,15 +577,16 @@ public class PacketHandler {
         if (replayEntries != null && replayEntries.size() >= ReplayEvents.MAX_RECORDED_FRAMES) {
             Minehop.LOGGER.info("Not saving a replay of {}'s {} run on {}: longer than the recording cap", playerName, formattedNumber, activeMapName);
         } else if (replayEntries != null && !replayEntries.isEmpty()) {
+            // saveReplay keeps its own copy of the frames (the recording is dropped below with the run state).
             ReplayManager.Replay replay = new ReplayManager.Replay(
                     activeMapName,
                     playerName,
                     playerUuid,
                     time,
-                    ReplayManager.copyReplayEntries(replayEntries)
+                    replayEntries
             );
             replay.ac_flags = acFlags;
-            ReplayManager.saveReplay(player.serverLevel(), replay);
+            ReplayManager.saveReplay(player.serverLevel(), replay, serverRunSeconds, runClientTicks);
         }
 
         DataManager.RecordData existingPersonalRecord = DataManager.getPersonalRecord(playerName, playerUuid, activeMapName);
