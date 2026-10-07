@@ -252,7 +252,7 @@ public final class SpectateTestHarness {
                 return;
             }
             long start = System.nanoTime();
-            ReplayPathSimplifier.Result result = ReplayPathSimplifier.simplify(ReplayManager.asEntries(frames), ReplayPathSimplifier.MAX_POINTS);
+            ReplayPathSimplifier.Result result = ReplayPathSimplifier.simplify(frames, ReplayPathSimplifier.MAX_POINTS);
             double ms = (System.nanoTime() - start) / 1.0E6D;
             int finite = 0;
             for (org.joml.Vector3f point : result.points()) {
