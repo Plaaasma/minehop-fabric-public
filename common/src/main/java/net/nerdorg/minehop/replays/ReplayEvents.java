@@ -3,9 +3,6 @@ package net.nerdorg.minehop.replays;
 import net.nerdorg.minehop.platform.Services;
 import net.minecraft.server.level.ServerPlayer;
 import net.nerdorg.minehop.Minehop;
-import net.nerdorg.minehop.config.ConfigWrapper;
-import net.nerdorg.minehop.data.DataManager;
-import net.nerdorg.minehop.networking.PacketHandler;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,61 +11,44 @@ import java.util.List;
 public class ReplayEvents {
     public static HashMap<String, List<ReplayManager.ReplayEntry>> replayEntryMap = new HashMap<>();
 
+    /**
+     * Longest recording kept for one run: 60 minutes at 20 ticks per second (the longest real personal best is
+     * about 19 minutes). Recording stops at the cap and a run that finishes past it saves no replay, so a player
+     * idling in a run can't grow the store without bound (one idle run was 100 minutes, 120k frames).
+     */
+    public static final int MAX_RECORDED_FRAMES = 20 * 60 * 60;
+
     public static void register() {
         Services.EVENTS.onServerTickEnd(((server) -> {
             for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
-                if (Minehop.timerManager.containsKey(playerEntity.getScoreboardName())) {
-                    if (replayEntryMap.containsKey(playerEntity.getScoreboardName())) {
-                        List<ReplayManager.ReplayEntry> replayEntries = replayEntryMap.get(playerEntity.getScoreboardName());
-                        double jump_count = 0;
-                        double last_jump_speed = 0;
-                        double efficiency = 0;
-
-                        if (Minehop.lastEfficiencyMap.containsKey(playerEntity.getScoreboardName())) {
-                            ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerEntity.getScoreboardName());
-                            jump_count = ssjEntry.jump_count;
-                            last_jump_speed = ssjEntry.last_jump_speed;
-                            efficiency = ssjEntry.efficiency;
-                        }
-                        replayEntries.add(new ReplayManager.ReplayEntry(
-                                playerEntity.getX(),
-                                playerEntity.getY(),
-                                playerEntity.getZ(),
-                                (double) playerEntity.getXRot(),
-                                (double) playerEntity.getYHeadRot(),
-                                jump_count,
-                                last_jump_speed,
-                                efficiency
-                        ));
-
-                        replayEntryMap.put(playerEntity.getScoreboardName(), replayEntries);
-                    }
-                    else {
-                        List<ReplayManager.ReplayEntry> replayEntries = new ArrayList<>();
-                        double jump_count = 0;
-                        double last_jump_speed = 0;
-                        double efficiency = 0;
-
-                        if (Minehop.lastEfficiencyMap.containsKey(playerEntity.getScoreboardName())) {
-                            ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerEntity.getScoreboardName());
-                            jump_count = ssjEntry.jump_count;
-                            last_jump_speed = ssjEntry.last_jump_speed;
-                            efficiency = ssjEntry.efficiency;
-                        }
-                        replayEntries.add(new ReplayManager.ReplayEntry(
-                                playerEntity.getX(),
-                                playerEntity.getY(),
-                                playerEntity.getZ(),
-                                (double) playerEntity.getXRot(),
-                                (double) playerEntity.getYHeadRot(),
-                                jump_count,
-                                last_jump_speed,
-                                efficiency
-                        ));
-
-                        replayEntryMap.put(playerEntity.getScoreboardName(), replayEntries);
-                    }
+                String playerName = playerEntity.getScoreboardName();
+                if (!Minehop.timerManager.containsKey(playerName)) {
+                    continue;
                 }
+                List<ReplayManager.ReplayEntry> replayEntries = replayEntryMap.computeIfAbsent(playerName, name -> new ArrayList<>());
+                if (replayEntries.size() >= MAX_RECORDED_FRAMES) {
+                    continue;
+                }
+                double jump_count = 0;
+                double last_jump_speed = 0;
+                double efficiency = 0;
+
+                if (Minehop.lastEfficiencyMap.containsKey(playerName)) {
+                    ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerName);
+                    jump_count = ssjEntry.jump_count;
+                    last_jump_speed = ssjEntry.last_jump_speed;
+                    efficiency = ssjEntry.efficiency;
+                }
+                replayEntries.add(new ReplayManager.ReplayEntry(
+                        playerEntity.getX(),
+                        playerEntity.getY(),
+                        playerEntity.getZ(),
+                        (double) playerEntity.getXRot(),
+                        (double) playerEntity.getYHeadRot(),
+                        jump_count,
+                        last_jump_speed,
+                        efficiency
+                ));
             }
         }));
     }

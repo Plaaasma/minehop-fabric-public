@@ -27,6 +27,7 @@ public class JoinLeaveManager {
                         }
                     }
                 }
+                PacketHandler.clearRunState(networkHandler.player, server);
                 SurfRampPlacementManager.onPlayerDisconnect(networkHandler.player.getUUID());
                 UserPlotManager.onPlayerDisconnect(networkHandler.player);
                 net.nerdorg.minehop.util.PacketRateLimiter.clear(networkHandler.player.getUUID());
@@ -34,6 +35,8 @@ public class JoinLeaveManager {
         }));
 
         Services.NETWORK.onPlayConnectionJoin(((networkHandler, server) -> {
+            // A fresh session never continues an earlier run (or its replay recording).
+            PacketHandler.clearRunState(networkHandler.player, server);
             if (!networkHandler.player.hasPermissions(4)) {
                 DataManager.MapData mapData = DataManager.getMap("spawn");
                 if (mapData != null) {

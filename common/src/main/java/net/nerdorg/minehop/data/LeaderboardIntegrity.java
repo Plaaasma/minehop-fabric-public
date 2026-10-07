@@ -510,7 +510,8 @@ public final class LeaderboardIntegrity {
             report.saveFailed |= !DataManager.saveDataChecked(world, DataManager.pbListLocation, Minehop.personalRecordList);
             report.saveFailed |= !DataManager.saveDataChecked(world, DataManager.recordsListLocation, Minehop.recordList);
             if (replaysTouched) {
-                report.saveFailed |= !ReplayManager.saveRecordReplaysChecked(world, Minehop.replayList);
+                // Background write (the store is large); failures are logged and retried by ReplayManager.
+                ReplayManager.saveRecordReplaysAsync(world, Minehop.replayList);
             }
         }
         // Rank: everyone who held or now holds a WR on an affected map.
