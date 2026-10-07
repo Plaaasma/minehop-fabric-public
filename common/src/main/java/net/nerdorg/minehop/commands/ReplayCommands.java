@@ -129,6 +129,7 @@ public class ReplayCommands {
             text.append(String.format(java.util.Locale.ROOT, ", %d runs, frame cache %d runs / %.1f MB, %d write(s) pending",
                     Minehop.replayList.size(), store.cachedRuns(), store.cacheBytes() / 1048576.0D, store.pendingWrites()));
         }
+        text.append("; ").append(net.nerdorg.minehop.replays.storage.LegacyMigration.status());
         String message = text.toString();
         source.sendSuccess(() -> net.minecraft.network.chat.Component.literal(message), false);
         return Command.SINGLE_SUCCESS;
