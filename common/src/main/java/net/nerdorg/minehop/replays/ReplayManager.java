@@ -15,12 +15,36 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ReplayManager {
     private static final Type replayListType = new TypeToken<List<Replay>>(){}.getType();
     private static final String REPLAYS_FILE = "minehop_replays.json";
     // Bump when the on-disk Replay shape changes; migrate in loadRecordReplays/register.
     private static final int SCHEMA_VERSION = 1;
+
+    // The replay store is one large file (hundreds of MB in production) rewritten as a whole. Writing it on the
+    // server thread after every finish froze the server for seconds, and that stall then made the run-timer check
+    // reject the player's next run. Saves now go to one background writer: it writes the newest snapshot of the
+    // store and skips a snapshot older than what is already on disk, so a late background write can never undo a
+    // newer save (e.g. the synchronous one at shutdown). Only the shutdown save still runs on the server thread.
+    private static final ScheduledExecutorService WRITER = Executors.newSingleThreadScheduledExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "Minehop replay writer");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static final long RETRY_DELAY_SECONDS = 30L;
+    private static final Object WRITE_LOCK = new Object();
+    private static final AtomicLong SAVE_SEQUENCE = new AtomicLong();
+    private static final java.util.Map<Path, Long> WRITTEN_SEQUENCE = new java.util.HashMap<>(); // guarded by WRITE_LOCK
+    private static final AtomicReference<PendingSave> PENDING_SAVE = new AtomicReference<>();
+
+    private record PendingSave(Path file, long sequence, List<Replay> snapshot) {
+    }
 
     public static class SSJEntry {
         public double jump_count;
@@ -263,10 +287,13 @@ public class ReplayManager {
         stored.ac_flags = replay.ac_flags == null ? "" : replay.ac_flags;
         Minehop.replayList.add(stored);
 
-        saveRecordReplays(world, Minehop.replayList);
+        saveRecordReplaysAsync(world, Minehop.replayList);
     }
 
-    /** Atomic, backed-up, version-enveloped write (see JsonStorage). Signature kept for other mods. */
+    /**
+     * Synchronous atomic, backed-up, version-enveloped write (see JsonStorage) on the calling thread. Waits for a
+     * background write in progress. Signature kept for other mods; Minehop itself only uses it at shutdown.
+     */
     public static void saveRecordReplays(ServerLevel world, List<Replay> replays) {
         saveRecordReplaysChecked(world, replays);
     }
@@ -277,9 +304,64 @@ public class ReplayManager {
             return false;
         }
         List<Replay> safeReplays = replays == null ? new ArrayList<>() : replays;
-        MinecraftServer server = world.getServer();
-        Path worldDir = server.getWorldPath(LevelResource.ROOT);
-        return JsonStorage.writeAtomic(worldDir.resolve(REPLAYS_FILE), SCHEMA_VERSION, safeReplays);
+        return writeStore(storePath(world), SAVE_SEQUENCE.incrementAndGet(), safeReplays);
+    }
+
+    /**
+     * Queue a save of the store and return immediately (no file IO on the calling thread). Must be called on the
+     * server thread, which owns {@code replays}: the list is copied here (a shallow copy; saved replays are never
+     * modified afterwards), so later changes don't race the writer. Saves queued while one is pending coalesce
+     * into the newest; a failed write is retried.
+     */
+    public static void saveRecordReplaysAsync(ServerLevel world, List<Replay> replays) {
+        if (world == null) {
+            return;
+        }
+        PendingSave save = new PendingSave(storePath(world), SAVE_SEQUENCE.incrementAndGet(),
+                replays == null ? new ArrayList<>() : new ArrayList<>(replays));
+        if (PENDING_SAVE.getAndSet(save) == null) {
+            WRITER.execute(ReplayManager::drainPendingSave);
+        }
+    }
+
+    private static void drainPendingSave() {
+        PendingSave save = PENDING_SAVE.getAndSet(null);
+        if (save == null) {
+            return;
+        }
+        boolean written = false;
+        try {
+            written = writeStore(save.file(), save.sequence(), save.snapshot());
+        } catch (Throwable error) {
+            Minehop.LOGGER.error("Background replay save failed", error);
+        }
+        if (written || JsonStorage.isLoadFailed(save.file())) {
+            return; // done, or saving is disabled for this file (logged by JsonStorage); retrying can't help
+        }
+        // Keep it pending unless something newer was queued meanwhile, and try again later.
+        if (PENDING_SAVE.compareAndSet(null, save)) {
+            Minehop.LOGGER.warn("Replay save failed; retrying in {} s", RETRY_DELAY_SECONDS);
+            WRITER.schedule(ReplayManager::drainPendingSave, RETRY_DELAY_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    /** Every write of the store goes through here: one at a time, never replacing a newer state with an older one. */
+    private static boolean writeStore(Path file, long sequence, List<Replay> replays) {
+        synchronized (WRITE_LOCK) {
+            Long written = WRITTEN_SEQUENCE.get(file);
+            if (written != null && written >= sequence) {
+                return true; // a newer state of the store is already on disk
+            }
+            if (!JsonStorage.writeAtomic(file, SCHEMA_VERSION, replays)) {
+                return false;
+            }
+            WRITTEN_SEQUENCE.put(file, sequence);
+            return true;
+        }
+    }
+
+    private static Path storePath(ServerLevel world) {
+        return world.getServer().getWorldPath(LevelResource.ROOT).resolve(REPLAYS_FILE).toAbsolutePath().normalize();
     }
 
     public static List<Replay> loadRecordReplays(ServerLevel world) {
@@ -322,7 +404,7 @@ public class ReplayManager {
             }
             // L3: backfill UUIDs onto legacy replays via the user cache, then persist if changed.
             if (backfillReplayUuids(server)) {
-                saveRecordReplays(world, Minehop.replayList);
+                saveRecordReplaysAsync(world, Minehop.replayList);
             }
         }));
 

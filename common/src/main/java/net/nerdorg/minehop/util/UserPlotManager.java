@@ -699,7 +699,7 @@ public final class UserPlotManager {
         DataManager.saveData(saveWorld, DataManager.mapRatingsLocation, Minehop.mapRatingList);
         DataManager.saveData(saveWorld, DataManager.pbListLocation, Minehop.personalRecordList);
         DataManager.saveData(saveWorld, DataManager.recordsListLocation, Minehop.recordList);
-        ReplayManager.saveRecordReplays(saveWorld, Minehop.replayList);
+        ReplayManager.saveRecordReplaysAsync(saveWorld, Minehop.replayList);
         syncAllMapData(server);
 
         FORCED_CREATIVE_PLAYERS.remove(player.getStringUUID());

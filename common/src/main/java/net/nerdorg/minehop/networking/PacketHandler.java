@@ -405,6 +405,22 @@ public class PacketHandler {
         }
     }
 
+    /**
+     * Ends the player's run without saving anything: timer, run bookkeeping and the replay recording. Used when the
+     * player disconnects or joins, so a run (and its recording) can't continue across sessions.
+     */
+    public static void clearRunState(ServerPlayer player, MinecraftServer server) {
+        if (player == null) {
+            return;
+        }
+        String playerName = player.getScoreboardName();
+        if (!Minehop.timerManager.containsKey(playerName) && !Minehop.finishTimeManager.containsKey(playerName)
+                && !ReplayEvents.replayEntryMap.containsKey(playerName)) {
+            return;
+        }
+        clearFinishedRunState(player, server);
+    }
+
     private static void clearFinishedRunState(ServerPlayer player, MinecraftServer server) {
         if (player == null) {
             return;
@@ -549,7 +565,9 @@ public class PacketHandler {
             net.nerdorg.minehop.anticheat.AntiCheatManager.announceFlaggedRun(player, activeMapName, time, acFlags);
         }
         List<ReplayManager.ReplayEntry> replayEntries = ReplayEvents.replayEntryMap.get(playerName);
-        if (replayEntries != null && !replayEntries.isEmpty()) {
+        if (replayEntries != null && replayEntries.size() >= ReplayEvents.MAX_RECORDED_FRAMES) {
+            Minehop.LOGGER.info("Not saving a replay of {}'s {} run on {}: longer than the recording cap", playerName, formattedNumber, activeMapName);
+        } else if (replayEntries != null && !replayEntries.isEmpty()) {
             ReplayManager.Replay replay = new ReplayManager.Replay(
                     activeMapName,
                     playerName,
