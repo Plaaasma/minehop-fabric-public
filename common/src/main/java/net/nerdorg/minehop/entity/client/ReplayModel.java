@@ -31,7 +31,8 @@ public class ReplayModel extends HierarchicalModel<ReplayEntity> {
 		PartDefinition modelPartData = modelData.getRoot();
 		PartDefinition root = modelPartData.addOrReplaceChild("root", CubeListBuilder.create(), PartPose.offset(0.0F, 24.0F, 0.0F));
 
-		PartDefinition head = root.addOrReplaceChild("head", CubeListBuilder.create().texOffs(16, 20).addBox(-4.0F, -32.0F, -4.0F, 8.0F, 8.0F, 8.0F, new CubeDeformation(0.0F)), PartPose.offset(0.0F, 0.0F, 0.0F));
+		// Pivot at the neck (same place on screen as before) so the head can turn and pitch around it.
+		PartDefinition head = root.addOrReplaceChild("head", CubeListBuilder.create().texOffs(16, 20).addBox(-4.0F, -8.0F, -4.0F, 8.0F, 8.0F, 8.0F, new CubeDeformation(0.0F)), PartPose.offset(0.0F, -24.0F, 0.0F));
 
 		PartDefinition body = root.addOrReplaceChild("body", CubeListBuilder.create().texOffs(0, 0).addBox(-4.0F, -24.0F, -2.0F, 8.0F, 24.0F, 4.0F, new CubeDeformation(0.0F))
 				.texOffs(0, 28).addBox(-8.0F, -24.0F, -2.0F, 4.0F, 12.0F, 4.0F, new CubeDeformation(0.0F))
@@ -45,9 +46,12 @@ public class ReplayModel extends HierarchicalModel<ReplayEntity> {
 
 	@Override
 	public void setupAnim(ReplayEntity entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch) {
+		// 1.21.1: HierarchicalModel doesn't reset the parts before setupAnim (1.21.4's EntityModel#setupAnim does).
+		this.root().getAllParts().forEach(ModelPart::resetPose);
 		this.body.visible = false;
 		this.head.visible = entity.shouldRenderHead();
-		// Same as the 1.21.4 model (which never reset transforms before this).
-		this.head.yRot = (float) Math.toRadians(head.yRot);
+		// Look where the recorded player looked: head yaw relative to the body, and pitch (was always ~0 before).
+		this.head.yRot = netHeadYaw * ((float) Math.PI / 180.0F);
+		this.head.xRot = headPitch * ((float) Math.PI / 180.0F);
 	}
 }
