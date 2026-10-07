@@ -81,6 +81,12 @@ public class PacketHandler {
         Services.NETWORK.registerPayloadS2C(UpdatePowerPayload.ID, UpdatePowerPayload.CODEC);
         Services.NETWORK.registerPayloadS2C(ZoneSyncIDPayload.ID, ZoneSyncIDPayload.CODEC);
         Services.NETWORK.registerPayloadS2C(OpenAntiCheatScreenPayload.ID, OpenAntiCheatScreenPayload.CODEC);
+        // Replay streaming (1.1.7+ clients only: never sent to a client whose handshake announced an older version).
+        Services.NETWORK.registerPayloadS2C(ReplayControlPayload.ID, ReplayControlPayload.CODEC);
+        Services.NETWORK.registerPayloadS2C(ReplayWatchPayload.ID, ReplayWatchPayload.CODEC);
+        Services.NETWORK.registerPayloadS2C(ReplayBeginPayload.ID, ReplayBeginPayload.CODEC);
+        Services.NETWORK.registerPayloadS2C(ReplayChunkPayload.ID, ReplayChunkPayload.CODEC);
+        Services.NETWORK.registerPayloadS2C(ReplayErrorPayload.ID, ReplayErrorPayload.CODEC);
     }
 
     private static void registerC2S() {
@@ -101,6 +107,10 @@ public class PacketHandler {
         Services.NETWORK.registerPayloadC2S(ZoneStickDeletePayload.ID, ZoneStickDeletePayload.CODEC);
         Services.NETWORK.registerPayloadC2S(ZoneStickSettingsPayload.ID, ZoneStickSettingsPayload.CODEC);
         Services.NETWORK.registerPayloadC2S(AntiCheatActionPayload.ID, AntiCheatActionPayload.CODEC);
+        // Replay streaming (sent by 1.1.7+ clients only, after the server's hello).
+        Services.NETWORK.registerPayloadC2S(ReplayRequestPayload.ID, ReplayRequestPayload.CODEC);
+        Services.NETWORK.registerPayloadC2S(ReplayCancelPayload.ID, ReplayCancelPayload.CODEC);
+        Services.NETWORK.registerPayloadC2S(ReplayStatePayload.ID, ReplayStatePayload.CODEC);
     }
 
     public static void sendConfigToClient(ServerPlayer player, MinehopConfig config) {
@@ -1183,6 +1193,20 @@ public class PacketHandler {
             ServerPlayer player = ctx.player();
             double last_efficiency = payload.last_efficiency();
             ctx.server().execute(() -> RunStats.onReply(player, last_efficiency));
+        });
+        // Replay streaming: requests also have a per-player budget and every field is validated (ReplayStreaming);
+        // playback reports only move a spectator along the replay's own route (SpectateSessions).
+        registerLimited(ReplayRequestPayload.ID, RL_GUI, (payload, ctx) -> {
+            ServerPlayer player = ctx.player();
+            ctx.server().execute(() -> net.nerdorg.minehop.replays.ReplayStreaming.onRequest(player, payload));
+        });
+        registerLimited(ReplayCancelPayload.ID, RL_FAST, (payload, ctx) -> {
+            ServerPlayer player = ctx.player();
+            ctx.server().execute(() -> net.nerdorg.minehop.replays.ReplayStreaming.onCancel(player, payload.requestId()));
+        });
+        registerLimited(ReplayStatePayload.ID, RL_FAST, (payload, ctx) -> {
+            ServerPlayer player = ctx.player();
+            ctx.server().execute(() -> SpectateSessions.onClientReplayState(player, payload));
         });
     }
 

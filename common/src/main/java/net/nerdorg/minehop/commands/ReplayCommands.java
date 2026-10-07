@@ -2,6 +2,8 @@ package net.nerdorg.minehop.commands;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.LiteralMessage;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
+import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
@@ -13,8 +15,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.networking.HandshakeHandler;
+import net.nerdorg.minehop.networking.ReplayProtocol;
+import net.nerdorg.minehop.networking.payloads.ReplayControlPayload;
 import net.nerdorg.minehop.replays.ReplayGhosts;
 import net.nerdorg.minehop.replays.ReplayManager;
+import net.nerdorg.minehop.replays.ReplayStreaming;
 import net.nerdorg.minehop.spectate.SpectateSessions;
 import net.nerdorg.minehop.util.Logger;
 
@@ -56,6 +62,46 @@ public class ReplayCommands {
                                         )
                                 )
                         )
+                        // Playback controls for replays the player's own client plays (1.1.7+); the client has keys
+                        // for them too. Every control is a command so it can be driven by scripts (execute as ...).
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("pause")
+                                .executes(context -> control(context.getSource(), ReplayProtocol.CONTROL_PAUSE, 1.0D, "Paused.")))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("resume")
+                                .executes(context -> control(context.getSource(), ReplayProtocol.CONTROL_PAUSE, 0.0D, "Playing.")))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("speed")
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, Float>argument("speed",
+                                                FloatArgumentType.floatArg(ReplayProtocol.MIN_SPEED, ReplayProtocol.MAX_SPEED))
+                                        .executes(context -> {
+                                            float speed = FloatArgumentType.getFloat(context, "speed");
+                                            return control(context.getSource(), ReplayProtocol.CONTROL_SPEED, speed,
+                                                    String.format(java.util.Locale.ROOT, "Speed %.2fx.", speed));
+                                        })))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("seek")
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, Double>argument("seconds", DoubleArgumentType.doubleArg(-60.0D, 1.0E6D))
+                                        .executes(context -> {
+                                            double seconds = DoubleArgumentType.getDouble(context, "seconds");
+                                            return control(context.getSource(), ReplayProtocol.CONTROL_SEEK, seconds,
+                                                    String.format(java.util.Locale.ROOT, "Seeking to %.2f s.", seconds));
+                                        })))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("skip")
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, Double>argument("seconds", DoubleArgumentType.doubleArg(-1.0E6D, 1.0E6D))
+                                        .executes(context -> {
+                                            double seconds = DoubleArgumentType.getDouble(context, "seconds");
+                                            return control(context.getSource(), ReplayProtocol.CONTROL_SEEK_BY, seconds,
+                                                    String.format(java.util.Locale.ROOT, "Skipping %+.2f s.", seconds));
+                                        })))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("stop")
+                                .executes(context -> stopWatching(context.getSource())))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("race")
+                                .executes(context -> race(context.getSource(), ReplayProtocol.RACE_TOGGLE, "Toggling the race ghost."))
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("on")
+                                        .executes(context -> race(context.getSource(), ReplayProtocol.RACE_ON, "Race ghost on.")))
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("off")
+                                        .executes(context -> race(context.getSource(), ReplayProtocol.RACE_OFF, "Race ghost off.")))
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("pb")
+                                        .executes(context -> race(context.getSource(), ReplayProtocol.RACE_PB, "Racing your personal best.")))
+                                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("wr")
+                                        .executes(context -> race(context.getSource(), ReplayProtocol.RACE_WR, "Racing the world record."))))
                         .then(LiteralArgumentBuilder.<CommandSourceStack>literal("ghosts")
                                 .requires(source -> source.hasPermission(4))
                                 .executes(context -> listGhosts(context.getSource()))
@@ -95,6 +141,56 @@ public class ReplayCommands {
         ));
     }
 
+    private static final String UPDATE_MESSAGE = "Update Minehop to " + net.nerdorg.minehop.Minehop.MOD_VERSION_STRING
+            + " or newer to control replays (pause, speed, seek) and race your personal best.";
+
+    /** /replay pause|resume|speed|seek|skip: sent to the client playing the player's replay. */
+    private static int control(CommandSourceStack source, byte action, double value, String feedback) {
+        ServerPlayer viewer = source.getPlayer();
+        if (viewer == null) {
+            source.sendFailure(net.minecraft.network.chat.Component.literal("Only players can control a replay."));
+            return 0;
+        }
+        if (SpectateSessions.sendClientReplayControl(viewer, action, value)) {
+            Logger.logSuccess(viewer, feedback);
+            return Command.SINGLE_SUCCESS;
+        }
+        if (SpectateSessions.isSpectating(viewer) && !HandshakeHandler.supportsClientReplays(viewer)) {
+            Logger.logFailure(viewer, UPDATE_MESSAGE);
+        } else {
+            Logger.logFailure(viewer, "You are not watching a replay. Use /replay watch or /spec <map>_replay.");
+        }
+        return 0;
+    }
+
+    /** /replay stop: stops watching (any spectate session, like /unspec). */
+    private static int stopWatching(CommandSourceStack source) {
+        ServerPlayer viewer = source.getPlayer();
+        if (viewer == null) {
+            return 0;
+        }
+        if (!SpectateSessions.stop(viewer, "No longer watching.")) {
+            Logger.logFailure(viewer, "You are not watching a replay.");
+            return 0;
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /** /replay race [on|off|pb|wr]: the race ghost is the client's setting; the command is passed on to it. */
+    private static int race(CommandSourceStack source, int mode, String feedback) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            return 0;
+        }
+        if (!HandshakeHandler.supportsClientReplays(player)) {
+            Logger.logFailure(player, UPDATE_MESSAGE);
+            return 0;
+        }
+        ReplayStreaming.send(player, new ReplayControlPayload(ReplayProtocol.CONTROL_RACE, mode));
+        Logger.logSuccess(player, feedback);
+        return Command.SINGLE_SUCCESS;
+    }
+
     /** /replay ghosts (op): every world-record ghost, the run it shows, its frame and whether it is spawned. */
     private static int listGhosts(CommandSourceStack source) {
         StringBuilder text = new StringBuilder("World record ghosts:");
@@ -128,6 +224,7 @@ public class ReplayCommands {
                     Minehop.replayList.size(), store.cachedRuns(), store.cacheBytes() / 1048576.0D, store.pendingWrites()));
         }
         text.append("; ").append(net.nerdorg.minehop.replays.storage.LegacyMigration.status());
+        text.append("\n").append(ReplayStreaming.status());
         String message = text.toString();
         source.sendSuccess(() -> net.minecraft.network.chat.Component.literal(message), false);
         return Command.SINGLE_SUCCESS;
