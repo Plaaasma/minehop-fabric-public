@@ -22,7 +22,8 @@ public class ReplayRenderer extends MobRenderer<ReplayEntity, ReplayModel> {
 
     @Override
     public boolean shouldRender(ReplayEntity mobEntity, Frustum frustum, double d, double e, double f) {
-        return !ConfigWrapper.config.hideReplay;
+        // Hidden on request, otherwise culled like any entity (this used to skip the frustum check entirely).
+        return !ConfigWrapper.config.hideReplay && super.shouldRender(mobEntity, frustum, d, e, f);
     }
 
     public ReplayEntityRenderState createRenderState() {
