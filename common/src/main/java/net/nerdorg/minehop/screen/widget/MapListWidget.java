@@ -289,8 +289,26 @@ public class MapListWidget extends AbstractSelectionList<MapListWidget.MapEntry>
                     return true;
                 }
             }
+            if (net.minecraft.client.gui.screens.Screen.hasShiftDown() && this.hasWorldRecord()) {
+                this.watchWorldRecord();
+                return true;
+            }
             this.teleportToMap();
             return true;
+        }
+
+        private boolean hasWorldRecord() {
+            return !this.minigame && this.recordTime > 0.0D && this.recordTime < 999999.0D;
+        }
+
+        /** Shift + click: watch the map's world record (played on this client by 1.1.7+ servers, else a ghost). */
+        private void watchWorldRecord() {
+            Minecraft client = Minecraft.getInstance();
+            if (client == null || client.getConnection() == null || this.mapName.isBlank()) {
+                return;
+            }
+            client.setScreen(null);
+            client.getConnection().sendUnsignedCommand("spec " + StringArgumentType.escapeIfRequired(this.mapName + "_replay"));
         }
 
         @Override
@@ -335,6 +353,9 @@ public class MapListWidget extends AbstractSelectionList<MapListWidget.MapEntry>
             } else if (!this.minigame) {
                 lines.add(Component.literal("World record: " + this.formatRecord()).withStyle(ChatFormatting.DARK_GRAY));
                 lines.add(Component.literal("Average run: " + this.formatAverage()).withStyle(ChatFormatting.DARK_GRAY));
+                if (this.hasWorldRecord()) {
+                    lines.add(Component.literal("Shift + click: Watch the world record").withStyle(ChatFormatting.GRAY));
+                }
             }
             return lines;
         }
