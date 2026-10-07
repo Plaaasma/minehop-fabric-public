@@ -61,6 +61,9 @@ public final class ReplayGhosts {
         private long pausedSince = -1L;
         private ReplayEntity entity;
         private int frame;
+        // The map's level, looked up again every REVALIDATE_TICKS (not by name every tick).
+        private ServerLevel level;
+        private long levelCheckedTick;
 
         private Ghost(String mapName, UUID viewer, ReplayManager.Replay replay, long now) {
             this.mapName = mapName;
@@ -328,7 +331,12 @@ public final class ReplayGhosts {
     }
 
     private static void drive(MinecraftServer server, Ghost ghost, long now) {
-        ServerLevel level = level(server, ghost);
+        long tick = server.getTickCount();
+        if (ghost.level == null || tick - ghost.levelCheckedTick >= REVALIDATE_TICKS || tick < ghost.levelCheckedTick) {
+            ghost.level = level(server, ghost);
+            ghost.levelCheckedTick = tick;
+        }
+        ServerLevel level = ghost.level;
         if (ghost.entity != null && (ghost.entity.isRemoved() || !ghost.entity.isAlive() || ghost.entity.level() != level)) {
             despawn(ghost);
         }
