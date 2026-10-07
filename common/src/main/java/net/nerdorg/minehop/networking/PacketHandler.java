@@ -179,11 +179,20 @@ public class PacketHandler {
             clearReplayPath(player);
             return 0;
         }
+        return sendReplayPathPoints(player, ReplayPathSimplifier.simplify(entries));
+    }
+
+    /** Sends already simplified route points (see ReplayPathSimplifier), in packets of up to 2048. */
+    public static int sendReplayPathPoints(ServerPlayer player, List<Vector3f> points) {
+        if (player == null || points == null || points.size() < 2) {
+            clearReplayPath(player);
+            return 0;
+        }
 
         List<Vector3f> chunk = new ArrayList<>(ReplayPathPayload.MAX_POINTS_PER_PACKET);
         boolean firstPacket = true;
         int sent = 0;
-        for (Vector3f point : ReplayPathSimplifier.simplify(entries)) {
+        for (Vector3f point : points) {
             chunk.add(point);
             if (chunk.size() >= ReplayPathPayload.MAX_POINTS_PER_PACKET) {
                 Services.NETWORK.sendToPlayer(player, new ReplayPathPayload(firstPacket, List.copyOf(chunk)));
