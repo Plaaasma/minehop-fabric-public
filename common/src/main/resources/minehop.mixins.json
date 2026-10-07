@@ -9,6 +9,7 @@
 		"LivingEntityMixin",
 		"ServerCommonNetworkHandlerStreamMixin",
 		"ServerConfigurationDisconnectLogMixin",
+		"ServerEntityPairingMixin",
 		"ServerPlayNetworkHandlerMixin",
 		"ServerPlayNetworkHandlerSpectateMixin",
 		"ServerPlayNetworkHandlerStreamMixin",
