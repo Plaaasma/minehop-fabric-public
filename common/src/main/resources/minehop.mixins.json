@@ -9,6 +9,7 @@
 		"EntityCollisionMixin",
 		"LivingEntityMixin",
 		"ServerCommonNetworkHandlerStreamMixin",
+		"ServerEntityPairingMixin",
 		"ServerPlayNetworkHandlerMixin",
 		"ServerPlayNetworkHandlerSpectateMixin",
 		"ServerPlayNetworkHandlerStreamMixin",
