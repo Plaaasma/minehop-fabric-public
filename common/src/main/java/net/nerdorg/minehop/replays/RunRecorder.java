@@ -9,7 +9,6 @@ import net.nerdorg.minehop.replays.storage.ReplayFrames;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -359,20 +358,9 @@ public final class RunRecorder {
         RECORDERS.clear();
     }
 
-    /** Frames recorded so far for the player's current run, including pre-run frames (diagnostics); -1 if none. */
+    /** Frames recorded so far for the player's current run, including pre-run frames; -1 if none is being recorded. */
     public static int recordedFrames(ServerPlayer player) {
         Recorder rec = player == null ? null : RECORDERS.get(player.getUUID());
         return rec == null || rec.run == null ? -1 : rec.run.size();
-    }
-
-    /** {preFrames, runEnd} of the player's current recording (diagnostics). */
-    public static List<Integer> layout(ServerPlayer player) {
-        Recorder rec = player == null ? null : RECORDERS.get(player.getUUID());
-        List<Integer> out = new ArrayList<>();
-        if (rec != null && rec.run != null) {
-            out.add(rec.preFrames);
-            out.add(rec.runEnd);
-        }
-        return out;
     }
 }
