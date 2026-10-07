@@ -225,19 +225,7 @@ public class ClientPacketHandler {
         ClientServices.NETWORK.registerClientReceiver(SendSpectatorsPayload.ID, (payload, ctx) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             String buff = payload.spectatorBuff();
-            ctx.client().execute(() -> {
-                List<String> newSpectatorList = new ArrayList<>();
-                String splitBuff[] = buff.split("~");
-                int stringCount = Integer.parseInt(splitBuff[0]);
-
-
-                for (int i = 1; i < stringCount; i++) {
-                    String spectatorName = splitBuff[i]; // This reads a string from the buffer
-                    newSpectatorList.add(spectatorName);
-                }
-
-                MinehopClient.spectatorList = newSpectatorList;
-            });
+            ctx.client().execute(() -> MinehopClient.spectatorList = parseSpectatorList(buff));
         });
 
         ClientServices.NETWORK.registerClientReceiver(SendEfficiencyPayload.ID, (payload, ctx) -> {
@@ -623,6 +611,25 @@ public class ClientPacketHandler {
 
     public static void sendSpecEfficiency() {
         ClientServices.NETWORK.sendToServer(new SSpecEfficiencyPayload(MinehopClient.last_jump_speed, MinehopClient.jump_count, MinehopClient.last_efficiency));
+    }
+
+    /**
+     * Spectator list "{count}~{name}~...": every name after the leading count. The count isn't trusted: servers up
+     * to 1.1.6 sent the number of names, newer ones send names + 1 (so older clients, which read count - 1 names,
+     * show them all) and "1" to clear.
+     */
+    static List<String> parseSpectatorList(String buff) {
+        List<String> names = new ArrayList<>();
+        if (buff == null) {
+            return names;
+        }
+        String[] parts = buff.split("~");
+        for (int i = 1; i < parts.length; i++) {
+            if (!parts[i].isBlank()) {
+                names.add(parts[i]);
+            }
+        }
+        return names;
     }
 
     public static void sendAntiCheatCheck(String checkResults) {
