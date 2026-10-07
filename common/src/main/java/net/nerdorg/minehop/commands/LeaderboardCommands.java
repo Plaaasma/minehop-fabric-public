@@ -264,6 +264,9 @@ public final class LeaderboardCommands {
         if (run.ac_flags != null && !run.ac_flags.isBlank()) {
             line.append(Component.literal(" ⚠ " + run.ac_flags).withStyle(ChatFormatting.RED));
         }
+        if (run.invalidated != null && !run.invalidated.isBlank()) {
+            line.append(Component.literal(" [" + run.invalidated + "]").withStyle(ChatFormatting.DARK_RED));
+        }
         return line;
     }
 }
