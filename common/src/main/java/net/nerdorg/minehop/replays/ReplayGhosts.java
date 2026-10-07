@@ -356,7 +356,12 @@ public final class ReplayGhosts {
 
     /** The level the ghost's map is in. */
     public static ServerLevel level(MinecraftServer server, Ghost ghost) {
-        DataManager.MapData mapData = DataManager.getMap(ghost.mapName);
+        return ghost == null ? null : levelOfMap(server, ghost.mapName);
+    }
+
+    /** The level a map is in (the overworld if its world isn't loaded), or null for an unknown map. */
+    public static ServerLevel levelOfMap(MinecraftServer server, String mapName) {
+        DataManager.MapData mapData = DataManager.getMap(mapName);
         if (server == null || mapData == null) {
             return null;
         }
