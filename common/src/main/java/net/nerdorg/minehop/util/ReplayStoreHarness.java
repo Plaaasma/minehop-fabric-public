@@ -98,6 +98,17 @@ public final class ReplayStoreHarness {
                         .then(LiteralArgumentBuilder.<CommandSourceStack>literal("dump")
                                 .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("id", StringArgumentType.word())
                                         .executes(context -> frames(context, StringArgumentType.getString(context, "id"), true))))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("legacyrun")
+                                .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map", StringArgumentType.string())
+                                        .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("player", StringArgumentType.word())
+                                                .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("millis", IntegerArgumentType.integer(1000, 3_600_000))
+                                                        .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("frames", IntegerArgumentType.integer(2, 200000))
+                                                                .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("blocks", IntegerArgumentType.integer(4, 20000))
+                                                                        .executes(context -> legacyRun(context, StringArgumentType.getString(context, "map"),
+                                                                                StringArgumentType.getString(context, "player"),
+                                                                                IntegerArgumentType.getInteger(context, "millis"),
+                                                                                IntegerArgumentType.getInteger(context, "frames"),
+                                                                                IntegerArgumentType.getInteger(context, "blocks")))))))))
                         .then(LiteralArgumentBuilder.<CommandSourceStack>literal("synth")
                                 .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map", StringArgumentType.string())
                                         .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("frames", IntegerArgumentType.integer(1, 200000))
@@ -312,6 +323,45 @@ public final class ReplayStoreHarness {
         double ms = (System.nanoTime() - start) / 1.0E6D;
         return reply(context, String.format(Locale.ROOT, "stored synthetic run %s (%d frames) on %s: %.3f ms on the server thread",
                 Minehop.replayList.get(Minehop.replayList.size() - 1).replay_id, frameCount, mapName, ms));
+    }
+
+    /**
+     * A watchable older-style run (one frame per server tick, no flags, no pre/post frames, like a migrated replay) of
+     * {@code player} on the map, set as their personal best (and the world record if faster): {@code frames} frames
+     * for a run of {@code millis} ms (fewer frames than its time = recorded under lag, played stretched). It walks from
+     * the map's spawn {@code blocks} far along +z, with a teleport back a quarter of the way halfway through (a reset), to
+     * test legacy playback (time stretch, snapping) and chunk loading along a long route.
+     */
+    private static int legacyRun(CommandContext<CommandSourceStack> context, String mapName, String player, int millis, int frameCount,
+                                 int blocks) {
+        DataManager.MapData map = DataManager.getMap(mapName);
+        if (map == null) {
+            return reply(context, "no map " + mapName);
+        }
+        String uuid = java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + player).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+        double time = millis / 1000.0D;
+        List<ReplayManager.ReplayEntry> entries = new ArrayList<>(frameCount);
+        double step = blocks / (frameCount * 0.75D);
+        for (int i = 0; i < frameCount; i++) {
+            int along = i < frameCount / 2 ? i : i - frameCount / 4; // halfway: teleported back a quarter of the way
+            double z = map.z + along * step;
+            double x = map.x + Math.sin(i * 0.15D) * 2.0D;
+            float yaw = (float) (i * 7.0D); // keeps turning: unwrapped yaw past 360
+            entries.add(new ReplayManager.ReplayEntry(x, map.y, z, Math.sin(i * 0.1D) * 20.0D, yaw, i / 10, 0.4D + i * 0.001D, 80.0D));
+        }
+        ReplayManager.Replay replay = new ReplayManager.Replay(map.name, player, uuid, time, entries);
+        MinecraftServer server = context.getSource().getServer();
+        ReplayManager.saveReplay(server.overworld(), replay, Double.NaN, -1L);
+        DataManager.upsertPersonalRecord(player, uuid, map.name, time);
+        DataManager.RecordData record = DataManager.getRecord(map.name);
+        if (record == null || time < record.time) {
+            DataManager.upsertRecord(player, uuid, map.name, time);
+        }
+        DataManager.saveData(server.overworld(), DataManager.pbListLocation, Minehop.personalRecordList);
+        DataManager.saveData(server.overworld(), DataManager.recordsListLocation, Minehop.recordList);
+        net.nerdorg.minehop.replays.ReplayGhosts.refreshWorldRecord(server, map.name);
+        return reply(context, String.format(Locale.ROOT, "stored legacy-style run %s of %s on %s: %d frames for %.3f s",
+                Minehop.replayList.get(Minehop.replayList.size() - 1).replay_id, player, map.name, frameCount, time));
     }
 
     private static int reply(CommandContext<CommandSourceStack> context, String message) {
