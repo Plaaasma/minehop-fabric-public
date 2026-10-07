@@ -177,16 +177,28 @@ public class SpectateCommands {
             return;
         }
 
-        int pointsSent = PacketHandler.sendReplayPath(viewer, resolved.replay.replayEntries);
-        if (pointsSent < 2) {
-            Logger.logFailure(viewer, "No valid replay path points found for " + requestedName + ".");
-            return;
-        }
-
-        Logger.logSuccess(
-                viewer,
-                "Rendered path for " + resolved.displayName + " on " + resolved.mapName + " (" + pointsSent + " points). Use /unspec or spectate normally to clear it."
-        );
+        // Simplifying a long run takes some milliseconds: do it off the server thread (saved replays never change),
+        // then send from the server thread.
+        net.minecraft.server.MinecraftServer server = context.getSource().getServer();
+        java.util.UUID viewerUuid = viewer.getUUID();
+        java.util.List<net.nerdorg.minehop.replays.ReplayManager.ReplayEntry> entries = resolved.replay.replayEntries;
+        java.util.concurrent.CompletableFuture
+                .supplyAsync(() -> net.nerdorg.minehop.replays.ReplayPathSimplifier.simplify(entries))
+                .thenAccept(points -> server.execute(() -> {
+                    ServerPlayer player = server.getPlayerList().getPlayer(viewerUuid);
+                    if (player == null) {
+                        return;
+                    }
+                    int pointsSent = PacketHandler.sendReplayPathPoints(player, points);
+                    if (pointsSent < 2) {
+                        Logger.logFailure(player, "No valid replay path points found for " + requestedName + ".");
+                        return;
+                    }
+                    Logger.logSuccess(
+                            player,
+                            "Rendered path for " + resolved.displayName + " on " + resolved.mapName + " (" + pointsSent + " points). Use /unspec or spectate normally to clear it."
+                    );
+                }));
     }
 
     private static ResolvedReplayPath resolveReplayPath(CommandContext<CommandSourceStack> context, ServerPlayer viewer, String requestedName) {
