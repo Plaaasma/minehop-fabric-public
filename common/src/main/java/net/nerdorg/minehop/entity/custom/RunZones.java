@@ -80,9 +80,4 @@ public final class RunZones {
         }
         return boxes;
     }
-
-    /** Loaded zone counts, for diagnostics: {start, end}. */
-    public static int[] counts() {
-        return new int[]{START_ZONES.size(), END_ZONES.size()};
-    }
 }
