@@ -266,7 +266,7 @@ public class SpectateCommands {
             ReplayManager.Replay replay = replayPlayerName == null || replayPlayerName.isBlank()
                     ? ReplayManager.getReplay(mapName)
                     : ReplayManager.getReplay(mapName, replayPlayerName);
-            String displayName = replayPlayerName == null || replayPlayerName.isBlank() ? "the world record" : replayPlayerName + "'s fastest replay";
+            String displayName = replayPlayerName == null || replayPlayerName.isBlank() ? "the world record" : replayPlayerName + "'s personal best";
             return new ResolvedReplayPath(mapName, displayName, replay);
         }
 
@@ -281,14 +281,18 @@ public class SpectateCommands {
             return null;
         }
 
-        ReplayManager.Replay replay = resolveReplayFromName(currentMap, requestedName);
+        ReplayManager.Replay replay = resolveReplayFromName(context.getSource().getServer(), currentMap, requestedName);
         if (replay == null) {
             return null;
         }
-        return new ResolvedReplayPath(currentMap, replay.player_name + "'s fastest replay", replay);
+        return new ResolvedReplayPath(currentMap, replay.player_name + "'s personal best", replay);
     }
 
-    private static ReplayManager.Replay resolveReplayFromName(String currentMap, String requestedName) {
+    /**
+     * A watchable replay named by a command argument: "{map}_replay" is the WR, "{map}_replay_{player}" or a
+     * player name is that player's current PB (UUID first). Runs that back no current PB/WR are never returned.
+     */
+    private static ReplayManager.Replay resolveReplayFromName(net.minecraft.server.MinecraftServer server, String currentMap, String requestedName) {
         if (currentMap == null || currentMap.isBlank() || requestedName == null || requestedName.isBlank()) {
             return null;
         }
@@ -298,19 +302,17 @@ public class SpectateCommands {
         }
 
         String replayPrefix = currentMap + "_replay_";
-        if (requestedName.startsWith(replayPrefix) && Minehop.replayList != null) {
+        if (requestedName.startsWith(replayPrefix)) {
             String sanitizedPlayerName = requestedName.substring(replayPrefix.length());
-            for (ReplayManager.Replay replay : Minehop.replayList) {
-                if (replay == null || replay.map_name == null || replay.player_name == null) {
-                    continue;
-                }
-                if (currentMap.equals(replay.map_name) && sanitizedPlayerName.equals(sanitizeForScoreboard(replay.player_name))) {
-                    return ReplayManager.getReplay(currentMap, replay.player_name);
+            for (java.util.Map.Entry<net.nerdorg.minehop.data.DataManager.RecordData, ReplayManager.Replay> entry : ReplayManager.watchablePersonalBests(currentMap)) {
+                if (sanitizedPlayerName.equals(sanitizeForScoreboard(entry.getKey().name))) {
+                    return entry.getValue();
                 }
             }
+            return null;
         }
 
-        return ReplayManager.getReplay(currentMap, requestedName);
+        return ReplayManager.getReplayForRecord(ReplayManager.findPersonalRecordByName(server, currentMap, requestedName));
     }
 
     private static boolean isViewerOnMap(ServerPlayer viewer, String mapName) {
@@ -356,15 +358,11 @@ public class SpectateCommands {
         if (ReplayManager.getReplay(currentMap) != null) {
             builder.suggest(currentMap + "_replay", new LiteralMessage("world record replay"));
         }
-        for (ReplayManager.Replay replay : Minehop.replayList) {
-            if (replay == null || replay.map_name == null || replay.player_name == null || replay.player_name.isBlank()) {
-                continue;
-            }
-            if (!currentMap.equals(replay.map_name)) {
-                continue;
-            }
-            builder.suggest(replay.player_name, new LiteralMessage(replay.player_name));
-            builder.suggest(currentMap + "_replay_" + sanitizeForScoreboard(replay.player_name), new LiteralMessage(replay.player_name));
+        // Only replays that back a current PB; orphaned/invalidated runs are not offered.
+        for (java.util.Map.Entry<net.nerdorg.minehop.data.DataManager.RecordData, ReplayManager.Replay> entry : ReplayManager.watchablePersonalBests(currentMap)) {
+            String playerName = entry.getKey().name;
+            builder.suggest(playerName, new LiteralMessage(playerName + "'s personal best"));
+            builder.suggest(currentMap + "_replay_" + sanitizeForScoreboard(playerName), new LiteralMessage(playerName + "'s personal best"));
         }
     }
 

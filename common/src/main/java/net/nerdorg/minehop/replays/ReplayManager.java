@@ -90,6 +90,9 @@ public class ReplayManager {
         public long saved_at;
         // Anticheat flags raised during this run ("" = clean), e.g. "Speed x2, Fly x1".
         public String ac_flags = "";
+        // Why the run was invalidated ("" = valid). An invalidated run is kept (evidence, history) but is never
+        // played back, never offered as anyone's personal best or world record and never promoted to one.
+        public String invalidated = "";
         public List<ReplayEntry> replayEntries;
 
         public Replay() {
@@ -196,24 +199,87 @@ public class ReplayManager {
         return null;
     }
 
+    /**
+     * The replay backing the named player's personal best on the map (see {@link #getPersonalBestReplay}).
+     * Name-only lookup, kept for callers that have nothing better; prefer the UUID-aware methods.
+     */
+    @Deprecated
     public static Replay getReplay(String mapName, String playerName) {
         if (mapName == null || mapName.isBlank() || playerName == null || playerName.isBlank()) {
             return null;
         }
-        Replay bestMatch = null;
-        if (Minehop.replayList != null) {
-            for (Replay replay : Minehop.replayList) {
-                if (replay == null || replay.map_name == null || replay.replayEntries == null || replay.replayEntries.isEmpty()) {
-                    continue;
-                }
-                if (mapName.equals(replay.map_name) && playerName.equals(normalizePlayerName(replay.player_name))) {
-                    if (bestMatch == null || replay.time < bestMatch.time || (timesMatch(replay.time, bestMatch.time) && replay.saved_at > bestMatch.saved_at)) {
-                        bestMatch = replay;
-                    }
-                }
+        return getReplayForRecord(DataManager.getPersonalRecord(playerName, mapName));
+    }
+
+    /**
+     * The replay backing the player's CURRENT personal best on the map: the same player (UUID first; the name
+     * only for legacy rows without one) and exactly the PB time. Null when there is no PB there or no saved run
+     * matches it. Slower runs, invalidated runs and orphans (replays whose PB row is gone, e.g. after a times
+     * purge, including the old impossible 0.0x s ones) are therefore never offered as anyone's PB.
+     */
+    public static Replay getPersonalBestReplay(String mapName, String playerName, String playerUuid) {
+        if (mapName == null || mapName.isBlank()) {
+            return null;
+        }
+        return getReplayForRecord(DataManager.getPersonalRecord(playerName, playerUuid, mapName));
+    }
+
+    /**
+     * The PB row of a player named by a command argument. An online player is matched by UUID; otherwise the
+     * row whose stored name matches, ignoring case (the fastest one if several accounts used that name).
+     */
+    public static DataManager.RecordData findPersonalRecordByName(MinecraftServer server, String mapName, String playerName) {
+        if (mapName == null || mapName.isBlank() || playerName == null || playerName.isBlank() || Minehop.personalRecordList == null) {
+            return null;
+        }
+        net.minecraft.server.level.ServerPlayer online = server == null ? null : server.getPlayerList().getPlayerByName(playerName);
+        if (online != null) {
+            return DataManager.getPersonalRecord(online.getScoreboardName(), online.getStringUUID(), mapName);
+        }
+        DataManager.RecordData best = null;
+        for (DataManager.RecordData row : Minehop.personalRecordList) {
+            if (row == null || !mapName.equals(row.map_name) || row.name == null || !row.name.equalsIgnoreCase(playerName)) {
+                continue;
+            }
+            if (best == null || row.time < best.time) {
+                best = row;
             }
         }
-        return bestMatch;
+        return best;
+    }
+
+    /** True if the replay can be played back: it has frames and was not invalidated. */
+    public static boolean isPlayable(Replay replay) {
+        return replay != null && replay.replayEntries != null && !replay.replayEntries.isEmpty()
+                && (replay.invalidated == null || replay.invalidated.isBlank());
+    }
+
+    /**
+     * Every PB on the map that has a playable replay backing it, fastest first, as (row, replay) pairs. One pass
+     * over the replay list, so command suggestions can call it.
+     */
+    public static List<java.util.Map.Entry<DataManager.RecordData, Replay>> watchablePersonalBests(String mapName) {
+        List<java.util.Map.Entry<DataManager.RecordData, Replay>> result = new ArrayList<>();
+        if (mapName == null || mapName.isBlank() || Minehop.personalRecordList == null || Minehop.replayList == null) {
+            return result;
+        }
+        List<Replay> onMap = new ArrayList<>();
+        for (Replay replay : Minehop.replayList) {
+            if (replay != null && mapName.equals(replay.map_name) && replay.player_name != null && isPlayable(replay)) {
+                onMap.add(replay);
+            }
+        }
+        for (DataManager.RecordData row : Minehop.personalRecordList) {
+            if (row == null || !mapName.equals(row.map_name) || row.name == null || row.name.isBlank()) {
+                continue;
+            }
+            Replay match = matchRecord(row, onMap);
+            if (match != null) {
+                result.add(java.util.Map.entry(row, match));
+            }
+        }
+        result.sort(java.util.Comparator.comparingDouble(entry -> entry.getKey().time));
+        return result;
     }
 
     public static Replay getReplayForRecord(DataManager.RecordData recordData) {
@@ -221,28 +287,30 @@ public class ReplayManager {
             return null;
         }
 
+        return Minehop.replayList == null ? null : matchRecord(recordData, Minehop.replayList);
+    }
+
+    /** The newest playable replay among {@code replays} that is the run of this PB/WR row (same player, same time). */
+    private static Replay matchRecord(DataManager.RecordData recordData, List<Replay> replays) {
         Replay bestExactMatch = null;
-        if (Minehop.replayList != null) {
-            for (Replay replay : Minehop.replayList) {
-                if (replay == null || replay.map_name == null || replay.player_name == null || replay.replayEntries == null || replay.replayEntries.isEmpty()) {
-                    continue;
-                }
-                if (!recordData.map_name.equals(replay.map_name)) {
-                    continue;
-                }
-                // Prefer UUID identity (survives name changes) with legacy-name fallback.
-                boolean samePlayer = recordData.uuid != null && !recordData.uuid.isBlank()
-                        && replay.player_uuid != null && !replay.player_uuid.isBlank()
-                        ? recordData.uuid.equals(replay.player_uuid)
-                        : recordData.name.equals(normalizePlayerName(replay.player_name));
-                if (!samePlayer) {
-                    continue;
-                }
-                if (timesMatch(replay.time, recordData.time)) {
-                    if (bestExactMatch == null || replay.saved_at > bestExactMatch.saved_at) {
-                        bestExactMatch = replay;
-                    }
-                    continue;
+        for (Replay replay : replays) {
+            if (replay == null || replay.map_name == null || replay.player_name == null || !isPlayable(replay)) {
+                continue;
+            }
+            if (!recordData.map_name.equals(replay.map_name)) {
+                continue;
+            }
+            // Prefer UUID identity (survives name changes) with legacy-name fallback.
+            boolean samePlayer = recordData.uuid != null && !recordData.uuid.isBlank()
+                    && replay.player_uuid != null && !replay.player_uuid.isBlank()
+                    ? recordData.uuid.equals(replay.player_uuid)
+                    : recordData.name.equals(normalizePlayerName(replay.player_name));
+            if (!samePlayer) {
+                continue;
+            }
+            if (timesMatch(replay.time, recordData.time)) {
+                if (bestExactMatch == null || replay.saved_at > bestExactMatch.saved_at) {
+                    bestExactMatch = replay;
                 }
             }
         }
@@ -285,6 +353,7 @@ public class ReplayManager {
                 copyReplayEntries(replay.replayEntries)
         );
         stored.ac_flags = replay.ac_flags == null ? "" : replay.ac_flags;
+        stored.invalidated = replay.invalidated == null ? "" : replay.invalidated;
         Minehop.replayList.add(stored);
 
         saveRecordReplaysAsync(world, Minehop.replayList);
@@ -398,6 +467,9 @@ public class ReplayManager {
                     replay.player_name = normalizePlayerName(replay.player_name);
                     if (replay.player_uuid == null) {
                         replay.player_uuid = "";
+                    }
+                    if (replay.invalidated == null) {
+                        replay.invalidated = "";
                     }
                     Minehop.replayList.add(replay);
                 }
