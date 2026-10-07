@@ -62,6 +62,7 @@ final class StreamState {
     Vec3 tickPos;
     boolean tickHasYaw;
     float tickYaw;
+    float tickPitch;
     boolean tickHorizontalCollision;
     /** The client's own on-ground flag (last move packet received; persists across quiet ticks). */
     boolean clientOnGround;
@@ -117,6 +118,30 @@ final class StreamState {
     double lastJumpSpeed;
     /** 1.20.1: consecutive client ticks ended on the ground since the last take-off (2+ = jump released). */
     int jumpGroundTicks;
+
+    // --- the client's view at the end of the last tick, for the tick stream (ClientTick) ---
+    boolean frameHasRotation;
+    float frameYaw;
+    float framePitch;
+    /** The server moved the player (teleport) since the last tick was handed on. */
+    boolean frameDiscontinuity = true;
+
+    // --- 1.20.1: the idle ticks a pre-1.21.2 client sends no packet for (MovementValidator#idleTicksBefore) ---
+    /** Ticks handed on so far, inferred idle ticks included (ClientTick#streamIndex). */
+    long streamTicks;
+    /** Where the last tick was handed on (its position, ground flag, keys), or null before the first. */
+    Vec3 lastFramePos;
+    boolean lastFrameOnGround;
+    StreamInput lastFrameInput = StreamInput.DEFAULT;
+    /** Arrival of the last move packet that was a tick. */
+    long lastTickArrivalNanos;
+    boolean lastTickNetworkTimed;
+    /** The last tick ended nearly at rest on the ground: the client may have gone quiet after it. */
+    boolean lastTickResting;
+    /** The coordinates of the client's last positional move packet (what its reminder compares against). */
+    Vec3 lastPacketPos;
+    /** Client ticks (quiet packets and inferred idle ticks) since its last positional move packet. */
+    int ticksSincePositional;
 
     /** Position at the end of the last tick that wasn't lagged back (lagback anchor). */
     Vec3 lastGoodPos;

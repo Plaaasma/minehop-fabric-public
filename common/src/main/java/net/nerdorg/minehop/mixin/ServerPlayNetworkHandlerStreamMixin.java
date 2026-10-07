@@ -48,13 +48,14 @@ public abstract class ServerPlayNetworkHandlerStreamMixin {
         MovementValidator.onClientCommand(this.player, packet.getAction());
     }
 
-    // Netty-thread pass: every move packet is one client tick for the timer check.
+    // Netty-thread pass: every move packet is one client tick for the timer check; its arrival time
+    // travels with the packet to the server-thread pass (the tick stream, see ClientTick).
     @Inject(method = "handleMovePlayer", at = @At("HEAD"))
     private void minehop$playerMoveArrival(ServerboundMovePlayerPacket packet, CallbackInfo ci) {
         ServerPlayer current = this.player;
         MinecraftServer server = current == null ? null : current.getServer();
         if (server != null && !server.isSameThread()) {
-            MovementValidator.onMovePacketNetwork(current);
+            MovementValidator.onMovePacketNetwork(current, packet);
         }
     }
 

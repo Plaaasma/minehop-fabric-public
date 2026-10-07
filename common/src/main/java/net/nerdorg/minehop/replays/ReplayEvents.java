@@ -1,5 +1,6 @@
 package net.nerdorg.minehop.replays;
 
+import net.nerdorg.minehop.anticheat.stream.ClientTick;
 import net.nerdorg.minehop.platform.Services;
 import net.minecraft.server.level.ServerPlayer;
 import net.nerdorg.minehop.Minehop;
@@ -17,6 +18,13 @@ public class ReplayEvents {
      * idling in a run can't grow the store without bound (one idle run was 100 minutes, 120k frames).
      */
     public static final int MAX_RECORDED_FRAMES = 20 * 60 * 60;
+
+    /**
+     * Server thread: one client tick of a player with a packet stream (see {@link ClientTick}), in packet order. The
+     * single entry point from the anticheat's stream to everything that follows a player tick by tick.
+     */
+    public static void onClientTick(ServerPlayer player, ClientTick tick) {
+    }
 
     public static void register() {
         Services.EVENTS.onServerTickEnd(((server) -> {
