@@ -46,12 +46,21 @@ public class ReplayModel extends HierarchicalModel<ReplayEntity> {
 
 	@Override
 	public void setupAnim(ReplayEntity entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch) {
-		// 1.21.1: HierarchicalModel doesn't reset the parts before setupAnim (1.21.4's EntityModel#setupAnim does).
+		this.pose(entity.shouldRenderHead(), netHeadYaw, headPitch);
+	}
+
+	/**
+	 * 1.21.1: poses the model without an entity (no render states before 1.21.2; the client playback's ghosts have no
+	 * entity): head shown or not, turned by {@code headYaw} relative to the body and pitched by {@code headPitch}
+	 * (degrees).
+	 */
+	public void pose(boolean renderHead, float headYaw, float headPitch) {
+		// HierarchicalModel doesn't reset the parts before setupAnim (1.21.4's EntityModel#setupAnim does).
 		this.root().getAllParts().forEach(ModelPart::resetPose);
 		this.body.visible = false;
-		this.head.visible = entity.shouldRenderHead();
+		this.head.visible = renderHead;
 		// Look where the recorded player looked: head yaw relative to the body, and pitch (was always ~0 before).
-		this.head.yRot = netHeadYaw * ((float) Math.PI / 180.0F);
+		this.head.yRot = headYaw * ((float) Math.PI / 180.0F);
 		this.head.xRot = headPitch * ((float) Math.PI / 180.0F);
 	}
 }

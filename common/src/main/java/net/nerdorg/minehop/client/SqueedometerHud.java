@@ -165,6 +165,11 @@ public class SqueedometerHud {
         double dz = pos.z - this.client.player.zo;
         double speedPerTick = Math.sqrt(dx * dx + dz * dz);
         double bps = blocksPerSecond(speedPerTick);
+        // Watching a replay on this client: the recorded run's speed, not this (parked) player's.
+        double watched = net.nerdorg.minehop.client.replay.ReplayPlayback.watchedSpeedBlocksPerSecond();
+        if (Double.isFinite(watched)) {
+            bps = watched;
+        }
 
         int speedColor = gainColor(bps - this.lastFrameSpeed);
         this.lastFrameSpeed = bps;
