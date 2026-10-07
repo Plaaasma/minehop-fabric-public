@@ -294,27 +294,61 @@ public class ReplayManager {
     private static Replay matchRecord(DataManager.RecordData recordData, List<Replay> replays) {
         Replay bestExactMatch = null;
         for (Replay replay : replays) {
-            if (replay == null || replay.map_name == null || replay.player_name == null || !isPlayable(replay)) {
-                continue;
-            }
-            if (!recordData.map_name.equals(replay.map_name)) {
-                continue;
-            }
-            // Prefer UUID identity (survives name changes) with legacy-name fallback.
-            boolean samePlayer = recordData.uuid != null && !recordData.uuid.isBlank()
-                    && replay.player_uuid != null && !replay.player_uuid.isBlank()
-                    ? recordData.uuid.equals(replay.player_uuid)
-                    : recordData.name.equals(normalizePlayerName(replay.player_name));
-            if (!samePlayer) {
-                continue;
-            }
-            if (timesMatch(replay.time, recordData.time)) {
-                if (bestExactMatch == null || replay.saved_at > bestExactMatch.saved_at) {
-                    bestExactMatch = replay;
-                }
+            if (isRunOf(recordData, replay) && (bestExactMatch == null || replay.saved_at > bestExactMatch.saved_at)) {
+                bestExactMatch = replay;
             }
         }
         return bestExactMatch;
+    }
+
+    /** True if the replay is a playable recording of the run that set this PB/WR row. */
+    private static boolean isRunOf(DataManager.RecordData recordData, Replay replay) {
+        if (replay == null || replay.map_name == null || replay.player_name == null || !isPlayable(replay)) {
+            return false;
+        }
+        if (!recordData.map_name.equals(replay.map_name)) {
+            return false;
+        }
+        // Prefer UUID identity (survives name changes) with legacy-name fallback.
+        boolean samePlayer = recordData.uuid != null && !recordData.uuid.isBlank()
+                && replay.player_uuid != null && !replay.player_uuid.isBlank()
+                ? recordData.uuid.equals(replay.player_uuid)
+                : recordData.name.equals(normalizePlayerName(replay.player_name));
+        return samePlayer && timesMatch(replay.time, recordData.time);
+    }
+
+    /**
+     * The replay of every map's current world record ({@link #getReplay(String)} for all maps at once): one pass
+     * over the records and one over the replays.
+     */
+    public static java.util.Map<String, Replay> worldRecordReplays() {
+        java.util.Map<String, DataManager.RecordData> records = new java.util.HashMap<>();
+        if (Minehop.recordList != null) {
+            for (DataManager.RecordData row : Minehop.recordList) {
+                if (row == null || row.map_name == null || row.name == null || row.name.isBlank()) {
+                    continue;
+                }
+                DataManager.RecordData existing = records.get(row.map_name);
+                if (existing == null || row.time < existing.time) {
+                    records.put(row.map_name, row);
+                }
+            }
+        }
+        java.util.Map<String, Replay> result = new java.util.HashMap<>();
+        if (records.isEmpty() || Minehop.replayList == null) {
+            return result;
+        }
+        for (Replay replay : Minehop.replayList) {
+            DataManager.RecordData row = replay == null || replay.map_name == null ? null : records.get(replay.map_name);
+            if (row == null || !isRunOf(row, replay)) {
+                continue;
+            }
+            Replay current = result.get(replay.map_name);
+            if (current == null || replay.saved_at > current.saved_at) {
+                result.put(replay.map_name, replay);
+            }
+        }
+        return result;
     }
 
     public static void saveRecordReplay(ServerLevel world, Replay replay) {

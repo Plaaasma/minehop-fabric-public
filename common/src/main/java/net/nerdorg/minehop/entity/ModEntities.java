@@ -33,9 +33,12 @@ public class ModEntities {
             EntityType.Builder.of(EndEntity::new, MobCategory.MISC)
                     .sized(1f, 1f));
 
+    // Ghosts move every tick: send their position every tick too (the default 3-tick interval made them choppy
+    // and lag behind). Server-side setting only; clients are unaffected.
     public static final RegistryEntry<EntityType<ReplayEntity>> REPLAY_ENTITY = register("replay_entity",
             EntityType.Builder.of(ReplayEntity::new, MobCategory.MISC)
-                    .sized(1f, 2f));
+                    .sized(1f, 2f)
+                    .updateInterval(1));
 
     public static final RegistryEntry<EntityType<SurfRampEntity>> SURF_RAMP_ENTITY = register("surf_ramp_entity",
             EntityType.Builder.of(SurfRampEntity::new, MobCategory.MISC)
