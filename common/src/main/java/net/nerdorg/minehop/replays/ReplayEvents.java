@@ -29,25 +29,17 @@ public class ReplayEvents {
                 if (replayEntries.size() >= MAX_RECORDED_FRAMES) {
                     continue;
                 }
-                double jump_count = 0;
-                double last_jump_speed = 0;
-                double efficiency = 0;
-
-                if (Minehop.lastEfficiencyMap.containsKey(playerName)) {
-                    ReplayManager.SSJEntry ssjEntry = Minehop.lastEfficiencyMap.get(playerName);
-                    jump_count = ssjEntry.jump_count;
-                    last_jump_speed = ssjEntry.last_jump_speed;
-                    efficiency = ssjEntry.efficiency;
-                }
+                // Jump count/speed derived by the server, efficiency as answered on request (see RunStats).
+                RunStats.Snapshot stats = RunStats.of(playerEntity);
                 replayEntries.add(new ReplayManager.ReplayEntry(
                         playerEntity.getX(),
                         playerEntity.getY(),
                         playerEntity.getZ(),
                         (double) playerEntity.getXRot(),
                         (double) playerEntity.getYHeadRot(),
-                        jump_count,
-                        last_jump_speed,
-                        efficiency
+                        stats.jumpCount(),
+                        stats.lastJumpSpeed(),
+                        stats.efficiency()
                 ));
             }
         }));

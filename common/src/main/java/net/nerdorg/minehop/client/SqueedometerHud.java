@@ -186,7 +186,10 @@ public class SqueedometerHud {
         this.drawRunTimerHud(context, config);
 
         String name = this.client.player.getScoreboardName();
-        StrafeStats stats = Minehop.strafeStatsMap.get(name);
+        // While watching someone (or a replay) the HUD shows their stats as sent by the server, not this player's
+        // own, which would just be left over from before spectating.
+        boolean watchingOther = this.client.player.isSpectator() && this.client.getCameraEntity() != this.client.player;
+        StrafeStats stats = watchingOther ? null : Minehop.strafeStatsMap.get(name);
 
         double gauge = stats != null ? stats.liveGauge : 0.0D;
         double eff;

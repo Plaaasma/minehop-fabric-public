@@ -22,6 +22,7 @@ import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.platform.Services;
 import net.nerdorg.minehop.replays.ReplayGhosts;
 import net.nerdorg.minehop.replays.ReplayManager;
+import net.nerdorg.minehop.replays.RunStats;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.ZoneUtil;
 
@@ -78,6 +79,8 @@ public final class SpectateSessions {
         private boolean clientAttached;
         private boolean shiftReleased;
         private long lastRefusalMessageTick = Long.MIN_VALUE;
+        private RunStats.Snapshot lastStats;
+        private long lastStatsTick = Long.MIN_VALUE / 2;
 
         private Session(UUID viewer, Kind kind, UUID targetPlayer, String targetName, String mapName, ReturnState back) {
             this.viewer = viewer;
@@ -414,7 +417,7 @@ public final class SpectateSessions {
                 }
                 follow(server, session, viewer);
                 if (SESSIONS.get(session.viewer) == session) {
-                    sendReplayHud(server, session, viewer);
+                    sendHud(server, session, viewer);
                 }
             }
         }
@@ -510,20 +513,38 @@ public final class SpectateSessions {
         return seenBy.contains(player.connection);
     }
 
-    /** Replay viewers get the run time on the timer HUD (the runner's own client sends it for live players). */
-    private static void sendReplayHud(MinecraftServer server, Session session, ServerPlayer viewer) {
-        if (session.kind == Kind.PLAYER || server.getTickCount() % HUD_INTERVAL_TICKS != 0) {
-            return;
+    /**
+     * The viewer's HUD: the target's jump stats (server-derived, see RunStats) whenever they change and at least
+     * every second; replay viewers also get the run time on the timer HUD (for a live player the runner's own client
+     * reports it, see PacketHandler).
+     */
+    private static void sendHud(MinecraftServer server, Session session, ServerPlayer viewer) {
+        long now = server.getTickCount();
+        RunStats.Snapshot stats;
+        if (session.kind == Kind.PLAYER) {
+            ServerPlayer target = server.getPlayerList().getPlayer(session.targetPlayer);
+            if (target == null) {
+                return;
+            }
+            stats = RunStats.of(target);
+        } else {
+            ReplayGhosts.Ghost ghost = session.kind == Kind.WORLD_RECORD
+                    ? ReplayGhosts.worldRecordGhost(session.mapName)
+                    : ReplayGhosts.viewerGhost(session.viewer);
+            if (ghost == null || ghost.entity() == null) {
+                return;
+            }
+            if (now % HUD_INTERVAL_TICKS == 0) {
+                PacketHandler.sendRunTimerHud(viewer, (float) ghost.elapsedSeconds(), (float) ghost.replay().time);
+            }
+            ReplayManager.ReplayEntry entry = ghost.currentEntry();
+            stats = new RunStats.Snapshot((int) entry.jump_count, entry.last_jump_speed, entry.efficiency);
         }
-        ReplayGhosts.Ghost ghost = session.kind == Kind.WORLD_RECORD
-                ? ReplayGhosts.worldRecordGhost(session.mapName)
-                : ReplayGhosts.viewerGhost(session.viewer);
-        if (ghost == null || ghost.entity() == null) {
-            return;
+        if (!stats.equals(session.lastStats) || now - session.lastStatsTick >= 20L) {
+            PacketHandler.sendSpecEfficiency(viewer, stats.lastJumpSpeed(), stats.jumpCount(), stats.efficiency());
+            session.lastStats = stats;
+            session.lastStatsTick = now;
         }
-        PacketHandler.sendRunTimerHud(viewer, (float) ghost.elapsedSeconds(), (float) ghost.replay().time);
-        ReplayManager.ReplayEntry entry = ghost.currentEntry();
-        PacketHandler.sendSpecEfficiency(viewer, entry.last_jump_speed, (int) entry.jump_count, entry.efficiency);
     }
 
     /** Sends each spectated player who is watching them, whenever that changes (an empty list clears their HUD). */

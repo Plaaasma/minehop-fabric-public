@@ -91,6 +91,10 @@ final class StreamState {
     double heldJumpVy;
     int holdTicks;
 
+    // --- jump stats shown to spectators / stored in replays (MovementValidator.trackJumps) ---
+    int jumpCount;
+    double lastJumpSpeed;
+
     /** Position at the end of the last tick that wasn't lagged back (lagback anchor). */
     Vec3 lastGoodPos;
 
