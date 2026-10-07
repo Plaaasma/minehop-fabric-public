@@ -1,7 +1,9 @@
 package net.nerdorg.minehop.anticheat.stream;
 
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.phys.Vec3;
 
@@ -18,6 +20,13 @@ final class StreamState {
     /** System.nanoTime() of the last teleport request/confirm (any thread reads it). */
     volatile long lastTeleportNanos;
     final Map<Integer, PendingPing> pendingPings = new ConcurrentHashMap<>();
+    /**
+     * Network-thread arrival times (System.nanoTime) of the ClientTickEnd and move packets not yet processed on the
+     * server thread, oldest first: each packet's server-thread pass takes its own (both threads see the packets in
+     * the same order), so a tick keeps the time it arrived however late the server thread handles it.
+     */
+    final Queue<Long> tickEndArrivals = new ConcurrentLinkedQueue<>();
+    final Queue<Long> moveArrivals = new ConcurrentLinkedQueue<>();
 
     // --- packet bookkeeping ---
     /** Vanilla ignores move packets between requestTeleport and the client's confirm. */
@@ -41,7 +50,13 @@ final class StreamState {
     Vec3 tickPos;
     boolean tickHasYaw;
     float tickYaw;
+    float tickPitch;
     boolean tickHorizontalCollision;
+    /** Arrival of the move packet being processed, and of the one that set {@link #tickPos} (server thread). */
+    long moveArrivalNanos;
+    boolean moveArrivalKnown;
+    long tickMoveArrivalNanos;
+    boolean tickMoveArrivalKnown;
     /** The client's own on-ground flag (last move packet received; persists across quiet ticks). */
     boolean clientOnGround;
 
@@ -94,6 +109,13 @@ final class StreamState {
     // --- jump stats shown to spectators / stored in replays (MovementValidator.trackJumps) ---
     int jumpCount;
     double lastJumpSpeed;
+
+    // --- the client's view at the end of the last tick, for the tick stream (ClientTick) ---
+    boolean frameHasRotation;
+    float frameYaw;
+    float framePitch;
+    /** The server moved the player (teleport) since the last tick was handed on. */
+    boolean frameDiscontinuity = true;
 
     /** Position at the end of the last tick that wasn't lagged back (lagback anchor). */
     Vec3 lastGoodPos;

@@ -54,6 +54,8 @@ public abstract class ServerPlayNetworkHandlerStreamMixin {
     @Inject(method = "handleMovePlayer", at = @At(value = "INVOKE", target = FORCE_MAIN_THREAD, shift = At.Shift.AFTER))
     private void minehop$beginPlayerMove(ServerboundMovePlayerPacket packet, CallbackInfo ci) {
         this.minehop$moveAccepted = false;
+        // Server-thread pass of every move packet: pair it with its network arrival time.
+        MovementValidator.onMovePacketProcessing(this.player);
     }
 
     // Only reached when vanilla accepted the move and applied the client's position.

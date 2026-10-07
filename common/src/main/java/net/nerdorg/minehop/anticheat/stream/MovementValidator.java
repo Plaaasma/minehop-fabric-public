@@ -246,18 +246,35 @@ public final class MovementValidator {
                         AntiCheatManager.reportMovementViolation(player, CHECK_PACKETS, 1.0D,
                                 "multipleMovesPerTick", false, null);
                     }
-                    finalizeTick(player, st);
+                    finalizeTick(player, st, st.tickMoveArrivalNanos, st.tickMoveArrivalKnown);
                 }
                 st.tickPos = pos;
                 st.tickHorizontalCollision = packet.horizontalCollision();
+                st.tickMoveArrivalNanos = st.moveArrivalNanos;
+                st.tickMoveArrivalKnown = st.moveArrivalKnown;
             }
         }
         st.clientOnGround = packet.isOnGround();
         if (packet.hasRotation()) {
             // Raw (unwrapped) yaw exactly as the client's travel() used it.
             st.tickYaw = packet.getYRot(st.tickYaw);
+            st.tickPitch = packet.getXRot(st.tickPitch);
             st.tickHasYaw = true;
         }
+    }
+
+    /**
+     * Server thread, at the start of every move packet's server-thread pass (accepted or not): takes the time it
+     * arrived on the network thread (see {@link #onMovePacketNetwork}).
+     */
+    public static void onMovePacketProcessing(ServerPlayer player) {
+        if (player == null) {
+            return;
+        }
+        StreamState st = state(player);
+        Long arrival = st.moveArrivals.poll();
+        st.moveArrivalKnown = arrival != null;
+        st.moveArrivalNanos = arrival != null ? arrival : System.nanoTime();
     }
 
     /** Netty thread: a move packet arrived (extra ticks without tick-end packets count too). */
@@ -266,16 +283,31 @@ public final class MovementValidator {
         if (server == null) {
             return;
         }
-        handleTimer(player, server, state(player).timer.onMovePacket(System.nanoTime(), server.tickRateManager().nanosecondsPerTick()));
+        long now = System.nanoTime();
+        StreamState st = state(player);
+        recordArrival(st.moveArrivals, now);
+        handleTimer(player, server, st.timer.onMovePacket(now, server.tickRateManager().nanosecondsPerTick()));
     }
 
-    /** Netty thread: timestamp the client tick for the timer check. */
+    /** Netty thread: timestamp the client tick for the timer check (and for the tick stream, see ClientTick). */
     public static void onClientTickEndNetwork(ServerPlayer player) {
         MinecraftServer server = player == null ? null : player.getServer();
         if (server == null) {
             return;
         }
-        handleTimer(player, server, state(player).timer.onTickEnd(System.nanoTime(), server.tickRateManager().nanosecondsPerTick()));
+        long now = System.nanoTime();
+        StreamState st = state(player);
+        recordArrival(st.tickEndArrivals, now);
+        handleTimer(player, server, st.timer.onTickEnd(now, server.tickRateManager().nanosecondsPerTick()));
+    }
+
+    /** Most arrivals kept waiting for the server thread (minutes of ticks); a flood beyond it only loses precision. */
+    private static final int MAX_PENDING_ARRIVALS = 16384;
+
+    private static void recordArrival(java.util.Queue<Long> arrivals, long nanos) {
+        if (arrivals.size() < MAX_PENDING_ARRIVALS) {
+            arrivals.add(nanos);
+        }
     }
 
     /** Netty thread: the client confirmed a teleport; its next move packet is an echo, not a tick. */
@@ -299,7 +331,8 @@ public final class MovementValidator {
         }
         StreamState st = state(player);
         st.everSentTickEnd = true;
-        finalizeTick(player, st);
+        Long arrival = st.tickEndArrivals.poll();
+        finalizeTick(player, st, arrival != null ? arrival : System.nanoTime(), arrival != null);
     }
 
     /** Server thread: vanilla is about to ignore moves until the client confirms this teleport. */
@@ -310,6 +343,7 @@ public final class MovementValidator {
         StreamState st = state(player);
         st.awaitingTeleport = true;
         st.lastTeleportNanos = System.nanoTime();
+        st.frameDiscontinuity = true;
         st.clearTickAccumulation();
         double speed = position == null ? 0.0D : position.deltaMovement().length();
         if (flags != null && (flags.contains(Relative.DELTA_X) || flags.contains(Relative.DELTA_Y)
@@ -490,7 +524,44 @@ public final class MovementValidator {
         return player.connection == null ? 0 : Math.max(0, player.connection.latency()) / 50;
     }
 
-    private static void finalizeTick(ServerPlayer player, StreamState st) {
+    /**
+     * One client tick is complete: validate it, then hand it on as a {@link ClientTick} (replay recording, run timing
+     * and stats, see ReplayEvents#onClientTick). {@code arrivalNanos}: when its last packet arrived on the network
+     * thread ({@code networkTimed}), else the server-thread time now.
+     */
+    private static void finalizeTick(ServerPlayer player, StreamState st, long arrivalNanos, boolean networkTimed) {
+        // The client's view at the end of this tick, taken before validation consumes the tick's packets. Until the
+        // client confirms a teleport the server ignores its moves and holds it at the target.
+        boolean awaitingTeleport = st.awaitingTeleport;
+        Vec3 framePos = awaitingTeleport ? player.position()
+                : st.tickPos != null ? st.tickPos : (st.lastPos != null ? st.lastPos : player.position());
+        if (st.tickHasYaw) {
+            st.frameYaw = st.tickYaw;
+            st.framePitch = st.tickPitch;
+            st.frameHasRotation = true;
+        }
+        int jumpsBefore = st.jumpCount;
+        validateTick(player, st);
+        boolean discontinuity = st.frameDiscontinuity;
+        st.frameDiscontinuity = false;
+        ClientTick tick = new ClientTick(st.clientTicks, arrivalNanos, networkTimed, framePos,
+                st.frameHasRotation ? st.frameYaw : player.getYRot(), st.frameHasRotation ? st.framePitch : player.getXRot(),
+                st.input, st.clientOnGround, discontinuity, awaitingTeleport, st.jumpCount, st.lastJumpSpeed,
+                st.jumpCount > jumpsBefore);
+        try {
+            net.nerdorg.minehop.replays.ReplayEvents.onClientTick(player, tick);
+        } catch (RuntimeException e) {
+            // Recording must never break the anticheat stream.
+            if (!tickListenerFailed) {
+                tickListenerFailed = true;
+                Minehop.LOGGER.error("Client tick listener failed (logged once)", e);
+            }
+        }
+    }
+
+    private static boolean tickListenerFailed;
+
+    private static void validateTick(ServerPlayer player, StreamState st) {
         st.clientTicks++;
         Input input = st.input;
         st.ticksSinceJumpInput = input.jump() ? 0 : Math.min(st.ticksSinceJumpInput + 1, 1000);
@@ -1235,6 +1306,19 @@ public final class MovementValidator {
                 supportedPrev ? "G" : "A", supportedNow ? "G" : "A", st.inAir, st.airVy,
                 st.input.forward() ? "W" : "", st.input.left() ? "A" : "", st.input.backward() ? "S" : "",
                 st.input.right() ? "D" : "", st.input.jump() ? "J" : "", st.input.shift() ? "C" : ""));
+    }
+
+    /**
+     * Ground directly under the footprint of a player standing at {@code pos} (within 0.6 below, not beside it): what
+     * confirms the client's own on-ground flag.
+     */
+    public static boolean groundUnderFeet(ServerPlayer player, Vec3 pos) {
+        return isGroundUnderFeet(player.serverLevel(), player, pos);
+    }
+
+    /** The client's friction ground test at {@code pos} (ground within 0.20 under the box, see LivingEntityMixin). */
+    public static boolean frictionGround(ServerPlayer player, Vec3 pos) {
+        return hasFrictionGround(player.serverLevel(), player, pos, FRICTION_GROUND_INSET);
     }
 
     /** True if {@code entity} is a server player whose stream is tracked (for diagnostics). */
