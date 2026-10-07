@@ -212,6 +212,51 @@ public final class MovementValidator {
     }
 
     /**
+     * Jump stats for spectators and replays, derived here from the movement the server accepted instead of taken
+     * from the client: the same rule as the client's own SSJ counter (MinehopClient), i.e. an upward take-off while
+     * jump is held counts a jump and records the horizontal speed, and releasing jump ends the chain. Not used by
+     * any check.
+     *
+     * <p>1.21.1 port: the jump key is unknown ({@link #JUMP_KEY_KNOWN}), so "jump held" is inferred: a held jump
+     * re-jumps in the tick it lands (auto-bhop: the client never ends a tick on the ground while it holds jump), so the
+     * chain ends once the client's own on-ground flag stays set for a second client tick. Quiet ticks (no packet: the
+     * player stood still, see {@link StreamState#quietTicksBefore}) on the ground count as ground ticks too.
+     */
+    private static void trackJumps(StreamState st, StreamState.Input input, Vec3 step, double jumpVy) {
+        boolean held;
+        if (JUMP_KEY_KNOWN) {
+            held = input.jump();
+        } else {
+            st.jumpGroundTicks = st.clientOnGround
+                    ? Math.min(st.jumpGroundTicks + 1 + st.quietTicksBefore, 1000)
+                    : 0;
+            held = st.jumpGroundTicks < 2;
+        }
+        if (!held) {
+            st.jumpCount = 0;
+            st.lastJumpSpeed = 0.0D;
+            return;
+        }
+        double previousVy = st.lastStep == null ? 0.0D : st.lastStep.y;
+        if (previousVy <= 0.05D && step.y >= Math.max(0.05D, jumpVy * 0.6D)) {
+            st.jumpCount++;
+            st.lastJumpSpeed = Math.sqrt(step.x * step.x + step.z * step.z);
+        }
+    }
+
+    /** Consecutive jumps (bhop chain) while jump is held, as seen in the client's accepted movement; 0 if none. */
+    public static int jumpCount(ServerPlayer player) {
+        StreamState st = player == null ? null : STATES.get(player.getUUID());
+        return st == null ? 0 : st.jumpCount;
+    }
+
+    /** Horizontal speed (blocks/tick) at the last take-off of the current jump chain; 0 if none. */
+    public static double lastJumpSpeed(ServerPlayer player) {
+        StreamState st = player == null ? null : STATES.get(player.getUUID());
+        return st == null ? 0.0D : st.lastJumpSpeed;
+    }
+
+    /**
      * The player's realized movement over its last client tick (null if unknown, e.g. right after a
      * teleport). Exactly one client tick, unlike a server-tick position delta, which covers however many
      * of the client's move packets the server handled during that tick.
@@ -592,6 +637,7 @@ public final class MovementValidator {
         double effectiveCap = holding ? Math.max(airCap, st.heldAirCap) : airCap;
         double effectiveGravity = holding ? Math.min(gravity, st.heldGravity) : gravity;
         double effectiveJumpVy = holding ? Math.max(jumpVy, st.heldJumpVy) : jumpVy;
+        trackJumps(st, input, step, jumpVy);
 
         // Ground within reach only counts if the player isn't still rising fast past it (launched
         // alongside a ledge). Up to 0.10 b/t upward the mod's jump buffer may legitimately fire.

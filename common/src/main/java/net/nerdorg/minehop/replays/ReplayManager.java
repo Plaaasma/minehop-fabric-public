@@ -46,18 +46,6 @@ public class ReplayManager {
     private record PendingSave(Path file, long sequence, List<Replay> snapshot) {
     }
 
-    public static class SSJEntry {
-        public double jump_count;
-        public double last_jump_speed;
-        public double efficiency;
-
-        public SSJEntry(double jump_count, double last_jump_speed, double efficiency) {
-            this.jump_count = jump_count;
-            this.last_jump_speed = last_jump_speed;
-            this.efficiency = efficiency;
-        }
-    }
-
     public static class ReplayEntry {
         public double x;
         public double y;

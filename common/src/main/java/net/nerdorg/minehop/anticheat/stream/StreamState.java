@@ -113,6 +113,17 @@ final class StreamState {
     double heldJumpVy;
     int holdTicks;
 
+    // --- jump stats shown to spectators / stored in replays (MovementValidator.trackJumps) ---
+    int jumpCount;
+    double lastJumpSpeed;
+    /** 1.21.1 port: client ticks the client's on-ground flag has been set in a row (stands in for the jump key). */
+    int jumpGroundTicks;
+    /**
+     * 1.21.1 port: quiet client ticks inferred right before the tick being finalized (the client sent no move packet
+     * because it stood still; see MovementValidator#finalizeTick). 0 until the tick stream hand-off sets it.
+     */
+    int quietTicksBefore;
+
     /** Position at the end of the last tick that wasn't lagged back (lagback anchor). */
     Vec3 lastGoodPos;
 
