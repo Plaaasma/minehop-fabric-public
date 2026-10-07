@@ -236,8 +236,8 @@ public final class SpectateTestHarness {
         ReplayManager.Replay replay = ReplayManager.getReplay(mapName);
         if ("longest".equals(mapName) && Minehop.replayList != null) {
             for (ReplayManager.Replay candidate : Minehop.replayList) {
-                if (candidate != null && candidate.replayEntries != null
-                        && (replay == null || candidate.replayEntries.size() > replay.replayEntries.size())) {
+                if (candidate != null && ReplayManager.isPlayable(candidate)
+                        && (replay == null || ReplayManager.frameCount(candidate) > ReplayManager.frameCount(replay))) {
                     replay = candidate;
                 }
             }
@@ -246,19 +246,30 @@ public final class SpectateTestHarness {
         if (replay == null) {
             return reply(context, "no WR replay on " + mapName);
         }
-        long start = System.nanoTime();
-        ReplayPathSimplifier.Result result = ReplayPathSimplifier.simplify(replay.replayEntries, ReplayPathSimplifier.MAX_POINTS);
-        double ms = (System.nanoTime() - start) / 1.0E6D;
-        int finite = 0;
-        for (org.joml.Vector3f point : result.points()) {
-            if (Float.isFinite(point.x())) {
-                finite++;
+        String label = mapName;
+        ReplayManager.Replay chosen = replay;
+        long loadStart = System.nanoTime();
+        ReplayManager.loadFrames(chosen, frames -> {
+            double loadMs = (System.nanoTime() - loadStart) / 1.0E6D;
+            if (frames == null) {
+                reply(context, label + ": frames unavailable (" + ReplayManager.unavailableReason(chosen) + ")");
+                return;
             }
-        }
-        return reply(context, String.format(Locale.ROOT,
-                "%s WR %s: %d frames -> %d points (%d polylines, tolerance %.3f blocks, %d bytes of points) in %.1f ms",
-                mapName, replay.player_name, replay.replayEntries.size(), result.points().size(), result.polylines(),
-                result.tolerance(), result.points().size() * 12, ms) + " finite=" + finite);
+            long start = System.nanoTime();
+            ReplayPathSimplifier.Result result = ReplayPathSimplifier.simplify(ReplayManager.asEntries(frames), ReplayPathSimplifier.MAX_POINTS);
+            double ms = (System.nanoTime() - start) / 1.0E6D;
+            int finite = 0;
+            for (org.joml.Vector3f point : result.points()) {
+                if (Float.isFinite(point.x())) {
+                    finite++;
+                }
+            }
+            reply(context, String.format(Locale.ROOT,
+                    "%s WR %s: %d frames -> %d points (%d polylines, tolerance %.3f blocks, %d bytes of points) in %.1f ms (frames ready after %.1f ms)",
+                    label, chosen.player_name, frames.size(), result.points().size(), result.polylines(),
+                    result.tolerance(), result.points().size() * 12, ms, loadMs) + " finite=" + finite);
+        });
+        return 1;
     }
 
     private static String describe(ServerPlayer player) {

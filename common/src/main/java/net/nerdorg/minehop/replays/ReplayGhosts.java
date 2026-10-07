@@ -11,6 +11,7 @@ import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ReplayEntity;
 import net.nerdorg.minehop.platform.Services;
+import net.nerdorg.minehop.replays.storage.ReplayFrames;
 import net.nerdorg.minehop.spectate.SpectateSessions;
 
 import java.util.ArrayList;
@@ -33,6 +34,12 @@ import java.util.UUID;
  * of the run when players are near the route again. A new record restarts the ghost at frame 0; after the last
  * frame it holds for {@link #LOOP_HOLD_FRAMES} frames and loops.
  *
+ * <p>Frames come from the replay store ({@link ReplayManager#loadFrames}, read and decoded off the server thread). A
+ * ghost waits, unspawned, until they are loaded (a private ghost with its clock stopped). A world-record ghost only
+ * keeps its frames while it is "warm": spawned, watched, or with a player near its route; one that has been cold for
+ * {@link #RELEASE_AFTER_COLD_CHECKS} seconds lets them go (the store's cache may keep them) and loads them again when
+ * a player comes near. Its clock runs on regardless.
+ *
  * <p>Server thread only.
  */
 public final class ReplayGhosts {
@@ -42,6 +49,14 @@ public final class ReplayGhosts {
     public static final int LOOP_HOLD_FRAMES = 40;
     /** How often the WR ghosts are re-checked against the records (they are also refreshed on every change). */
     private static final int REVALIDATE_TICKS = 100;
+    /** How often the world-record ghosts check for players near their route. */
+    private static final int WARM_CHECK_TICKS = 20;
+    /** Warm checks in a row a world-record ghost must be cold before its frames are let go. */
+    private static final int RELEASE_AFTER_COLD_CHECKS = 30;
+    /** Blocks beyond the route's bounding box (added to the view distance) that count as near it. */
+    private static final double NEAR_MARGIN = 32.0D;
+    /** Wait before loading frames again after a read failed without the file being bad (an I/O error). */
+    private static final long LOAD_RETRY_NANOS = 5_000_000_000L;
 
     private static final Map<String, Ghost> WORLD_RECORDS = new LinkedHashMap<>();
     private static final Map<UUID, Ghost> VIEWER_GHOSTS = new LinkedHashMap<>();
@@ -64,6 +79,14 @@ public final class ReplayGhosts {
         // The map's level, looked up again every REVALIDATE_TICKS (not by name every tick).
         private ServerLevel level;
         private long levelCheckedTick;
+        // The replay's frames: null until loaded (and again after a cold world-record ghost let them go).
+        private ReplayFrames frames;
+        private boolean loading;
+        private boolean unavailable;
+        private long retryLoadAt;
+        // World-record ghosts: spawned, watched or a player near the route (else frames are let go after a while).
+        private boolean warm;
+        private int coldChecks;
 
         private Ghost(String mapName, UUID viewer, ReplayManager.Replay replay, long now) {
             this.mapName = mapName;
@@ -99,9 +122,18 @@ public final class ReplayGhosts {
             return this.frame;
         }
 
+        /** The replay's frames, or null while they aren't loaded. */
+        public ReplayFrames frames() {
+            return this.frames;
+        }
+
+        /** The frame currently shown, or null while the frames aren't loaded. */
         public ReplayManager.ReplayEntry currentEntry() {
-            List<ReplayManager.ReplayEntry> frames = this.replay.replayEntries;
-            return frames.get(Math.min(this.frame, frames.size() - 1));
+            ReplayFrames frames = this.frames;
+            if (frames == null || frames.isEmpty()) {
+                return null;
+            }
+            return ReplayManager.entryAt(frames, Math.min(this.frame, frames.size() - 1));
         }
 
         /** Seconds into the run of the frame currently shown. */
@@ -110,10 +142,9 @@ public final class ReplayGhosts {
         }
 
         private int frameAt(long now) {
-            List<ReplayManager.ReplayEntry> frames = this.replay.replayEntries;
             long elapsed = Math.max(0L, (this.pausedSince >= 0L ? this.pausedSince : now) - this.startNanos);
-            long cycle = frames.size() + (long) LOOP_HOLD_FRAMES;
-            return (int) Math.min((elapsed / FRAME_NANOS) % cycle, frames.size() - 1L);
+            long cycle = this.frames.size() + (long) LOOP_HOLD_FRAMES;
+            return (int) Math.min((elapsed / FRAME_NANOS) % cycle, this.frames.size() - 1L);
         }
 
         private void restart(long now) {
@@ -218,10 +249,15 @@ public final class ReplayGhosts {
         }
         if (ghost == null) {
             WORLD_RECORDS.put(mapName, new Ghost(mapName, null, replay, now));
-        } else if (ghost.replay != replay) {
+        } else if (!java.util.Objects.equals(ghost.replay.replay_id, replay.replay_id)) {
             // A new record (or the old one invalidated): show the new run from its start.
             ghost.replay = replay;
+            ghost.frames = null;
+            ghost.loading = false;
+            ghost.unavailable = false;
             ghost.restart(now);
+        } else {
+            ghost.replay = replay;
         }
         return true;
     }
@@ -266,10 +302,10 @@ public final class ReplayGhosts {
         viewers.forEach(ReplayGhosts::stopViewerGhost);
     }
 
-    /** Where the ghost is (or would be, if it isn't spawned): its current frame's position. */
+    /** Where the ghost is (or would be, if it isn't spawned): its current frame's position; null while its frames load. */
     public static Vec3 position(Ghost ghost) {
         ReplayManager.ReplayEntry entry = ghost.currentEntry();
-        return new Vec3(entry.x, entry.y, entry.z);
+        return entry == null ? null : new Vec3(entry.x, entry.y, entry.z);
     }
 
     /** The level the ghost's map is in. */
@@ -321,6 +357,9 @@ public final class ReplayGhosts {
             }
             stale.forEach(ReplayGhosts::stopViewerGhost);
         }
+        if (server.getTickCount() % WARM_CHECK_TICKS == 0) {
+            updateWarmth(server);
+        }
         long now = System.nanoTime();
         for (Ghost ghost : new ArrayList<>(WORLD_RECORDS.values())) {
             drive(server, ghost, now);
@@ -328,6 +367,90 @@ public final class ReplayGhosts {
         for (Ghost ghost : new ArrayList<>(VIEWER_GHOSTS.values())) {
             drive(server, ghost, now);
         }
+    }
+
+    /**
+     * World-record ghosts: warm while spawned, watched or with a player near the route; frames of a ghost cold for
+     * {@link #RELEASE_AFTER_COLD_CHECKS} checks are let go. (On the legacy store every frame is in memory anyway.)
+     */
+    private static void updateWarmth(MinecraftServer server) {
+        boolean release = ReplayManager.storeMode() == ReplayManager.StoreMode.V2;
+        for (Ghost ghost : WORLD_RECORDS.values()) {
+            ghost.warm = ghost.entity != null || SpectateSessions.isWatched(ghost) || playerNearRoute(server, ghost);
+            if (ghost.warm) {
+                ghost.coldChecks = 0;
+            } else if (++ghost.coldChecks >= RELEASE_AFTER_COLD_CHECKS && release && ghost.frames != null) {
+                ghost.frames = null;
+            }
+        }
+    }
+
+    private static boolean playerNearRoute(MinecraftServer server, Ghost ghost) {
+        ServerLevel level = ghost.level != null ? ghost.level : level(server, ghost);
+        if (level == null || level.players().isEmpty()) {
+            return false;
+        }
+        double[] bounds = ReplayManager.bounds(ghost.replay);
+        if (bounds == null) {
+            return true;
+        }
+        double margin = Math.max(server.getPlayerList().getViewDistance(), server.getPlayerList().getSimulationDistance()) * 16.0D + NEAR_MARGIN;
+        for (net.minecraft.server.level.ServerPlayer player : level.players()) {
+            if (player.getX() >= bounds[0] - margin && player.getX() <= bounds[3] + margin
+                    && player.getZ() >= bounds[2] - margin && player.getZ() <= bounds[5] + margin
+                    && player.getY() >= bounds[1] - margin && player.getY() <= bounds[4] + margin) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Makes sure the ghost has its frames or is loading them; false while it has none. A world-record ghost only loads
+     * from disk while warm (frames already in memory are taken at once either way).
+     */
+    private static boolean ensureFrames(MinecraftServer server, Ghost ghost) {
+        if (ghost.frames != null) {
+            return true;
+        }
+        ReplayFrames inMemory = ReplayManager.framesIfLoaded(ghost.replay);
+        if (inMemory != null && !inMemory.isEmpty()) {
+            ghost.frames = inMemory;
+            return true;
+        }
+        if (ghost.loading || ghost.unavailable || (ghost.retryLoadAt != 0L && System.nanoTime() - ghost.retryLoadAt < 0L)) {
+            return false;
+        }
+        if (ghost.isWorldRecord() && !ghost.warm) {
+            if (!playerNearRoute(server, ghost) && !SpectateSessions.isWatched(ghost)) {
+                return false;
+            }
+            ghost.warm = true;
+            ghost.coldChecks = 0;
+        }
+        ghost.loading = true;
+        ReplayManager.Replay wanted = ghost.replay;
+        ReplayManager.loadFrames(wanted, frames -> {
+            if (ghost.replay != wanted) {
+                return; // the ghost moved on to another run meanwhile
+            }
+            ghost.loading = false;
+            if ((frames == null || frames.isEmpty()) && ReplayManager.isPlayable(wanted)) {
+                // The read failed but the file isn't known to be bad (an I/O error): try again in a while.
+                ghost.retryLoadAt = System.nanoTime() + LOAD_RETRY_NANOS;
+            } else if (frames == null || frames.isEmpty()) {
+                ghost.unavailable = true;
+                if (ghost.isWorldRecord()) {
+                    refreshWorldRecord(server, ghost.mapName);
+                } else if (VIEWER_GHOSTS.get(ghost.viewer) == ghost) {
+                    // Its session ends on the next tick ("That replay is no longer available.").
+                    stopViewerGhost(ghost.viewer);
+                }
+            } else {
+                ghost.frames = frames;
+            }
+        });
+        return ghost.frames != null;
     }
 
     private static void drive(MinecraftServer server, Ghost ghost, long now) {
@@ -341,6 +464,13 @@ public final class ReplayGhosts {
             despawn(ghost);
         }
         if (level == null) {
+            return;
+        }
+        if (!ensureFrames(server, ghost)) {
+            despawn(ghost);
+            if (!ghost.isWorldRecord()) {
+                ghost.pause(now);
+            }
             return;
         }
         ghost.frame = ghost.frameAt(now);
