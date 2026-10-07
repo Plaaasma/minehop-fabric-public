@@ -42,6 +42,7 @@ public final class CodecSelfTest {
         test.determinism();
         test.repairs();
         test.headerOnly();
+        test.headerRewrites();
         test.truncations();
         test.bitFlips();
         test.garbage();
@@ -189,6 +190,71 @@ public final class CodecSelfTest {
         double angleTolerance = ANGLE_TOLERANCE + maxUlp(f);
         check(maxAngle <= angleTolerance, what + ": angle error " + maxAngle + " > " + angleTolerance);
         check(exact, what + ": jumps/flags/speed/efficiency");
+    }
+
+    /**
+     * rewriteHeader (replay streaming): the client copy has no server-only fields, its blocks are the stored bytes,
+     * it decodes to exactly the stored frames, an edit can't change the frame layout, and a bad file is refused.
+     */
+    private void headerRewrites() {
+        int cases = 0;
+        for (int k = 0; k < 60; k++) {
+            int n = k < 4 ? new int[]{0, 1, 1024, 2049}[k] : this.random.nextInt(5000);
+            MhrpHeader h = header(n);
+            h.acFlags = "Speed x2, Fly x1";
+            h.serverTime = 12.5D;
+            h.clientTicks = 250L;
+            h.flags |= MhrpHeader.FLAG_TICK_TIME_MISMATCH;
+            byte[] file = MhrpCodec.encode(h, frames(n));
+            String what = "rewrite #" + k + " (" + n + " frames)";
+            try {
+                MhrpCodec.Decoded stored = MhrpCodec.decode(file);
+                byte[] client = MhrpCodec.rewriteHeader(file, MhrpHeader::forClients);
+                MhrpCodec.Decoded sent = MhrpCodec.decode(client);
+                MhrpHeader g = sent.header();
+                check(g.acFlags.isEmpty() && Double.isNaN(g.serverTime) && g.clientTicks == -1L
+                        && (g.flags & ~MhrpHeader.CLIENT_VISIBLE_FLAGS) == 0
+                        && (g.flags & MhrpHeader.FLAG_TICK_STREAM) == (h.flags & MhrpHeader.FLAG_TICK_STREAM), what + ": sanitised header");
+                check(g.replayId.equals(h.replayId) && g.mapName.equals(h.mapName) && g.playerName.equals(h.playerName)
+                        && Double.compare(g.time, h.time) == 0 && g.preFrames == stored.header().preFrames
+                        && g.postFrames == stored.header().postFrames, what + ": kept header fields");
+                check(sent.frames().sameAs(stored.frames()) && sent.frames().tickStream() == stored.frames().tickStream()
+                        && sent.frames().runStart() == stored.frames().runStart()
+                        && sent.frames().runEnd() == stored.frames().runEnd(), what + ": same frames");
+                int storedTail = file.length - blocksOffset(file);
+                int sentTail = client.length - blocksOffset(client);
+                check(storedTail == sentTail && java.util.Arrays.equals(file, blocksOffset(file), file.length - 4,
+                        client, blocksOffset(client), client.length - 4), what + ": blocks copied byte for byte");
+                byte[] forged = MhrpCodec.rewriteHeader(file, header -> {
+                    header.frameCount = 7;
+                    header.framesPerBlock = 16;
+                    header.originX += 100.0D;
+                    header.flags ^= MhrpHeader.FLAG_TICK_STREAM;
+                    return header;
+                });
+                check(MhrpCodec.decode(forged).frames().sameAs(stored.frames()), what + ": layout edits are ignored");
+            } catch (MhrpFormatException e) {
+                check(false, what + ": " + e.getMessage());
+            }
+            cases++;
+        }
+        byte[] file = MhrpCodec.encode(header(100), frames(100));
+        file[file.length / 2] ^= 0x10;
+        boolean refused;
+        try {
+            MhrpCodec.rewriteHeader(file, MhrpHeader::forClients);
+            refused = false;
+        } catch (MhrpFormatException e) {
+            refused = e.kind() == MhrpFormatException.Kind.BAD_CRC;
+        }
+        check(refused, "rewrite of a corrupt file is refused");
+        this.log.accept("header rewrites: " + cases + " runs");
+    }
+
+    /** Offset of the block count in a valid file (after magic, version, header length and header). */
+    private static int blocksOffset(byte[] file) {
+        long headerLength = ((file[6] & 0xFFL) << 24) | ((file[7] & 0xFFL) << 16) | ((file[8] & 0xFFL) << 8) | (file[9] & 0xFFL);
+        return 10 + (int) headerLength;
     }
 
     private static double maxUlp(ReplayFrames f) {
