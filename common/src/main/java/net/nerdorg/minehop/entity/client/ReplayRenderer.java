@@ -23,7 +23,7 @@ public class ReplayRenderer extends MobRenderer<ReplayEntity, ReplayEntityRender
     @Override
     public boolean shouldRender(ReplayEntity mobEntity, Frustum frustum, double d, double e, double f) {
         // Hidden on request, otherwise culled like any entity (this used to skip the frustum check entirely).
-        return !ConfigWrapper.config.hideReplay && super.shouldRender(mobEntity, frustum, d, e, f);
+        return !net.nerdorg.minehop.client.ClientVisibility.hideReplay() && super.shouldRender(mobEntity, frustum, d, e, f);
     }
 
     @Override
