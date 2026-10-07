@@ -10,6 +10,16 @@ public final class MhrpHeader {
     public static final int FLAG_MIGRATED = 1;
     /** Header flag: some frames held non-finite or out-of-range values and were replaced (see ReplayFrames.FLAG_REPAIRED). */
     public static final int FLAG_REPAIRED_FRAMES = 1 << 1;
+    /**
+     * Header flag: the frames were recorded one per client tick from the player's packet stream, with every per-frame
+     * flag filled in (see ReplayFrames#tickStream). Without it the frames are one per server tick and carry no flags.
+     */
+    public static final int FLAG_TICK_STREAM = 1 << 2;
+    /**
+     * Header flag: the run's client tick count and its reported time disagree by more than the timing tolerance
+     * (evidence only: the client lost ticks in a hitch, or ticked faster than its own clock). See RunRecorder.
+     */
+    public static final int FLAG_TICK_TIME_MISMATCH = 1 << 3;
 
     public String replayId = "";
     public String mapName = "";
@@ -28,9 +38,9 @@ public final class MhrpHeader {
     public float tickRate = 20.0F;
     /** Frames in the file, including {@link #preFrames} and {@link #postFrames}. */
     public int frameCount;
-    /** Leading frames recorded before the run's timer started (0 until phase 3 records them). */
+    /** Leading frames recorded before the run's timer started (0 in recordings without them). */
     public int preFrames;
-    /** Trailing frames recorded after the finish (0 until phase 3 records them). */
+    /** Trailing frames recorded after the finish (0 in recordings without them). */
     public int postFrames;
     public int flags;
     /** Anticheat flags raised during the run, "" if clean. */

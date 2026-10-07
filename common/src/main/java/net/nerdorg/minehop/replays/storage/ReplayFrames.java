@@ -7,10 +7,19 @@ import java.util.Arrays;
  * thread and the replay IO threads and shared by every ghost and cache that shows the same run. About 48 bytes per
  * frame (a List of ReplayManager.ReplayEntry objects took about 100).
  *
+ * <p>The layout says how to read them: the first {@link #preFrames()} frames come before the run's timer started and
+ * the last {@link #postFrames()} after its finish, so frames {@code [runStart(), runEnd())} are the run itself. A
+ * {@link #tickStream() tick-stream} recording has one frame per client tick (50 ms apart at 20 TPS) with every
+ * per-frame flag filled in, in particular {@link #FLAG_DISCONTINUITY} on each teleport; older recordings (one frame
+ * per server tick, no flags) must be read with heuristics instead.
+ *
  * <p>Pure Java (no Minecraft classes): the codec and its self-test run without a game.
  */
 public final class ReplayFrames {
-    /** Per-frame flag bits. Present in the MHRP format from version 1; zero until recording fills them (phase 3). */
+    /**
+     * Per-frame flag bits. Present in the MHRP format from version 1; filled in by tick-stream recordings
+     * ({@link #tickStream()}), zero in older ones.
+     */
     public static final int FLAG_ON_GROUND = 1;
     public static final int FLAG_JUMPED = 1 << 1;
     public static final int FLAG_SNEAKING = 1 << 2;
@@ -39,6 +48,9 @@ public final class ReplayFrames {
     private final float[] efficiency;
     private final int[] flags;
     private final double[] bounds;
+    private final int preFrames;
+    private final int postFrames;
+    private final boolean tickStream;
 
     private ReplayFrames(int size, double[] x, double[] y, double[] z, float[] yaw, float[] pitch, int[] jumpCount,
                          float[] lastJumpSpeed, float[] efficiency, int[] flags) {
@@ -53,6 +65,75 @@ public final class ReplayFrames {
         this.efficiency = efficiency;
         this.flags = flags;
         this.bounds = computeBounds();
+        this.preFrames = 0;
+        this.postFrames = 0;
+        this.tickStream = false;
+    }
+
+    /** The same frames (shared arrays) with another layout. */
+    private ReplayFrames(ReplayFrames frames, int preFrames, int postFrames, boolean tickStream) {
+        this.size = frames.size;
+        this.x = frames.x;
+        this.y = frames.y;
+        this.z = frames.z;
+        this.yaw = frames.yaw;
+        this.pitch = frames.pitch;
+        this.jumpCount = frames.jumpCount;
+        this.lastJumpSpeed = frames.lastJumpSpeed;
+        this.efficiency = frames.efficiency;
+        this.flags = frames.flags;
+        this.bounds = frames.bounds;
+        this.preFrames = preFrames;
+        this.postFrames = postFrames;
+        this.tickStream = tickStream;
+    }
+
+    /**
+     * These frames with a layout: {@code preFrames} leading frames from before the run's start, {@code postFrames}
+     * trailing frames from after its finish (both clamped to the frame count), and whether they are a tick-stream
+     * recording. Shares the arrays (no copy).
+     */
+    public ReplayFrames withLayout(int preFrames, int postFrames, boolean tickStream) {
+        int pre = Math.max(0, Math.min(preFrames, this.size));
+        int post = Math.max(0, Math.min(postFrames, this.size - pre));
+        if (pre == this.preFrames && post == this.postFrames && tickStream == this.tickStream) {
+            return this;
+        }
+        return new ReplayFrames(this, pre, post, tickStream);
+    }
+
+    /** Leading frames recorded before the run's timer started (the launch from the start zone is frame {@link #runStart()}). */
+    public int preFrames() {
+        return this.preFrames;
+    }
+
+    /** Trailing frames recorded after the run's finish. */
+    public int postFrames() {
+        return this.postFrames;
+    }
+
+    /** Index of the run's first frame (its timer started at this frame). */
+    public int runStart() {
+        return this.preFrames;
+    }
+
+    /** Index after the run's last frame (the frame in which it reached the end zone is {@code runEnd() - 1}). */
+    public int runEnd() {
+        return this.size - this.postFrames;
+    }
+
+    /**
+     * True if the frames were recorded one per client tick from the player's packet stream, with every per-frame flag
+     * set (so {@link #FLAG_DISCONTINUITY} marks every teleport); false for recordings made one per server tick without
+     * flags, which playback and path drawing must read with heuristics.
+     */
+    public boolean tickStream() {
+        return this.tickStream;
+    }
+
+    /** True if frame {@code i} is known to be a teleport (only tick-stream recordings know). */
+    public boolean isDiscontinuity(int i) {
+        return this.tickStream && (this.flags[i] & FLAG_DISCONTINUITY) != 0;
     }
 
     public int size() {
@@ -139,7 +220,7 @@ public final class ReplayFrames {
         return b;
     }
 
-    /** Field-by-field equality (positions and floats compared exactly). */
+    /** Field-by-field equality of the frames (positions and floats compared exactly); the layout is not compared. */
     public boolean sameAs(ReplayFrames other) {
         if (other == null || other.size != this.size) {
             return false;
@@ -188,6 +269,24 @@ public final class ReplayFrames {
 
         public int size() {
             return this.size;
+        }
+
+        /** Forgets the frames added so far (keeps the arrays for reuse). */
+        public Builder clear() {
+            this.size = 0;
+            return this;
+        }
+
+        /** Drops the frames after the first {@code size}. */
+        public Builder truncate(int size) {
+            this.size = Math.max(0, Math.min(this.size, size));
+            return this;
+        }
+
+        /** Copies frame {@code i} of {@code frames}, with {@code flags} in place of its flags. */
+        public Builder add(ReplayFrames frames, int i, int flags) {
+            return add(frames.x[i], frames.y[i], frames.z[i], frames.yaw[i], frames.pitch[i], frames.jumpCount[i],
+                    frames.lastJumpSpeed[i], frames.efficiency[i], flags);
         }
 
         public Builder add(double x, double y, double z, float yaw, float pitch, int jumpCount, float lastJumpSpeed,
