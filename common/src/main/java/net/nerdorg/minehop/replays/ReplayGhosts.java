@@ -35,9 +35,9 @@ import java.util.UUID;
  *
  * <p>Frames come from the replay store ({@link ReplayManager#loadFrames}, read and decoded off the server thread). A
  * ghost waits, unspawned, until they are loaded (a private ghost with its clock stopped). A world-record ghost only
- * keeps its frames while it is "warm": spawned, watched, or with a player near its route; one that has been cold for
- * {@link #RELEASE_AFTER_COLD_CHECKS} seconds lets them go (the store's cache may keep them) and loads them again when
- * a player comes near. Its clock runs on regardless.
+ * has frames only while it is "warm": spawned, watched, or with a player near its route (checked every second); one
+ * that has been cold for {@link #RELEASE_AFTER_COLD_CHECKS} seconds lets them go (the store's cache may keep them) and
+ * gets them again when a player comes near. Its clock runs on regardless.
  *
  * <p>Server thread only.
  */
@@ -405,12 +405,19 @@ public final class ReplayGhosts {
     }
 
     /**
-     * Makes sure the ghost has its frames or is loading them; false while it has none. A world-record ghost only loads
-     * from disk while warm (frames already in memory are taken at once either way).
+     * Makes sure the ghost has its frames or is loading them; false while it has none. A world-record ghost gets frames
+     * only while warm (see {@link #updateWarmth}, every second); one that is being watched is warmed up at once.
      */
     private static boolean ensureFrames(MinecraftServer server, Ghost ghost) {
         if (ghost.frames != null) {
             return true;
+        }
+        if (ghost.isWorldRecord() && !ghost.warm) {
+            if (!SpectateSessions.isWatched(ghost)) {
+                return false;
+            }
+            ghost.warm = true;
+            ghost.coldChecks = 0;
         }
         ReplayFrames inMemory = ReplayManager.framesIfLoaded(ghost.replay);
         if (inMemory != null && !inMemory.isEmpty()) {
@@ -419,13 +426,6 @@ public final class ReplayGhosts {
         }
         if (ghost.loading || ghost.unavailable || (ghost.retryLoadAt != 0L && System.nanoTime() - ghost.retryLoadAt < 0L)) {
             return false;
-        }
-        if (ghost.isWorldRecord() && !ghost.warm) {
-            if (!playerNearRoute(server, ghost) && !SpectateSessions.isWatched(ghost)) {
-                return false;
-            }
-            ghost.warm = true;
-            ghost.coldChecks = 0;
         }
         ghost.loading = true;
         ReplayManager.Replay wanted = ghost.replay;
