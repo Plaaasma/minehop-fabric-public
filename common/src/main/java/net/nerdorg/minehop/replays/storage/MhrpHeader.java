@@ -21,6 +21,8 @@ public final class MhrpHeader {
      * PacketHandler#checkRunTicksAgainstTime.
      */
     public static final int FLAG_TICK_TIME_MISMATCH = 1 << 3;
+    /** The header flags players' clients are sent (how to read the frames); the others are server-side evidence. */
+    public static final int CLIENT_VISIBLE_FLAGS = FLAG_MIGRATED | FLAG_REPAIRED_FRAMES | FLAG_TICK_STREAM;
 
     public String replayId = "";
     public String mapName = "";
@@ -95,6 +97,19 @@ public final class MhrpHeader {
         copy.speedScale = this.speedScale;
         copy.efficiencyScale = this.efficiencyScale;
         copy.framesPerBlock = this.framesPerBlock;
+        return copy;
+    }
+
+    /**
+     * A copy for players' clients (replay streaming): without the anticheat flags, the server-measured time, the client
+     * tick count and the evidence flags, which are for the server's staff, not for everyone who watches the run.
+     */
+    public MhrpHeader forClients() {
+        MhrpHeader copy = copy();
+        copy.acFlags = "";
+        copy.serverTime = Double.NaN;
+        copy.clientTicks = -1L;
+        copy.flags &= CLIENT_VISIBLE_FLAGS;
         return copy;
     }
 
