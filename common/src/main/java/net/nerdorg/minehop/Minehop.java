@@ -130,6 +130,7 @@ public class Minehop {
 		net.nerdorg.minehop.util.SurfStressHarness.register();
 		net.nerdorg.minehop.util.MapRouteHarness.register();
 		net.nerdorg.minehop.util.SpectateTestHarness.register();
+		net.nerdorg.minehop.util.ReplayStoreHarness.register();
 
 		HNSManager.register();
 
