@@ -30,6 +30,12 @@ public class VisiblityCommands {
                             return Command.SINGLE_SUCCESS;
                         })
                 )
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("race")
+                        .executes(context -> {
+                            handleHideRace(context);
+                            return Command.SINGLE_SUCCESS;
+                        })
+                )
                 .then(LiteralArgumentBuilder.<CommandSourceStack>literal("others")
                     .executes(context -> {
                         handleHideOthers(context);
@@ -43,6 +49,21 @@ public class VisiblityCommands {
         ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         PacketHandler.sendReplayVToggle(serverPlayerEntity);
         Logger.logSuccess(serverPlayerEntity, "Toggling visibility for replay models.");
+    }
+
+    private static void handleHideRace(CommandContext<CommandSourceStack> context) {
+        ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
+        if (serverPlayerEntity == null) {
+            return;
+        }
+        if (!net.nerdorg.minehop.networking.HandshakeHandler.supportsClientReplays(serverPlayerEntity)) {
+            Logger.logFailure(serverPlayerEntity, "Update Minehop to " + net.nerdorg.minehop.Minehop.MOD_VERSION_STRING
+                    + " or newer to race your personal best.");
+            return;
+        }
+        net.nerdorg.minehop.replays.ReplayStreaming.send(serverPlayerEntity,
+                new net.nerdorg.minehop.networking.payloads.ReplayControlPayload(net.nerdorg.minehop.networking.ReplayProtocol.CONTROL_HIDE_RACE, 0.0D));
+        Logger.logSuccess(serverPlayerEntity, "Toggling visibility for the race ghost.");
     }
 
     private static void handleHideOthers(CommandContext<CommandSourceStack> context) {

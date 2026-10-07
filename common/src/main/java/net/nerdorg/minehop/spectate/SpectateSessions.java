@@ -16,11 +16,19 @@ import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.entity.custom.Zone;
 import net.nerdorg.minehop.mixin.ChunkMapAccessor;
 import net.nerdorg.minehop.mixin.TrackedEntityAccessor;
+import net.nerdorg.minehop.networking.HandshakeHandler;
 import net.nerdorg.minehop.networking.PacketHandler;
+import net.nerdorg.minehop.networking.ReplayProtocol;
+import net.nerdorg.minehop.networking.payloads.ReplayControlPayload;
+import net.nerdorg.minehop.networking.payloads.ReplayStatePayload;
+import net.nerdorg.minehop.networking.payloads.ReplayWatchPayload;
 import net.nerdorg.minehop.platform.Services;
 import net.nerdorg.minehop.replays.ReplayGhosts;
 import net.nerdorg.minehop.replays.ReplayManager;
+import net.nerdorg.minehop.replays.ReplayStreaming;
 import net.nerdorg.minehop.replays.RunStats;
+import net.nerdorg.minehop.replays.storage.ReplayFrames;
+import net.nerdorg.minehop.replays.storage.ReplayTiming;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.ZoneUtil;
 
@@ -45,6 +53,12 @@ import java.util.UUID;
  *
  * <p>A session can't affect runs: starting one ends the viewer's run (timer, finish stamp, recording), and spectators
  * are ignored by the zones, the finish handler and the anticheat. Server thread only.
+ *
+ * <p>Clients that play replays themselves (1.1.7+, see ReplayStreaming) watch a replay in a {@link Kind#CLIENT_REPLAY}
+ * session: no ghost entity, the client streams the run and renders it with its own camera, and reports where its
+ * playback is (frame, speed, paused). The server keeps the viewer near that frame's recorded position (extrapolated
+ * between reports, at most {@link #CLIENT_EXTRAPOLATE_SECONDS}) so the chunks there are loaded, also after a seek.
+ * Everything else (spectator mode, restoring the viewer, ending on sneak or /unspec) is the same as for the others.
  */
 public final class SpectateSessions {
     /** Minimum time between starting (or switching) sessions, per player: they spawn ghosts and move players. */
@@ -52,6 +66,13 @@ public final class SpectateSessions {
     private static final int HUD_INTERVAL_TICKS = 5;
     /** A viewer waiting for a replay ghost to spawn is kept within this distance of where it will appear. */
     private static final double PENDING_FOLLOW_DISTANCE = 16.0D;
+    /** A client-replay viewer is moved to the client's playback position once it is farther away than this. */
+    private static final double CLIENT_FOLLOW_DISTANCE = 24.0D;
+    /** The server advances a client's last reported playback position by at most this many seconds. */
+    private static final double CLIENT_EXTRAPOLATE_SECONDS = 2.0D;
+    /** How often a client-replay session checks that its replay is still watchable. */
+    private static final int CLIENT_REPLAY_CHECK_TICKS = 20;
+    private static int nextClientSessionId = (int) (System.nanoTime() & 0x3FFFFFFF);
 
     public enum Kind {
         /** A live player. */
@@ -59,7 +80,43 @@ public final class SpectateSessions {
         /** A map's world-record ghost. */
         WORLD_RECORD,
         /** The viewer's own ghost of someone's personal best (/replay watch). */
-        PERSONAL_BEST
+        PERSONAL_BEST,
+        /** A replay (world record or personal best) played by the viewer's own client (1.1.7+); no ghost entity. */
+        CLIENT_REPLAY
+    }
+
+    /** A {@link Kind#CLIENT_REPLAY} session's replay and what the client last reported about its playback. */
+    private static final class ClientPlayback {
+        final int id;
+        final ReplayManager.Replay replay;
+        final boolean worldRecord;
+        ReplayFrames frames;
+        long frameNanos = ReplayTiming.FRAME_NANOS;
+        boolean announced;
+        boolean reported;
+        double frame;
+        float speed = 1.0F;
+        boolean paused;
+        boolean buffering;
+        long reportedAt;
+        int reports;
+
+        ClientPlayback(int id, ReplayManager.Replay replay, boolean worldRecord) {
+            this.id = id;
+            this.replay = replay;
+            this.worldRecord = worldRecord;
+        }
+
+        /** The frame the client is (probably) showing now: the last report, advanced while it was playing. */
+        int estimatedFrame(long now) {
+            double estimate = this.frame;
+            if (this.reported && !this.paused && !this.buffering) {
+                double seconds = Math.min(Math.max(0L, now - this.reportedAt) / 1_000_000_000.0D, CLIENT_EXTRAPOLATE_SECONDS);
+                estimate += seconds * this.speed * 1_000_000_000.0D / this.frameNanos;
+            }
+            int last = this.frames == null ? 0 : this.frames.size() - 1;
+            return (int) Math.max(0.0D, Math.min(last, Math.floor(estimate)));
+        }
     }
 
     private record ReturnState(GameType gameMode, ResourceKey<Level> dimension, Vec3 position, float yRot, float xRot,
@@ -79,6 +136,7 @@ public final class SpectateSessions {
         private RunStats.Snapshot lastStats;
         private long lastStatsTick = Long.MIN_VALUE / 2;
         private int cameraSends;
+        private ClientPlayback clientPlayback;
 
         private Session(UUID viewer, Kind kind, UUID targetPlayer, String targetName, String mapName, ReturnState back) {
             this.viewer = viewer;
@@ -116,6 +174,23 @@ public final class SpectateSessions {
         /** How often the camera was (re)sent this session (diagnostics). */
         public int cameraSends() {
             return this.cameraSends;
+        }
+
+        /** The replay a CLIENT_REPLAY session plays, else null. */
+        public ReplayManager.Replay clientReplay() {
+            return this.clientPlayback == null ? null : this.clientPlayback.replay;
+        }
+
+        /** Diagnostics for a CLIENT_REPLAY session: the client's reported playback state; "" for other kinds. */
+        public String clientPlaybackDebug() {
+            ClientPlayback playback = this.clientPlayback;
+            if (playback == null) {
+                return "";
+            }
+            return String.format(java.util.Locale.ROOT, "session %d replay %s frames %s reported %s frame %.1f speed %.2f%s%s reports %d",
+                    playback.id, playback.replay.replay_id, playback.frames == null ? "loading" : String.valueOf(playback.frames.size()),
+                    playback.reported, playback.frame, playback.speed, playback.paused ? " paused" : "",
+                    playback.buffering ? " buffering" : "", playback.reports);
         }
     }
 
@@ -189,6 +264,12 @@ public final class SpectateSessions {
         return false;
     }
 
+    /** The replay the player's client is playing in a CLIENT_REPLAY session, else null (see ReplayStreaming). */
+    public static ReplayManager.Replay clientReplayOf(ServerPlayer player) {
+        Session session = session(player);
+        return session == null ? null : session.clientReplay();
+    }
+
     /** Null if the player may start a session now, else why not. */
     public static String cooldownMessage(ServerPlayer viewer) {
         MinecraftServer server = viewer.getServer();
@@ -208,22 +289,125 @@ public final class SpectateSessions {
         follow(viewer.getServer(), session, viewer);
     }
 
-    /** Watches the map's world-record ghost; false if the map has none. */
+    /**
+     * Watches the map's world record (the replay its ghost shows): on the viewer's own client from the run's start if it
+     * plays replays itself, else through the ghost entity. False if the map has no world-record ghost (no WR replay, or
+     * its ghost is switched off).
+     */
     public static boolean startWorldRecord(ServerPlayer viewer, String mapName) {
         ReplayGhosts.Ghost ghost = ReplayGhosts.worldRecordGhost(mapName);
         if (ghost == null) {
             return false;
+        }
+        if (HandshakeHandler.supportsClientReplays(viewer)) {
+            if (!ReplayManager.isPlayable(ghost.replay())) {
+                return false;
+            }
+            startClientReplay(viewer, true, mapName, ghost.replay());
+            return true;
         }
         Session session = begin(viewer, Kind.WORLD_RECORD, null, ghost.replay().player_name, mapName);
         follow(viewer.getServer(), session, viewer);
         return true;
     }
 
-    /** Watches a personal-best replay from its start on a ghost of the viewer's own. */
+    /**
+     * Watches a personal-best replay from its start: on the viewer's own client if it plays replays itself, else on a
+     * ghost of the viewer's own.
+     */
     public static void startPersonalBest(ServerPlayer viewer, String mapName, ReplayManager.Replay replay) {
+        if (HandshakeHandler.supportsClientReplays(viewer)) {
+            startClientReplay(viewer, false, mapName, replay);
+            return;
+        }
         Session session = begin(viewer, Kind.PERSONAL_BEST, null, replay.player_name, mapName);
         ReplayGhosts.startViewerGhost(viewer.getUUID(), mapName, replay);
         follow(viewer.getServer(), session, viewer);
+    }
+
+    /**
+     * A replay played by the viewer's client. The session starts at once (spectator mode, the viewer's run ended); once
+     * the server has the replay's frames it moves the viewer to the start and tells the client to play it.
+     */
+    private static void startClientReplay(ServerPlayer viewer, boolean worldRecord, String mapName, ReplayManager.Replay replay) {
+        Session session = begin(viewer, Kind.CLIENT_REPLAY, null, replay.player_name, mapName);
+        ClientPlayback playback = new ClientPlayback(nextClientSessionId++ & 0x3FFFFFFF, replay, worldRecord);
+        session.clientPlayback = playback;
+        MinecraftServer server = viewer.getServer();
+        UUID viewerId = viewer.getUUID();
+        ReplayManager.loadFrames(replay, frames -> {
+            if (server == null || SESSIONS.get(viewerId) != session) {
+                return;
+            }
+            ServerPlayer current = server.getPlayerList().getPlayer(viewerId);
+            if (current == null) {
+                return;
+            }
+            if (frames == null || frames.isEmpty()) {
+                end(current, session, "That replay is no longer available.", true);
+                return;
+            }
+            playback.frames = frames;
+            playback.frameNanos = ReplayTiming.frameNanos(frames, replay.time);
+            followClientReplay(server, session, current);
+            playback.announced = true;
+            ReplayStreaming.send(current, new ReplayWatchPayload(playback.id, true,
+                    worldRecord ? ReplayProtocol.WATCH_WORLD_RECORD : ReplayProtocol.WATCH_PERSONAL_BEST,
+                    replay.replay_id, ReplayStreaming.clip(mapName, ReplayProtocol.MAX_MAP_CHARS),
+                    ReplayStreaming.clip(replay.player_name, ReplayProtocol.MAX_NAME_CHARS), replay.time, frames.size()));
+        });
+    }
+
+    /** Tells the viewer's client that its replay session is over and stops streaming it. */
+    private static void endClientReplay(ServerPlayer viewer, Session session) {
+        ClientPlayback playback = session.clientPlayback;
+        if (playback == null) {
+            return;
+        }
+        ReplayStreaming.cancelSession(viewer);
+        ReplayStreaming.send(viewer, new ReplayWatchPayload(playback.id, false, (byte) 0, "", "", "", 0.0D, 0));
+    }
+
+    /**
+     * The viewer's client reports its playback (ReplayStatePayload): stored clamped, used to keep the viewer near it.
+     * Reports for another session (an old one, a forged id) are ignored; STATE_STOP ends the session.
+     */
+    public static void onClientReplayState(ServerPlayer viewer, ReplayStatePayload state) {
+        Session session = session(viewer);
+        ClientPlayback playback = session == null ? null : session.clientPlayback;
+        if (playback == null || playback.id != state.sessionId()) {
+            return;
+        }
+        if ((state.flags() & ReplayProtocol.STATE_STOP) != 0) {
+            end(viewer, session, "No longer watching.", true);
+            return;
+        }
+        float frame = state.frame();
+        if (!Float.isFinite(frame)) {
+            return;
+        }
+        int last = playback.frames == null ? Math.max(0, ReplayManager.frameCount(playback.replay) - 1) : playback.frames.size() - 1;
+        float speed = state.speed();
+        playback.frame = Math.max(0.0D, Math.min(last, frame));
+        playback.speed = Float.isFinite(speed) ? Math.max(ReplayProtocol.MIN_SPEED, Math.min(ReplayProtocol.MAX_SPEED, speed)) : 1.0F;
+        playback.paused = (state.flags() & ReplayProtocol.STATE_PAUSED) != 0;
+        playback.buffering = (state.flags() & ReplayProtocol.STATE_BUFFERING) != 0;
+        playback.reportedAt = System.nanoTime();
+        playback.reported = true;
+        playback.reports++;
+    }
+
+    /**
+     * Sends a playback control (pause, speed, seek, stop) to the viewer's client. False if the viewer isn't watching a
+     * replay on their own client (not watching, or an older client watching a ghost).
+     */
+    public static boolean sendClientReplayControl(ServerPlayer viewer, byte action, double value) {
+        Session session = session(viewer);
+        if (session == null || session.clientPlayback == null) {
+            return false;
+        }
+        ReplayStreaming.send(viewer, new ReplayControlPayload(action, value));
+        return true;
     }
 
     /** Ends the viewer's session and restores them. False if they weren't spectating. */
@@ -243,6 +427,9 @@ public final class SpectateSessions {
         ReturnState back = previous != null ? previous.back : capture(viewer);
         if (previous != null && previous.kind == Kind.PERSONAL_BEST) {
             ReplayGhosts.stopViewerGhost(viewer.getUUID());
+        }
+        if (previous != null && previous.kind == Kind.CLIENT_REPLAY) {
+            endClientReplay(viewer, previous);
         }
         // Watching ends the viewer's own run: no timer, finish stamp or recording carries through a session.
         PacketHandler.clearRunState(viewer, server);
@@ -273,6 +460,9 @@ public final class SpectateSessions {
         SESSIONS.remove(session.viewer);
         if (session.kind == Kind.PERSONAL_BEST) {
             ReplayGhosts.stopViewerGhost(session.viewer);
+        }
+        if (session.kind == Kind.CLIENT_REPLAY) {
+            endClientReplay(viewer, session);
         }
         moveCamera(viewer, viewer);
         ReturnState back = session.back;
@@ -445,6 +635,11 @@ public final class SpectateSessions {
                     end(viewer, session, "No longer spectating.", true);
                     continue;
                 }
+                if (session.kind == Kind.CLIENT_REPLAY && server.getTickCount() % CLIENT_REPLAY_CHECK_TICKS == 0
+                        && !clientReplayStillWatchable(session)) {
+                    end(viewer, session, "That replay is no longer available.", true);
+                    continue;
+                }
                 follow(server, session, viewer);
                 if (SESSIONS.get(session.viewer) == session) {
                     sendHud(server, session, viewer);
@@ -454,9 +649,52 @@ public final class SpectateSessions {
         updateSpectatorLists(server);
     }
 
+    /** A client-replay session's run is still watchable: not invalidated or deleted, and its map still exists. */
+    private static boolean clientReplayStillWatchable(Session session) {
+        ReplayManager.Replay replay = session.clientReplay();
+        return replay != null && ReplayManager.isPlayable(replay) && Minehop.replayList != null && Minehop.replayList.contains(replay)
+                && DataManager.getMap(session.mapName) != null;
+    }
+
+    /**
+     * CLIENT_REPLAY: keeps the viewer near the frame the client shows (its last report, advanced while it plays), in the
+     * map's level, so the chunks there load. A seek is reported at once, so the area around its target loads next.
+     */
+    private static void followClientReplay(MinecraftServer server, Session session, ServerPlayer viewer) {
+        if (viewer.getCamera() != viewer) {
+            moveCamera(viewer, viewer);
+        }
+        ClientPlayback playback = session.clientPlayback;
+        ReplayFrames frames = playback == null ? null : playback.frames;
+        if (frames == null || frames.isEmpty()) {
+            return; // still loading
+        }
+        ServerLevel level = ReplayGhosts.levelOfMap(server, session.mapName);
+        if (level == null) {
+            return;
+        }
+        int index = playback.estimatedFrame(System.nanoTime());
+        double x = frames.x(index);
+        double y = frames.y(index);
+        double z = frames.z(index);
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+            return;
+        }
+        Vec3 target = new Vec3(x, y, z);
+        if (viewer.level() != level || viewer.position().distanceToSqr(target) > CLIENT_FOLLOW_DISTANCE * CLIENT_FOLLOW_DISTANCE) {
+            viewer.teleport(ZoneUtil.makeTeleportTarget(level, target, frames.yaw(index), frames.pitch(index)));
+            // The viewer's own moves are ignored during a session, so vanilla never moves their chunk tickets: do it here.
+            viewer.serverLevel().getChunkSource().move(viewer);
+        }
+    }
+
     /** Keeps the viewer on the target: same dimension, camera set, and the camera sent once the client has it. */
     private static void follow(MinecraftServer server, Session session, ServerPlayer viewer) {
         if (server == null) {
+            return;
+        }
+        if (session.kind == Kind.CLIENT_REPLAY) {
+            followClientReplay(server, session, viewer);
             return;
         }
         Entity target;
@@ -568,6 +806,9 @@ public final class SpectateSessions {
     private static void sendHud(MinecraftServer server, Session session, ServerPlayer viewer) {
         long now = server.getTickCount();
         RunStats.Snapshot stats;
+        if (session.kind == Kind.CLIENT_REPLAY) {
+            return; // the client shows its own playback's time and stats
+        }
         if (session.kind == Kind.PLAYER) {
             ServerPlayer target = server.getPlayerList().getPlayer(session.targetPlayer);
             if (target == null) {

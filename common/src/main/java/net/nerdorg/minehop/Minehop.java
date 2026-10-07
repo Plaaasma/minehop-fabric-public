@@ -142,6 +142,7 @@ public class Minehop {
 		ReplayManager.register();
 		ReplayEvents.register();
 		net.nerdorg.minehop.replays.ReplayGhosts.register();
+		net.nerdorg.minehop.replays.ReplayStreaming.register();
 		net.nerdorg.minehop.spectate.SpectateSessions.register();
 		net.nerdorg.minehop.replays.RunStats.register();
 
