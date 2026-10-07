@@ -207,13 +207,15 @@ public final class ReplayStoreHarness {
                 }
             }
             int runTicks = frames.runEnd() - frames.runStart() - 1;
+            net.nerdorg.minehop.replays.ReplayPathSimplifier.Result path = net.nerdorg.minehop.replays.ReplayPathSimplifier
+                    .simplify(frames, net.nerdorg.minehop.replays.ReplayPathSimplifier.MAX_POINTS);
             reply(context, String.format(Locale.ROOT,
                     "%s %s %s time=%.5fs: %d frames = %d pre + %d run + %d post, tickStream=%b; run frames-1 = %d ticks = %.3fs"
-                            + " (time/ticks ratio %.4f); teleport frames %s",
+                            + " (time/ticks ratio %.4f); teleport frames %s; /spec path: %d points in %d polylines",
                     replay.replay_id, replay.map_name, replay.player_name, replay.time, frames.size(), frames.preFrames(),
                     frames.runEnd() - frames.runStart(), frames.postFrames(), frames.tickStream(), runTicks, runTicks * 0.05D,
                     runTicks > 0 ? replay.time / (runTicks * 0.05D) : Double.NaN,
-                    teleports.size() > 20 ? teleports.subList(0, 20) + "..." : teleports));
+                    teleports.size() > 20 ? teleports.subList(0, 20) + "..." : teleports, path.points().size(), path.polylines()));
             if (dump) {
                 java.nio.file.Path file = context.getSource().getServer().getServerDirectory().toPath()
                         .resolve("replaytest_dump_" + replay.replay_id + ".csv");
