@@ -82,6 +82,9 @@ public class DataManager {
         public int rating_count;
         public int rating_quality_total;
         public int rating_difficulty_total;
+        // Set by /replay remove <map> (cleared by /replay <map>): the map shows no world-record ghost. Ghosts are no
+        // longer saved with the world, so the choice has to be remembered here.
+        public boolean replay_ghost_disabled = false;
 
         public MapData() {
         }

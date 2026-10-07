@@ -9,19 +9,14 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.nerdorg.minehop.platform.Services;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.level.GameType;
-import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
-import net.nerdorg.minehop.entity.ModEntities;
-import net.nerdorg.minehop.entity.custom.ReplayEntity;
 import net.nerdorg.minehop.networking.PacketHandler;
+import net.nerdorg.minehop.replays.ReplayGhosts;
 import net.nerdorg.minehop.replays.ReplayManager;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.ZoneUtil;
@@ -65,6 +60,10 @@ public class ReplayCommands {
                                         )
                                 )
                         )
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("ghosts")
+                                .requires(source -> source.hasPermission(4))
+                                .executes(context -> listGhosts(context.getSource()))
+                        )
                         .then(LiteralArgumentBuilder.<CommandSourceStack>literal("remove")
                                 .requires(source -> source.hasPermission(4))
                                 .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("map_name", StringArgumentType.string())
@@ -100,42 +99,56 @@ public class ReplayCommands {
         ));
     }
 
+    /** /replay ghosts (op): every world-record ghost, the run it shows, its frame and whether it is spawned. */
+    private static int listGhosts(CommandSourceStack source) {
+        StringBuilder text = new StringBuilder("World record ghosts:");
+        int spawned = 0;
+        List<String> maps = ReplayGhosts.worldRecordMaps();
+        for (String mapName : maps) {
+            ReplayGhosts.Ghost ghost = ReplayGhosts.worldRecordGhost(mapName);
+            if (ghost == null) {
+                continue;
+            }
+            ReplayManager.Replay replay = ghost.replay();
+            text.append("\n ").append(mapName).append(": ").append(replay.player_name)
+                    .append(String.format(java.util.Locale.ROOT, " %.3fs", replay.time))
+                    .append(" frame ").append(ghost.frame()).append('/').append(replay.replayEntries.size());
+            if (ghost.entity() != null) {
+                spawned++;
+                text.append(String.format(java.util.Locale.ROOT, " at %.1f %.1f %.1f", ghost.entity().getX(), ghost.entity().getY(), ghost.entity().getZ()));
+            } else {
+                text.append(" (not spawned: no player near its route)");
+            }
+        }
+        text.append("\n").append(maps.size()).append(" ghost(s), ").append(spawned).append(" spawned; ")
+                .append(ReplayGhosts.legacyGhostsRemoved()).append(" saved ghost(s) from older versions removed since start.");
+        String message = text.toString();
+        source.sendSuccess(() -> net.minecraft.network.chat.Component.literal(message), false);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /** /replay {map} (op): show the map's world-record ghost again after /replay remove. */
     private static void handleAddReplay(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer sender = context.getSource().getPlayer();
         String mapName = StringArgumentType.getString(context, "map_name");
-
-        ReplayManager.Replay replay = ReplayManager.getReplay(mapName);
-        if (replay == null) {
-            Logger.logFailure(sender, "No replay found for map " + mapName + ".");
-            return;
-        }
 
         DataManager.MapData mapData = DataManager.getMap(mapName);
         if (mapData == null) {
             Logger.logFailure(sender, "Map " + mapName + " was not found.");
             return;
         }
-
-        ServerLevel foundWorld = resolveMapWorld(context.getSource(), mapData);
-        if (foundWorld == null) {
-            Logger.logFailure(sender, "Could not resolve world for map " + mapName + ".");
+        if (mapData.replay_ghost_disabled) {
+            mapData.replay_ghost_disabled = false;
+            DataManager.saveData(context.getSource().getServer().overworld(), DataManager.mapListLocation, Minehop.mapList);
+        }
+        if (!ReplayGhosts.refreshWorldRecord(context.getSource().getServer(), mapName)) {
+            Logger.logFailure(sender, "No world record replay found for map " + mapName + ".");
             return;
         }
-
-        removeReplayEntities(foundWorld, mapName, "");
-        ReplayEntity replayEntity = ModEntities.REPLAY_ENTITY.get().spawn(
-                foundWorld,
-                new BlockPos((int) mapData.x, (int) mapData.y, (int) mapData.z),
-                MobSpawnType.NATURAL
-        );
-        if (replayEntity == null) {
-            Logger.logFailure(sender, "Failed to spawn replay entity.");
-            return;
-        }
-        replayEntity.setReplay(mapName, "", false, false);
-        Logger.logSuccess(sender, "Spawned WR replay entity for " + mapName + ".");
+        Logger.logSuccess(sender, "World record ghost enabled for " + mapName + " (it shows while players are near its route).");
     }
 
+    /** /replay remove {map} (op): no world-record ghost on this map until /replay {map}. */
     private static void handleRemoveReplay(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer sender = context.getSource().getPlayer();
         String mapName = StringArgumentType.getString(context, "map_name");
@@ -145,19 +158,13 @@ public class ReplayCommands {
             Logger.logFailure(sender, "Map " + mapName + " was not found.");
             return;
         }
-
-        ServerLevel foundWorld = resolveMapWorld(context.getSource(), mapData);
-        if (foundWorld == null) {
-            Logger.logFailure(sender, "Could not resolve world for map " + mapName + ".");
-            return;
+        boolean hadGhost = ReplayGhosts.worldRecordGhost(mapName) != null;
+        if (!mapData.replay_ghost_disabled) {
+            mapData.replay_ghost_disabled = true;
+            DataManager.saveData(context.getSource().getServer().overworld(), DataManager.mapListLocation, Minehop.mapList);
         }
-
-        int removed = removeReplayEntities(foundWorld, mapName, "");
-        if (removed <= 0) {
-            Logger.logFailure(sender, "No WR replay entity was found for " + mapName + ".");
-            return;
-        }
-        Logger.logSuccess(sender, "Removed WR replay entity for " + mapName + ".");
+        net.nerdorg.minehop.data.LeaderboardIntegrity.refreshWorldRecordReplay(context.getSource().getServer(), mapName);
+        Logger.logSuccess(sender, (hadGhost ? "Removed the world record ghost of " : "Disabled the world record ghost of ") + mapName + ".");
     }
 
     private static void handleWatchReplay(CommandContext<CommandSourceStack> context, String explicitTargetPlayer) throws CommandSyntaxException {
@@ -182,49 +189,20 @@ public class ReplayCommands {
         }
         String targetPlayer = personalBest.name;
 
-        ServerLevel foundWorld = resolveMapWorld(context.getSource(), mapData);
-        if (foundWorld == null) {
+        ReplayGhosts.Ghost ghost = ReplayGhosts.startViewerGhost(viewer.getUUID(), mapName, replay);
+        ServerLevel level = ReplayGhosts.level(context.getSource().getServer(), ghost);
+        if (level == null) {
+            ReplayGhosts.stopViewerGhost(viewer.getUUID());
             Logger.logFailure(viewer, "Could not resolve world for map " + mapName + ".");
-            return;
-        }
-
-        ReplayEntity replayEntity = findReplayEntity(foundWorld, mapName, targetPlayer);
-        if (replayEntity == null) {
-            replayEntity = ModEntities.REPLAY_ENTITY.get().spawn(
-                    foundWorld,
-                    new BlockPos((int) mapData.x, (int) mapData.y, (int) mapData.z),
-                    MobSpawnType.NATURAL
-            );
-            if (replayEntity == null) {
-                Logger.logFailure(viewer, "Failed to spawn replay viewer entity.");
-                return;
-            }
-            replayEntity.setReplay(mapName, targetPlayer, true, true);
-        }
-
-        beginSpectatingReplay(viewer, replayEntity);
-        Logger.logSuccess(viewer, "Now watching " + targetPlayer + "'s personal best on " + mapName + " (" + String.format("%.5f", replay.time) + ").");
-    }
-
-    private static void beginSpectatingReplay(ServerPlayer viewer, ReplayEntity replayEntity) {
-        if (viewer == null || replayEntity == null) {
             return;
         }
         removeViewerFromPreviousSpectate(viewer);
         PacketHandler.clearReplayPath(viewer);
         viewer.setCamera(viewer);
         viewer.setGameMode(GameType.SPECTATOR);
-        if (!viewer.isCreative()) {
-            viewer.getInventory().clearContent();
-        }
-        ZoneUtil.teleportTo(viewer, ZoneUtil.makeTeleportTarget(
-                (ServerLevel) replayEntity.level(),
-                new Vec3(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ()),
-                replayEntity.getYRot(),
-                replayEntity.getXRot()
-        ));
-        viewer.setCamera(replayEntity);
-        SpectateCommands.addSpectator(replayEntity.getScoreboardName(), viewer.getScoreboardName());
+        ReplayManager.ReplayEntry start = ghost.currentEntry();
+        ZoneUtil.teleportTo(viewer, ZoneUtil.makeTeleportTarget(level, ReplayGhosts.position(ghost), (float) start.yrot, (float) start.xrot));
+        Logger.logSuccess(viewer, "Now watching " + targetPlayer + "'s personal best on " + mapName + " (" + String.format("%.5f", replay.time) + ").");
     }
 
     private static void removeViewerFromPreviousSpectate(ServerPlayer viewer) {
@@ -242,102 +220,23 @@ public class ReplayCommands {
         }
     }
 
-    private static ReplayEntity findReplayEntity(ServerLevel world, String mapName, String replayPlayerName) {
-        if (world == null || mapName == null || mapName.isBlank() || replayPlayerName == null || replayPlayerName.isBlank()) {
-            return null;
-        }
-        for (Entity entity : world.getAllEntities()) {
-            if (!(entity instanceof ReplayEntity replayEntity)) {
-                continue;
-            }
-            if (!mapName.equals(replayEntity.getMapName())) {
-                continue;
-            }
-            if (!replayPlayerName.equals(replayEntity.getReplayPlayerName())) {
-                continue;
-            }
-            if (replayEntity.shouldRenderHead()) {
-                continue;
-            }
-            return replayEntity;
-        }
-        return null;
-    }
-
-    private static ReplayEntity findWorldRecordReplayEntity(ServerLevel world, String mapName) {
-        if (world == null || mapName == null || mapName.isBlank()) {
-            return null;
-        }
-        for (Entity entity : world.getAllEntities()) {
-            if (!(entity instanceof ReplayEntity replayEntity)) {
-                continue;
-            }
-            // A killed entity lingers while dying; reusing it would leave the map without a replay.
-            if (!replayEntity.isAlive() || replayEntity.isRemoved()) {
-                continue;
-            }
-            if (!mapName.equals(replayEntity.getMapName())) {
-                continue;
-            }
-            if (!replayEntity.getReplayPlayerName().isBlank()) {
-                continue;
-            }
-            return replayEntity;
-        }
-        return null;
-    }
-
-    private static int removeReplayEntities(ServerLevel world, String mapName, String replayPlayerName) {
-        if (world == null || mapName == null || mapName.isBlank()) {
-            return 0;
-        }
-        List<ReplayEntity> toRemove = new ArrayList<>();
-        for (Entity entity : world.getAllEntities()) {
-            if (!(entity instanceof ReplayEntity replayEntity)) {
-                continue;
-            }
-            if (!mapName.equals(replayEntity.getMapName())) {
-                continue;
-            }
-            if (!replayPlayerName.equals(replayEntity.getReplayPlayerName())) {
-                continue;
-            }
-            toRemove.add(replayEntity);
-        }
-        for (ReplayEntity replayEntity : toRemove) {
-            SpectateCommands.spectatorList.remove(replayEntity.getScoreboardName());
-            replayEntity.kill();
-        }
-        return toRemove.size();
-    }
-
     /**
-     * Removes the in-world world-record replay for a map (used when the map no longer has a WR replay)
-     * and returns the names of the players who were spectating it, so they can be sent back.
+     * Removes the map's world-record ghost (used when the map no longer has a WR replay) and returns the names of
+     * the players who were spectating it, so they can be sent back.
      */
     public static List<String> removeWorldRecordReplayEntities(MinecraftServer server, String mapName) {
         List<String> spectators = new ArrayList<>();
         if (server == null || mapName == null || mapName.isBlank()) {
             return spectators;
         }
-        for (ServerLevel world : server.getAllLevels()) {
-            List<ReplayEntity> toRemove = new ArrayList<>();
-            for (Entity entity : world.getAllEntities()) {
-                if (entity instanceof ReplayEntity replayEntity
-                        && replayEntity.isAlive() && !replayEntity.isRemoved()
-                        && mapName.equals(replayEntity.getMapName())
-                        && replayEntity.getReplayPlayerName().isBlank()) {
-                    toRemove.add(replayEntity);
-                }
-            }
-            for (ReplayEntity replayEntity : toRemove) {
-                List<String> watching = SpectateCommands.spectatorList.remove(replayEntity.getScoreboardName());
-                if (watching != null) {
-                    spectators.addAll(watching);
-                }
-                replayEntity.kill();
+        ReplayGhosts.Ghost ghost = ReplayGhosts.worldRecordGhost(mapName);
+        if (ghost != null && ghost.entity() != null) {
+            List<String> watching = SpectateCommands.spectatorList.remove(ghost.entity().getScoreboardName());
+            if (watching != null) {
+                spectators.addAll(watching);
             }
         }
+        ReplayGhosts.removeWorldRecord(mapName);
         return spectators;
     }
 
@@ -350,60 +249,8 @@ public class ReplayCommands {
         return playerNames;
     }
 
-    private static ServerLevel resolveMapWorld(CommandSourceStack source, DataManager.MapData mapData) {
-        if (source == null || mapData == null) {
-            return null;
-        }
-        return resolveMapWorld(source.getServer(), mapData);
-    }
-
-    private static ServerLevel resolveMapWorld(MinecraftServer server, DataManager.MapData mapData) {
-        if (server == null || mapData == null) {
-            return null;
-        }
-        String worldKey = mapData.worldKey;
-        for (ServerLevel serverWorld : server.getAllLevels()) {
-            if (serverWorld.dimension().toString().equals(worldKey)) {
-                return serverWorld;
-            }
-        }
-        return server.overworld();
-    }
-
+    /** Points the map's world-record ghost at the current WR replay (the registry spawns it near players). */
     public static boolean ensureWorldRecordReplayEntity(MinecraftServer server, String mapName) {
-        if (server == null || mapName == null || mapName.isBlank()) {
-            return false;
-        }
-
-        DataManager.MapData mapData = DataManager.getMap(mapName);
-        if (mapData == null) {
-            return false;
-        }
-        ReplayManager.Replay replay = ReplayManager.getReplay(mapName);
-        if (replay == null) {
-            return false;
-        }
-
-        ServerLevel world = resolveMapWorld(server, mapData);
-        if (world == null) {
-            return false;
-        }
-
-        ReplayEntity existing = findWorldRecordReplayEntity(world, mapName);
-        if (existing != null) {
-            existing.setReplay(mapName, "", false, false);
-            return true;
-        }
-
-        ReplayEntity replayEntity = ModEntities.REPLAY_ENTITY.get().spawn(
-                world,
-                new BlockPos((int) mapData.x, (int) mapData.y, (int) mapData.z),
-                MobSpawnType.NATURAL
-        );
-        if (replayEntity == null) {
-            return false;
-        }
-        replayEntity.setReplay(mapName, "", false, false);
-        return true;
+        return ReplayGhosts.refreshWorldRecord(server, mapName);
     }
 }

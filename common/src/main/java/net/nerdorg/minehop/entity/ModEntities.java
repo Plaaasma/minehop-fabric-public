@@ -33,8 +33,10 @@ public class ModEntities {
     public static final RegistryEntry<EntityType<EndEntity>> END_ENTITY = register("end_entity",
             EndEntity::new, 1f, 1f, 5, 3);
 
+    // Ghosts move every tick: send their position every tick too (the default 3-tick interval made them choppy
+    // and lag behind). Server-side setting only; clients are unaffected.
     public static final RegistryEntry<EntityType<ReplayEntity>> REPLAY_ENTITY = register("replay_entity",
-            ReplayEntity::new, 1f, 2f, 5, 3);
+            ReplayEntity::new, 1f, 2f, 5, 1);
 
     public static final RegistryEntry<EntityType<SurfRampEntity>> SURF_RAMP_ENTITY = register("surf_ramp_entity",
             SurfRampEntity::new, 1f, 1f,

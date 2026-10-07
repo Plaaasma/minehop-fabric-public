@@ -13,20 +13,22 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.nerdorg.minehop.commands.SpectateCommands;
-import net.nerdorg.minehop.networking.PacketHandler;
-import net.nerdorg.minehop.replays.ReplayManager;
-import net.nerdorg.minehop.util.Logger;
-import net.nerdorg.minehop.util.ZoneUtil;
+import net.nerdorg.minehop.replays.ReplayGhosts;
 
-import java.util.List;
+import java.util.UUID;
 
+/**
+ * A replay ghost. It holds no playback state: {@link ReplayGhosts} spawns it, moves it to the current frame every
+ * tick and removes it. It is never saved with its chunk, and one the registry doesn't own (e.g. loaded from a world
+ * saved by an older version, which did save ghosts) removes itself.
+ */
 public class ReplayEntity extends Mob {
     private String map_name = "";
     private String replay_player_name = "";
     private boolean hide_head = false;
     private boolean temporary = false;
-    private int replayIndex = 0;
+    // Private ghost of one viewer (/replay watch): only that player is sent the entity. Null = world-record ghost.
+    private UUID viewer = null;
 
     @Override
     public void addAdditionalSaveData(CompoundTag nbt) {
@@ -60,7 +62,6 @@ public class ReplayEntity extends Mob {
         this.replay_player_name = "";
         this.hide_head = false;
         this.temporary = false;
-        this.replayIndex = 0;
     }
 
     public void setReplay(String mapName, String replayPlayerName, boolean hideHead, boolean temporaryReplay) {
@@ -68,7 +69,14 @@ public class ReplayEntity extends Mob {
         this.replay_player_name = replayPlayerName == null ? "" : replayPlayerName;
         this.hide_head = hideHead;
         this.temporary = temporaryReplay;
-        this.replayIndex = 0;
+    }
+
+    public void setViewer(UUID viewer) {
+        this.viewer = viewer;
+    }
+
+    public UUID getViewer() {
+        return this.viewer;
     }
 
     public String getMapName() {
@@ -81,6 +89,18 @@ public class ReplayEntity extends Mob {
 
     public boolean shouldRenderHead() {
         return !hide_head;
+    }
+
+    @Override
+    public boolean shouldBeSaved() {
+        // Ghosts live only while the server runs; the registry recreates them. A saved ghost was the source of the
+        // duplicates (it came back from disk next to the one the server spawned).
+        return false;
+    }
+
+    @Override
+    public boolean broadcastToPlayer(ServerPlayer player) {
+        return this.viewer == null || this.viewer.equals(player.getUUID());
     }
 
     @Override
@@ -141,13 +161,6 @@ public class ReplayEntity extends Mob {
     public void playerTouch(Player player) { }
 
     @Override
-    public void setXRot(float pitch) {
-        if (pitch != 0f) {
-            super.setXRot(pitch);
-        }
-    }
-
-    @Override
     public String getScoreboardName() {
         if (map_name == null || map_name.isBlank()) {
             return "replay";
@@ -170,75 +183,12 @@ public class ReplayEntity extends Mob {
 
     @Override
     public void tick() {
-        if (this.level() instanceof ServerLevel) {
-            if (temporary && !SpectateCommands.spectatorList.containsKey(this.getScoreboardName())) {
-                this.kill();
-                super.tick();
-                return;
-            }
-
-            ReplayManager.Replay replay = resolveReplay();
-            if (replay != null && replay.replayEntries != null && !replay.replayEntries.isEmpty()) {
-                this.setInvisible(false);
-                if (this.replayIndex >= replay.replayEntries.size()) {
-                    this.replayIndex = 0;
-                }
-
-                ReplayManager.ReplayEntry replayEntry = replay.replayEntries.get(this.replayIndex);
-                double x = replayEntry.x;
-                double y = replayEntry.y;
-                double z = replayEntry.z;
-                double xrot = replayEntry.xrot;
-                double yrot = replayEntry.yrot;
-                double jump_count = replayEntry.jump_count;
-                double last_jump_speed = replayEntry.last_jump_speed;
-                double efficiency = replayEntry.efficiency;
-
-                if (xrot == 0) {
-                    xrot = 0.01;
-                }
-
-                this.teleportTo(x, y, z);
-                this.setYRot((float) yrot);
-                this.setYHeadRot((float) yrot);
-                this.setXRot((float) xrot);
-
-                if (SpectateCommands.spectatorList.containsKey(this.getScoreboardName())) {
-                    List<String> spectators = SpectateCommands.spectatorList.get(this.getScoreboardName());
-                    for (String spectatorName : spectators) {
-                        if (!spectatorName.equals(this.getScoreboardName())) {
-                            ServerPlayer spectatorPlayer = this.getServer().getPlayerList().getPlayerByName(spectatorName);
-                            if (spectatorPlayer != null) {
-                                if (!spectatorPlayer.isCreative()) {
-                                    spectatorPlayer.getInventory().clearContent();
-                                }
-                                ZoneUtil.teleportTo(spectatorPlayer, ZoneUtil.makeTeleportTarget((ServerLevel) this.level(), this.position(), this.getYRot(), this.getXRot()));
-                                spectatorPlayer.setCamera(this);
-                                PacketHandler.sendSpecEfficiency(spectatorPlayer, last_jump_speed, (int) jump_count, efficiency);
-                                Logger.logActionBar(spectatorPlayer, "End Time: " + String.format("%.5f", replay.time));
-                            }
-                        }
-                    }
-                }
-
-                this.replayIndex += 1;
-            } else {
-                this.replayIndex = 0;
-                if (replay_player_name == null || replay_player_name.isBlank()) {
-                    this.setInvisible(true);
-                }
-            }
-
+        if (this.level() instanceof ServerLevel && !ReplayGhosts.owns(this)) {
+            // Not a ghost the registry spawned (a legacy saved ghost, a duplicate, /summon): remove it.
+            ReplayGhosts.removeUnowned(this);
+            return;
         }
         super.tick();
-    }
-
-    private ReplayManager.Replay resolveReplay() {
-        String replayPlayerNameValue = replay_player_name == null ? "" : replay_player_name;
-        if (!replayPlayerNameValue.isBlank()) {
-            return ReplayManager.getReplay(this.map_name, replayPlayerNameValue);
-        }
-        return ReplayManager.getReplay(this.map_name);
     }
 
     private static String sanitizeForScoreboard(String raw) {

@@ -855,6 +855,8 @@ public final class UserPlotManager {
 
         String mapName = mapData.name;
         int removedCount = 0;
+        // Ghosts are owned by the registry; dropping them there removes their entities and keeps them from coming back.
+        net.nerdorg.minehop.replays.ReplayGhosts.forgetMap(mapName);
 
         for (ServerLevel world : server.getAllLevels()) {
             List<Entity> toRemove = new ArrayList<>();
