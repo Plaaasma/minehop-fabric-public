@@ -107,6 +107,11 @@ public final class SpectateSessions {
         public String mapName() {
             return this.mapName;
         }
+
+        /** Whether the camera packet was sent after the client had the target (i.e. the viewer sees through it). */
+        public boolean clientAttached() {
+            return this.clientAttached;
+        }
     }
 
     private static final Map<UUID, Session> SESSIONS = new LinkedHashMap<>();
@@ -476,12 +481,16 @@ public final class SpectateSessions {
                     || viewer.position().distanceToSqr(position) > PENDING_FOLLOW_DISTANCE * PENDING_FOLLOW_DISTANCE)) {
                 ReplayManager.ReplayEntry entry = ghost.currentEntry();
                 viewer.teleport(ZoneUtil.makeTeleportTarget(level, position, (float) entry.yrot, (float) entry.xrot));
+                // Vanilla moves a player's chunk tickets when the client's move packet confirms a teleport, but the
+                // viewer's moves are ignored during a session: move them here, or the area would never load.
+                viewer.serverLevel().getChunkSource().move(viewer);
             }
             return;
         }
         if (viewer.level() != target.level() && target.level() instanceof ServerLevel targetLevel) {
             // Follow across dimensions. The client starts the new dimension with its own camera, so it is sent again below.
             viewer.teleport(ZoneUtil.makeTeleportTarget(targetLevel, target.position(), target.getYRot(), target.getXRot()));
+            viewer.serverLevel().getChunkSource().move(viewer);
             session.clientAttached = false;
         }
         if (viewer.getCamera() != target) {
