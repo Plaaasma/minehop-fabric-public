@@ -4,18 +4,28 @@ import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.world.phys.Vec3;
 
+/**
+ * The replay route sent by /spec ... path, as polylines. A non-finite point from the server starts a new polyline
+ * (the run teleported there), so no line is drawn across a teleport. The renderer reads an immutable snapshot that
+ * is rebuilt only when points arrive, not copied every frame.
+ */
 public final class ReplayPathState {
+    /** Ignore anything beyond this (the server sends at most 4096 points per path). */
+    private static final int MAX_POINTS = 65_536;
     private static final Object LOCK = new Object();
-    private static final List<Vec3> POINTS = new ArrayList<>();
+    private static final List<float[]> RAW = new ArrayList<>();
+    private static volatile List<double[]> lines = List.of();
+    private static volatile int pointCount = 0;
 
     private ReplayPathState() {
     }
 
     public static void clear() {
         synchronized (LOCK) {
-            POINTS.clear();
+            RAW.clear();
+            lines = List.of();
+            pointCount = 0;
         }
     }
 
@@ -25,23 +35,50 @@ public final class ReplayPathState {
         }
         synchronized (LOCK) {
             for (Vector3f point : points) {
-                if (point == null) {
+                if (point == null || RAW.size() >= MAX_POINTS) {
                     continue;
                 }
-                double x = point.x();
-                double y = point.y();
-                double z = point.z();
-                if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
-                    continue;
-                }
-                POINTS.add(new Vec3(x, y, z));
+                RAW.add(new float[]{point.x(), point.y(), point.z()});
             }
+            rebuild();
         }
     }
 
-    public static List<Vec3> snapshot() {
-        synchronized (LOCK) {
-            return List.copyOf(POINTS);
+    /** The polylines (packed x,y,z), each with at least two points. Don't modify. */
+    public static List<double[]> lines() {
+        return lines;
+    }
+
+    /** Points over all polylines. */
+    public static int pointCount() {
+        return pointCount;
+    }
+
+    private static void rebuild() {
+        List<double[]> built = new ArrayList<>();
+        double[] current = new double[RAW.size() * 3];
+        int size = 0;
+        int total = 0;
+        for (float[] p : RAW) {
+            boolean finite = Float.isFinite(p[0]) && Float.isFinite(p[1]) && Float.isFinite(p[2]);
+            if (!finite) {
+                if (size >= 2) {
+                    built.add(java.util.Arrays.copyOf(current, size * 3));
+                    total += size;
+                }
+                size = 0;
+                continue;
+            }
+            current[size * 3] = p[0];
+            current[size * 3 + 1] = p[1];
+            current[size * 3 + 2] = p[2];
+            size++;
         }
+        if (size >= 2) {
+            built.add(java.util.Arrays.copyOf(current, size * 3));
+            total += size;
+        }
+        lines = List.copyOf(built);
+        pointCount = total;
     }
 }

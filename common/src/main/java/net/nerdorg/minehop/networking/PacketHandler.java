@@ -23,6 +23,7 @@ import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.networking.payloads.*;
 import net.nerdorg.minehop.replays.ReplayEvents;
 import net.nerdorg.minehop.replays.ReplayManager;
+import net.nerdorg.minehop.replays.ReplayPathSimplifier;
 import net.nerdorg.minehop.replays.RunStats;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.MapCreationManager;
@@ -169,6 +170,10 @@ public class PacketHandler {
         Services.NETWORK.sendToPlayer(player, new ReplayPathPayload(true, List.of()));
     }
 
+    /**
+     * Sends a replay's route: at most {@link ReplayPathSimplifier#MAX_POINTS} points (two packets), simplified and
+     * split at teleports (see ReplayPathSimplifier). Returns the number of points sent.
+     */
     public static int sendReplayPath(ServerPlayer player, List<ReplayManager.ReplayEntry> entries) {
         if (player == null || entries == null || entries.size() < 2) {
             clearReplayPath(player);
@@ -178,14 +183,8 @@ public class PacketHandler {
         List<Vector3f> chunk = new ArrayList<>(ReplayPathPayload.MAX_POINTS_PER_PACKET);
         boolean firstPacket = true;
         int sent = 0;
-        for (ReplayManager.ReplayEntry entry : entries) {
-            if (entry == null
-                    || !Double.isFinite(entry.x)
-                    || !Double.isFinite(entry.y)
-                    || !Double.isFinite(entry.z)) {
-                continue;
-            }
-            chunk.add(new Vector3f((float) entry.x, (float) entry.y, (float) entry.z));
+        for (Vector3f point : ReplayPathSimplifier.simplify(entries)) {
+            chunk.add(point);
             if (chunk.size() >= ReplayPathPayload.MAX_POINTS_PER_PACKET) {
                 Services.NETWORK.sendToPlayer(player, new ReplayPathPayload(firstPacket, List.copyOf(chunk)));
                 firstPacket = false;

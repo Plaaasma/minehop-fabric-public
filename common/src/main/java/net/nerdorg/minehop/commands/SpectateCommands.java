@@ -25,6 +25,9 @@ import java.nio.charset.StandardCharsets;
  * /spec, /spectate and /unspec. Who is watching whom, and keeping them there, is SpectateSessions' job.
  */
 public class SpectateCommands {
+    private static final int PATH_COOLDOWN_TICKS = 100;
+    private static final java.util.Map<java.util.UUID, Long> LAST_PATH_REQUEST = new java.util.HashMap<>();
+
     public static void register() {
         Services.EVENTS.onRegisterCommands((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<CommandSourceStack>literal("spec")
@@ -156,7 +159,18 @@ public class SpectateCommands {
         Logger.logFailure(serverPlayerEntity, "Entity not found.");
     }
 
+    /**
+     * /spec {replay} path: draws a watchable replay's route for the player. Up to 4096 points per request (see
+     * ReplayPathSimplifier) and one request per {@link #PATH_COOLDOWN_TICKS} per player.
+     */
     private static void handleReplayPath(CommandContext<CommandSourceStack> context, ServerPlayer viewer, String requestedName) {
+        long now = context.getSource().getServer().getTickCount();
+        Long last = LAST_PATH_REQUEST.get(viewer.getUUID());
+        if (last != null && now - last < PATH_COOLDOWN_TICKS && now >= last) {
+            Logger.logFailure(viewer, "Please wait a few seconds before rendering another path.");
+            return;
+        }
+        LAST_PATH_REQUEST.put(viewer.getUUID(), now);
         ResolvedReplayPath resolved = resolveReplayPath(context, viewer, requestedName);
         if (resolved == null || resolved.replay == null || resolved.replay.replayEntries == null || resolved.replay.replayEntries.size() < 2) {
             Logger.logFailure(viewer, "No saved replay path found for " + requestedName + ".");
