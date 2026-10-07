@@ -22,7 +22,6 @@ public class ConfigWrapper {
 
     public static void register() {
         Services.EVENTS.onServerTickEnd((server) -> {
-            HashMap<String, List<String>> newSpectatorList = new HashMap<>();
             for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
                 ResetEntity.trackPlayerMotion(playerEntity);
                 DataManager.MapData currentMap = resolveEffectiveMap(playerEntity);
@@ -31,15 +30,6 @@ public class ConfigWrapper {
                     if (Minehop.timerManager.containsKey(playerEntity.getScoreboardName())) {
                         Minehop.timerManager.remove(playerEntity.getScoreboardName());
                     }
-                }
-
-                if (newSpectatorList.containsKey(playerEntity.getCamera().getScoreboardName())) {
-                    List<String> newList = newSpectatorList.get(playerEntity.getCamera().getScoreboardName());
-                    newList.add(playerEntity.getScoreboardName());
-                    newSpectatorList.put(playerEntity.getCamera().getScoreboardName(), newList);
-                }
-                else {
-                    newSpectatorList.put(playerEntity.getCamera().getScoreboardName(), new ArrayList<>(Arrays.asList(playerEntity.getScoreboardName())));
                 }
 
                 double speedCap = resolveSpeedCap(playerEntity);
@@ -51,7 +41,6 @@ public class ConfigWrapper {
                 }
                 PacketHandler.sendConfigToClient(playerEntity, ConfigWrapper.config);
             }
-            SpectateCommands.spectatorList = newSpectatorList;
             if (server.getTickCount() % 100 == 0) {
                 refreshPlayerCounts(server);
                 for (ServerPlayer playerEntity : server.getPlayerList().getPlayers()) {
@@ -62,7 +51,6 @@ public class ConfigWrapper {
                         }
                         playerEntity.getInventory().setItem(0, new ItemStack(ModItems.INSTAGIB_GUN.get()));
                     }
-                    PacketHandler.sendSpectators(playerEntity);
                     PacketHandler.sendRecords(playerEntity);
                     PacketHandler.sendMaps(playerEntity);
                     PacketHandler.sendPersonalRecords(playerEntity);

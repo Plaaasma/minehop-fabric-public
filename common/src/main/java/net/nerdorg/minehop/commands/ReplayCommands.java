@@ -10,18 +10,14 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.nerdorg.minehop.platform.Services;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.GameType;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
-import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.replays.ReplayGhosts;
 import net.nerdorg.minehop.replays.ReplayManager;
+import net.nerdorg.minehop.spectate.SpectateSessions;
 import net.nerdorg.minehop.util.Logger;
-import net.nerdorg.minehop.util.ZoneUtil;
 
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -176,6 +172,11 @@ public class ReplayCommands {
             return;
         }
         String mapName = mapData.name;
+        String cooldown = SpectateSessions.cooldownMessage(viewer);
+        if (cooldown != null) {
+            Logger.logFailure(viewer, cooldown);
+            return;
+        }
         // Only a run that backs someone's current PB can be watched (UUID first; see ReplayManager).
         boolean self = explicitTargetPlayer == null || explicitTargetPlayer.isBlank();
         DataManager.RecordData personalBest = self
@@ -189,55 +190,12 @@ public class ReplayCommands {
         }
         String targetPlayer = personalBest.name;
 
-        ReplayGhosts.Ghost ghost = ReplayGhosts.startViewerGhost(viewer.getUUID(), mapName, replay);
-        ServerLevel level = ReplayGhosts.level(context.getSource().getServer(), ghost);
-        if (level == null) {
-            ReplayGhosts.stopViewerGhost(viewer.getUUID());
-            Logger.logFailure(viewer, "Could not resolve world for map " + mapName + ".");
-            return;
+        // A ghost of the viewer's own plays the run from its start; the session restores the viewer afterwards.
+        SpectateSessions.startPersonalBest(viewer, mapName, replay);
+        if (SpectateSessions.isSpectating(viewer)) {
+            Logger.logSuccess(viewer, "Now watching " + targetPlayer + "'s personal best on " + mapName + " ("
+                    + String.format("%.5f", replay.time) + "). Use /unspec to stop watching.");
         }
-        removeViewerFromPreviousSpectate(viewer);
-        PacketHandler.clearReplayPath(viewer);
-        viewer.setCamera(viewer);
-        viewer.setGameMode(GameType.SPECTATOR);
-        ReplayManager.ReplayEntry start = ghost.currentEntry();
-        viewer.changeDimension(ZoneUtil.makeTeleportTarget(level, ReplayGhosts.position(ghost), (float) start.yrot, (float) start.xrot));
-        Logger.logSuccess(viewer, "Now watching " + targetPlayer + "'s personal best on " + mapName + " (" + String.format("%.5f", replay.time) + ").");
-    }
-
-    private static void removeViewerFromPreviousSpectate(ServerPlayer viewer) {
-        if (viewer == null || viewer.getCamera() == null) {
-            return;
-        }
-        String oldTargetName = viewer.getCamera().getScoreboardName();
-        List<String> oldSpectators = SpectateCommands.spectatorList.get(oldTargetName);
-        if (oldSpectators == null) {
-            return;
-        }
-        oldSpectators.remove(viewer.getScoreboardName());
-        if (oldSpectators.size() <= 1) {
-            SpectateCommands.spectatorList.remove(oldTargetName);
-        }
-    }
-
-    /**
-     * Removes the map's world-record ghost (used when the map no longer has a WR replay) and returns the names of
-     * the players who were spectating it, so they can be sent back.
-     */
-    public static List<String> removeWorldRecordReplayEntities(MinecraftServer server, String mapName) {
-        List<String> spectators = new ArrayList<>();
-        if (server == null || mapName == null || mapName.isBlank()) {
-            return spectators;
-        }
-        ReplayGhosts.Ghost ghost = ReplayGhosts.worldRecordGhost(mapName);
-        if (ghost != null && ghost.entity() != null) {
-            List<String> watching = SpectateCommands.spectatorList.remove(ghost.entity().getScoreboardName());
-            if (watching != null) {
-                spectators.addAll(watching);
-            }
-        }
-        ReplayGhosts.removeWorldRecord(mapName);
-        return spectators;
     }
 
     private static Set<String> collectReplayPlayerNames(String mapName) {

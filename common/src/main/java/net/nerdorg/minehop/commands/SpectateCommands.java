@@ -2,7 +2,6 @@ package net.nerdorg.minehop.commands;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.LiteralMessage;
-import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
@@ -11,29 +10,21 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.nerdorg.minehop.platform.Services;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.GameType;
-import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
-import net.nerdorg.minehop.entity.custom.ReplayEntity;
+import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.replays.ReplayManager;
+import net.nerdorg.minehop.spectate.SpectateSessions;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.ZoneUtil;
-import org.apache.commons.collections4.MapUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 
+/**
+ * /spec, /spectate and /unspec. Who is watching whom, and keeping them there, is SpectateSessions' job.
+ */
 public class SpectateCommands {
-    public static HashMap<String, List<String>> spectatorList = new HashMap<>();
-
     public static void register() {
         Services.EVENTS.onRegisterCommands((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<CommandSourceStack>literal("spec")
@@ -85,81 +76,44 @@ public class SpectateCommands {
         ));
     }
 
+    /** /unspec: ends a spectate session and puts the player back as they were (game mode, place, map). */
     private static void handleUnSpectate(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
-
-        removeFromCurrentSpectateTarget(serverPlayerEntity);
-
-        if (Minehop.timerManager.containsKey(serverPlayerEntity.getScoreboardName())) {
-            Minehop.timerManager.remove(serverPlayerEntity.getScoreboardName());
+        if (serverPlayerEntity == null) {
+            return;
         }
-
-        serverPlayerEntity.setCamera(serverPlayerEntity);
         PacketHandler.clearReplayPath(serverPlayerEntity);
-
-        if (!serverPlayerEntity.isSpectator()) {
+        if (!SpectateSessions.stop(serverPlayerEntity, "No longer spectating.")) {
+            // Not in a session: nothing to undo. (This used to force adventure mode on anyone, e.g. plot builders.)
             Logger.logFailure(serverPlayerEntity, "You are not spectating.");
         }
-        else {
-            Logger.logSuccess(serverPlayerEntity, "No longer spectating.");
-            SpawnCommands.handleSpawn(context);
-        }
-
-        serverPlayerEntity.setGameMode(GameType.ADVENTURE);
     }
 
+    /**
+     * /spec {player | map_replay | map_replay_player}. Spectating is allowed from anywhere: the session sends the
+     * viewer back to where they were afterwards, so it can't be used to travel, and it follows the target across
+     * maps and dimensions.
+     */
     private static void handleSpectateReplay(CommandContext<CommandSourceStack> context, boolean pathMode) throws CommandSyntaxException {
         ServerPlayer serverPlayerEntity = context.getSource().getPlayer();
         String nameString = new String(context.getArgument("entity", String.class).getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+        if (serverPlayerEntity == null) {
+            return;
+        }
 
         if (pathMode) {
             handleReplayPath(context, serverPlayerEntity, nameString);
             return;
         }
 
-        removeFromCurrentSpectateTarget(serverPlayerEntity);
-        PacketHandler.clearReplayPath(serverPlayerEntity);
-
-        if (Minehop.timerManager.containsKey(serverPlayerEntity.getScoreboardName())) {
-            Minehop.timerManager.remove(serverPlayerEntity.getScoreboardName());
+        String cooldown = SpectateSessions.cooldownMessage(serverPlayerEntity);
+        if (cooldown != null) {
+            Logger.logFailure(serverPlayerEntity, cooldown);
+            return;
         }
 
-        if (Minehop.timerManager.containsKey(serverPlayerEntity.getScoreboardName())) {
-            Minehop.timerManager.remove(serverPlayerEntity.getScoreboardName());
-        }
-
-        Entity entity = context.getSource().getServer().getPlayerList().getPlayerByName(nameString);
-        if (entity == null) {
-            entity = findWorldRecordGhost(nameString);
-            if (entity == null) {
-                Logger.logFailure(serverPlayerEntity, "Entity not found.");
-                return;
-            }
-        }
-
-        if (entity instanceof ReplayEntity replayEntity) {
-            String mapName = ZoneUtil.getCurrentMapName(serverPlayerEntity);
-            String replayName = replayEntity.getScoreboardName();
-            if (mapName != null) {
-                if (replayName.startsWith(mapName)) {
-                    serverPlayerEntity.setCamera(serverPlayerEntity);
-                    Logger.logSuccess(serverPlayerEntity, "Now spectating " + replayEntity.getScoreboardName() + ". Use /unspec to stop spectating.");
-                    serverPlayerEntity.setGameMode(GameType.SPECTATOR);
-                    if (!serverPlayerEntity.isCreative()) {
-                        serverPlayerEntity.getInventory().clearContent();
-                    }
-                    serverPlayerEntity.changeDimension(ZoneUtil.makeTeleportTarget((ServerLevel) replayEntity.level(), new Vec3(replayEntity.getX(), replayEntity.getY(), replayEntity.getZ()), replayEntity.getYRot(), replayEntity.getXRot()));
-                    serverPlayerEntity.setCamera(replayEntity);
-                    addSpectator(replayEntity.getScoreboardName(), serverPlayerEntity.getScoreboardName());
-                } else {
-                    Logger.logSuccess(serverPlayerEntity, "Please teleport to the map before viewing it's replay.");
-                }
-            }
-            else {
-                Logger.logSuccess(serverPlayerEntity, "Please teleport to the map before viewing it's replay.");
-            }
-        }
-        else if (entity instanceof ServerPlayer playerEntity) {
+        ServerPlayer playerEntity = context.getSource().getServer().getPlayerList().getPlayerByName(nameString);
+        if (playerEntity != null) {
             if (playerEntity == serverPlayerEntity) {
                 Logger.logFailure(serverPlayerEntity, "You cannot spectate yourself.");
             }
@@ -167,31 +121,39 @@ public class SpectateCommands {
                 Logger.logFailure(serverPlayerEntity, "You cannot spectate another spectator.");
             }
             else {
-                String mapName = ZoneUtil.getCurrentMapName(serverPlayerEntity);
-                String targetMapName = ZoneUtil.getCurrentMapName(playerEntity);
-                if (mapName == null || targetMapName == null) {
-                    Logger.logFailure(serverPlayerEntity, "Both players must be on a valid map before spectating.");
-                    return;
-                }
-                if (mapName.equals(targetMapName)) {
-                    serverPlayerEntity.setCamera(serverPlayerEntity);
+                SpectateSessions.startPlayer(serverPlayerEntity, playerEntity);
+                if (SpectateSessions.isSpectating(serverPlayerEntity)) {
                     Logger.logSuccess(serverPlayerEntity, "Now spectating " + playerEntity.getScoreboardName() + ". Use /unspec to stop spectating.");
-                    serverPlayerEntity.setGameMode(GameType.SPECTATOR);
-                    if (!serverPlayerEntity.isCreative()) {
-                        serverPlayerEntity.getInventory().clearContent();
-                    }
-                    serverPlayerEntity.changeDimension(ZoneUtil.makeTeleportTarget(playerEntity.serverLevel(), new Vec3(playerEntity.getX(), playerEntity.getY(), playerEntity.getZ()), playerEntity.getYRot(), playerEntity.getXRot()));
-                    serverPlayerEntity.setCamera(playerEntity);
-                    addSpectator(playerEntity.getScoreboardName(), serverPlayerEntity.getScoreboardName());
-                }
-                else {
-                    Logger.logSuccess(serverPlayerEntity, "Please teleport to " + targetMapName + " before spectating this player.");
                 }
             }
+            return;
         }
-        else {
-            Logger.logFailure(serverPlayerEntity, "You cannot spectate this entity.");
+
+        if (nameString.endsWith("_replay")) {
+            String mapName = nameString.substring(0, nameString.length() - "_replay".length());
+            if (SpectateSessions.startWorldRecord(serverPlayerEntity, mapName)) {
+                Logger.logSuccess(serverPlayerEntity, "Now spectating the world record on " + mapName + ". Use /unspec to stop spectating.");
+                return;
+            }
         }
+
+        // "{map}_replay_{player}": that player's personal best, from its start.
+        for (DataManager.MapData mapData : Minehop.mapList) {
+            if (mapData == null || mapData.name == null || !nameString.startsWith(mapData.name + "_replay_")) {
+                continue;
+            }
+            ReplayManager.Replay replay = resolveReplayFromName(context.getSource().getServer(), mapData.name, nameString);
+            if (replay != null) {
+                SpectateSessions.startPersonalBest(serverPlayerEntity, mapData.name, replay);
+                if (SpectateSessions.isSpectating(serverPlayerEntity)) {
+                    Logger.logSuccess(serverPlayerEntity, "Now watching " + replay.player_name + "'s personal best on " + mapData.name
+                            + " (" + String.format("%.5f", replay.time) + "). Use /unspec to stop watching.");
+                }
+                return;
+            }
+        }
+
+        Logger.logFailure(serverPlayerEntity, "Entity not found.");
     }
 
     private static void handleReplayPath(CommandContext<CommandSourceStack> context, ServerPlayer viewer, String requestedName) {
@@ -218,30 +180,22 @@ public class SpectateCommands {
             return null;
         }
 
-        Entity entity = context.getSource().getServer().getPlayerList().getPlayerByName(requestedName);
-        if (entity == null) {
-            entity = findWorldRecordGhost(requestedName);
-        }
-
-        if (entity instanceof ReplayEntity replayEntity) {
-            String mapName = replayEntity.getMapName();
-            if (!isViewerOnMap(viewer, mapName)) {
-                Logger.logFailure(viewer, "Please teleport to " + mapName + " before rendering this replay path.");
-                return null;
+        if (requestedName.endsWith("_replay")) {
+            String mapName = requestedName.substring(0, requestedName.length() - "_replay".length());
+            if (DataManager.getMap(mapName) != null) {
+                return new ResolvedReplayPath(mapName, "the world record", ReplayManager.getReplay(mapName));
             }
-            String replayPlayerName = replayEntity.getReplayPlayerName();
-            ReplayManager.Replay replay = replayPlayerName == null || replayPlayerName.isBlank()
-                    ? ReplayManager.getReplay(mapName)
-                    : ReplayManager.getReplay(mapName, replayPlayerName);
-            String displayName = replayPlayerName == null || replayPlayerName.isBlank() ? "the world record" : replayPlayerName + "'s personal best";
-            return new ResolvedReplayPath(mapName, displayName, replay);
+        }
+        for (DataManager.MapData mapData : Minehop.mapList) {
+            if (mapData != null && mapData.name != null && requestedName.startsWith(mapData.name + "_replay_")) {
+                ReplayManager.Replay replay = resolveReplayFromName(context.getSource().getServer(), mapData.name, requestedName);
+                if (replay != null) {
+                    return new ResolvedReplayPath(mapData.name, replay.player_name + "'s personal best", replay);
+                }
+            }
         }
 
-        if (entity instanceof Player) {
-            Logger.logFailure(viewer, "Path rendering is only available for saved replays.");
-            return null;
-        }
-
+        // A plain player name: their personal best on the map the viewer is on.
         String currentMap = ZoneUtil.getCurrentMapName(viewer);
         if (currentMap == null || currentMap.isBlank()) {
             Logger.logFailure(viewer, "Please teleport to the map before rendering a replay path.");
@@ -282,14 +236,6 @@ public class SpectateCommands {
         return ReplayManager.getReplayForRecord(ReplayManager.findPersonalRecordByName(server, currentMap, requestedName));
     }
 
-    private static boolean isViewerOnMap(ServerPlayer viewer, String mapName) {
-        if (viewer == null || mapName == null || mapName.isBlank()) {
-            return false;
-        }
-        String currentMap = ZoneUtil.getCurrentMapName(viewer);
-        return mapName.equals(currentMap);
-    }
-
     private static String sanitizeForScoreboard(String raw) {
         if (raw == null || raw.isBlank()) {
             return "player";
@@ -321,16 +267,6 @@ public class SpectateCommands {
         }
     }
 
-    /** The spawned world-record ghost named "{map}_replay", or null. */
-    private static ReplayEntity findWorldRecordGhost(String name) {
-        if (name == null || !name.endsWith("_replay")) {
-            return null;
-        }
-        net.nerdorg.minehop.replays.ReplayGhosts.Ghost ghost =
-                net.nerdorg.minehop.replays.ReplayGhosts.worldRecordGhost(name.substring(0, name.length() - "_replay".length()));
-        return ghost == null ? null : ghost.entity();
-    }
-
     private static void suggestSavedReplayNames(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
         if (context == null || builder == null || Minehop.replayList == null) {
             return;
@@ -356,37 +292,5 @@ public class SpectateCommands {
     }
 
     private record ResolvedReplayPath(String mapName, String displayName, ReplayManager.Replay replay) {
-    }
-
-    private static void removeFromCurrentSpectateTarget(ServerPlayer spectator) {
-        if (spectator == null || spectator.getCamera() == null) {
-            return;
-        }
-        String currentTarget = spectator.getCamera().getScoreboardName();
-        List<String> spectators = spectatorList.get(currentTarget);
-        if (spectators == null) {
-            return;
-        }
-        spectators.remove(spectator.getScoreboardName());
-        if (spectators.size() <= 1) {
-            spectatorList.remove(currentTarget);
-        }
-    }
-
-    public static void addSpectator(String targetName, String spectatorName) {
-        if (targetName == null || targetName.isBlank() || spectatorName == null || spectatorName.isBlank()) {
-            return;
-        }
-        List<String> spectators = spectatorList.get(targetName);
-        if (spectators == null) {
-            spectators = new ArrayList<>();
-            spectators.add(targetName);
-            spectatorList.put(targetName, spectators);
-        } else if (!spectators.contains(targetName)) {
-            spectators.add(0, targetName);
-        }
-        if (!spectators.contains(spectatorName)) {
-            spectators.add(spectatorName);
-        }
     }
 }

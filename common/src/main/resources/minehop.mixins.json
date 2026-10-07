@@ -4,13 +4,17 @@
 	"refmap": "${mod_id}.refmap.json",
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [
+		"ChunkMapAccessor",
 		"EntityCollisionMixin",
 		"EntityRemovalMixin",
 		"LivingEntityMixin",
 		"ServerCommonNetworkHandlerStreamMixin",
 		"ServerConfigurationDisconnectLogMixin",
 		"ServerPlayNetworkHandlerMixin",
-		"ServerPlayNetworkHandlerStreamMixin"
+		"ServerPlayNetworkHandlerSpectateMixin",
+		"ServerPlayNetworkHandlerStreamMixin",
+		"ServerPlayerSpectateMixin",
+		"TrackedEntityAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1
