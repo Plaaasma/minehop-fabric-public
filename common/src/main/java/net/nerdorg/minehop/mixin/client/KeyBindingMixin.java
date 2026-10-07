@@ -95,7 +95,11 @@ public abstract class KeyBindingMixin {
 
         if (sneakKey != null && this.key.getName().equals(sneakKey.saveString())) {
             if (Minecraft.getInstance().player != null) {
-                if (Minecraft.getInstance().player.isSpectator()) {
+                // While watching someone, sneak would ask the server to drop the camera (a server with spectate
+                // sessions ends the session for it; an older one lets the camera go). Free spectator flight
+                // (operators) keeps sneak to fly down.
+                if (Minecraft.getInstance().player.isSpectator()
+                        && Minecraft.getInstance().getCameraEntity() != Minecraft.getInstance().player) {
                     cir.setReturnValue(false);
                     return;
                 }
