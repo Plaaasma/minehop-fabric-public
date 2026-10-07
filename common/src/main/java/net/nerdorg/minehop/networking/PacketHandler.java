@@ -674,11 +674,13 @@ public class PacketHandler {
     private static final boolean RUN_LOG = System.getProperty("minehop.replaytest") != null || Boolean.getBoolean("minehop.runlog");
 
     /**
-     * Compares the run's client tick count with the time the client reported (evidence only; an accepted run is never
-     * rejected here). A legit client's time is its ticks plus the fraction of a tick at which it sampled the end-zone
-     * crossing, plus any ticks it lost in a hitch (a frozen client catches up at most 10 ticks per frame): fewer ticks
-     * than the time is a hitch, noted in the replay; more ticks than its own clock allows is reported as Timer
-     * evidence on the run. Returns the MhrpHeader flags for the run's replay.
+     * Compares the run's client tick count with the time the client reported, as evidence only: an accepted run is never
+     * rejected or flagged here (the run-tick check above already rejects more ticks than the measured real time
+     * allows). A client's time is its ticks plus the fraction of a tick at which it sampled the end-zone crossing; it
+     * runs ahead of its ticks when it lost ticks in a hitch (a frozen client catches up at most 10 ticks per frame and
+     * drops the rest) and behind them by up to a catch-up burst. A difference beyond the timing tolerance either way is
+     * logged and marked in the run's replay (MhrpHeader.FLAG_TICK_TIME_MISMATCH), whose header also keeps the tick
+     * count and the server-measured time. Returns the MhrpHeader flags for the replay.
      */
     private static int checkRunTicksAgainstTime(ServerPlayer player, MinecraftServer server, String mapName, double time, long runTicks) {
         if (runTicks < 0L) {
@@ -686,20 +688,17 @@ public class PacketHandler {
         }
         double secondsPerTick = server.tickRateManager().millisecondsPerTick() / 1000.0D;
         double tickSeconds = runTicks * secondsPerTick;
-        if (time < tickSeconds - TIMER_VALIDATION_TOLERANCE_SECONDS) {
-            String details = String.format(java.util.Locale.ROOT, "runTime=%.3f runTicks=%d (%.3fs): more ticks than the client's clock",
-                    time, runTicks, tickSeconds);
-            net.nerdorg.minehop.anticheat.AntiCheatManager.reportMovementViolation(player,
-                    net.nerdorg.minehop.anticheat.stream.MovementValidator.CHECK_TIMER, 1.0D, details, false, null);
-            return net.nerdorg.minehop.replays.storage.MhrpHeader.FLAG_TICK_TIME_MISMATCH;
+        boolean ahead = time > tickSeconds + secondsPerTick + TIMER_VALIDATION_TOLERANCE_SECONDS;
+        boolean behind = time < tickSeconds - TIMER_VALIDATION_TOLERANCE_SECONDS;
+        if (!ahead && !behind) {
+            return 0;
         }
-        if (time > tickSeconds + secondsPerTick + TIMER_VALIDATION_TOLERANCE_SECONDS) {
-            Minehop.LOGGER.info(String.format(java.util.Locale.ROOT,
-                    "[Run] %s's %.3fs run on %s has %d client ticks (%.3fs): the client lost %.3fs of ticks (a hitch); noted in its replay",
-                    player.getScoreboardName(), time, mapName, runTicks, tickSeconds, time - tickSeconds));
-            return net.nerdorg.minehop.replays.storage.MhrpHeader.FLAG_TICK_TIME_MISMATCH;
-        }
-        return 0;
+        Minehop.LOGGER.info(String.format(java.util.Locale.ROOT,
+                "[Run] %s's %.3fs run on %s has %d client ticks (%.3fs): %s; noted in its replay",
+                player.getScoreboardName(), time, mapName, runTicks, tickSeconds,
+                ahead ? String.format(java.util.Locale.ROOT, "the client lost %.3fs of ticks (a hitch)", time - tickSeconds)
+                        : String.format(java.util.Locale.ROOT, "%.3fs more ticks than the client's own clock", tickSeconds - time)));
+        return net.nerdorg.minehop.replays.storage.MhrpHeader.FLAG_TICK_TIME_MISMATCH;
     }
 
     private static boolean isSafeMinecraftPlayerName(String playerName) {
