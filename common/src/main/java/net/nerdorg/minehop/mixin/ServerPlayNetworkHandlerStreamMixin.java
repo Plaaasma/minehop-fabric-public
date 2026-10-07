@@ -52,6 +52,12 @@ public abstract class ServerPlayNetworkHandlerStreamMixin {
         MinecraftServer server = current == null ? null : current.getServer();
         if (server != null && !server.isSameThread()) {
             MovementValidator.onMovePacketNetwork(current);
+        } else if (server != null) {
+            // Server-thread pass of every move packet: pair it with its network arrival time. 1.21.1: taken here at
+            // HEAD rather than after forceMainThread, so a pass another injection cancels there (a spectate session
+            // ignoring the viewer's moves) still takes its arrival: the move packet's arrival times are this
+            // version's tick timing, and a skipped one would leave every later tick with an older packet's time.
+            MovementValidator.onMovePacketProcessing(current);
         }
     }
 

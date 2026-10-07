@@ -1,7 +1,9 @@
 package net.nerdorg.minehop.anticheat.stream;
 
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -13,32 +15,17 @@ final class StreamState {
     record PendingPing(long sentNanos, int carryTicks, double speed) {
     }
 
-    /**
-     * 1.21.1 port: stand-in for 1.21.2+'s {@code net.minecraft.world.entity.player.Input} (same accessor
-     * names, so the checks read the same as on 1.21.4). Pre-1.21.2 clients never report their movement
-     * keys: {@code ServerboundPlayerInputPacket} is vehicle-only (sent only while riding) and there is no
-     * per-tick input packet. Only sneak and sprint are known, from {@code ServerboundPlayerCommandPacket}
-     * (PRESS/RELEASE_SHIFT_KEY, START/STOP_SPRINTING), which the client sends right before that tick's
-     * move packet. W/A/S/D and jump stay {@code false} here and every consumer is gated on
-     * {@link MovementValidator}'s *_KNOWN flags, so the unknown keys can never create a flag.
-     */
-    record Input(boolean forward, boolean backward, boolean left, boolean right, boolean jump, boolean shift,
-                 boolean sprint) {
-        static final Input EMPTY = new Input(false, false, false, false, false, false, false);
-
-        Input withShift(boolean shift) {
-            return new Input(this.forward, this.backward, this.left, this.right, this.jump, shift, this.sprint);
-        }
-
-        Input withSprint(boolean sprint) {
-            return new Input(this.forward, this.backward, this.left, this.right, this.jump, this.shift, sprint);
-        }
-    }
-
     final TimerBalance timer = new TimerBalance();
     /** System.nanoTime() of the last teleport request/confirm (any thread reads it). */
     volatile long lastTeleportNanos;
     final Map<Integer, PendingPing> pendingPings = new ConcurrentHashMap<>();
+    /**
+     * Network-thread arrival times (System.nanoTime) of the move packets not yet processed on the server thread, oldest
+     * first: each packet's server-thread pass takes its own (both threads see the packets in the same order), so a tick
+     * keeps the time it arrived however late the server thread handles it. (1.21.1: no ClientTickEnd packet exists, so
+     * there is no tick-end queue; every move packet but the teleport echo ends a client tick.)
+     */
+    final Queue<Long> moveArrivals = new ConcurrentLinkedQueue<>();
 
     // --- packet bookkeeping ---
     /** Vanilla ignores move packets between requestTeleport and the client's confirm. */
@@ -63,7 +50,11 @@ final class StreamState {
     Vec3 tickPos;
     boolean tickHasYaw;
     float tickYaw;
+    float tickPitch;
     boolean tickHorizontalCollision;
+    /** Arrival of the move packet being processed (server thread). */
+    long moveArrivalNanos;
+    boolean moveArrivalKnown;
     /** The client's own on-ground flag (last move packet received; persists across quiet ticks). */
     boolean clientOnGround;
 
@@ -123,6 +114,19 @@ final class StreamState {
      * because it stood still; see MovementValidator#finalizeTick). 0 until the tick stream hand-off sets it.
      */
     int quietTicksBefore;
+
+    // --- the client's view at the end of the last tick, for the tick stream (ClientTick) ---
+    boolean frameHasRotation;
+    float frameYaw;
+    float framePitch;
+    /** The server moved the player (teleport) since the last tick was handed on. */
+    boolean frameDiscontinuity = true;
+    /**
+     * 1.21.1 port: the last client tick handed on (quiet ticks are copies of it), the step its position made from the
+     * tick before (blocks; 0 after a teleport) and whether its arrival time was the network's.
+     */
+    ClientTick lastClientTick;
+    double lastFrameStep;
 
     /** Position at the end of the last tick that wasn't lagged back (lagback anchor). */
     Vec3 lastGoodPos;
