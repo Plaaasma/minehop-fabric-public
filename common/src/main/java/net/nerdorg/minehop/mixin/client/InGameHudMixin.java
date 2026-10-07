@@ -104,6 +104,7 @@ public abstract class InGameHudMixin {
                 MinehopClient.squeedometerHud.drawSpectators(context, tickCounter.getGameTimeDeltaPartialTick(true));
             }
         }
+        net.nerdorg.minehop.client.replay.ReplayHud.render(context);
     }
 
     @Inject(at = @At("HEAD"), method = "renderHearts", cancellable = true)
