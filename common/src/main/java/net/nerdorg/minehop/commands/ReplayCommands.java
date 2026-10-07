@@ -225,6 +225,9 @@ public class ReplayCommands {
         }
         text.append("; ").append(net.nerdorg.minehop.replays.storage.LegacyMigration.status());
         text.append("\n").append(ReplayStreaming.status());
+        for (String line : SpectateSessions.describeSessions(source.getServer())) {
+            text.append("\nsession: ").append(line);
+        }
         String message = text.toString();
         source.sendSuccess(() -> net.minecraft.network.chat.Component.literal(message), false);
         return Command.SINGLE_SUCCESS;
