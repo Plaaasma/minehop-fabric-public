@@ -23,6 +23,8 @@ import java.util.UUID;
  * saved by an older version, which did save ghosts) removes itself.
  */
 public class ReplayEntity extends Mob {
+    /** Blocks between two position updates beyond which the client snaps instead of interpolating. */
+    private static final double CLIENT_SNAP_DISTANCE = 10.0D;
     private String map_name = "";
     private String replay_player_name = "";
     private boolean hide_head = false;
@@ -179,6 +181,30 @@ public class ReplayEntity extends Mob {
             return Component.literal(mapNameValue + "_replay");
         }
         return Component.literal(mapNameValue + "_replay_" + replayPlayerNameValue);
+    }
+
+    /**
+     * Client: position updates are normally interpolated over 3 ticks, which made the ghost slide across the map
+     * when the run teleported (reset zone, checkpoint) or the replay looped. An update this far from the previous one
+     * can't be movement (the server sends one every tick), so jump there instead.
+     */
+    @Override
+    public void lerpTo(double x, double y, double z, float yRot, float xRot, int steps) {
+        if (this.level().isClientSide) {
+            double dx = x - this.lerpTargetX();
+            double dy = y - this.lerpTargetY();
+            double dz = z - this.lerpTargetZ();
+            if (dx * dx + dy * dy + dz * dz > CLIENT_SNAP_DISTANCE * CLIENT_SNAP_DISTANCE) {
+                super.lerpTo(x, y, z, yRot, xRot, 0);
+                this.moveTo(x, y, z, yRot, xRot);
+                this.setYHeadRot(yRot);
+                this.yHeadRotO = yRot;
+                this.setYBodyRot(yRot);
+                this.yBodyRotO = yRot;
+                return;
+            }
+        }
+        super.lerpTo(x, y, z, yRot, xRot, steps);
     }
 
     @Override
