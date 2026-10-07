@@ -25,6 +25,14 @@ import java.util.UUID;
 public class ReplayEntity extends Mob {
     /** Blocks between two position updates beyond which the client snaps instead of interpolating. */
     private static final double CLIENT_SNAP_DISTANCE = 10.0D;
+    /**
+     * Entity event the server sends right before moving a ghost across a teleport of its recording (or back to the
+     * start when it loops): the client then jumps to the next position instead of interpolating to it. Not a vanilla
+     * event id; clients without this handler ignore it (and interpolate, or snap beyond {@link #CLIENT_SNAP_DISTANCE}).
+     */
+    public static final byte SNAP_EVENT = 117;
+    // Client: the next position update is a teleport (SNAP_EVENT).
+    private boolean snapNextPosition = false;
     private String map_name = "";
     private String replay_player_name = "";
     private boolean hide_head = false;
@@ -185,8 +193,9 @@ public class ReplayEntity extends Mob {
 
     /**
      * Client: position updates are normally interpolated over 3 ticks, which made the ghost slide across the map
-     * when the run teleported (reset zone, checkpoint) or the replay looped. An update this far from the previous one
-     * can't be movement (the server sends one every tick), so jump there instead.
+     * when the run teleported (reset zone, checkpoint) or the replay looped. Jump instead when the server announced a
+     * teleport ({@link #SNAP_EVENT}: recordings that mark their teleports), or when an update is this far from the
+     * previous one, which can't be movement (the server sends one every tick; older recordings have no marks).
      */
     @Override
     public void lerpTo(double x, double y, double z, float yRot, float xRot, int steps, boolean teleport) {
@@ -195,7 +204,9 @@ public class ReplayEntity extends Mob {
             double dx = x - (this.lerpSteps > 0 ? this.lerpX : this.getX());
             double dy = y - (this.lerpSteps > 0 ? this.lerpY : this.getY());
             double dz = z - (this.lerpSteps > 0 ? this.lerpZ : this.getZ());
-            if (dx * dx + dy * dy + dz * dz > CLIENT_SNAP_DISTANCE * CLIENT_SNAP_DISTANCE) {
+            boolean snap = this.snapNextPosition;
+            this.snapNextPosition = false;
+            if (snap || dx * dx + dy * dy + dz * dz > CLIENT_SNAP_DISTANCE * CLIENT_SNAP_DISTANCE) {
                 super.lerpTo(x, y, z, yRot, xRot, 0, teleport);
                 this.moveTo(x, y, z, yRot, xRot);
                 this.setYHeadRot(yRot);
@@ -206,6 +217,15 @@ public class ReplayEntity extends Mob {
             }
         }
         super.lerpTo(x, y, z, yRot, xRot, steps, teleport);
+    }
+
+    @Override
+    public void handleEntityEvent(byte id) {
+        if (id == SNAP_EVENT) {
+            this.snapNextPosition = true;
+            return;
+        }
+        super.handleEntityEvent(id);
     }
 
     @Override

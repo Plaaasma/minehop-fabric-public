@@ -202,7 +202,7 @@ public class SpectateCommands {
                                            net.nerdorg.minehop.replays.storage.ReplayFrames frames, ResolvedReplayPath resolved,
                                            String requestedName) {
         java.util.concurrent.CompletableFuture
-                .supplyAsync(() -> net.nerdorg.minehop.replays.ReplayPathSimplifier.simplify(ReplayManager.asEntries(frames)))
+                .supplyAsync(() -> net.nerdorg.minehop.replays.ReplayPathSimplifier.simplify(frames))
                 .thenAccept(points -> server.execute(() -> {
                     ServerPlayer player = server.getPlayerList().getPlayer(viewerUuid);
                     if (player == null) {
