@@ -702,7 +702,8 @@ public final class LeaderboardIntegrity {
         if (server == null || map == null) {
             return;
         }
-        if (ReplayManager.getReplay(map) != null && DataManager.getMap(map) != null) {
+        DataManager.MapData mapData = DataManager.getMap(map);
+        if (mapData != null && !mapData.replay_ghost_disabled && ReplayManager.getReplay(map) != null) {
             ReplayCommands.ensureWorldRecordReplayEntity(server, map);
             return;
         }
