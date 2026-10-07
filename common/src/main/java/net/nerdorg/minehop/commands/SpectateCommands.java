@@ -28,6 +28,11 @@ public class SpectateCommands {
     private static final int PATH_COOLDOWN_TICKS = 100;
     private static final java.util.Map<java.util.UUID, Long> LAST_PATH_REQUEST = new java.util.HashMap<>();
 
+    /** Forget a disconnecting player's path cooldown. */
+    public static void forget(java.util.UUID player) {
+        LAST_PATH_REQUEST.remove(player);
+    }
+
     public static void register() {
         Services.EVENTS.onRegisterCommands((dispatcher, registryAccess, environment) -> dispatcher.register(
             LiteralArgumentBuilder.<CommandSourceStack>literal("spec")
