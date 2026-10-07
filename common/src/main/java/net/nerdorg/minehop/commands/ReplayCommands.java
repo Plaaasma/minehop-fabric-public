@@ -110,7 +110,10 @@ public class ReplayCommands {
             ReplayManager.Replay replay = ghost.replay();
             text.append("\n ").append(mapName).append(": ").append(replay.player_name)
                     .append(String.format(java.util.Locale.ROOT, " %.3fs", replay.time))
-                    .append(" frame ").append(ghost.frame()).append('/').append(replay.replayEntries.size());
+                    .append(" frame ").append(ghost.frame()).append('/').append(ReplayManager.frameCount(replay));
+            if (ghost.frames() == null) {
+                text.append(" (frames not loaded)");
+            }
             if (ghost.entity() != null) {
                 spawned++;
                 text.append(String.format(java.util.Locale.ROOT, " at %.1f %.1f %.1f", ghost.entity().getX(), ghost.entity().getY(), ghost.entity().getZ()));
@@ -120,6 +123,12 @@ public class ReplayCommands {
         }
         text.append("\n").append(maps.size()).append(" ghost(s), ").append(spawned).append(" spawned; ")
                 .append(ReplayGhosts.legacyGhostsRemoved()).append(" saved ghost(s) from older versions removed since start.");
+        net.nerdorg.minehop.replays.storage.ReplayStore store = ReplayManager.store();
+        text.append("\nReplay store: ").append(ReplayManager.storeMode());
+        if (store != null) {
+            text.append(String.format(java.util.Locale.ROOT, ", %d runs, frame cache %d runs / %.1f MB, %d write(s) pending",
+                    Minehop.replayList.size(), store.cachedRuns(), store.cacheBytes() / 1048576.0D, store.pendingWrites()));
+        }
         String message = text.toString();
         source.sendSuccess(() -> net.minecraft.network.chat.Component.literal(message), false);
         return Command.SINGLE_SUCCESS;
