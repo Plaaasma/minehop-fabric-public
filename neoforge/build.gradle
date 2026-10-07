@@ -30,6 +30,10 @@ neoForge {
             if (project.hasProperty('clientUsername')) {
                 programArguments.addAll('--username', project.property('clientUsername').toString())
             }
+            // -PreplayDebug: log client replay playback per rendered frame (dev only)
+            if (project.hasProperty('replayDebug')) {
+                systemProperty('minehop.replayDebug', 'true')
+            }
         }
         data {
             clientData()
