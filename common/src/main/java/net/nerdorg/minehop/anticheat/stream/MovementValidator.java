@@ -185,6 +185,12 @@ public final class MovementValidator {
         }
     }
 
+    /** 1.20.1: client ticks handed on so far, inferred idle ticks included (ClientTick#streamIndex); -1 if none. */
+    public static long streamTicks(ServerPlayer player) {
+        StreamState st = player == null ? null : STATES.get(player.getUUID());
+        return st == null ? -1L : st.streamTicks;
+    }
+
     /** Client ticks validated so far for this player, or -1 if none (used to check run timing). */
     public static long clientTicks(ServerPlayer player) {
         StreamState st = player == null ? null : STATES.get(player.getUUID());

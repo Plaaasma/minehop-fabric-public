@@ -21,7 +21,8 @@ import net.nerdorg.minehop.data.DataManager;
 import net.nerdorg.minehop.discord.DiscordIntegration;
 import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.networking.payloads.*;
-import net.nerdorg.minehop.replays.ReplayEvents;
+import net.nerdorg.minehop.replays.RunClock;
+import net.nerdorg.minehop.replays.RunRecorder;
 import net.nerdorg.minehop.replays.ReplayManager;
 import net.nerdorg.minehop.replays.ReplayPathSimplifier;
 import net.nerdorg.minehop.replays.RunStats;
@@ -417,7 +418,7 @@ public class PacketHandler {
         }
         String playerName = player.getScoreboardName();
         if (!Minehop.timerManager.containsKey(playerName) && !Minehop.finishTimeManager.containsKey(playerName)
-                && !ReplayEvents.replayEntryMap.containsKey(playerName)) {
+                && RunRecorder.recordedFrames(player) < 0) {
             return;
         }
         clearFinishedRunState(player, server);
@@ -433,7 +434,7 @@ public class PacketHandler {
         Minehop.runSignatureManager.remove(playerName);
         Minehop.runStartClientTicks.remove(playerName);
         Minehop.runFinishClientTicks.remove(playerName);
-        ReplayEvents.replayEntryMap.remove(playerName);
+        RunRecorder.discardRun(player);
         clearRunTimerHudForRunnerAndSpectators(player, server);
     }
 
@@ -567,26 +568,32 @@ public class PacketHandler {
         String formattedNumber = String.format("%.5f", time);
         String playerName = player.getScoreboardName();
         String playerUuid = player.getStringUUID();
+        // 1.20.1: a client sends no move packet in a tick it stood still in, so the run's move packets (runClientTicks,
+        // what the check above counts) undercount its ticks; the tick stream fills those idle ticks in (RunClock).
+        long runStreamTicks = runClientTicks < 0L ? -1L : RunClock.streamTicksOfRun(player);
+        long evidenceTicks = runStreamTicks >= 0L ? runStreamTicks : runClientTicks;
+        int replayHeaderFlags = checkRunTicksAgainstTime(player, server, activeMapName, time, evidenceTicks);
+        if (RUN_LOG) {
+            Minehop.LOGGER.info(String.format(java.util.Locale.ROOT,
+                    "[RUN] accepted %s on %s: client %.5f s, server span %.5f s, %d client ticks (%.3f s; %d move packets)",
+                    playerName, activeMapName, time, serverRunSeconds, evidenceTicks,
+                    evidenceTicks * 50.0D / 1000.0D, runClientTicks));
+        }
         // Evidence for later review: anticheat flags raised during this run travel with its replay,
         // PB and WR rows (see /map manage history and /map manage flagged).
         String acFlags = net.nerdorg.minehop.anticheat.AntiCheatManager.runFlagSummary(player);
         if (!acFlags.isEmpty()) {
             net.nerdorg.minehop.anticheat.AntiCheatManager.announceFlaggedRun(player, activeMapName, time, acFlags);
         }
-        List<ReplayManager.ReplayEntry> replayEntries = ReplayEvents.replayEntryMap.get(playerName);
-        if (replayEntries != null && replayEntries.size() >= ReplayEvents.MAX_RECORDED_FRAMES) {
+        // The replay's metadata is saved now (the finish below may make it the WR ghost); its frames follow within a
+        // second, once the post-run frames are recorded (RunRecorder).
+        ReplayManager.Replay replay = new ReplayManager.Replay(activeMapName, playerName, playerUuid, time, null);
+        replay.ac_flags = acFlags;
+        RunRecorder.Outcome recording = RunRecorder.finishRun(player, replay, serverRunSeconds, evidenceTicks, replayHeaderFlags);
+        if (recording == RunRecorder.Outcome.TOO_LONG) {
             Minehop.LOGGER.info("Not saving a replay of {}'s {} run on {}: longer than the recording cap", playerName, formattedNumber, activeMapName);
-        } else if (replayEntries != null && !replayEntries.isEmpty()) {
-            // saveReplay keeps its own copy of the frames (the recording is dropped below with the run state).
-            ReplayManager.Replay replay = new ReplayManager.Replay(
-                    activeMapName,
-                    playerName,
-                    playerUuid,
-                    time,
-                    replayEntries
-            );
-            replay.ac_flags = acFlags;
-            ReplayManager.saveReplay(player.serverLevel(), replay, serverRunSeconds, runClientTicks);
+        } else if (recording == RunRecorder.Outcome.NO_RECORDING) {
+            Minehop.LOGGER.info("No replay of {}'s {} run on {}: nothing was recorded", playerName, formattedNumber, activeMapName);
         }
 
         DataManager.RecordData existingPersonalRecord = DataManager.getPersonalRecord(playerName, playerUuid, activeMapName);
@@ -667,6 +674,37 @@ public class PacketHandler {
 
         Logger.logSuccess(player, "Completed " + activeMapName + " in " + formattedNumber + " seconds.");
         clearFinishedRunState(player, server);
+    }
+
+    private static final boolean RUN_LOG = System.getProperty("minehop.replaytest") != null || Boolean.getBoolean("minehop.runlog");
+
+    /**
+     * Compares the run's client tick count with the time the client reported (evidence only; an accepted run is never
+     * rejected here). A legit client's time is its ticks plus the fraction of a tick at which it sampled the end-zone
+     * crossing, plus any ticks it lost in a hitch (a frozen client catches up at most 10 ticks per frame): fewer ticks
+     * than the time is a hitch, noted in the replay; more ticks than its own clock allows is reported as Timer
+     * evidence on the run. Returns the MhrpHeader flags for the run's replay.
+     */
+    private static int checkRunTicksAgainstTime(ServerPlayer player, MinecraftServer server, String mapName, double time, long runTicks) {
+        if (runTicks < 0L) {
+            return 0;
+        }
+        double secondsPerTick = 50.0D / 1000.0D; // 1.20.1: fixed 20 TPS (no tick-rate manager)
+        double tickSeconds = runTicks * secondsPerTick;
+        if (time < tickSeconds - TIMER_VALIDATION_TOLERANCE_SECONDS) {
+            String details = String.format(java.util.Locale.ROOT, "runTime=%.3f runTicks=%d (%.3fs): more ticks than the client's clock",
+                    time, runTicks, tickSeconds);
+            net.nerdorg.minehop.anticheat.AntiCheatManager.reportMovementViolation(player,
+                    net.nerdorg.minehop.anticheat.stream.MovementValidator.CHECK_TIMER, 1.0D, details, false, null);
+            return net.nerdorg.minehop.replays.storage.MhrpHeader.FLAG_TICK_TIME_MISMATCH;
+        }
+        if (time > tickSeconds + secondsPerTick + TIMER_VALIDATION_TOLERANCE_SECONDS) {
+            Minehop.LOGGER.info(String.format(java.util.Locale.ROOT,
+                    "[Run] %s's %.3fs run on %s has %d client ticks (%.3fs): the client lost %.3fs of ticks (a hitch); noted in its replay",
+                    player.getScoreboardName(), time, mapName, runTicks, tickSeconds, time - tickSeconds));
+            return net.nerdorg.minehop.replays.storage.MhrpHeader.FLAG_TICK_TIME_MISMATCH;
+        }
+        return 0;
     }
 
     private static boolean isSafeMinecraftPlayerName(String playerName) {
