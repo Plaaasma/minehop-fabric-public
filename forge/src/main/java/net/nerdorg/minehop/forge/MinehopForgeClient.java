@@ -10,7 +10,6 @@ import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.client.MinehopHudOverlay;
-import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfigScreen;
 
 import java.util.Set;
@@ -42,7 +41,7 @@ public final class MinehopForgeClient {
         MinecraftForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, RenderGuiEvent.Post.class,
                 event -> MinehopHudOverlay.render(event.getGuiGraphics(), event.getPartialTick()));
         MinecraftForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, RenderGuiOverlayEvent.Pre.class, event -> {
-            if (ConfigWrapper.config.hideSelf && PLAYER_HEALTH_OVERLAYS.contains(event.getOverlay().id())) {
+            if (net.nerdorg.minehop.client.ClientVisibility.hideSelf() && PLAYER_HEALTH_OVERLAYS.contains(event.getOverlay().id())) {
                 event.setCanceled(true);
             }
         });

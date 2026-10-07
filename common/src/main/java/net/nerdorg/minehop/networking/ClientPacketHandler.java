@@ -202,7 +202,7 @@ public class ClientPacketHandler {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             ctx.client().execute(() -> {
               //  MinehopClient.hideSelf = !MinehopClient.hideSelf;
-                ConfigWrapper.config.hideSelf = !ConfigWrapper.config.hideSelf;
+                net.nerdorg.minehop.client.ClientVisibility.toggleSelf();
             });
         });
 
@@ -210,7 +210,7 @@ public class ClientPacketHandler {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             ctx.client().execute(() -> {
              //   MinehopClient.hideOthers = !MinehopClient.hideOthers;
-                ConfigWrapper.config.hideOthers = !ConfigWrapper.config.hideOthers;
+                net.nerdorg.minehop.client.ClientVisibility.toggleOthers();
             });
         });
 
@@ -218,7 +218,7 @@ public class ClientPacketHandler {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             ctx.client().execute(() -> {
                 //MinehopClient.hideReplay = !MinehopClient.hideReplay;
-                ConfigWrapper.config.hideReplay = !ConfigWrapper.config.hideReplay;
+                net.nerdorg.minehop.client.ClientVisibility.toggleReplay();
             });
         });
 
