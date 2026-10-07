@@ -51,7 +51,6 @@ import java.util.UUID;
 public final class SpectateSessions {
     /** Minimum time between starting (or switching) sessions, per player: they spawn ghosts and move players. */
     public static final int START_COOLDOWN_TICKS = 40;
-    private static final int ORPHAN_CHECK_TICKS = 20;
     private static final int HUD_INTERVAL_TICKS = 5;
     /** A viewer waiting for a replay ghost to spawn is kept within this distance of where it will appear. */
     private static final double PENDING_FOLLOW_DISTANCE = 16.0D;
@@ -81,6 +80,7 @@ public final class SpectateSessions {
         private long lastRefusalMessageTick = Long.MIN_VALUE;
         private RunStats.Snapshot lastStats;
         private long lastStatsTick = Long.MIN_VALUE / 2;
+        private int cameraSends;
 
         private Session(UUID viewer, Kind kind, UUID targetPlayer, String targetName, String mapName, ReturnState back) {
             this.viewer = viewer;
@@ -113,6 +113,11 @@ public final class SpectateSessions {
         /** Whether the camera packet was sent after the client had the target (i.e. the viewer sees through it). */
         public boolean clientAttached() {
             return this.clientAttached;
+        }
+
+        /** How often the camera was (re)sent this session (diagnostics). */
+        public int cameraSends() {
+            return this.cameraSends;
         }
     }
 
@@ -293,6 +298,9 @@ public final class SpectateSessions {
                 Minehop.playerMapLocation.remove(viewer.getStringUUID());
             }
         }
+        // Nothing armed while the session ran (e.g. in the tick an operator took them out of spectator mode on the
+        // target's spot) carries over.
+        PacketHandler.clearRunState(viewer, server);
         PacketHandler.clearRunTimerHud(viewer);
         PacketHandler.sendSpecEfficiency(viewer, 0.0D, 0, 0.0D);
         if (message != null) {
@@ -304,13 +312,31 @@ public final class SpectateSessions {
     // Enforcement hooks (mixins)
     // ------------------------------------------------------------------------------------------
 
-    /** Only this class may change the camera of a player in a session (setting it to what it already is is fine). */
+    /**
+     * Only this class may change the camera of a player in a session (setting it to what it already is is fine). A
+     * player who is no longer in spectator mode (an operator changed it; setGameMode resets the camera) gets their
+     * camera back at once; the session then ends at the end of the tick.
+     */
     public static boolean allowCameraChange(ServerPlayer player, Entity camera) {
-        if (movingCamera || SESSIONS.isEmpty() || !SESSIONS.containsKey(player.getUUID())) {
+        if (movingCamera || SESSIONS.isEmpty() || !SESSIONS.containsKey(player.getUUID()) || !player.isSpectator()) {
             return true;
         }
         Entity effective = camera == null ? player : camera;
         return effective == player.getCamera();
+    }
+
+    /**
+     * An entity was (re)sent to a player's client (ServerEntityPairingMixin). If it is that viewer's camera, the client
+     * has a new object for it and has to be sent the camera again (at the end of the tick, after the spawn).
+     */
+    public static void onEntitySentTo(Entity entity, ServerPlayer player) {
+        if (SESSIONS.isEmpty() || player == null) {
+            return;
+        }
+        Session session = SESSIONS.get(player.getUUID());
+        if (session != null && player.getCamera() == entity) {
+            session.clientAttached = false;
+        }
     }
 
     /** The spectator teleport menu was used during a session (the packet is dropped). */
@@ -354,9 +380,10 @@ public final class SpectateSessions {
     }
 
     /**
-     * Only a session (or an operator) puts a player in spectator mode. A player left in it some other way - e.g. one
-     * who disconnected mid-spectate under an older version - would have free no-clip flight and the vanilla teleport
-     * menu, so they are put back in the default game mode at spawn.
+     * On join: a non-operator who is in spectator mode without a session - one who disconnected mid-spectate under an
+     * older version, which saved them that way - would have free no-clip flight and the vanilla teleport menu, so they
+     * are put back in the default game mode at spawn. (Only on join: while online, spectator mode outside a session can
+     * only come from an operator, e.g. /gamemode or /gmsp on someone, which is left alone.)
      */
     private static void enforceNoStraySpectator(ServerPlayer player) {
         if (player == null || !player.isSpectator() || SESSIONS.containsKey(player.getUUID()) || PermissionUtil.hasLevel(player, 2)
@@ -427,11 +454,6 @@ public final class SpectateSessions {
             }
         }
         updateSpectatorLists(server);
-        if (server.getTickCount() % ORPHAN_CHECK_TICKS == 0) {
-            for (ServerPlayer player : new ArrayList<>(server.getPlayerList().getPlayers())) {
-                enforceNoStraySpectator(player);
-            }
-        }
     }
 
     /** Keeps the viewer on the target: same dimension, camera set, and the camera sent once the client has it. */
@@ -505,6 +527,7 @@ public final class SpectateSessions {
         } else if (!session.clientAttached) {
             viewer.connection.send(new ClientboundSetCameraPacket(target));
             session.clientAttached = true;
+            session.cameraSends++;
         }
     }
 

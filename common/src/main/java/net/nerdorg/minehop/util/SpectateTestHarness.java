@@ -265,7 +265,8 @@ public final class SpectateTestHarness {
                 + " pos=" + fmt(player.getX(), player.getY(), player.getZ())
                 + " camera=" + (camera == player ? "self" : camera.getScoreboardName() + "#" + camera.getId())
                 + " session=" + (session == null ? "none" : session.kind() + ":" + (session.mapName() != null ? session.mapName() + "/" : "") + session.targetName()
-                        + " clientAttached=" + session.clientAttached() + " [" + SpectateSessions.trackingDebug(player) + "]");
+                        + " clientAttached=" + session.clientAttached() + " cameraSends=" + session.cameraSends()
+                        + " [" + SpectateSessions.trackingDebug(player) + "]");
     }
 
     private static String fmt(double x, double y, double z) {
