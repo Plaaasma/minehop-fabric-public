@@ -1,5 +1,6 @@
 package net.nerdorg.minehop.replays;
 
+import net.nerdorg.minehop.replays.storage.ReplayFrames;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
@@ -10,6 +11,10 @@ import java.util.List;
  * recorded frame was up to 72k points, 1.44 MB in 59 packets), split at teleports (reset zones, checkpoints) so no
  * line is drawn across them, and simplified with Ramer-Douglas-Peucker using the smallest tolerance that fits, so
  * the drawn route stays within a few centimetres of the recorded one for normal runs.
+ *
+ * <p>A tick-stream recording marks every teleport ({@link ReplayFrames#FLAG_DISCONTINUITY}) and the route is split
+ * exactly there; only the run itself is drawn (not its pre- and post-run frames). Older recordings have no flags: a
+ * step longer than {@link #TELEPORT_STEP} is taken for a teleport.
  *
  * <p>The polylines are separated by a NaN point. Clients up to 1.1.6 skip non-finite points (they then draw a line
  * across the teleport, as before); newer clients break the line there.
@@ -32,8 +37,32 @@ public final class ReplayPathSimplifier {
         return simplify(entries, MAX_POINTS).points();
     }
 
+    /** A recording without flags, as entries: split where a step is longer than {@link #TELEPORT_STEP}. */
     public static Result simplify(List<ReplayManager.ReplayEntry> entries, int maxPoints) {
-        List<double[]> lines = splitAtTeleports(entries);
+        return simplify(entries == null ? 0 : entries.size(), i -> {
+            ReplayManager.ReplayEntry entry = entries.get(i);
+            return entry == null ? null : new double[]{entry.x, entry.y, entry.z};
+        }, i -> false, true, maxPoints);
+    }
+
+    /** The run part of a replay's frames: split at flagged teleports, or by step length if the frames have no flags. */
+    public static Result simplify(ReplayFrames frames, int maxPoints) {
+        if (frames == null) {
+            return new Result(List.of(), 0.0D, 0);
+        }
+        int start = frames.runStart();
+        boolean flagged = frames.tickStream();
+        return simplify(frames.runEnd() - start, i -> new double[]{frames.x(start + i), frames.y(start + i), frames.z(start + i)},
+                i -> frames.isDiscontinuity(start + i), !flagged, maxPoints);
+    }
+
+    public static List<Vector3f> simplify(ReplayFrames frames) {
+        return simplify(frames, MAX_POINTS).points();
+    }
+
+    private static Result simplify(int count, java.util.function.IntFunction<double[]> position,
+                                   java.util.function.IntPredicate teleport, boolean guessTeleports, int maxPoints) {
+        List<double[]> lines = splitAtTeleports(count, position, teleport, guessTeleports);
         if (lines.isEmpty()) {
             return new Result(List.of(), 0.0D, 0);
         }
@@ -75,46 +104,50 @@ public final class ReplayPathSimplifier {
         return new Result(points, tolerance, lines.size());
     }
 
-    /** Finite frames as polylines (x,y,z packed), split where the step is a teleport; repeated points dropped. */
-    private static List<double[]> splitAtTeleports(List<ReplayManager.ReplayEntry> entries) {
+    /**
+     * Finite frames as polylines (x,y,z packed), split at teleports (flagged ones, and with {@code guessTeleports}
+     * steps longer than {@link #TELEPORT_STEP}); repeated points dropped.
+     */
+    private static List<double[]> splitAtTeleports(int count, java.util.function.IntFunction<double[]> position,
+                                                   java.util.function.IntPredicate teleport, boolean guessTeleports) {
         List<double[]> lines = new ArrayList<>();
-        if (entries == null) {
-            return lines;
-        }
-        double[] current = new double[Math.min(entries.size(), 4096) * 3];
+        double[] current = new double[Math.max(3, Math.min(count, 4096) * 3)];
         int size = 0;
         double lastX = Double.NaN;
         double lastY = Double.NaN;
         double lastZ = Double.NaN;
-        for (ReplayManager.ReplayEntry entry : entries) {
-            if (entry == null || !Double.isFinite(entry.x) || !Double.isFinite(entry.y) || !Double.isFinite(entry.z)) {
+        boolean pendingBreak = false;
+        for (int i = 0; i < count; i++) {
+            double[] p = position.apply(i);
+            pendingBreak |= teleport.test(i);
+            if (p == null || !Double.isFinite(p[0]) || !Double.isFinite(p[1]) || !Double.isFinite(p[2])) {
                 continue;
             }
             if (size > 0) {
-                double dx = entry.x - lastX;
-                double dy = entry.y - lastY;
-                double dz = entry.z - lastZ;
+                double dx = p[0] - lastX;
+                double dy = p[1] - lastY;
+                double dz = p[2] - lastZ;
                 double d2 = dx * dx + dy * dy + dz * dz;
-                if (d2 < 1.0E-8D) {
-                    continue;
-                }
-                if (d2 > TELEPORT_STEP * TELEPORT_STEP) {
+                if (pendingBreak || (guessTeleports && d2 > TELEPORT_STEP * TELEPORT_STEP)) {
                     if (size >= 2) {
                         lines.add(java.util.Arrays.copyOf(current, size * 3));
                     }
                     size = 0;
+                } else if (d2 < 1.0E-8D) {
+                    continue;
                 }
             }
+            pendingBreak = false;
             if ((size + 1) * 3 > current.length) {
                 current = java.util.Arrays.copyOf(current, current.length * 2);
             }
-            current[size * 3] = entry.x;
-            current[size * 3 + 1] = entry.y;
-            current[size * 3 + 2] = entry.z;
+            current[size * 3] = p[0];
+            current[size * 3 + 1] = p[1];
+            current[size * 3 + 2] = p[2];
             size++;
-            lastX = entry.x;
-            lastY = entry.y;
-            lastZ = entry.z;
+            lastX = p[0];
+            lastY = p[1];
+            lastZ = p[2];
         }
         if (size >= 2) {
             lines.add(java.util.Arrays.copyOf(current, size * 3));
