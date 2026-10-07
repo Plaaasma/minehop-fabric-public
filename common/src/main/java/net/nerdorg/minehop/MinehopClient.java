@@ -103,8 +103,11 @@ public class MinehopClient {
 
 		ClientServices.NETWORK.onConnectionInit((handler, client) -> {
 			ClientPacketHandler.registerReceivers();
+			// A new connection (also a proxy server switch) starts without the last server's spectator state.
+			resetSpectatorState();
 		});
 		ClientServices.NETWORK.onConnectionDisconnect((handler, client) -> {
+			resetSpectatorState();
 			SurfStickPreviewState.clear();
 			BoundsStickPreviewState.clear();
 			ReplayPathState.clear();
@@ -227,6 +230,17 @@ public class MinehopClient {
 
 		ClientServices.CLIENT.setBlockRenderType(ModBlocks.BOOSTER_BLOCK, RenderType.translucent());
 		net.nerdorg.minehop.client.ClientPerfProbe.register();
+	}
+
+	/** Who is watching us, the stats received for whoever we watched, and the /hide toggles: per connection. */
+	private static void resetSpectatorState() {
+		spectatorList = new ArrayList<>();
+		jump_count = 0;
+		last_jump_speed = 0;
+		old_jump_speed = 0;
+		start_jump_speed = 0;
+		last_efficiency = 0;
+		net.nerdorg.minehop.client.ClientVisibility.reset();
 	}
 
 	private static void updateRunTimerStartZones(Minecraft client) {

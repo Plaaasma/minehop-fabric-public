@@ -19,7 +19,7 @@ public class GameRendererMixin {
 
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void onRenderHand(CallbackInfo ci) {
-        if (ConfigWrapper.config.hideSelf && !this.minecraft.player.isHolding(ModItems.INSTAGIB_GUN.get())) {
+        if (net.nerdorg.minehop.client.ClientVisibility.hideSelf() && !this.minecraft.player.isHolding(ModItems.INSTAGIB_GUN.get())) {
             ci.cancel();
         }
     }
