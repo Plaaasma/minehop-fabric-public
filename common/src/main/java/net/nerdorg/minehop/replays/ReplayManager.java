@@ -1,6 +1,5 @@
 package net.nerdorg.minehop.replays;
 
-import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import net.nerdorg.minehop.platform.Services;
 import net.minecraft.server.MinecraftServer;
@@ -8,9 +7,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.storage.LevelResource;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.replays.storage.ReplayFrames;
+import net.nerdorg.minehop.replays.storage.ReplayStore;
 import net.nerdorg.minehop.util.JsonStorage;
 
 import java.lang.reflect.Type;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,12 +22,37 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
+/**
+ * Saved runs ("replays") and their lookups. Every finished run is kept: {@link Minehop#replayList} holds every run's
+ * metadata and is also the run history (/map manage history, flagged runs, invalidation by id, the PB fallback).
+ *
+ * <p>Two stores, one active per world ({@link #storeMode()}):
+ * <ul>
+ *   <li>{@link StoreMode#V2}: {@link ReplayStore}, one compact file per run plus a run log; the list holds metadata
+ *       only and frames are loaded on demand ({@link #loadFrames}) into a capped cache.</li>
+ *   <li>{@link StoreMode#LEGACY}: the version 1 store, all runs with all frames in minehop_replays.json and in memory,
+ *       used by a world that has one.</li>
+ * </ul>
+ * The rest of the mod uses the methods here and works the same on both.
+ */
 public class ReplayManager {
     private static final Type replayListType = new TypeToken<List<Replay>>(){}.getType();
-    private static final String REPLAYS_FILE = "minehop_replays.json";
+    public static final String REPLAYS_FILE = "minehop_replays.json";
     // Bump when the on-disk Replay shape changes; migrate in loadRecordReplays/register.
     private static final int SCHEMA_VERSION = 1;
+
+    public enum StoreMode {
+        /** minehop_replays.json, every frame in memory (until migrated). */
+        LEGACY,
+        /** world/MineHop_Data/replays (ReplayStore). */
+        V2
+    }
+
+    private static volatile StoreMode mode = StoreMode.LEGACY;
+    /** The v2 store while {@link #mode} is V2 (null if it failed to open; replays are then not saved this session). */
+    private static ReplayStore store;
 
     // The replay store is one large file (hundreds of MB in production) rewritten as a whole. Writing it on the
     // server thread after every finish froze the server for seconds, and that stall then made the run-timer check
@@ -81,6 +108,10 @@ public class ReplayManager {
         // Why the run was invalidated ("" = valid). An invalidated run is kept (evidence, history) but is never
         // played back, never offered as anyone's personal best or world record and never promoted to one.
         public String invalidated = "";
+        /**
+         * The frames: always set in the legacy store; in the v2 store only on a run that was just handed to
+         * {@link #saveReplay} (stored runs have null here; use {@link #loadFrames} / {@link #frameCount}).
+         */
         public List<ReplayEntry> replayEntries;
 
         public Replay() {
@@ -107,6 +138,15 @@ public class ReplayManager {
             this.saved_at = saved_at;
             this.replayEntries = replayEntries;
         }
+    }
+
+    public static StoreMode storeMode() {
+        return mode;
+    }
+
+    /** The v2 store, or null (legacy store, or the v2 store failed to open). Server thread. */
+    public static ReplayStore store() {
+        return mode == StoreMode.V2 ? store : null;
     }
 
     public static int deleteReplays(String mapName) {
@@ -236,10 +276,108 @@ public class ReplayManager {
         return best;
     }
 
-    /** True if the replay can be played back: it has frames and was not invalidated. */
+    /** True if the replay can be played back: it has frames that can be loaded and was not invalidated. */
     public static boolean isPlayable(Replay replay) {
-        return replay != null && replay.replayEntries != null && !replay.replayEntries.isEmpty()
+        return replay != null && frameCount(replay) > 0 && unavailableReason(replay).isEmpty()
                 && (replay.invalidated == null || replay.invalidated.isBlank());
+    }
+
+    /** Number of recorded frames (without loading them). */
+    public static int frameCount(Replay replay) {
+        if (replay == null) {
+            return 0;
+        }
+        ReplayStore v2 = store();
+        ReplayStore.Entry entry = v2 == null ? null : v2.entry(replay);
+        if (entry != null) {
+            return entry.frames();
+        }
+        return replay.replayEntries == null ? 0 : replay.replayEntries.size();
+    }
+
+    /** Why the run's frames can't be loaded (a corrupt, quarantined or missing file), or "" if they can. */
+    public static String unavailableReason(Replay replay) {
+        ReplayStore v2 = store();
+        ReplayStore.Entry entry = v2 == null || replay == null ? null : v2.entry(replay);
+        return entry == null ? "" : entry.unavailable();
+    }
+
+    /** {minX, minY, minZ, maxX, maxY, maxZ} of the run's route, or null if unknown. */
+    public static double[] bounds(Replay replay) {
+        ReplayStore v2 = store();
+        ReplayStore.Entry entry = v2 == null || replay == null ? null : v2.entry(replay);
+        if (entry != null) {
+            return entry.bounds();
+        }
+        return replay == null || replay.replayEntries == null ? null : toFrames(replay.replayEntries).bounds();
+    }
+
+    /**
+     * The run's frames if they are in memory now (legacy store, the frame cache, a finish still being written), else
+     * null; never touches the disk. Use {@link #loadFrames} to load them.
+     */
+    public static ReplayFrames framesIfLoaded(Replay replay) {
+        if (replay == null) {
+            return null;
+        }
+        ReplayStore v2 = store();
+        ReplayFrames frames = v2 == null ? null : v2.cached(replay);
+        if (frames != null) {
+            return frames;
+        }
+        return replay.replayEntries != null && !replay.replayEntries.isEmpty() ? toFrames(replay.replayEntries) : null;
+    }
+
+    /**
+     * Gets the run's frames and hands them to {@code callback} on the server thread: right away if they are in memory,
+     * otherwise once the replay store's reader thread has loaded them (the server thread never reads or decodes a
+     * replay file). Null if they can't be loaded. Server thread only.
+     */
+    public static void loadFrames(Replay replay, Consumer<ReplayFrames> callback) {
+        ReplayFrames frames = framesIfLoaded(replay);
+        ReplayStore v2 = store();
+        if (frames != null || v2 == null || replay == null) {
+            callback.accept(frames);
+            return;
+        }
+        v2.load(replay, callback);
+    }
+
+    /** A column copy of recorded frames (what the v2 store keeps and writes). */
+    public static ReplayFrames toFrames(List<ReplayEntry> entries) {
+        if (entries == null) {
+            return ReplayFrames.EMPTY;
+        }
+        ReplayFrames.Builder builder = ReplayFrames.builder(entries.size());
+        for (ReplayEntry entry : entries) {
+            if (entry == null) {
+                continue;
+            }
+            builder.add(entry.x, entry.y, entry.z, (float) entry.yrot, (float) entry.xrot, (int) Math.round(entry.jump_count),
+                    (float) entry.last_jump_speed, (float) entry.efficiency, 0);
+        }
+        return builder.build();
+    }
+
+    /** One frame as a ReplayEntry (what ghosts, spectating and the path tools read). */
+    public static ReplayEntry entryAt(ReplayFrames frames, int index) {
+        return new ReplayEntry(frames.x(index), frames.y(index), frames.z(index), frames.pitch(index), frames.yaw(index),
+                frames.jumpCount(index), frames.lastJumpSpeed(index), frames.efficiency(index));
+    }
+
+    /** The frames as a read-only list of ReplayEntry (each get creates the entry), e.g. for ReplayPathSimplifier. */
+    public static List<ReplayEntry> asEntries(ReplayFrames frames) {
+        return new java.util.AbstractList<>() {
+            @Override
+            public ReplayEntry get(int index) {
+                return entryAt(frames, index);
+            }
+
+            @Override
+            public int size() {
+                return frames.size();
+            }
+        };
     }
 
     /**
@@ -291,10 +429,10 @@ public class ReplayManager {
 
     /** True if the replay is a playable recording of the run that set this PB/WR row. */
     private static boolean isRunOf(DataManager.RecordData recordData, Replay replay) {
-        if (replay == null || replay.map_name == null || replay.player_name == null || !isPlayable(replay)) {
+        if (replay == null || replay.map_name == null || replay.player_name == null || !recordData.map_name.equals(replay.map_name)) {
             return false;
         }
-        if (!recordData.map_name.equals(replay.map_name)) {
+        if (!isPlayable(replay)) {
             return false;
         }
         // Prefer UUID identity (survives name changes) with legacy-name fallback.
@@ -348,6 +486,18 @@ public class ReplayManager {
     }
 
     public static void saveReplay(ServerLevel world, Replay replay) {
+        saveReplay(world, replay, Double.NaN, -1L);
+    }
+
+    /**
+     * Stores a finished run (a copy of it: the caller's frame list is not kept). In the v2 store this costs the server
+     * thread one column copy of the frames; the file is encoded and written by the store's writer thread.
+     *
+     * @param serverTime  the server-measured run time in seconds (NaN if unknown), kept in the run's file
+     * @param clientTicks client ticks the run took (-1 if unknown), kept in the run's file
+     */
+    public static void saveReplay(ServerLevel world, Replay replay, double serverTime, long clientTicks) {
+        long start = System.nanoTime();
         if (world == null || replay == null || replay.map_name == null || replay.map_name.isBlank()) {
             return;
         }
@@ -365,13 +515,33 @@ public class ReplayManager {
             Minehop.replayList = new ArrayList<>();
         }
 
+        String id = replay.replay_id == null || replay.replay_id.isBlank() ? UUID.randomUUID().toString() : replay.replay_id;
+        long savedAt = replay.saved_at > 0L ? replay.saved_at : System.currentTimeMillis();
+        if (mode == StoreMode.V2) {
+            if (store == null) {
+                Minehop.LOGGER.error("The replay store is not available; {}'s run on {} was not saved", replay.player_name, replay.map_name);
+                return;
+            }
+            Replay stored = new Replay(id, replay.map_name, replay.player_name, replay.player_uuid, replay.time, savedAt, null);
+            stored.ac_flags = replay.ac_flags == null ? "" : replay.ac_flags;
+            stored.invalidated = replay.invalidated == null ? "" : replay.invalidated;
+            Minehop.replayList.add(stored);
+            // A shallow copy (recorded frames are never changed afterwards); the store's writer thread turns it into
+            // columns, encodes and writes it, so this costs the same for a 20-minute run as for a 20-second one.
+            store.addRun(stored, new ArrayList<>(replay.replayEntries), serverTime, clientTicks, 0);
+            long nanos = System.nanoTime() - start;
+            store.stats().lastFinishNanos = nanos;
+            store.stats().maxFinishNanos = Math.max(store.stats().maxFinishNanos, nanos);
+            return;
+        }
+
         Replay stored = new Replay(
-                replay.replay_id == null || replay.replay_id.isBlank() ? UUID.randomUUID().toString() : replay.replay_id,
+                id,
                 replay.map_name,
                 replay.player_name,
                 replay.player_uuid,
                 replay.time,
-                replay.saved_at > 0L ? replay.saved_at : System.currentTimeMillis(),
+                savedAt,
                 copyReplayEntries(replay.replayEntries)
         );
         stored.ac_flags = replay.ac_flags == null ? "" : replay.ac_flags;
@@ -382,37 +552,66 @@ public class ReplayManager {
     }
 
     /**
-     * Synchronous atomic, backed-up, version-enveloped write (see JsonStorage) on the calling thread. Waits for a
-     * background write in progress. Signature kept for other mods; Minehop itself only uses it at shutdown.
+     * Legacy store: synchronous atomic, backed-up, version-enveloped write of the whole store (see JsonStorage) on
+     * the calling thread, waiting for a background write in progress. V2 store: persists status changes and removals
+     * and waits up to 30 s for the store's writer. Minehop itself only calls this at shutdown.
+     *
+     * @deprecated nothing needs to save the whole replay list any more; use {@link #saveRecordReplaysAsync}.
      */
+    @Deprecated
     public static void saveRecordReplays(ServerLevel world, List<Replay> replays) {
         saveRecordReplaysChecked(world, replays);
     }
 
-    /** Same as {@link #saveRecordReplays}, returning false if the write failed. */
+    /**
+     * Same as {@link #saveRecordReplays}, returning false if the write failed.
+     *
+     * @deprecated see {@link #saveRecordReplays}.
+     */
+    @Deprecated
     public static boolean saveRecordReplaysChecked(ServerLevel world, List<Replay> replays) {
         if (world == null) {
             return false;
+        }
+        if (mode == StoreMode.V2) {
+            if (store == null) {
+                return false;
+            }
+            store.sync(replays == null ? Minehop.replayList : replays);
+            return store.flush(30_000L);
         }
         List<Replay> safeReplays = replays == null ? new ArrayList<>() : replays;
         return writeStore(storePath(world), SAVE_SEQUENCE.incrementAndGet(), safeReplays);
     }
 
     /**
-     * Queue a save of the store and return immediately (no file IO on the calling thread). Must be called on the
-     * server thread, which owns {@code replays}: the list is copied here (a shallow copy; saved replays are never
-     * modified afterwards), so later changes don't race the writer. Saves queued while one is pending coalesce
-     * into the newest; a failed write is retried.
+     * Persists changes to the run list and returns immediately (no file IO on the calling thread). Must be called on
+     * the server thread, which owns {@code replays}. Legacy store: queues a save of the whole store (a shallow copy of
+     * the list; saved replays are never modified afterwards); saves queued while one is pending coalesce into the
+     * newest and a failed write is retried. V2 store: removed runs are moved out of the store and changed statuses
+     * (invalidations) written, by the store's writer thread.
      */
     public static void saveRecordReplaysAsync(ServerLevel world, List<Replay> replays) {
         if (world == null) {
             return;
         }
-        PendingSave save = new PendingSave(storePath(world), SAVE_SEQUENCE.incrementAndGet(),
+        if (mode == StoreMode.V2) {
+            if (store != null) {
+                store.sync(replays == null ? Minehop.replayList : replays);
+            }
+            return;
+        }
+        queueLegacySave(world, replays);
+    }
+
+    private static long queueLegacySave(ServerLevel world, List<Replay> replays) {
+        long sequence = SAVE_SEQUENCE.incrementAndGet();
+        PendingSave save = new PendingSave(storePath(world), sequence,
                 replays == null ? new ArrayList<>() : new ArrayList<>(replays));
         if (PENDING_SAVE.getAndSet(save) == null) {
             WRITER.execute(ReplayManager::drainPendingSave);
         }
+        return sequence;
     }
 
     private static void drainPendingSave() {
@@ -452,7 +651,12 @@ public class ReplayManager {
     }
 
     private static Path storePath(ServerLevel world) {
-        return world.getServer().getWorldPath(LevelResource.ROOT).resolve(REPLAYS_FILE).toAbsolutePath().normalize();
+        return legacyStorePath(world.getServer());
+    }
+
+    /** The legacy (version 1) store file, minehop_replays.json at the world root. */
+    public static Path legacyStorePath(MinecraftServer server) {
+        return server.getWorldPath(LevelResource.ROOT).resolve(REPLAYS_FILE).toAbsolutePath().normalize();
     }
 
     public static List<Replay> loadRecordReplays(ServerLevel world) {
@@ -467,35 +671,7 @@ public class ReplayManager {
             if (world.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
                 return;
             }
-            Minehop.replayList = new ArrayList<>();
-            List<Replay> newReplayList = loadRecordReplays(world);
-            if (newReplayList != null) {
-                for (Replay replay : newReplayList) {
-                    if (replay == null || replay.map_name == null || replay.map_name.isBlank()) {
-                        continue;
-                    }
-                    if (replay.replayEntries == null || replay.replayEntries.isEmpty()) {
-                        continue;
-                    }
-                    if (!Double.isFinite(replay.time) || replay.time <= 0.0D) {
-                        continue;
-                    }
-                    if (replay.replay_id == null || replay.replay_id.isBlank()) {
-                        replay.replay_id = UUID.randomUUID().toString();
-                    }
-                    if (replay.saved_at <= 0L) {
-                        replay.saved_at = System.currentTimeMillis();
-                    }
-                    replay.player_name = normalizePlayerName(replay.player_name);
-                    if (replay.player_uuid == null) {
-                        replay.player_uuid = "";
-                    }
-                    if (replay.invalidated == null) {
-                        replay.invalidated = "";
-                    }
-                    Minehop.replayList.add(replay);
-                }
-            }
+            openStore(server, world);
             // L3: backfill UUIDs onto legacy replays via the user cache, then persist if changed.
             if (backfillReplayUuids(server)) {
                 saveRecordReplaysAsync(world, Minehop.replayList);
@@ -506,8 +682,84 @@ public class ReplayManager {
             if (world.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
                 return;
             }
-            saveRecordReplays(world, Minehop.replayList);
+            if (mode == StoreMode.V2) {
+                if (store != null) {
+                    store.sync(Minehop.replayList);
+                    store.close();
+                }
+                store = null;
+                return;
+            }
+            saveRecordReplaysChecked(world, Minehop.replayList);
         }));
+    }
+
+    /**
+     * Picks the world's store: the v2 store once it exists or when the world has no legacy store; otherwise the legacy
+     * store.
+     */
+    private static void openStore(MinecraftServer server, ServerLevel world) {
+        store = null;
+        Minehop.replayList = new ArrayList<>();
+        Path root = ReplayStore.root(server);
+        Path legacy = legacyStorePath(server);
+        boolean legacyExists = Files.exists(legacy) || Files.exists(legacy.resolveSibling(REPLAYS_FILE + ".bak"));
+        boolean v2Active = ReplayStore.isActive(root);
+        if (v2Active || !legacyExists) {
+            mode = StoreMode.V2;
+            try {
+                ReplayStore.OpenReport report = new ReplayStore.OpenReport();
+                store = ReplayStore.open(server, root, report);
+                if (!v2Active) {
+                    ReplayStore.Marker marker = new ReplayStore.Marker();
+                    marker.created_at = System.currentTimeMillis();
+                    marker.created_by = "new world (no legacy replay store)";
+                    store.writeMarker(marker);
+                }
+                Minehop.replayList = store.runs();
+                Minehop.LOGGER.info("Replay store: {}", report);
+                if (legacyExists) {
+                    Minehop.LOGGER.info("Replay store: {} (the old store) is kept as it is and no longer used", REPLAYS_FILE);
+                }
+            } catch (Exception e) {
+                store = null;
+                Minehop.LOGGER.error("The replay store in {} could not be opened; replays are unavailable and not saved this session", root, e);
+            }
+            return;
+        }
+
+        mode = StoreMode.LEGACY;
+        long loadStart = System.nanoTime();
+        List<Replay> newReplayList = loadRecordReplays(world);
+        if (newReplayList != null) {
+            for (Replay replay : newReplayList) {
+                if (replay == null || replay.map_name == null || replay.map_name.isBlank()) {
+                    continue;
+                }
+                if (replay.replayEntries == null || replay.replayEntries.isEmpty()) {
+                    continue;
+                }
+                if (!Double.isFinite(replay.time) || replay.time <= 0.0D) {
+                    continue;
+                }
+                if (replay.replay_id == null || replay.replay_id.isBlank()) {
+                    replay.replay_id = UUID.randomUUID().toString();
+                }
+                if (replay.saved_at <= 0L) {
+                    replay.saved_at = System.currentTimeMillis();
+                }
+                replay.player_name = normalizePlayerName(replay.player_name);
+                if (replay.player_uuid == null) {
+                    replay.player_uuid = "";
+                }
+                if (replay.invalidated == null) {
+                    replay.invalidated = "";
+                }
+                Minehop.replayList.add(replay);
+            }
+        }
+        Minehop.LOGGER.info("Replay store: {} runs loaded from {} (legacy store) in {} ms", Minehop.replayList.size(),
+                REPLAYS_FILE, (System.nanoTime() - loadStart) / 1_000_000L);
     }
 
     public static List<ReplayEntry> copyReplayEntries(List<ReplayEntry> source) {
