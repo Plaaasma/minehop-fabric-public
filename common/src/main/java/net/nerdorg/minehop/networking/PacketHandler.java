@@ -1171,9 +1171,9 @@ public class PacketHandler {
             }
             ctx.server().execute(() -> ZonePlacementManager.deleteEditedZone(player));
         });
-        // A client's answer to an efficiency request (RunStats). Its jump count/speed are ignored: the server derives
-        // those from the accepted movement. Unrequested stats are dropped, so a client can't feed made-up values into
-        // its replay or its spectators' HUD.
+        // Clients' stats replies (they used to be asked for their efficiency). The server derives every stat from the
+        // accepted movement now (RunStats) and asks for nothing, so replies are dropped: a client can't feed made-up
+        // values into its replay or its spectators' HUD.
         registerLimited(SSpecEfficiencyPayload.ID, RL_FAST, (payload, ctx) -> {
             ServerPlayer player = ctx.player();
             double last_efficiency = payload.last_efficiency();

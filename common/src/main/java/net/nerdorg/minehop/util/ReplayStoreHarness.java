@@ -92,6 +92,13 @@ public final class ReplayStoreHarness {
                         .then(LiteralArgumentBuilder.<CommandSourceStack>literal("stall")
                                 .then(RequiredArgumentBuilder.<CommandSourceStack, Integer>argument("ms", IntegerArgumentType.integer(0, 60000))
                                         .executes(context -> stall(context, IntegerArgumentType.getInteger(context, "ms")))))
+                        .then(LiteralArgumentBuilder.<CommandSourceStack>literal("effbench")
+                                .executes(context -> {
+                                    net.nerdorg.minehop.replays.RunStats.sweepNanos(0.5D, 2000);
+                                    double nanos = net.nerdorg.minehop.replays.RunStats.sweepNanos(0.5D, 5000);
+                                    return reply(context, String.format(Locale.ROOT,
+                                            "efficiency optimum sweep: %.1f us per counted air tick", nanos / 1000.0D));
+                                }))
                         .then(LiteralArgumentBuilder.<CommandSourceStack>literal("frames")
                                 .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("id", StringArgumentType.word())
                                         .executes(context -> frames(context, StringArgumentType.getString(context, "id"), false))))
@@ -207,13 +214,15 @@ public final class ReplayStoreHarness {
                 }
             }
             int runTicks = frames.runEnd() - frames.runStart() - 1;
+            net.nerdorg.minehop.replays.ReplayPathSimplifier.Result path = net.nerdorg.minehop.replays.ReplayPathSimplifier
+                    .simplify(frames, net.nerdorg.minehop.replays.ReplayPathSimplifier.MAX_POINTS);
             reply(context, String.format(Locale.ROOT,
                     "%s %s %s time=%.5fs: %d frames = %d pre + %d run + %d post, tickStream=%b; run frames-1 = %d ticks = %.3fs"
-                            + " (time/ticks ratio %.4f); teleport frames %s",
+                            + " (time/ticks ratio %.4f); teleport frames %s; /spec path: %d points in %d polylines",
                     replay.replay_id, replay.map_name, replay.player_name, replay.time, frames.size(), frames.preFrames(),
                     frames.runEnd() - frames.runStart(), frames.postFrames(), frames.tickStream(), runTicks, runTicks * 0.05D,
                     runTicks > 0 ? replay.time / (runTicks * 0.05D) : Double.NaN,
-                    teleports.size() > 20 ? teleports.subList(0, 20) + "..." : teleports));
+                    teleports.size() > 20 ? teleports.subList(0, 20) + "..." : teleports, path.points().size(), path.polylines()));
             if (dump) {
                 java.nio.file.Path file = context.getSource().getServer().getServerDirectory()
                         .resolve("replaytest_dump_" + replay.replay_id + ".csv");
