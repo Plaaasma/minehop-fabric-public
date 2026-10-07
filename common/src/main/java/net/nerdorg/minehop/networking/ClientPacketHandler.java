@@ -228,26 +228,16 @@ public class ClientPacketHandler {
             ctx.client().execute(() -> MinehopClient.spectatorList = parseSpectatorList(buff));
         });
 
+        // The server asks for this client's strafe efficiency (recorded in replays, shown to spectators). Answer with
+        // the HUD's value; the request's own value is a nonce and must not be echoed (an echo marks a client from
+        // before this protocol, see RunStats on the server). Jump count/speed are derived by the server: sent as 0.
         ClientServices.NETWORK.registerClientReceiver(SendEfficiencyPayload.ID, (payload, ctx) -> {
-            // Ensure you are on the main thread when modifying the game or accessing client-side only classes
-            double efficiency = payload.efficiency();
-
             Minecraft client = ctx.client();
             client.execute(() -> {
-                if (efficiency != 0) {
-                    MinehopClient.last_efficiency = efficiency;
+                if (client.player == null) {
+                    return;
                 }
-                else {
-                    if (Minehop.efficiencyListMap.containsKey(client.player.getScoreboardName())) {
-                        List<Double> efficiencyList = Minehop.efficiencyListMap.get(client.player.getScoreboardName());
-                        if (efficiencyList != null && efficiencyList.size() > 1) {
-                            double averageEfficiency = efficiencyList.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
-                            MinehopClient.last_efficiency = averageEfficiency;
-                            Minehop.efficiencyListMap.put(client.player.getScoreboardName(), new ArrayList<>());
-                        }
-                    }
-                }
-                sendSpecEfficiency();
+                ClientServices.NETWORK.sendToServer(new SSpecEfficiencyPayload(0.0D, 0.0D, currentEfficiency(client.player.getScoreboardName())));
             });
         });
 
@@ -609,8 +599,14 @@ public class ClientPacketHandler {
         ClientServices.NETWORK.sendToServer(new HandshakeIDPayload(Minehop.MOD_VERSION));
     }
 
-    public static void sendSpecEfficiency() {
-        ClientServices.NETWORK.sendToServer(new SSpecEfficiencyPayload(MinehopClient.last_jump_speed, MinehopClient.jump_count, MinehopClient.last_efficiency));
+    /** The efficiency the HUD shows for this player: the running value mid-jump, else the last jump's (0..100). */
+    static double currentEfficiency(String playerName) {
+        net.nerdorg.minehop.util.StrafeStats stats = playerName == null ? null : Minehop.strafeStatsMap.get(playerName);
+        if (stats == null) {
+            return 0.0D;
+        }
+        double efficiency = stats.measuredTicks >= 4 ? stats.liveEfficiency : stats.lastJumpEfficiency;
+        return Double.isFinite(efficiency) ? Math.max(0.0D, Math.min(100.0D, efficiency)) : 0.0D;
     }
 
     /**

@@ -112,6 +112,12 @@ final class StreamState {
     double heldJumpVy;
     int holdTicks;
 
+    // --- jump stats shown to spectators / stored in replays (MovementValidator.trackJumps) ---
+    int jumpCount;
+    double lastJumpSpeed;
+    /** 1.20.1: consecutive client ticks ended on the ground since the last take-off (2+ = jump released). */
+    int jumpGroundTicks;
+
     /** Position at the end of the last tick that wasn't lagged back (lagback anchor). */
     Vec3 lastGoodPos;
 
