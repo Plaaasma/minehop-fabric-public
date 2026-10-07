@@ -169,16 +169,18 @@ public class ReplayCommands {
             return;
         }
         String mapName = mapData.name;
-        String targetPlayer = explicitTargetPlayer;
-        if (targetPlayer == null || targetPlayer.isBlank()) {
-            targetPlayer = viewer.getScoreboardName();
-        }
-
-        ReplayManager.Replay replay = ReplayManager.getReplay(mapName, targetPlayer);
+        // Only a run that backs someone's current PB can be watched (UUID first; see ReplayManager).
+        boolean self = explicitTargetPlayer == null || explicitTargetPlayer.isBlank();
+        DataManager.RecordData personalBest = self
+                ? DataManager.getPersonalRecord(viewer.getScoreboardName(), viewer.getStringUUID(), mapName)
+                : ReplayManager.findPersonalRecordByName(context.getSource().getServer(), mapName, explicitTargetPlayer);
+        ReplayManager.Replay replay = ReplayManager.getReplayForRecord(personalBest);
+        String requestedName = self ? viewer.getScoreboardName() : explicitTargetPlayer;
         if (replay == null) {
-            Logger.logFailure(viewer, "No saved replay found for " + targetPlayer + " on " + mapName + ".");
+            Logger.logFailure(viewer, "No saved replay of " + requestedName + "'s personal best on " + mapName + ".");
             return;
         }
+        String targetPlayer = personalBest.name;
 
         ServerLevel foundWorld = resolveMapWorld(context.getSource(), mapData);
         if (foundWorld == null) {
@@ -201,7 +203,7 @@ public class ReplayCommands {
         }
 
         beginSpectatingReplay(viewer, replayEntity);
-        Logger.logSuccess(viewer, "Now watching " + targetPlayer + "'s fastest replay on " + mapName + " (" + String.format("%.5f", replay.time) + ").");
+        Logger.logSuccess(viewer, "Now watching " + targetPlayer + "'s personal best on " + mapName + " (" + String.format("%.5f", replay.time) + ").");
     }
 
     private static void beginSpectatingReplay(ServerPlayer viewer, ReplayEntity replayEntity) {
@@ -340,28 +342,10 @@ public class ReplayCommands {
     }
 
     private static Set<String> collectReplayPlayerNames(String mapName) {
+        // Players whose current PB on the map has a playable replay; orphaned and invalidated runs are not offered.
         Set<String> playerNames = new LinkedHashSet<>();
-        if (mapName == null || mapName.isBlank()) {
-            return playerNames;
-        }
-        if (Minehop.replayList == null) {
-            return playerNames;
-        }
-        for (ReplayManager.Replay replay : Minehop.replayList) {
-            if (replay == null || replay.map_name == null || replay.player_name == null || replay.player_name.isBlank()) {
-                continue;
-            }
-            if (mapName.equals(replay.map_name)) {
-                playerNames.add(replay.player_name);
-            }
-        }
-        for (DataManager.RecordData recordData : Minehop.personalRecordList) {
-            if (recordData == null || recordData.map_name == null || recordData.name == null) {
-                continue;
-            }
-            if (mapName.equals(recordData.map_name)) {
-                playerNames.add(recordData.name);
-            }
+        for (java.util.Map.Entry<DataManager.RecordData, ReplayManager.Replay> entry : ReplayManager.watchablePersonalBests(mapName)) {
+            playerNames.add(entry.getKey().name);
         }
         return playerNames;
     }

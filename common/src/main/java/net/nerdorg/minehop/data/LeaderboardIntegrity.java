@@ -94,19 +94,24 @@ public final class LeaderboardIntegrity {
         public int personalRecords;
         public int worldRecords;
         public int replays;
+        /** Replays kept as evidence but marked invalidated, so they are never played or promoted again. */
+        public int replaysInvalidated;
         public final List<String> promoted = new ArrayList<>();
         public boolean saveFailed;
 
         public boolean isEmpty() {
-            return this.personalRecords == 0 && this.worldRecords == 0 && this.replays == 0;
+            return this.personalRecords == 0 && this.worldRecords == 0 && this.replays == 0 && this.replaysInvalidated == 0;
         }
 
         public String summary() {
             StringBuilder sb = new StringBuilder();
             sb.append(this.personalRecords).append(" PB(s), ")
                     .append(this.worldRecords).append(" WR row(s), ")
-                    .append(this.replays).append(" replay(s) on ")
-                    .append(this.maps.size()).append(" map(s)");
+                    .append(this.replays).append(" replay(s)");
+            if (this.replaysInvalidated > 0) {
+                sb.append(", ").append(this.replaysInvalidated).append(" run(s) kept but invalidated");
+            }
+            sb.append(" on ").append(this.maps.size()).append(" map(s)");
             if (!this.maps.isEmpty() && this.maps.size() <= 8) {
                 sb.append(" ").append(this.maps);
             }
@@ -360,6 +365,14 @@ public final class LeaderboardIntegrity {
                     report.replays++;
                 }
             }
+        } else if (includeTimes && Minehop.replayList != null) {
+            // Times purged, replays kept (as evidence): those runs are no longer valid times, so they must never be
+            // played back as someone's best or come back as a PB/WR when a later run is invalidated.
+            for (ReplayManager.Replay replay : Minehop.replayList) {
+                if (belongs(replay, target) && matchesMap(replay.map_name, mapFilter) && invalidate(replay, "times purged", reason)) {
+                    report.replaysInvalidated++;
+                }
+            }
         }
 
         // Only maps whose WR belonged to the target need a new WR: the fastest remaining PB.
@@ -370,7 +383,7 @@ public final class LeaderboardIntegrity {
         if (includeTimes) {
             clearLiveRunState(server, target);
         }
-        finish(server, report, oldWorldRecords, includeReplays,
+        finish(server, report, oldWorldRecords, includeReplays || report.replaysInvalidated > 0,
                 "purge " + (includeTimes ? "times" : "") + (includeTimes && includeReplays ? "+" : "")
                         + (includeReplays ? "replays" : "") + " of " + target.describe()
                         + (mapFilter == null ? " (all maps)" : " on " + mapFilter), actor, reason);
@@ -398,8 +411,14 @@ public final class LeaderboardIntegrity {
         }
         if (replays) {
             report.replays = ReplayManager.deleteReplaysForMap(mapName);
+        } else if (times && Minehop.replayList != null) {
+            for (ReplayManager.Replay replay : Minehop.replayList) {
+                if (replay != null && mapName.equals(replay.map_name) && invalidate(replay, "map times purged", reason)) {
+                    report.replaysInvalidated++;
+                }
+            }
         }
-        finish(server, report, oldWorldRecords, replays,
+        finish(server, report, oldWorldRecords, replays || report.replaysInvalidated > 0,
                 "purge map " + mapName + (times ? " times" : "") + (replays ? " replays" : ""), actor, reason);
         return report;
     }
@@ -433,6 +452,10 @@ public final class LeaderboardIntegrity {
             return null;
         }
         ReplayManager.Replay run = matches.get(0);
+        if (run.invalidated != null && !run.invalidated.isBlank()) {
+            error.append("That run is already invalidated (").append(run.invalidated).append(").");
+            return null;
+        }
         Target target = new Target(run.player_uuid == null ? "" : run.player_uuid.toLowerCase(Locale.ROOT),
                 run.player_name == null ? "" : run.player_name);
         String map = run.map_name;
@@ -442,14 +465,17 @@ public final class LeaderboardIntegrity {
         DataManager.RecordData oldWr = DataManager.getRecord(map);
         oldWorldRecords.put(map, oldWr);
 
-        Minehop.replayList.remove(run);
-        report.replays = 1;
+        // Every run is kept (history, evidence); an invalidated one is just never played or promoted again.
+        invalidate(run, "invalidated", reason);
+        report.replaysInvalidated = 1;
 
         DataManager.RecordData pb = findRow(Minehop.personalRecordList, map, target);
         if (pb != null && timesMatch(pb.time, run.time)) {
             Minehop.personalRecordList.removeIf(r -> r != null && map.equals(r.map_name) && belongs(r, target));
             report.personalRecords = 1;
-            ReplayManager.Replay nextBest = bestRemainingRun(map, target);
+            // A valid run faster than the PB can't exist (it would be the PB), so anything faster that is still
+            // stored is an orphan (e.g. the legacy 0.0x s runs) and must not become the new PB.
+            ReplayManager.Replay nextBest = bestRemainingRun(map, target, run.time);
             if (nextBest != null) {
                 DataManager.upsertPersonalRecord(nextBest.player_name,
                         nextBest.player_uuid == null || nextBest.player_uuid.isBlank() ? target.uuid() : nextBest.player_uuid,
@@ -489,18 +515,30 @@ public final class LeaderboardIntegrity {
         }
     }
 
-    private static ReplayManager.Replay bestRemainingRun(String map, Target target) {
+    private static ReplayManager.Replay bestRemainingRun(String map, Target target, double notFasterThan) {
         ReplayManager.Replay best = null;
         if (Minehop.replayList != null) {
             for (ReplayManager.Replay replay : Minehop.replayList) {
                 if (replay != null && map.equals(replay.map_name) && belongs(replay, target)
+                        && ReplayManager.isPlayable(replay)
                         && Double.isFinite(replay.time) && replay.time > 0.0D
+                        && replay.time >= notFasterThan - TIME_MATCH_EPSILON
                         && (best == null || replay.time < best.time)) {
                     best = replay;
                 }
             }
         }
         return best;
+    }
+
+    /** Marks a kept run invalidated. Returns false if it already was. */
+    private static boolean invalidate(ReplayManager.Replay replay, String what, String reason) {
+        if (replay == null || (replay.invalidated != null && !replay.invalidated.isBlank())) {
+            return false;
+        }
+        String stamp = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new Date());
+        replay.invalidated = what + " " + stamp + (reason == null || reason.isBlank() ? "" : ": " + reason);
+        return true;
     }
 
     private static void finish(MinecraftServer server, Report report, Map<String, DataManager.RecordData> oldWorldRecords,
