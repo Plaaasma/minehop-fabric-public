@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ExperienceBarMixin {
     @Inject(method = "renderBackground", at = @At("HEAD"), cancellable = true)
     private void minehop$hideExperienceBar(GuiGraphics context, DeltaTracker tickCounter, CallbackInfo ci) {
-        if (ConfigWrapper.config.hideSelf) {
+        if (net.nerdorg.minehop.client.ClientVisibility.hideSelf()) {
             ci.cancel();
         }
     }
