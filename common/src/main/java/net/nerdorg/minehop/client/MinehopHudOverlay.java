@@ -8,7 +8,7 @@ import net.nerdorg.minehop.config.ConfigWrapper;
 import net.nerdorg.minehop.config.MinehopConfig;
 
 /**
- * Minehop's HUD (speedometer, jump HUD, spectators), drawn after the vanilla HUD: from {@code InGameHudMixin} at the
+ * Minehop's HUD (speedometer, jump HUD, spectators, replay bar), drawn after the vanilla HUD: from {@code InGameHudMixin} at the
  * tail of {@code Gui#render} (Fabric), and from {@code RenderGuiEvent.Post} on Forge 1.20.1, whose {@code ForgeGui}
  * renders the HUD through overlays and never calls {@code Gui#render}.
  */
@@ -57,5 +57,6 @@ public final class MinehopHudOverlay {
                 MinehopClient.squeedometerHud.drawSpectators(context, tickDelta);
             }
         }
+        net.nerdorg.minehop.client.replay.ReplayHud.render(context);
     }
 }

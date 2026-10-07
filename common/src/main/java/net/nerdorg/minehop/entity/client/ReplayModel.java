@@ -42,10 +42,17 @@ public class ReplayModel extends EntityModel<ReplayEntity> {
 	}
 	@Override
 	public void setupAnim(ReplayEntity entity, float limbAngle, float limbDistance, float animationProgress, float headYaw, float headPitch) {
+		// (1.20.1: the renderer passes the head angles as headYaw/headPitch, the 1.21.2+ render state's yRot/xRot.)
+		this.setupGhostPose(entity.shouldRenderHead(), headYaw, headPitch);
+	}
+
+	/**
+	 * The ghost's pose: look where the recorded player looked (head yaw relative to the body, and pitch). 1.20.1: also
+	 * what client playback (ReplayGhostRenderer) poses the model with, as there is no render state to fill.
+	 */
+	public void setupGhostPose(boolean renderHead, float headYaw, float headPitch) {
 		this.body.visible = false;
-		this.head.visible = entity.shouldRenderHead();
-		// Look where the recorded player looked: head yaw relative to the body, and pitch (was always ~0 before).
-		// (1.20.1: the renderer passes them as headYaw/headPitch, the 1.21.2+ render state's yRot/xRot.)
+		this.head.visible = renderHead;
 		this.head.yRot = headYaw * ((float) Math.PI / 180.0F);
 		this.head.xRot = headPitch * ((float) Math.PI / 180.0F);
 	}

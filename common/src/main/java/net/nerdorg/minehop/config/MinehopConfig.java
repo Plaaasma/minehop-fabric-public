@@ -17,6 +17,9 @@ public class MinehopConfig implements ConfigData {
     public JHud jHud = new JHud();
     @ConfigEntry.Gui.CollapsibleObject
     public MovementSettings movement = new MovementSettings();
+    /** Client-side replay playback (1.1.7+): the race ghost and the replay bar. Not synced, not used by the server. */
+    @ConfigEntry.Gui.CollapsibleObject
+    public ReplaySettings replay = new ReplaySettings();
     @ConfigEntry.Gui.Excluded
     public boolean help_command = false;
     @ConfigEntry.Gui.Excluded
@@ -46,6 +49,17 @@ public class MinehopConfig implements ConfigData {
         public boolean source_units_migrated = true;
         @ConfigEntry.Gui.Excluded
         public int source_movement_version = 13;
+    }
+
+    public static class ReplaySettings {
+        /** While running a map, show your personal best (or the world record) as a ghost synchronised to your run. */
+        public boolean race_ghost = true;
+        /** Race the map's world record instead of your personal best. */
+        public boolean race_against_world_record = false;
+        @ConfigEntry.BoundedDiscrete(min = 10, max = 100)
+        public int race_ghost_opacity = 45;
+        /** The bar with time, speed, keys and jump stats while watching a replay. */
+        public boolean show_replay_hud = true;
     }
 
     public static class JHud {
