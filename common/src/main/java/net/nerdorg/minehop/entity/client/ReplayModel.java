@@ -27,7 +27,8 @@ public class ReplayModel extends EntityModel<ReplayEntityRenderState> {
 		PartDefinition modelPartData = modelData.getRoot();
 		PartDefinition root = modelPartData.addOrReplaceChild("root", CubeListBuilder.create(), PartPose.offset(0.0F, 24.0F, 0.0F));
 
-		PartDefinition head = root.addOrReplaceChild("head", CubeListBuilder.create().texOffs(16, 20).addBox(-4.0F, -32.0F, -4.0F, 8.0F, 8.0F, 8.0F, new CubeDeformation(0.0F)), PartPose.offset(0.0F, 0.0F, 0.0F));
+		// Pivot at the neck (same place on screen as before) so the head can turn and pitch around it.
+		PartDefinition head = root.addOrReplaceChild("head", CubeListBuilder.create().texOffs(16, 20).addBox(-4.0F, -8.0F, -4.0F, 8.0F, 8.0F, 8.0F, new CubeDeformation(0.0F)), PartPose.offset(0.0F, -24.0F, 0.0F));
 
 		PartDefinition body = root.addOrReplaceChild("body", CubeListBuilder.create().texOffs(0, 0).addBox(-4.0F, -24.0F, -2.0F, 8.0F, 24.0F, 4.0F, new CubeDeformation(0.0F))
 				.texOffs(0, 28).addBox(-8.0F, -24.0F, -2.0F, 4.0F, 12.0F, 4.0F, new CubeDeformation(0.0F))
@@ -36,8 +37,11 @@ public class ReplayModel extends EntityModel<ReplayEntityRenderState> {
 	}
 	@Override
 	public void setupAnim(ReplayEntityRenderState state) {
+		super.setupAnim(state);
 		this.body.visible = false;
 		this.head.visible = state.renderHead;
-		this.head.yRot = (float) Math.toRadians(head.yRot);
+		// Look where the recorded player looked: head yaw relative to the body, and pitch (was always ~0 before).
+		this.head.yRot = state.yRot * ((float) Math.PI / 180.0F);
+		this.head.xRot = state.xRot * ((float) Math.PI / 180.0F);
 	}
 }
