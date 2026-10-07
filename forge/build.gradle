@@ -82,6 +82,10 @@ tasks.matching { it.name == 'Client' }.configureEach {
     if (project.hasProperty('clientUsername')) {
         args '--username', project.property('clientUsername')
     }
+    // -PreplayDebug: log client replay playback per rendered frame (dev only)
+    if (project.hasProperty('replayDebug')) {
+        jvmArgs '-Dminehop.replayDebug=true'
+    }
 }
 tasks.matching { it.name == 'Server' }.configureEach {
     if (project.hasProperty('movementtest')) {

@@ -270,6 +270,20 @@ public final class SpectateSessions {
         return session == null ? null : session.clientReplay();
     }
 
+    /** One line per session for /replay ghosts (op): viewer, kind, target, where the viewer is, client playback. */
+    public static List<String> describeSessions(MinecraftServer server) {
+        List<String> lines = new ArrayList<>();
+        for (Session session : SESSIONS.values()) {
+            ServerPlayer viewer = server.getPlayerList().getPlayer(session.viewer);
+            String where = viewer == null ? "offline" : String.format(java.util.Locale.ROOT, "%.1f %.1f %.1f in %s",
+                    viewer.getX(), viewer.getY(), viewer.getZ(), viewer.level().dimension().location());
+            lines.add((viewer == null ? session.viewer.toString() : viewer.getScoreboardName()) + " " + session.kind + " "
+                    + session.targetName + (session.mapName == null ? "" : " on " + session.mapName) + " at " + where
+                    + (session.clientPlayback == null ? "" : " | " + session.clientPlaybackDebug()));
+        }
+        return lines;
+    }
+
     /** Null if the player may start a session now, else why not. */
     public static String cooldownMessage(ServerPlayer viewer) {
         MinecraftServer server = viewer.getServer();

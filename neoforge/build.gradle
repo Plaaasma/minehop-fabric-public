@@ -23,6 +23,17 @@ neoForge {
         client {
             client()
             gameDirectory = project.file('runs/client')
+            // Same dev-run conveniences as the Forge module: -PquickPlay=host:port -PclientUsername=Name
+            if (project.hasProperty('quickPlay')) {
+                programArguments.addAll('--quickPlayMultiplayer', project.property('quickPlay').toString())
+            }
+            if (project.hasProperty('clientUsername')) {
+                programArguments.addAll('--username', project.property('clientUsername').toString())
+            }
+            // -PreplayDebug: log client replay playback per rendered frame (dev only)
+            if (project.hasProperty('replayDebug')) {
+                systemProperty('minehop.replayDebug', 'true')
+            }
         }
         data {
             clientData()
