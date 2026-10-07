@@ -5,17 +5,13 @@ import net.nerdorg.minehop.platform.Services;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.storage.LevelResource;
-import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.commands.ReplayCommands;
-import net.nerdorg.minehop.commands.SpectateCommands;
 import net.nerdorg.minehop.networking.PacketHandler;
 import net.nerdorg.minehop.replays.ReplayEvents;
 import net.nerdorg.minehop.replays.ReplayManager;
 import net.nerdorg.minehop.util.JsonStorage;
-import net.nerdorg.minehop.util.ZoneUtil;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -697,46 +693,15 @@ public final class LeaderboardIntegrity {
     // Side effects
     // ------------------------------------------------------------------------------------------
 
-    /** Points the in-world WR replay at the current WR, or removes it (ejecting spectators) if none. */
+    /**
+     * Points the map's world-record ghost at the current WR (restarting it for a new record), or removes it if the map
+     * has none. Its spectators are then sent back to where they started spectating (SpectateSessions).
+     */
     public static void refreshWorldRecordReplay(MinecraftServer server, String map) {
         if (server == null || map == null) {
             return;
         }
-        DataManager.MapData mapData = DataManager.getMap(map);
-        if (mapData != null && !mapData.replay_ghost_disabled && ReplayManager.getReplay(map) != null) {
-            ReplayCommands.ensureWorldRecordReplayEntity(server, map);
-            return;
-        }
-        List<String> ejected = ReplayCommands.removeWorldRecordReplayEntities(server, map);
-        for (String spectatorName : ejected) {
-            ejectSpectator(server, server.getPlayerList().getPlayerByName(spectatorName));
-        }
-    }
-
-    private static void ejectSpectator(MinecraftServer server, ServerPlayer spectator) {
-        if (spectator == null) {
-            return;
-        }
-        spectator.setCamera(spectator);
-        PacketHandler.clearReplayPath(spectator);
-        if (spectator.isSpectator()) {
-            DataManager.MapData spawn = DataManager.getMap("spawn");
-            ServerLevel world = server.overworld();
-            if (spawn != null && spawn.worldKey != null) {
-                for (ServerLevel candidate : server.getAllLevels()) {
-                    if (candidate.dimension().toString().equals(spawn.worldKey)) {
-                        world = candidate;
-                        break;
-                    }
-                }
-            }
-            if (spawn != null && world != null) {
-                ZoneUtil.teleportTo(spectator, ZoneUtil.makeTeleportTarget(world, new Vec3(spawn.x, spawn.y, spawn.z),
-                        (float) spawn.yrot, (float) spawn.xrot));
-            }
-            spectator.setGameMode(GameType.ADVENTURE);
-        }
-        SpectateCommands.spectatorList.values().forEach(list -> list.remove(spectator.getScoreboardName()));
+        ReplayCommands.ensureWorldRecordReplayEntity(server, map);
     }
 
     private static void clearLiveRunState(MinecraftServer server, Target target) {
