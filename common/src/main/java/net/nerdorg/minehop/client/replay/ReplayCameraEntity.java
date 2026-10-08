@@ -16,8 +16,12 @@ public class ReplayCameraEntity extends ReplayEntity {
     private static final EntityDimensions STANDING = EntityDimensions.scalable(0.6F, 1.8F).withEyeHeight(1.62F);
     private static final EntityDimensions CROUCHING = EntityDimensions.scalable(0.6F, 1.5F).withEyeHeight(1.27F);
 
+    /** Not a server entity id (those are positive), so no lookup by id can mistake it for one. */
+    private static final int CAMERA_ENTITY_ID = -0x4D48;
+
     public ReplayCameraEntity(ClientLevel level) {
         super(ModEntities.REPLAY_ENTITY.get(), level);
+        this.setId(CAMERA_ENTITY_ID);
         this.noPhysics = true;
         this.refreshDimensions();
     }
