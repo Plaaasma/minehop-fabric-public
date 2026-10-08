@@ -1204,7 +1204,14 @@ public class PacketHandler {
             ServerPlayer player = ctx.player();
             ctx.server().execute(() -> net.nerdorg.minehop.replays.ReplayStreaming.onCancel(player, payload.requestId()));
         });
-        registerLimited(ReplayStatePayload.ID, RL_FAST, (payload, ctx) -> {
+        // A stop is throttled on its own channel: a position report sent in the same tick must not swallow it (the
+        // viewer would stay a spectator after their client stopped playing).
+        Services.NETWORK.registerServerReceiver(ReplayStatePayload.ID, (payload, ctx) -> {
+            boolean stop = (payload.flags() & ReplayProtocol.STATE_STOP) != 0;
+            String channel = ReplayStatePayload.ID.id() + (stop ? "/stop" : "");
+            if (!PacketRateLimiter.allow(ctx.player(), channel, stop ? RL_GUI : RL_FAST)) {
+                return;
+            }
             ServerPlayer player = ctx.player();
             ctx.server().execute(() -> SpectateSessions.onClientReplayState(player, payload));
         });
