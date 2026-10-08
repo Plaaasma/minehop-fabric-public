@@ -207,8 +207,16 @@ directions, receivers) is the same as on 1.21.4:
 | `minehop:open_surf_stick_settings` | OpenSurfStickSettingsPayload | S2C | - | yes |
 | `minehop:open_zone_stick_settings` | OpenZoneStickSettingsPayload | S2C | - | yes |
 | `minehop:other_v_toggle` | OtherVTogglePayload | S2C | - | yes |
+| `minehop:replay_begin` | ReplayBeginPayload | S2C (1.1.7+ clients only) | - | yes |
+| `minehop:replay_cancel` | ReplayCancelPayload | C2S | yes | - |
+| `minehop:replay_chunk` | ReplayChunkPayload | S2C (1.1.7+ clients only) | - | yes |
+| `minehop:replay_control` | ReplayControlPayload | S2C (1.1.7+ clients only) | - | yes |
+| `minehop:replay_error` | ReplayErrorPayload | S2C (1.1.7+ clients only) | - | yes |
 | `minehop:replay_path` | ReplayPathPayload | S2C | - | yes |
+| `minehop:replay_request` | ReplayRequestPayload | C2S | yes | - |
+| `minehop:replay_state` | ReplayStatePayload | C2S | yes | - |
 | `minehop:replay_v_toggle` | ReplayVTogglePayload | S2C | - | yes |
+| `minehop:replay_watch` | ReplayWatchPayload | S2C (1.1.7+ clients only) | - | yes |
 | `minehop:reset_velocity_carry` | ResetVelocityCarryPayload | S2C | - | yes |
 | `minehop:run_timer_hud` | RunTimerHudPayload | S2C | - | yes |
 | `minehop:self_v_toggle` | SelfVTogglePayload | S2C | - | yes |
@@ -235,6 +243,15 @@ The server kicks clients that do not send `minehop:handshake_id` with the right 
 `onConnectionJoin`). The anticheat recognises `minehop:reset_velocity_carry` among the outgoing packets by id and decodes
 its bytes (`MovementValidator#selfVelocity`, hooked on `ServerGamePacketListenerImpl#send`), so every loader must send it
 as a vanilla custom payload packet through `player.connection.send`.
+
+**Payloads newer than a client.** The server keeps every client's handshake version (`HandshakeHandler#clientVersion`)
+and sends a payload only to clients that know it: the `minehop:replay_*` payloads (client replay playback, see
+`ReplayProtocol`) only to 1.1.7+ clients (`HandshakeHandler#supportsClientReplays`, enforced in `ReplayStreaming#send`).
+This matters on both loaders: Fabric's `ServerPlayNetworking.send` and `ForgeNetworkHelper#sendToPlayer` send
+unconditionally, so a check on the peer's announced channels would not stop them. A client in turn sends
+`minehop:replay_*` only after the server's hello (`replay_control` HELLO), so a 1.1.7 client never sends them to an older
+server. On 1.20.1 the replay payloads use the same shim as the others (`ByteBufCodecs.BYTE` and `byteArray(max)`, VarInt
+length + bytes like vanilla's, and 7/8-field `StreamCodec.composite`s were added for them).
 
 ### Forge registration (1.20.1)
 `ForgeNetworkHelper` records every declared payload and, right after the common init, creates **one
@@ -332,6 +349,26 @@ over the adaptations of the single-module 1.20.1 port (branch history: `fded823`
   gaps earn no catch-up credit or window extension (`TimerBalance`); teleports hook `teleport(DDDFFLjava/util/Set;)V`
   and the confirm hooks the `absMoveTo` every accepted confirm performs; a move is "accepted" when vanilla reaches
   `checkMovementStatistics`; the server tick is a fixed 50 ms (no tick-rate manager).
+- **Client tick stream (1.1.7 replays and run timing):** 1.21.2+ servers hand every client tick (ClientTickEnd) to
+  `ReplayEvents#onClientTick`; here `MovementValidator#onMovePacketProcessed` does it for every move packet (the echo a
+  client sends after confirming a teleport excluded). The tick's network arrival time travels with the packet itself
+  (`ServerboundMovePlayerPacketMixin` stamps it in the netty-thread pass, `MovePacketArrival`), so a stalled server
+  thread or a cancelled server-thread pass can't shift it. A pre-1.21.2 client sends nothing in a tick in which it stood
+  still (moved < 2e-4, didn't turn, same ground flag), except its position every 20th tick, so the idle ticks before a
+  packet are handed on too (`ClientTick#inferred`, `MovementValidator#idleTicksBefore`): exactly 20 ticks since the last
+  position packet when the packet is such a reminder, otherwise (only after a tick that ended at rest on the ground)
+  estimated from the arrival gap, never more than the gap or the 20-tick bound. They sit at the previous tick's position,
+  view and ground flag, timed one tick apart back from the packet that ends the gap, so replays keep the client's tick
+  clock (pre-run frames while standing in the start zone, standing still mid-run) and a run launched from standing still
+  starts at the last idle tick, one tick before the first move packet that leaves the ground. Inferred ticks are never
+  validated and never counted by the anticheat (`MovementValidator.clientTicks`): the run-tick check that can reject a
+  run (more client ticks than the measured real time allows) counts move packets, which can only undercount; the
+  tick/time evidence (`FLAG_TICK_TIME_MISMATCH`, the replay header's tick count) counts the stream including inferred
+  ticks (`RunClock.streamTicksOfRun`). Replay frames carry only the sneak/sprint input flags (the movement and jump keys
+  are unknown), and the server derives the bhop chain without the jump key: a take-off counts, and a second client tick
+  on the ground (or an idle tick) ends the chain. Strafe efficiency can't be replayed on the server without the keys, so
+  1.20.1 keeps the nonce'd request flow (`RunStats`: 1.1.7 clients answer with their HUD efficiency, 1.1.5/1.1.6 clients
+  echo the nonce and record 0).
 - **Newer surf fixes in the 1.20.1 tick model:** the friction-ground test (0.20) and the sneak edge back-off carry are
   kept; the back-off fall test uses the 1.20.1 client's form (`Player#maybeBackOffFromEdge`/`isAboveGround`: the whole
   box moved down by the step height, not 1.21.2+'s slab) and its reach reads `maxUpStep()` (no `STEP_HEIGHT` attribute);
