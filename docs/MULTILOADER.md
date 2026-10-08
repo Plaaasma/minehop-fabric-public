@@ -273,8 +273,16 @@ vanilla's (S2C 1 MiB, C2S 32767 bytes; the big lists are already chunked to 2400
 | `minehop:open_surf_stick_settings` | OpenSurfStickSettingsPayload | S2C | - | yes |
 | `minehop:open_zone_stick_settings` | OpenZoneStickSettingsPayload | S2C | - | yes |
 | `minehop:other_v_toggle` | OtherVTogglePayload | S2C | - | yes |
+| `minehop:replay_begin` | ReplayBeginPayload | S2C (1.1.7+ clients only) | - | yes |
+| `minehop:replay_cancel` | ReplayCancelPayload | C2S | yes | - |
+| `minehop:replay_chunk` | ReplayChunkPayload | S2C (1.1.7+ clients only) | - | yes |
+| `minehop:replay_control` | ReplayControlPayload | S2C (1.1.7+ clients only) | - | yes |
+| `minehop:replay_error` | ReplayErrorPayload | S2C (1.1.7+ clients only) | - | yes |
 | `minehop:replay_path` | ReplayPathPayload | S2C | - | yes |
+| `minehop:replay_request` | ReplayRequestPayload | C2S | yes | - |
+| `minehop:replay_state` | ReplayStatePayload | C2S | yes | - |
 | `minehop:replay_v_toggle` | ReplayVTogglePayload | S2C | - | yes |
+| `minehop:replay_watch` | ReplayWatchPayload | S2C (1.1.7+ clients only) | - | yes |
 | `minehop:reset_velocity_carry` | ResetVelocityCarryPayload | S2C | - | yes |
 | `minehop:run_timer_hud` | RunTimerHudPayload | S2C | - | yes |
 | `minehop:self_v_toggle` | SelfVTogglePayload | S2C | - | yes |
@@ -299,6 +307,14 @@ vanilla's (S2C 1 MiB, C2S 32767 bytes; the big lists are already chunked to 2400
 The server kicks clients that do not send `minehop:handshake_id` with the right mod version within 60 ticks
 (`client_validation`), so every loader's client must send it on join (common code already does, via
 `onConnectionJoin`).
+
+**Payloads newer than a client.** The server keeps every client's handshake version (`HandshakeHandler#clientVersion`)
+and sends a payload only to clients that know it: the `minehop:replay_*` payloads (client replay playback, see
+`ReplayProtocol`) only to 1.1.7+ clients (`HandshakeHandler#supportsClientReplays`, enforced in `ReplayStreaming#send`).
+This matters on every loader: Fabric's `ServerPlayNetworking.send`, `NeoForgeNetworkHelper#sendToPlayer` (which marks
+the channel as announced) and `ForgeNetworkHelper#sendToPlayer` all send unconditionally, so a check on the peer's
+announced channels would not stop them. A client in turn sends `minehop:replay_*` only after the server's hello
+(`replay_control` HELLO), so a 1.1.7 client never sends them to an older server.
 
 ### NeoForge registration
 In the mod-bus `RegisterPayloadHandlersEvent`: `PayloadRegistrar r = event.registrar("1").optional();` then, per type
