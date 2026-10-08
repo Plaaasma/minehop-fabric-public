@@ -72,6 +72,17 @@ public final class SpectateSessions {
     private static final double CLIENT_EXTRAPOLATE_SECONDS = 2.0D;
     /** How often a client-replay session checks that its replay is still watchable. */
     private static final int CLIENT_REPLAY_CHECK_TICKS = 20;
+    /**
+     * Least ticks between two moves of a client-replay viewer: a client can't make the server load chunks at both ends
+     * of a long route many times a second by reporting positions back and forth (seeks are a few per second at most).
+     */
+    private static final int CLIENT_TELEPORT_INTERVAL_TICKS = 5;
+    /**
+     * Least ticks between two moves of a client-replay viewer to somewhere outside their loaded area (a seek, a loop):
+     * the server loads a new area for them at most every 2 s (like the cooldown between spectate sessions); rapid seeks are
+     * caught up with after the last one.
+     */
+    private static final int CLIENT_FAR_TELEPORT_INTERVAL_TICKS = 40;
     private static int nextClientSessionId = (int) (System.nanoTime() & 0x3FFFFFFF);
 
     public enum Kind {
@@ -100,6 +111,8 @@ public final class SpectateSessions {
         boolean buffering;
         long reportedAt;
         int reports;
+        long lastTeleportTick = Long.MIN_VALUE / 2;
+        long lastFarTeleportTick = Long.MIN_VALUE / 2;
 
         ClientPlayback(int id, ReplayManager.Replay replay, boolean worldRecord) {
             this.id = id;
@@ -695,11 +708,24 @@ public final class SpectateSessions {
             return;
         }
         Vec3 target = new Vec3(x, y, z);
-        if (viewer.level() != level || viewer.position().distanceToSqr(target) > CLIENT_FOLLOW_DISTANCE * CLIENT_FOLLOW_DISTANCE) {
-            viewer.changeDimension(ZoneUtil.makeTeleportTarget(level, target, frames.yaw(index), frames.pitch(index)));
-            // The viewer's own moves are ignored during a session, so vanilla never moves their chunk tickets: do it here.
-            viewer.serverLevel().getChunkSource().move(viewer);
+        long tick = server.getTickCount();
+        double distanceSqr = viewer.position().distanceToSqr(target);
+        if (viewer.level() == level && distanceSqr <= CLIENT_FOLLOW_DISTANCE * CLIENT_FOLLOW_DISTANCE
+                || tick - playback.lastTeleportTick < CLIENT_TELEPORT_INTERVAL_TICKS) {
+            return;
         }
+        double loadedBlocks = server.getPlayerList().getViewDistance() * 16.0D;
+        boolean far = viewer.level() != level || distanceSqr > loadedBlocks * loadedBlocks;
+        if (far) {
+            if (tick - playback.lastFarTeleportTick < CLIENT_FAR_TELEPORT_INTERVAL_TICKS) {
+                return;
+            }
+            playback.lastFarTeleportTick = tick;
+        }
+        playback.lastTeleportTick = tick;
+        viewer.changeDimension(ZoneUtil.makeTeleportTarget(level, target, frames.yaw(index), frames.pitch(index)));
+        // The viewer's own moves are ignored during a session, so vanilla never moves their chunk tickets: do it here.
+        viewer.serverLevel().getChunkSource().move(viewer);
     }
 
     /** Keeps the viewer on the target: same dimension, camera set, and the camera sent once the client has it. */
