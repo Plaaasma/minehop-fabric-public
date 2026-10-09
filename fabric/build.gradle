@@ -77,6 +77,11 @@ tasks.named("runServer") {
     if (project.hasProperty("spectatetest")) {
         jvmArgs "-Dminehop.spectatetest=true"
     }
+    // `-Preplaytest[=selftest]`: /replaytest commands for the replay store; `selftest` runs the codec self-test and stops (dev only)
+    if (project.hasProperty("replaytest")) {
+        def replayTest = project.property("replaytest")
+        jvmArgs "-Dminehop.replaytest=" + (replayTest ? replayTest : "true")
+    }
     // `-Pmaptest=<request.json>`: MapRouteHarness (bot rollouts on a built map; dev only)
     if (project.hasProperty("maptest")) {
         jvmArgs "-Dminehop.maptest=" + project.property("maptest")
