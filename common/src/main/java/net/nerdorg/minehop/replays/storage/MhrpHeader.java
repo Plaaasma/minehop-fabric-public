@@ -17,7 +17,8 @@ public final class MhrpHeader {
     public static final int FLAG_TICK_STREAM = 1 << 2;
     /**
      * Header flag: the run's client tick count and its reported time disagree by more than the timing tolerance
-     * (evidence only: the client lost ticks in a hitch, or ticked faster than its own clock). See RunRecorder.
+     * (evidence only, never a rejection: the client lost ticks in a hitch, or caught up a burst). See
+     * PacketHandler#checkRunTicksAgainstTime.
      */
     public static final int FLAG_TICK_TIME_MISMATCH = 1 << 3;
 
