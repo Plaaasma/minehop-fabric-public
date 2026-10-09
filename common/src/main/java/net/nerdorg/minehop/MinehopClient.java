@@ -247,7 +247,10 @@ public class MinehopClient {
 			return;
 		}
 		if (client.player.isCreative() || client.player.isSpectator()) {
+			// A spectator's timer HUD shows the spectated run (sent by the server); only this player's own run ends.
+			boolean keepHud = client.player.isSpectator() && runTimerHudVisible;
 			clearClientRunState();
+			runTimerHudVisible = keepHud;
 			return;
 		}
 
