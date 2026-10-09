@@ -12,6 +12,7 @@ import net.nerdorg.minehop.entity.ModEntities;
 import net.nerdorg.minehop.entity.custom.ReplayEntity;
 import net.nerdorg.minehop.platform.Services;
 import net.nerdorg.minehop.replays.storage.ReplayFrames;
+import net.nerdorg.minehop.replays.storage.ReplayTiming;
 import net.nerdorg.minehop.spectate.SpectateSessions;
 
 import java.util.ArrayList;
@@ -48,13 +49,8 @@ import java.util.UUID;
  * <p>Server thread only.
  */
 public final class ReplayGhosts {
-    /** Recorded frames are one client tick (at 20 TPS) apart. */
-    public static final long FRAME_NANOS = 50_000_000L;
-    /**
-     * An older (server-tick) recording with fewer frames than this share of its time's ticks was recorded under lag
-     * and is played stretched to its time.
-     */
-    private static final double LEGACY_STRETCH_BELOW = 0.9D;
+    /** Recorded frames are one client tick (at 20 TPS) apart (see ReplayTiming, shared with client playback). */
+    public static final long FRAME_NANOS = ReplayTiming.FRAME_NANOS;
     /** The last frame is held this many frames (2 s) before the loop restarts at frame 0. */
     public static final int LOOP_HOLD_FRAMES = 40;
     /** How often the WR ghosts are re-checked against the records (they are also refreshed on every change). */
@@ -157,32 +153,14 @@ public final class ReplayGhosts {
          * end-zone entry on.
          */
         public double elapsedSeconds() {
-            ReplayFrames frames = this.frames;
             double time = this.replay == null ? 0.0D : this.replay.time;
-            if (frames == null) {
-                return this.frame * (this.frameNanos / 1_000_000_000.0D);
-            }
-            if (this.frame < frames.runStart()) {
-                return 0.0D;
-            }
-            if (this.frame >= frames.runEnd() - 1 && frames.postFrames() > 0) {
-                return time;
-            }
-            double elapsed = (this.frame - frames.runStart()) * (this.frameNanos / 1_000_000_000.0D);
-            return time > 0.0D ? Math.min(elapsed, time) : elapsed;
+            return ReplayTiming.runSeconds(this.frames, this.frame, this.frameNanos, time);
         }
 
         private void setFrames(ReplayFrames frames) {
             this.frames = frames;
             this.shownFrame = -1;
-            this.frameNanos = FRAME_NANOS;
-            if (frames != null && !frames.isEmpty() && !frames.tickStream() && this.replay != null
-                    && Double.isFinite(this.replay.time) && this.replay.time > 0.0D) {
-                double expected = this.replay.time * 1_000_000_000.0D / FRAME_NANOS;
-                if (frames.size() < expected * LEGACY_STRETCH_BELOW) {
-                    this.frameNanos = Math.round(this.replay.time * 1_000_000_000.0D / frames.size());
-                }
-            }
+            this.frameNanos = ReplayTiming.frameNanos(frames, this.replay == null ? Double.NaN : this.replay.time);
         }
 
         private int frameAt(long now) {

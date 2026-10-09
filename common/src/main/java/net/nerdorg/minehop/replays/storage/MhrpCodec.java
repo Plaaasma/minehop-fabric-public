@@ -339,6 +339,64 @@ public final class MhrpCodec {
         return readHeaderSection(in);
     }
 
+    /**
+     * The same file with an edited header: the column blocks are copied byte for byte (not decoded or re-encoded) and
+     * the CRC is recomputed. {@code edit} gets a copy of the file's (checked) header. Whatever the blocks are read with
+     * (frame count, pre/post frames, the tick-stream flag, origin, bounds, quantisation scales, frames per block) is
+     * put back afterwards, so an edit can only change the descriptive fields. Used to stream a stored run to players'
+     * clients without its server-only fields (see MhrpHeader#forClients).
+     *
+     * @throws MhrpFormatException if {@code file} is not a valid MHRP file (its CRC is checked), or the edited header
+     *                             can't be stored
+     */
+    public static byte[] rewriteHeader(byte[] file, java.util.function.UnaryOperator<MhrpHeader> edit) throws MhrpFormatException {
+        Reader in = checkedBody(file, true);
+        MhrpHeader original = readHeaderSection(in);
+        int blocksStart = in.position();
+        int blocksEnd = file.length - 4;
+        MhrpHeader edited = edit.apply(original.copy());
+        if (edited == null) {
+            edited = original.copy();
+        }
+        edited.frameCount = original.frameCount;
+        edited.preFrames = original.preFrames;
+        edited.postFrames = original.postFrames;
+        edited.flags = (edited.flags & ~MhrpHeader.FLAG_TICK_STREAM) | (original.flags & MhrpHeader.FLAG_TICK_STREAM);
+        edited.originX = original.originX;
+        edited.originY = original.originY;
+        edited.originZ = original.originZ;
+        edited.minX = original.minX;
+        edited.minY = original.minY;
+        edited.minZ = original.minZ;
+        edited.maxX = original.maxX;
+        edited.maxY = original.maxY;
+        edited.maxZ = original.maxZ;
+        edited.positionScale = original.positionScale;
+        edited.angleScale = original.angleScale;
+        edited.speedScale = original.speedScale;
+        edited.efficiencyScale = original.efficiencyScale;
+        edited.framesPerBlock = original.framesPerBlock;
+        byte[] headerBytes;
+        try {
+            headerBytes = encodeHeader(edited);
+        } catch (IllegalArgumentException e) {
+            throw new MhrpFormatException(MhrpFormatException.Kind.CORRUPT, "edited header can't be stored: " + e.getMessage(), e);
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream(PREFIX_BYTES + headerBytes.length + (blocksEnd - blocksStart) + 4);
+        out.writeBytes(MAGIC);
+        writeU16(out, VERSION);
+        writeU32(out, headerBytes.length);
+        out.writeBytes(headerBytes);
+        out.write(file, blocksStart, blocksEnd - blocksStart);
+        byte[] body = out.toByteArray();
+        CRC32 crc = new CRC32();
+        crc.update(body, 0, body.length);
+        byte[] rewritten = new byte[body.length + 4];
+        System.arraycopy(body, 0, rewritten, 0, body.length);
+        putU32(rewritten, body.length, crc.getValue());
+        return rewritten;
+    }
+
     /** Number of column blocks for a frame count (see {@link #decodeBlockColumns}). */
     public static int blockCount(int frameCount, int framesPerBlock) {
         return frameCount <= 0 ? 0 : (frameCount + framesPerBlock - 1) / framesPerBlock;
