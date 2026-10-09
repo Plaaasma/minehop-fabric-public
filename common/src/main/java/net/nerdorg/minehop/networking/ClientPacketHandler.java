@@ -56,6 +56,7 @@ public class ClientPacketHandler {
     }
 
     public static void registerReceivers() {
+        net.nerdorg.minehop.client.replay.ClientReplays.registerReceivers();
         ClientServices.NETWORK.registerClientReceiver(ConfigSyncPayload.ID, (payload, ctx) -> {
             // Ensure you are on the main thread when modifying the game or accessing client-side only classes
             ctx.client().execute(() -> {

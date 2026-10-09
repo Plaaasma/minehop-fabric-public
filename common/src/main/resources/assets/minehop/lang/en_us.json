@@ -75,12 +75,25 @@
   "key.category.minehop.main": "Minehop",
   "key.minehop.restart": "Restart Map",
   "key.minehop.hud_editor": "Open HUD Editor",
+  "key.minehop.replay_pause": "Replay: Pause / Play",
+  "key.minehop.replay_back": "Replay: Back 5 Seconds",
+  "key.minehop.replay_forward": "Replay: Forward 5 Seconds",
+  "key.minehop.replay_slower": "Replay: Slower",
+  "key.minehop.replay_faster": "Replay: Faster",
+  "key.minehop.replay_stop": "Replay: Stop Watching",
+  "key.minehop.race_ghost": "Race Ghost On / Off",
 
   "text.autoconfig.minehop.title": "Minehop Config",
 
   "text.autoconfig.minehop.option.movement": "Movement Settings",
 
   "text.autoconfig.minehop.option.jHud": "JHUD Settings",
+
+  "text.autoconfig.minehop.option.replay": "Replay Settings",
+  "text.autoconfig.minehop.option.replay.race_ghost": "Race Ghost (your personal best runs next to you, needs a 1.1.7+ server)",
+  "text.autoconfig.minehop.option.replay.race_against_world_record": "Race The World Record Instead Of Your Personal Best",
+  "text.autoconfig.minehop.option.replay.race_ghost_opacity": "Race Ghost Opacity (%)",
+  "text.autoconfig.minehop.option.replay.show_replay_hud": "Show The Replay Bar While Watching A Replay",
 
   "text.autoconfig.minehop.option.jHud.ssjHud": "SSJ HUD Settings",
   "text.autoconfig.minehop.option.jHud.ssjHud.show_ssj": "Show SSJ",

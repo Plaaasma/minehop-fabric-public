@@ -102,9 +102,11 @@ public class MinehopClient {
 			ClientPacketHandler.registerReceivers();
 			// A new connection (also a proxy server switch) starts without the last server's spectator state.
 			resetSpectatorState();
+			net.nerdorg.minehop.client.replay.ClientReplays.reset();
 		});
 		ClientServices.NETWORK.onConnectionDisconnect((handler, client) -> {
 			resetSpectatorState();
+			net.nerdorg.minehop.client.replay.ClientReplays.reset();
 			SurfStickPreviewState.clear();
 			BoundsStickPreviewState.clear();
 			ReplayPathState.clear();
@@ -137,6 +139,7 @@ public class MinehopClient {
 		SurfStickPreviewRenderer.register();
 		// 1.21.6+: the surf stick settings screen draws its 3D ramp preview as a special GUI element.
 		ClientServices.CLIENT.registerPictureInPictureRenderer(RampPreviewGuiElementRenderState.class, RampPreviewGuiElementRenderer::new);
+		net.nerdorg.minehop.client.replay.ClientReplays.init();
 		ClientServices.CLIENT.registerEntityRenderer(ModEntities.GAMEMODE_ENTITY, GamemodeRenderer::new);
 		ClientServices.CLIENT.registerModelLayer(ModModelLayers.GAMEMODE_ENTITY, GamemodeModel::getTexturedModelData);
 		ClientServices.CLIENT.registerEntityRenderer(ModEntities.RESET_ENTITY, ResetRenderer::new);
@@ -229,6 +232,11 @@ public class MinehopClient {
 
 		// 26.1: the boost pad's translucency comes from its block model ("force_translucent"), no render layer map.
 		net.nerdorg.minehop.client.ClientPerfProbe.register();
+	}
+
+	/** The map of the run this client is timing (armed in its start zone or running), "" if none. */
+	public static String activeRunMap() {
+		return activeRunMapName == null ? "" : activeRunMapName;
 	}
 
 	/** Who is watching us, the stats received for whoever we watched, and the /hide toggles: per connection. */
