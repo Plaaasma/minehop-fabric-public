@@ -507,6 +507,20 @@ public final class SpectateSessions {
         }
     }
 
+    /** Diagnostics for /spectest: whether the viewer's camera target is tracked for (sent to) the viewer. */
+    public static String trackingDebug(ServerPlayer viewer) {
+        Entity camera = viewer.getCamera();
+        if (camera == viewer || !(camera.level() instanceof ServerLevel level)) {
+            return "camera=self";
+        }
+        ChunkMap chunkMap = level.getChunkSource().chunkMap;
+        Object tracked = ((ChunkMapAccessor) chunkMap).minehop$getEntityMap().get(camera.getId());
+        Set<ServerPlayerConnection> seenBy = tracked == null ? Set.of() : ((TrackedEntityAccessor) tracked).minehop$getSeenBy();
+        boolean chunkTracked = chunkMap.getPlayers(camera.chunkPosition(), false).contains(viewer);
+        return "tracker=" + (tracked != null) + " seenBy=" + seenBy.size() + " containsViewer=" + seenBy.contains(viewer.connection)
+                + " chunkTrackedForViewer=" + chunkTracked + " sameLevel=" + (viewer.level() == camera.level());
+    }
+
     /** True once the server has sent this entity to the player's client (vanilla records it after the spawn packet). */
     private static boolean isSentTo(Entity entity, ServerPlayer player) {
         if (!(entity.level() instanceof ServerLevel level)) {
