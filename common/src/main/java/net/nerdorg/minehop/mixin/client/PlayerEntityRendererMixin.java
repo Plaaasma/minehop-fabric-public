@@ -22,7 +22,7 @@ public abstract class PlayerEntityRendererMixin {
     // for players. Param erases to Entity so the mixin AP resolves the remapped (production) refmap.
     @Inject(method = "shouldRender", at = @At("HEAD"), cancellable = true)
     private void minehop$hideOtherPlayers(Entity entity, Frustum frustum, double x, double y, double z, CallbackInfoReturnable<Boolean> cir) {
-        if (!ConfigWrapper.config.hideOthers) {
+        if (!net.nerdorg.minehop.client.ClientVisibility.hideOthers()) {
             return;
         }
         if (!(entity instanceof Player)) {

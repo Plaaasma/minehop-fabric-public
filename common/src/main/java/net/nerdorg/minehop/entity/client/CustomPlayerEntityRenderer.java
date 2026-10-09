@@ -54,7 +54,7 @@ public class CustomPlayerEntityRenderer extends AvatarRenderer<AbstractClientPla
     @Override
     public boolean shouldRender(AbstractClientPlayer entity, Frustum frustum, double x, double y, double z) {
 
-        if (ConfigWrapper.config.hideOthers) {
+        if (net.nerdorg.minehop.client.ClientVisibility.hideOthers()) {
             return false;
         }
 
