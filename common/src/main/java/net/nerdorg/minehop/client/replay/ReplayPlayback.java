@@ -44,6 +44,8 @@ public final class ReplayPlayback {
     static final double SEEK_STEP_SECONDS = 5.0D;
     private static final long LOOP_HOLD_NANOS = 2_000_000_000L;
     private static final long BUFFER_TIMEOUT_NANOS = 5_000_000_000L;
+    /** After a wait timed out (the chunks never came), playback doesn't wait again for this long. */
+    private static final long BUFFER_GRACE_NANOS = 15_000_000_000L;
     /** A render hitch longer than this doesn't move playback further (it continues where it was). */
     private static final long MAX_STEP_NANOS = 250_000_000L;
     private static final int REPORT_INTERVAL_TICKS = 5;
@@ -79,6 +81,7 @@ public final class ReplayPlayback {
         boolean buffering = true;
         long bufferingSince = System.nanoTime();
         long graceChunk = Long.MIN_VALUE;
+        long graceUntil;
         long clock;
         long holdUntil;
         ReplayCameraEntity camera;
@@ -373,10 +376,14 @@ public final class ReplayPlayback {
             if (loaded || timedOut) {
                 w.buffering = false;
                 w.graceChunk = loaded ? Long.MIN_VALUE : chunk;
+                if (!loaded) {
+                    // The chunks don't come (e.g. spectators may not load chunks on this server): play on without them.
+                    w.graceUntil = now + BUFFER_GRACE_NANOS;
+                }
                 w.clock = now;
                 w.reportDirty = true;
             }
-        } else if (!loaded && chunk != w.graceChunk) {
+        } else if (!loaded && chunk != w.graceChunk && now - w.graceUntil >= 0L) {
             startBuffering(w, now);
         }
     }
