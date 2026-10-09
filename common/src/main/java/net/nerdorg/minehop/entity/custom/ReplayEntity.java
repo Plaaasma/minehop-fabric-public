@@ -7,6 +7,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.InterpolationHandler;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -14,6 +15,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.replays.ReplayGhosts;
 
 import java.util.UUID;
@@ -24,6 +26,8 @@ import java.util.UUID;
  * saved by an older version, which did save ghosts) removes itself.
  */
 public class ReplayEntity extends Mob {
+    /** Blocks between two position updates beyond which the client snaps instead of interpolating. */
+    private static final double CLIENT_SNAP_DISTANCE = 10.0D;
     private String map_name = "";
     private String replay_player_name = "";
     private boolean hide_head = false;
@@ -180,6 +184,39 @@ public class ReplayEntity extends Mob {
             return Component.literal(mapNameValue + "_replay");
         }
         return Component.literal(mapNameValue + "_replay_" + replayPlayerNameValue);
+    }
+
+    /**
+     * Client: position updates are normally interpolated over 3 ticks, which made the ghost slide across the map
+     * when the run teleported (reset zone, checkpoint) or the replay looped. An update this far from the previous one
+     * can't be movement (the server sends one every tick), so jump there instead.
+     * (26.1: updates go through Entity#moveOrInterpolateTo, which is final, into getInterpolation(); this entity's
+     * handler snaps instead of interpolating.)
+     */
+    private final InterpolationHandler snappingInterpolation = new InterpolationHandler(this) {
+        @Override
+        public void interpolateTo(Vec3 position, float yRot, float xRot) {
+            if (ReplayEntity.this.level().isClientSide()
+                    && this.position().distanceToSqr(position) > CLIENT_SNAP_DISTANCE * CLIENT_SNAP_DISTANCE) {
+                this.cancel();
+                ReplayEntity.this.snapToFrame(position, yRot, xRot);
+                return;
+            }
+            super.interpolateTo(position, yRot, xRot);
+        }
+    };
+
+    @Override
+    public InterpolationHandler getInterpolation() {
+        return this.snappingInterpolation;
+    }
+
+    private void snapToFrame(Vec3 position, float yRot, float xRot) {
+        this.snapTo(position.x, position.y, position.z, yRot, xRot);
+        this.setYHeadRot(yRot);
+        this.yHeadRotO = yRot;
+        this.setYBodyRot(yRot);
+        this.yBodyRotO = yRot;
     }
 
     @Override
