@@ -83,21 +83,7 @@ public class SpawnCommands {
                     ));
                     Minehop.timerManager.remove(serverPlayerEntity.getScoreboardName());
                     Logger.logSuccess(serverPlayerEntity, "Teleporting to spawn.");
-                    if (SpectateCommands.spectatorList.containsKey(serverPlayerEntity.getScoreboardName())) {
-                        List<String> spectators = SpectateCommands.spectatorList.get(serverPlayerEntity.getScoreboardName());
-                        for (String spectator : spectators) {
-                            ServerPlayer spectatorPlayer = context.getSource().getServer().getPlayerList().getPlayerByName(spectator);
-                            if (spectatorPlayer == null) {
-                                continue;
-                            }
-                            UserPlotManager.consumeForcedCreativeState(spectatorPlayer);
-                            if (!spectatorPlayer.isCreative()) {
-                                spectatorPlayer.getInventory().clearContent();
-                            }
-                            spectatorPlayer.teleport(ZoneUtil.makeTeleportTarget(serverPlayerEntity.level(), new Vec3(serverPlayerEntity.getX(), serverPlayerEntity.getY(), serverPlayerEntity.getZ()), serverPlayerEntity.getYRot(), serverPlayerEntity.getXRot()));
-                            spectatorPlayer.setCamera(serverPlayerEntity);
-                        }
-                    }
+                    // Spectators follow on their own (SpectateSessions), also into another dimension.
                 }
             }
         }

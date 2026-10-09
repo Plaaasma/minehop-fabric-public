@@ -4,11 +4,15 @@
 	"package": "net.nerdorg.minehop.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
+		"ChunkMapAccessor",
 		"EntityCollisionMixin",
 		"LivingEntityMixin",
 		"ServerCommonNetworkHandlerStreamMixin",
 		"ServerPlayNetworkHandlerMixin",
-		"ServerPlayNetworkHandlerStreamMixin"
+		"ServerPlayNetworkHandlerSpectateMixin",
+		"ServerPlayNetworkHandlerStreamMixin",
+		"ServerPlayerSpectateMixin",
+		"TrackedEntityAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1
