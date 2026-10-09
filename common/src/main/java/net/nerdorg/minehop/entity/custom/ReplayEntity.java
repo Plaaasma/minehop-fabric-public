@@ -28,6 +28,14 @@ import java.util.UUID;
 public class ReplayEntity extends Mob {
     /** Blocks between two position updates beyond which the client snaps instead of interpolating. */
     private static final double CLIENT_SNAP_DISTANCE = 10.0D;
+    /**
+     * Entity event the server sends right before moving a ghost across a teleport of its recording (or back to the
+     * start when it loops): the client then jumps to the next position instead of interpolating to it. Not a vanilla
+     * event id; clients without this handler ignore it (and interpolate, or snap beyond {@link #CLIENT_SNAP_DISTANCE}).
+     */
+    public static final byte SNAP_EVENT = 117;
+    // Client: the next position update is a teleport (SNAP_EVENT).
+    private boolean snapNextPosition = false;
     private String map_name = "";
     private String replay_player_name = "";
     private boolean hide_head = false;
@@ -188,19 +196,23 @@ public class ReplayEntity extends Mob {
 
     /**
      * Client: position updates are normally interpolated over 3 ticks, which made the ghost slide across the map
-     * when the run teleported (reset zone, checkpoint) or the replay looped. An update this far from the previous one
-     * can't be movement (the server sends one every tick), so jump there instead.
+     * when the run teleported (reset zone, checkpoint) or the replay looped. Jump instead when the server announced a
+     * teleport ({@link #SNAP_EVENT}: recordings that mark their teleports), or when an update is this far from the
+     * previous one, which can't be movement (the server sends one every tick; older recordings have no marks).
      * (26.1: updates go through Entity#moveOrInterpolateTo, which is final, into getInterpolation(); this entity's
      * handler snaps instead of interpolating.)
      */
     private final InterpolationHandler snappingInterpolation = new InterpolationHandler(this) {
         @Override
         public void interpolateTo(Vec3 position, float yRot, float xRot) {
-            if (ReplayEntity.this.level().isClientSide()
-                    && this.position().distanceToSqr(position) > CLIENT_SNAP_DISTANCE * CLIENT_SNAP_DISTANCE) {
-                this.cancel();
-                ReplayEntity.this.snapToFrame(position, yRot, xRot);
-                return;
+            if (ReplayEntity.this.level().isClientSide()) {
+                boolean snap = ReplayEntity.this.snapNextPosition;
+                ReplayEntity.this.snapNextPosition = false;
+                if (snap || this.position().distanceToSqr(position) > CLIENT_SNAP_DISTANCE * CLIENT_SNAP_DISTANCE) {
+                    this.cancel();
+                    ReplayEntity.this.snapToFrame(position, yRot, xRot);
+                    return;
+                }
             }
             super.interpolateTo(position, yRot, xRot);
         }
@@ -217,6 +229,15 @@ public class ReplayEntity extends Mob {
         this.yHeadRotO = yRot;
         this.setYBodyRot(yRot);
         this.yBodyRotO = yRot;
+    }
+
+    @Override
+    public void handleEntityEvent(byte id) {
+        if (id == SNAP_EVENT) {
+            this.snapNextPosition = true;
+            return;
+        }
+        super.handleEntityEvent(id);
     }
 
     @Override

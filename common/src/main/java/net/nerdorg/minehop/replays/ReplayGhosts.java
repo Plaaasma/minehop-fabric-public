@@ -28,11 +28,16 @@ import java.util.UUID;
  * tick. Before, a ghost that walked into an unloading chunk was saved there, the lookups (which only see loaded
  * entities) missed it and every new record or restart spawned another: the test world had 63 ghosts for 43 maps.
  *
- * <p>Playback runs on wall time, one recorded frame per 50 ms, and is independent of the entity: a ghost is only
+ * <p>Playback runs on wall time, one recorded frame per 50 ms (a recording is one frame per client tick), and is
+ * independent of the entity: a ghost is only
  * spawned where its current frame is in an entity-ticking chunk whose entities are loaded, and a WR ghost nobody
  * watches is removed when its route leaves that area. Its clock keeps running, so it comes back at the right point
  * of the run when players are near the route again. A new record restarts the ghost at frame 0; after the last
- * frame it holds for {@link #LOOP_HOLD_FRAMES} frames and loops.
+ * frame it holds for {@link #LOOP_HOLD_FRAMES} frames and loops. A replay plays its pre-run frames (the prestrafe in the
+ * start zone), the run and its post-run frames; the spectator timer counts the run only. When the ghost crosses a
+ * teleport of its recording (tick-stream recordings mark them) or loops, its clients are told to jump rather than
+ * interpolate ({@link ReplayEntity#SNAP_EVENT}). Older recordings were sampled once per server tick: one that lag left
+ * with clearly too few frames for its time is stretched to its time.
  *
  * <p>Frames come from the replay store ({@link ReplayManager#loadFrames}, read and decoded off the server thread). A
  * ghost waits, unspawned, until they are loaded (a private ghost with its clock stopped). A world-record ghost only
@@ -43,8 +48,13 @@ import java.util.UUID;
  * <p>Server thread only.
  */
 public final class ReplayGhosts {
-    /** Recorded frames are one server tick (at 20 TPS) apart. */
+    /** Recorded frames are one client tick (at 20 TPS) apart. */
     public static final long FRAME_NANOS = 50_000_000L;
+    /**
+     * An older (server-tick) recording with fewer frames than this share of its time's ticks was recorded under lag
+     * and is played stretched to its time.
+     */
+    private static final double LEGACY_STRETCH_BELOW = 0.9D;
     /** The last frame is held this many frames (2 s) before the loop restarts at frame 0. */
     public static final int LOOP_HOLD_FRAMES = 40;
     /** How often the WR ghosts are re-checked against the records (they are also refreshed on every change). */
@@ -90,6 +100,9 @@ public final class ReplayGhosts {
         // The route's bounding box, for the replay it was taken from (it never changes for a run).
         private double[] routeBounds;
         private ReplayManager.Replay routeBoundsOf;
+        // Playback time per frame (FRAME_NANOS, or longer for a lag-recorded older replay) and the last frame shown.
+        private long frameNanos = FRAME_NANOS;
+        private int shownFrame = -1;
 
         private Ghost(String mapName, UUID viewer, ReplayManager.Replay replay, long now) {
             this.mapName = mapName;
@@ -139,15 +152,67 @@ public final class ReplayGhosts {
             return ReplayManager.entryAt(frames, Math.min(this.frame, frames.size() - 1));
         }
 
-        /** Seconds into the run of the frame currently shown. */
+        /**
+         * Seconds into the run at the frame currently shown: 0 during the pre-run frames, the run's time from its
+         * end-zone entry on.
+         */
         public double elapsedSeconds() {
-            return this.frame * (FRAME_NANOS / 1_000_000_000.0D);
+            ReplayFrames frames = this.frames;
+            double time = this.replay == null ? 0.0D : this.replay.time;
+            if (frames == null) {
+                return this.frame * (this.frameNanos / 1_000_000_000.0D);
+            }
+            if (this.frame < frames.runStart()) {
+                return 0.0D;
+            }
+            if (this.frame >= frames.runEnd() - 1 && frames.postFrames() > 0) {
+                return time;
+            }
+            double elapsed = (this.frame - frames.runStart()) * (this.frameNanos / 1_000_000_000.0D);
+            return time > 0.0D ? Math.min(elapsed, time) : elapsed;
+        }
+
+        private void setFrames(ReplayFrames frames) {
+            this.frames = frames;
+            this.shownFrame = -1;
+            this.frameNanos = FRAME_NANOS;
+            if (frames != null && !frames.isEmpty() && !frames.tickStream() && this.replay != null
+                    && Double.isFinite(this.replay.time) && this.replay.time > 0.0D) {
+                double expected = this.replay.time * 1_000_000_000.0D / FRAME_NANOS;
+                if (frames.size() < expected * LEGACY_STRETCH_BELOW) {
+                    this.frameNanos = Math.round(this.replay.time * 1_000_000_000.0D / frames.size());
+                }
+            }
         }
 
         private int frameAt(long now) {
             long elapsed = Math.max(0L, (this.pausedSince >= 0L ? this.pausedSince : now) - this.startNanos);
             long cycle = this.frames.size() + (long) LOOP_HOLD_FRAMES;
-            return (int) Math.min((elapsed / FRAME_NANOS) % cycle, this.frames.size() - 1L);
+            return (int) Math.min((elapsed / this.frameNanos) % cycle, this.frames.size() - 1L);
+        }
+
+        /**
+         * True if moving from the frame last shown to {@code next} crosses a teleport of the recording or loops back
+         * to the start: the ghost's clients must jump there, not interpolate.
+         */
+        private boolean jumpsTo(int next) {
+            int shown = this.shownFrame;
+            if (shown < 0 || next == shown) {
+                return false;
+            }
+            if (next < shown) {
+                return true;
+            }
+            ReplayFrames frames = this.frames;
+            if (frames == null || !frames.tickStream()) {
+                return false;
+            }
+            for (int i = shown + 1; i <= next && i < frames.size(); i++) {
+                if (frames.isDiscontinuity(i)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private void restart(long now) {
@@ -255,7 +320,7 @@ public final class ReplayGhosts {
         } else if (!java.util.Objects.equals(ghost.replay.replay_id, replay.replay_id)) {
             // A new record (or the old one invalidated): show the new run from its start.
             ghost.replay = replay;
-            ghost.frames = null;
+            ghost.setFrames(null);
             ghost.loading = false;
             ghost.unavailable = false;
             ghost.restart(now);
@@ -383,7 +448,7 @@ public final class ReplayGhosts {
             if (ghost.warm) {
                 ghost.coldChecks = 0;
             } else if (++ghost.coldChecks >= RELEASE_AFTER_COLD_CHECKS && release && ghost.frames != null) {
-                ghost.frames = null;
+                ghost.setFrames(null);
             }
         }
     }
@@ -430,7 +495,7 @@ public final class ReplayGhosts {
         }
         ReplayFrames inMemory = ReplayManager.framesIfLoaded(ghost.replay);
         if (inMemory != null && !inMemory.isEmpty()) {
-            ghost.frames = inMemory;
+            ghost.setFrames(inMemory);
             return true;
         }
         if (ghost.loading || ghost.unavailable || (ghost.retryLoadAt != 0L && System.nanoTime() - ghost.retryLoadAt < 0L)) {
@@ -455,7 +520,7 @@ public final class ReplayGhosts {
                     stopViewerGhost(ghost.viewer);
                 }
             } else {
-                ghost.frames = frames;
+                ghost.setFrames(frames);
             }
         });
         return ghost.frames != null;
@@ -497,6 +562,7 @@ public final class ReplayGhosts {
             ghost.frame = ghost.frameAt(now);
             entry = ghost.currentEntry();
             spawn(level, ghost, entry);
+            ghost.shownFrame = ghost.frame;
             return;
         }
         if (!ready && ghost.isWorldRecord() && !SpectateSessions.isWatched(ghost)) {
@@ -505,7 +571,12 @@ public final class ReplayGhosts {
             despawn(ghost);
             return;
         }
+        if (ghost.jumpsTo(ghost.frame)) {
+            // Sent before the move (the tracker sends that next tick): the clients jump instead of sliding across.
+            level.broadcastEntityEvent(ghost.entity, ReplayEntity.SNAP_EVENT);
+        }
         apply(ghost.entity, entry);
+        ghost.shownFrame = ghost.frame;
     }
 
     private static void spawn(ServerLevel level, Ghost ghost, ReplayManager.ReplayEntry entry) {
@@ -537,6 +608,7 @@ public final class ReplayGhosts {
     private static void despawn(Ghost ghost) {
         ReplayEntity entity = ghost.entity;
         ghost.entity = null;
+        ghost.shownFrame = -1;
         if (entity != null) {
             BY_ENTITY.remove(entity.getUUID());
             if (!entity.isRemoved()) {
