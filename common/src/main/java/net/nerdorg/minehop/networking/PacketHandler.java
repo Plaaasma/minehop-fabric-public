@@ -567,12 +567,18 @@ public class PacketHandler {
         String formattedNumber = String.format("%.5f", time);
         String playerName = player.getScoreboardName();
         String playerUuid = player.getStringUUID();
-        int replayHeaderFlags = checkRunTicksAgainstTime(player, server, activeMapName, time, runClientTicks);
+        // 1.21.1 port: a pre-1.21.2 client sends no packet for a tick it stood still in, so the run's packet count
+        // (runClientTicks, what the run-tick check above rejects on) leaves idle ticks out; the evidence comparison and
+        // the replay header count them too (RunClock#inferredRunTicks), so idling isn't noted as a hitch.
+        long inferredTicks = runClientTicks < 0L ? 0L
+                : net.nerdorg.minehop.replays.RunClock.inferredRunTicks(player, !Double.isNaN(serverRunSeconds));
+        long runTicksWithIdle = runClientTicks < 0L ? runClientTicks : runClientTicks + inferredTicks;
+        int replayHeaderFlags = checkRunTicksAgainstTime(player, server, activeMapName, time, runTicksWithIdle);
         if (RUN_LOG) {
             Minehop.LOGGER.info(String.format(java.util.Locale.ROOT,
-                    "[RUN] accepted %s on %s: client %.5f s, server span %.5f s, %d client ticks (%.3f s)",
-                    playerName, activeMapName, time, serverRunSeconds, runClientTicks,
-                    runClientTicks * server.tickRateManager().millisecondsPerTick() / 1000.0D));
+                    "[RUN] accepted %s on %s: client %.5f s, server span %.5f s, %d client ticks (%d packets + %d idle, %.3f s)",
+                    playerName, activeMapName, time, serverRunSeconds, runTicksWithIdle, runClientTicks, inferredTicks,
+                    runTicksWithIdle * server.tickRateManager().millisecondsPerTick() / 1000.0D));
         }
         // Evidence for later review: anticheat flags raised during this run travel with its replay,
         // PB and WR rows (see /map manage history and /map manage flagged).
@@ -584,7 +590,7 @@ public class PacketHandler {
         // second, once the post-run frames are recorded (RunRecorder).
         ReplayManager.Replay replay = new ReplayManager.Replay(activeMapName, playerName, playerUuid, time, null);
         replay.ac_flags = acFlags;
-        RunRecorder.Outcome recording = RunRecorder.finishRun(player, replay, serverRunSeconds, runClientTicks, replayHeaderFlags);
+        RunRecorder.Outcome recording = RunRecorder.finishRun(player, replay, serverRunSeconds, runTicksWithIdle, replayHeaderFlags);
         if (recording == RunRecorder.Outcome.TOO_LONG) {
             Minehop.LOGGER.info("Not saving a replay of {}'s {} run on {}: longer than the recording cap", playerName, formattedNumber, activeMapName);
         } else if (recording == RunRecorder.Outcome.NO_RECORDING) {

@@ -61,6 +61,9 @@ public final class RunClock {
         Vec3 lastPos;
         /** Server-thread time the current run's start tick was handled (diagnostics: what the old clock measured). */
         long startHandledNanos = Long.MIN_VALUE;
+        /** 1.21.1 port: inferred quiet ticks since the last start tick, and their count when the run finished. */
+        long inferredSinceStart;
+        long inferredAtFinish;
     }
 
     private RunClock() {
@@ -87,6 +90,31 @@ public final class RunClock {
     /** One client tick (see ReplayEvents#onClientTick). Returns what it did to the player's run. */
     static Event onClientTick(ServerPlayer player, ClientTick tick) {
         State st = STATES.computeIfAbsent(player.getUUID(), uuid -> new State());
+        Event event = decide(player, st, tick);
+        // 1.21.1 port: count the quiet ticks of the run (ClientTick#inferred), which its client tick count leaves out.
+        if (event == Event.START) {
+            st.inferredSinceStart = 0L;
+        } else if (tick.inferred()) {
+            st.inferredSinceStart++;
+        }
+        if (event == Event.FINISH) {
+            st.inferredAtFinish = st.inferredSinceStart;
+        }
+        return event;
+    }
+
+    /**
+     * 1.21.1 port: client ticks of the player's current run that the client sent no packet for (it stood still; see
+     * ClientTick#inferred), up to its end-zone entry ({@code finished}) or up to now. The run's client tick count
+     * (Minehop.runStartClientTicks .. runFinishClientTicks) counts packets only, so the tick count the run's time is
+     * compared with as evidence is that plus these; the run-tick check that rejects counts packets only.
+     */
+    public static long inferredRunTicks(ServerPlayer player, boolean finished) {
+        State st = player == null ? null : STATES.get(player.getUUID());
+        return st == null ? 0L : finished ? st.inferredAtFinish : st.inferredSinceStart;
+    }
+
+    private static Event decide(ServerPlayer player, State st, ClientTick tick) {
         Vec3 pos = tick.position();
         Vec3 from = tick.discontinuity() ? null : st.lastPos;
         st.lastPos = pos;
