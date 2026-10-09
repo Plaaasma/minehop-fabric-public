@@ -470,6 +470,36 @@ public class ReplayManager {
         v2.load(replay, callback);
     }
 
+    /**
+     * The run's MHRP file in the v2 store if it is written and readable, else null (the legacy store, a finish whose
+     * file is still being written, a missing or quarantined file): replay streaming then encodes the frames instead.
+     */
+    public static Path writtenFile(Replay replay) {
+        if (replay == null || pending(replay) != null) {
+            return null;
+        }
+        ReplayStore v2 = store();
+        return v2 == null ? null : v2.writtenFile(replay);
+    }
+
+    /**
+     * The header a streamed copy of the run carries when its file is encoded from frames (see {@link #writtenFile}):
+     * its identity, time and frame layout, none of the server-only fields (MhrpHeader#forClients).
+     */
+    public static net.nerdorg.minehop.replays.storage.MhrpHeader streamHeader(Replay replay, ReplayFrames frames) {
+        net.nerdorg.minehop.replays.storage.MhrpHeader header = new net.nerdorg.minehop.replays.storage.MhrpHeader();
+        header.replayId = replay.replay_id == null ? "" : replay.replay_id;
+        header.mapName = replay.map_name == null ? "" : replay.map_name;
+        header.playerUuid = replay.player_uuid == null ? "" : replay.player_uuid;
+        header.playerName = replay.player_name == null ? "" : replay.player_name;
+        header.time = replay.time;
+        header.savedAt = replay.saved_at;
+        header.preFrames = frames.preFrames();
+        header.postFrames = frames.postFrames();
+        header.flags = frames.tickStream() ? net.nerdorg.minehop.replays.storage.MhrpHeader.FLAG_TICK_STREAM : 0;
+        return header;
+    }
+
     /** A column copy of recorded frames (what the v2 store keeps and writes). */
     public static ReplayFrames toFrames(List<ReplayEntry> entries) {
         if (entries == null) {

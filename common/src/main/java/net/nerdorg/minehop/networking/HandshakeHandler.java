@@ -109,9 +109,12 @@ public class HandshakeHandler {
                     return;
                 }
                 // Kept even below the minimum (client_validation off): gating only ever looks for newer versions.
-                CLIENT_VERSIONS.put(player.getUUID(), mod_version);
+                Integer previous = CLIENT_VERSIONS.put(player.getUUID(), mod_version);
                 if (mod_version >= Minehop.MIN_CLIENT_MOD_VERSION) {
                     waitingForShake.remove(player.getUUID());
+                }
+                if (previous == null && supportsClientReplays(player)) {
+                    net.nerdorg.minehop.replays.ReplayStreaming.onClientReady(player);
                 }
             });
         });
