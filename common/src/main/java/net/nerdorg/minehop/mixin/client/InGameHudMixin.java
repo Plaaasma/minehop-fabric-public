@@ -61,7 +61,10 @@ public abstract class InGameHudMixin {
         }
     }
 
-    @Inject(at = @At("TAIL"), method = "extractRenderState")
+    // RETURN, not TAIL: Forge 64 patches extractRenderState to draw its layered HUD and return early, so the last return
+    // (TAIL) is never reached there and the whole Minehop HUD (speed, jump HUD, timer, spectators, replay bar) was
+    // missing on Forge. Vanilla and NeoForge have a single return, where both points are the same.
+    @Inject(at = @At("RETURN"), method = "extractRenderState")
     private void renderSqueedometerHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, CallbackInfo info) {
         // The HUD editor draws its own WYSIWYG previews; don't double-render the live HUD behind it.
         if (this.minecraft.screen instanceof net.nerdorg.minehop.client.HudEditorScreen) {
