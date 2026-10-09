@@ -84,6 +84,7 @@ public final class RunStats {
         if (efficiency == nonce) {
             state.legacyClient = true; // echoed the request: a client without real efficiency to report
             state.efficiency = 0.0D;
+            Minehop.LOGGER.info("{}'s client doesn't report strafe efficiency (1.1.6 or older); recording 0", player.getScoreboardName());
             return;
         }
         if (Double.isFinite(efficiency)) {
