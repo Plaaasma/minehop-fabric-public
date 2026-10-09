@@ -134,6 +134,19 @@ public class Zone extends Mob {
     }
 
     @Override
+    protected boolean updateFluidInteraction() {
+        // A zone's bounding box is the whole zone (updateInteractionBounds), and vanilla's baseTick sweeps every block
+        // inside it for fluids each tick: a big fail zone (a whole room floor) costs millions of block lookups per tick.
+        // Zones never interact with fluids (same as SurfRampEntity; 26.1: the sweep is updateFluidInteraction).
+        return false;
+    }
+
+    @Override
+    protected void pushEntities() {
+        // Zones are intangible triggers: skip vanilla's per-tick entity query over the (zone-sized) bounding box.
+    }
+
+    @Override
     protected void doPush(Entity entity) {
     }
 
