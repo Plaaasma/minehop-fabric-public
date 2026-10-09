@@ -73,6 +73,10 @@ tasks.named("runServer") {
     if (project.hasProperty("surfHull")) {
         jvmArgs "-Dminehop.surfHullSolver=true"
     }
+    // `-Pspectatetest`: /spectest commands that feed spectate-session guards the packets a client would send (dev only)
+    if (project.hasProperty("spectatetest")) {
+        jvmArgs "-Dminehop.spectatetest=true"
+    }
     // `-Pmaptest=<request.json>`: MapRouteHarness (bot rollouts on a built map; dev only)
     if (project.hasProperty("maptest")) {
         jvmArgs "-Dminehop.maptest=" + project.property("maptest")
