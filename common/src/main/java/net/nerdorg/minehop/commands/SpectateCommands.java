@@ -39,18 +39,7 @@ public class SpectateCommands {
             LiteralArgumentBuilder.<CommandSourceStack>literal("spec")
                 .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("entity", StringArgumentType.string())
                     .suggests((context, builder) -> {
-                        // Iterate over all entities and add your custom entities to the suggestions
-                        Iterable<Entity> entities = context.getSource().getLevel().getAllEntities();
-                        for (Entity entity : entities) {
-                            if (entity instanceof ReplayEntity) {
-                                builder.suggest(entity.getScoreboardName(), new LiteralMessage(entity.getName().getString()));
-                            }
-                            else if (entity instanceof Player) {
-                                if (!((Player) entity).isCreative() && !entity.isSpectator()) {
-                                    builder.suggest(entity.getScoreboardName(), new LiteralMessage(entity.getName().getString()));
-                                }
-                            }
-                        }
+                        suggestTargets(context, builder);
                         suggestSavedReplayNames(context, builder);
                         return builder.buildFuture();
                     })
@@ -70,16 +59,7 @@ public class SpectateCommands {
             LiteralArgumentBuilder.<CommandSourceStack>literal("spectate")
                 .then(RequiredArgumentBuilder.<CommandSourceStack, String>argument("entity", StringArgumentType.string())
                     .suggests((context, builder) -> {
-                        // Iterate over all entities and add your custom entities to the suggestions
-                        Iterable<Entity> entities = context.getSource().getLevel().getAllEntities();
-                        for (Entity entity : entities) {
-                            if (entity instanceof ReplayEntity) {
-                                builder.suggest(entity.getScoreboardName(), new LiteralMessage(entity.getName().getString()));
-                            }
-                            else if (entity instanceof Player) {
-                                builder.suggest(entity.getScoreboardName(), new LiteralMessage(entity.getName().getString()));
-                            }
-                        }
+                        suggestTargets(context, builder);
                         suggestSavedReplayNames(context, builder);
                         return builder.buildFuture();
                     })
@@ -150,15 +130,7 @@ public class SpectateCommands {
 
         Entity entity = context.getSource().getServer().getPlayerList().getPlayerByName(nameString);
         if (entity == null) {
-            Iterable<Entity> entities = context.getSource().getLevel().getAllEntities();
-            for (Entity iterEntity : entities) {
-                if (iterEntity instanceof ReplayEntity) {
-                    if (iterEntity.getScoreboardName().equals(nameString)) {
-                        entity = iterEntity;
-                        break;
-                    }
-                }
-            }
+            entity = findWorldRecordGhost(nameString);
             if (entity == null) {
                 Logger.logFailure(serverPlayerEntity, "Entity not found.");
                 return;
@@ -248,12 +220,7 @@ public class SpectateCommands {
 
         Entity entity = context.getSource().getServer().getPlayerList().getPlayerByName(requestedName);
         if (entity == null) {
-            for (Entity iterEntity : context.getSource().getLevel().getAllEntities()) {
-                if (iterEntity instanceof ReplayEntity && requestedName.equals(iterEntity.getScoreboardName())) {
-                    entity = iterEntity;
-                    break;
-                }
-            }
+            entity = findWorldRecordGhost(requestedName);
         }
 
         if (entity instanceof ReplayEntity replayEntity) {
@@ -340,6 +307,28 @@ public class SpectateCommands {
             }
         }
         return sanitized.toString();
+    }
+
+    /** Spectatable players (not creative/spectator) and the maps' world-record ghosts. */
+    private static void suggestTargets(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        for (ServerPlayer player : context.getSource().getServer().getPlayerList().getPlayers()) {
+            if (!player.isCreative() && !player.isSpectator()) {
+                builder.suggest(player.getScoreboardName(), new LiteralMessage(player.getScoreboardName()));
+            }
+        }
+        for (String mapName : net.nerdorg.minehop.replays.ReplayGhosts.worldRecordMaps()) {
+            builder.suggest(mapName + "_replay", new LiteralMessage(mapName + " world record"));
+        }
+    }
+
+    /** The spawned world-record ghost named "{map}_replay", or null. */
+    private static ReplayEntity findWorldRecordGhost(String name) {
+        if (name == null || !name.endsWith("_replay")) {
+            return null;
+        }
+        net.nerdorg.minehop.replays.ReplayGhosts.Ghost ghost =
+                net.nerdorg.minehop.replays.ReplayGhosts.worldRecordGhost(name.substring(0, name.length() - "_replay".length()));
+        return ghost == null ? null : ghost.entity();
     }
 
     private static void suggestSavedReplayNames(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
