@@ -35,6 +35,10 @@ public class StartEntity extends Zone {
     public static final double WALK_SPEED_BPT = 0.25D;
     private BlockPos corner1;
     private BlockPos corner2;
+    // runBounds() cache, for the corners it was built from.
+    private AABB runBox;
+    private BlockPos runBoxCorner1;
+    private BlockPos runBoxCorner2;
     // Players (by name) that were inside this start zone last tick — used to detect a fresh airborne
     // RE-ENTRY (the timer-reset-while-keeping-speed exploit) vs jumping out from the ground.
     private final Set<String> insideLastTick = new HashSet<>();
@@ -193,7 +197,16 @@ public class StartEntity extends Zone {
 
     /** The zone's box (what a player must be inside), or null while its corners aren't set. */
     public AABB runBounds() {
-        return this.corner1 == null || this.corner2 == null ? null : this.getBoundsBox();
+        if (this.corner1 == null || this.corner2 == null) {
+            return null;
+        }
+        if (this.runBox == null || !this.corner1.equals(this.runBoxCorner1) || !this.corner2.equals(this.runBoxCorner2)) {
+            // Checked for every runner's client tick: built once per corner change, not per check.
+            this.runBox = this.getBoundsBox();
+            this.runBoxCorner1 = this.corner1;
+            this.runBoxCorner2 = this.corner2;
+        }
+        return this.runBox;
     }
 
     public static boolean isPlayerInsideAnyStartZone(ServerPlayer player) {
