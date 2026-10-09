@@ -34,6 +34,10 @@ minecraft {
             if (project.hasProperty('clientUsername')) {
                 args '--username', project.property('clientUsername')
             }
+            // -PreplayDebug: log client replay playback per rendered frame (dev only)
+            if (project.hasProperty('replayDebug')) {
+                systemProperty 'minehop.replayDebug', 'true'
+            }
         }
         register('server') {
             workingDir = file(project.findProperty('forgeServerRunDir') ?: 'runs/server')
