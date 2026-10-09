@@ -300,6 +300,10 @@ public final class SpectateSessions {
 
     /** Null if the player may start a session now, else why not. */
     public static String cooldownMessage(ServerPlayer viewer) {
+        if (!viewer.isAlive()) {
+            // On the death screen: a session would put a dead player in spectator mode and leave them stuck.
+            return "You can't spectate while dead.";
+        }
         MinecraftServer server = viewer.level().getServer();
         Long last = LAST_START.get(viewer.getUUID());
         if (server != null && last != null && server.getTickCount() - last < START_COOLDOWN_TICKS) {
