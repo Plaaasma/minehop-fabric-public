@@ -500,6 +500,9 @@ public final class SpectateSessions {
             }
             ServerLevel level = ReplayGhosts.level(server, ghost);
             Vec3 position = ReplayGhosts.position(ghost);
+            if (position == null) {
+                return; // its frames are still being loaded
+            }
             if (level != null && (viewer.level() != level
                     || viewer.position().distanceToSqr(position) > PENDING_FOLLOW_DISTANCE * PENDING_FOLLOW_DISTANCE)) {
                 ReplayManager.ReplayEntry entry = ghost.currentEntry();
@@ -579,10 +582,13 @@ public final class SpectateSessions {
             if (ghost == null || ghost.entity() == null) {
                 return;
             }
+            ReplayManager.ReplayEntry entry = ghost.currentEntry();
+            if (entry == null) {
+                return;
+            }
             if (now % HUD_INTERVAL_TICKS == 0) {
                 PacketHandler.sendRunTimerHud(viewer, (float) ghost.elapsedSeconds(), (float) ghost.replay().time);
             }
-            ReplayManager.ReplayEntry entry = ghost.currentEntry();
             stats = new RunStats.Snapshot((int) entry.jump_count, entry.last_jump_speed, entry.efficiency);
         }
         if (!stats.equals(session.lastStats) || now - session.lastStatsTick >= 20L) {
