@@ -204,14 +204,20 @@ public class PacketHandler {
         Services.NETWORK.sendToPlayer(player,  new SendEfficiencyPayload(efficiency));
     }
 
-    /** Tells a spectated player who is watching them (sent by SpectateSessions whenever the list changes). */
+    /**
+     * Tells a spectated player who is watching them (sent by SpectateSessions whenever the list changes; an empty
+     * list clears it). Format "{count}~{name}~{name}..." with count = names + 1: clients up to 1.1.6 read the names
+     * at indexes 1 .. count-1, so this makes them show every name (they dropped the last one, and never showed a
+     * single spectator), and "1" makes them clear the list. Newer clients read every name after the count.
+     */
     public static void sendSpectatorList(ServerPlayer player, List<String> spectators) {
-        if (player == null || spectators == null || spectators.isEmpty()) {
+        if (player == null) {
             return;
         }
+        List<String> names = spectators == null ? List.of() : spectators;
         StringBuilder buff = new StringBuilder();
-        buff.append(spectators.size());
-        for (String spectator : spectators) {
+        buff.append(names.size() + 1);
+        for (String spectator : names) {
             buff.append('~').append(spectator);
         }
         Services.NETWORK.sendToPlayer(player, new SendSpectatorsPayload(buff.toString()));
