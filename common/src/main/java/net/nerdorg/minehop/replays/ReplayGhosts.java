@@ -87,6 +87,9 @@ public final class ReplayGhosts {
         // World-record ghosts: spawned, watched or a player near the route (else frames are let go after a while).
         private boolean warm;
         private int coldChecks;
+        // The route's bounding box, for the replay it was taken from (it never changes for a run).
+        private double[] routeBounds;
+        private ReplayManager.Replay routeBoundsOf;
 
         private Ghost(String mapName, UUID viewer, ReplayManager.Replay replay, long now) {
             this.mapName = mapName;
@@ -390,9 +393,14 @@ public final class ReplayGhosts {
         if (level == null || level.players().isEmpty()) {
             return false;
         }
-        double[] bounds = ReplayManager.bounds(ghost.replay);
+        double[] bounds = ghost.routeBoundsOf == ghost.replay ? ghost.routeBounds : null;
         if (bounds == null) {
-            return true;
+            bounds = ReplayManager.bounds(ghost.replay);
+            if (bounds == null) {
+                return true; // not known yet (a finish still being written): any player in the level counts
+            }
+            ghost.routeBounds = bounds;
+            ghost.routeBoundsOf = ghost.replay;
         }
         double margin = Math.max(server.getPlayerList().getViewDistance(), server.getPlayerList().getSimulationDistance()) * 16.0D + NEAR_MARGIN;
         for (net.minecraft.server.level.ServerPlayer player : level.players()) {
