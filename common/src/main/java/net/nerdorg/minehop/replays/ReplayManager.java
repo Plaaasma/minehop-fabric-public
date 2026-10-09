@@ -72,10 +72,101 @@ public class ReplayManager {
     private static final Object WRITE_LOCK = new Object();
     private static final AtomicLong SAVE_SEQUENCE = new AtomicLong();
     private static final java.util.Map<Path, Long> WRITTEN_SEQUENCE = new java.util.HashMap<>(); // guarded by WRITE_LOCK
-    private static final AtomicReference<PendingSave> PENDING_SAVE = new AtomicReference<>();
+    private static final AtomicReference<LegacySave> PENDING_SAVE = new AtomicReference<>();
     private static final AtomicBoolean LEGACY_WRITING = new AtomicBoolean();
 
-    private record PendingSave(Path file, long sequence, List<Replay> snapshot) {
+    private record LegacySave(Path file, long sequence, List<Replay> snapshot) {
+    }
+
+    /** Finished runs whose frames are still being completed (see {@link #beginSave}), by replay id. */
+    private static final java.util.Map<String, PendingSave> PENDING_RUNS = new java.util.HashMap<>();
+
+    /**
+     * A finished run whose metadata is already in the run list (lookups, PB/WR, history see it) while its frames are
+     * still being completed: the recorder adds the post-run frames for up to a second after the finish, then calls
+     * {@link #complete}. Meanwhile the run counts as playable and {@link #loadFrames} waits for it. Server thread only.
+     */
+    public static final class PendingSave {
+        private final Replay stored;
+        private final ServerLevel world;
+        private final double serverTime;
+        private final long clientTicks;
+        private final int headerFlags;
+        private final int knownFrames;
+        private final List<Consumer<ReplayFrames>> waiting = new ArrayList<>();
+        private boolean done;
+
+        private PendingSave(Replay stored, ServerLevel world, double serverTime, long clientTicks, int headerFlags, int knownFrames) {
+            this.stored = stored;
+            this.world = world;
+            this.serverTime = serverTime;
+            this.clientTicks = clientTicks;
+            this.headerFlags = headerFlags;
+            this.knownFrames = knownFrames;
+        }
+
+        public Replay replay() {
+            return this.stored;
+        }
+
+        /** Whether the store keeps post-run frames (the legacy store only keeps the run itself). */
+        public boolean wantsPostFrames() {
+            return mode == StoreMode.V2;
+        }
+
+        /**
+         * The run's frames are complete (with their layout): stores them and hands them to everyone waiting. A run that
+         * was removed from the run list meanwhile (purged with its map or player) is not stored.
+         */
+        public void complete(ReplayFrames frames) {
+            if (this.done) {
+                return;
+            }
+            this.done = true;
+            PENDING_RUNS.remove(this.stored.replay_id, this);
+            ReplayFrames delivered = null;
+            if (frames != null && !frames.isEmpty() && Minehop.replayList != null && Minehop.replayList.contains(this.stored)) {
+                delivered = store(frames);
+            }
+            if (delivered == null && Minehop.replayList != null) {
+                // Nothing was stored: don't keep a run without frames in the list (the legacy store can't hold one).
+                Minehop.replayList.remove(this.stored);
+            }
+            for (Consumer<ReplayFrames> callback : this.waiting) {
+                try {
+                    callback.accept(delivered);
+                } catch (RuntimeException e) {
+                    Minehop.LOGGER.error("Replay frame callback failed", e);
+                }
+            }
+            this.waiting.clear();
+        }
+
+        private ReplayFrames store(ReplayFrames frames) {
+            if (mode == StoreMode.V2) {
+                if (store == null) {
+                    Minehop.LOGGER.error("The replay store is not available; {}'s run on {} was not saved", this.stored.player_name,
+                            this.stored.map_name);
+                    return null;
+                }
+                long start = System.nanoTime();
+                store.addRun(this.stored, frames, this.serverTime, this.clientTicks, this.headerFlags);
+                long nanos = System.nanoTime() - start;
+                store.stats().lastFinishNanos = nanos;
+                store.stats().maxFinishNanos = Math.max(store.stats().maxFinishNanos, nanos);
+                return frames;
+            }
+            // The legacy store (until migrated) keeps only the run's own frames, one per entry, without flags.
+            List<ReplayEntry> entries = new ArrayList<>(frames.runEnd() - frames.runStart());
+            ReplayFrames.Builder run = ReplayFrames.builder(frames.runEnd() - frames.runStart());
+            for (int i = frames.runStart(); i < frames.runEnd(); i++) {
+                entries.add(entryAt(frames, i));
+                run.add(frames, i, 0);
+            }
+            this.stored.replayEntries = entries;
+            saveRecordReplaysAsync(this.world, Minehop.replayList);
+            return run.build();
+        }
     }
 
     public static class ReplayEntry {
@@ -287,10 +378,14 @@ public class ReplayManager {
                 && (replay.invalidated == null || replay.invalidated.isBlank());
     }
 
-    /** Number of recorded frames (without loading them). */
+    /** Number of recorded frames (without loading them), including pre- and post-run frames. */
     public static int frameCount(Replay replay) {
         if (replay == null) {
             return 0;
+        }
+        PendingSave pending = pending(replay);
+        if (pending != null) {
+            return pending.knownFrames;
         }
         ReplayStore v2 = store();
         ReplayStore.Entry entry = v2 == null ? null : v2.entry(replay);
@@ -309,6 +404,9 @@ public class ReplayManager {
 
     /** {minX, minY, minZ, maxX, maxY, maxZ} of the run's route, or null if unknown. */
     public static double[] bounds(Replay replay) {
+        if (pending(replay) != null) {
+            return null;
+        }
         ReplayStore v2 = store();
         ReplayStore.Entry entry = v2 == null || replay == null ? null : v2.entry(replay);
         if (entry != null) {
@@ -341,7 +439,7 @@ public class ReplayManager {
      * null; never touches the disk. Use {@link #loadFrames} to load them.
      */
     public static ReplayFrames framesIfLoaded(Replay replay) {
-        if (replay == null) {
+        if (replay == null || pending(replay) != null) {
             return null;
         }
         ReplayStore v2 = store();
@@ -358,6 +456,11 @@ public class ReplayManager {
      * replay file). Null if they can't be loaded. Server thread only.
      */
     public static void loadFrames(Replay replay, Consumer<ReplayFrames> callback) {
+        PendingSave pending = pending(replay);
+        if (pending != null) {
+            pending.waiting.add(callback); // within a second, when its post-run frames are complete
+            return;
+        }
         ReplayFrames frames = framesIfLoaded(replay);
         ReplayStore v2 = store();
         if (frames != null || v2 == null || replay == null) {
@@ -576,6 +679,54 @@ public class ReplayManager {
     }
 
     /**
+     * Starts saving a finished run whose frames are still being recorded (see {@link PendingSave}): its metadata goes
+     * into the run list now, so the finish (PB, WR, ghost) is handled at once, and the frames are stored when the
+     * recorder completes them. {@code knownFrames}: frames recorded up to the finish (shown until then). Null if the run
+     * can't be saved.
+     *
+     * @param serverTime  the server-measured run time in seconds (NaN if unknown), kept in the run's file
+     * @param clientTicks client ticks the run took (-1 if unknown), kept in the run's file
+     * @param headerFlags MhrpHeader flags for the run's file
+     */
+    public static PendingSave beginSave(ServerLevel world, Replay replay, double serverTime, long clientTicks, int headerFlags,
+                                        int knownFrames) {
+        if (world == null || replay == null || replay.map_name == null || replay.map_name.isBlank()
+                || replay.player_name == null || replay.player_name.isBlank()
+                || !Double.isFinite(replay.time) || replay.time <= 0.0D || knownFrames <= 0) {
+            return null;
+        }
+        if (mode == StoreMode.V2 && store == null) {
+            Minehop.LOGGER.error("The replay store is not available; {}'s run on {} was not saved", replay.player_name, replay.map_name);
+            return null;
+        }
+        if (Minehop.replayList == null) {
+            Minehop.replayList = new ArrayList<>();
+        }
+        String id = replay.replay_id == null || replay.replay_id.isBlank() ? UUID.randomUUID().toString() : replay.replay_id;
+        long savedAt = replay.saved_at > 0L ? replay.saved_at : System.currentTimeMillis();
+        Replay stored = new Replay(id, replay.map_name, replay.player_name, replay.player_uuid, replay.time, savedAt, null);
+        stored.ac_flags = replay.ac_flags == null ? "" : replay.ac_flags;
+        stored.invalidated = replay.invalidated == null ? "" : replay.invalidated;
+        PendingSave pending = new PendingSave(stored, world, serverTime, clientTicks, headerFlags, knownFrames);
+        PENDING_RUNS.put(id, pending);
+        Minehop.replayList.add(stored);
+        return pending;
+    }
+
+    /** True if the run's frames are still being completed (see {@link #beginSave}). */
+    public static boolean isSavePending(Replay replay) {
+        return pending(replay) != null;
+    }
+
+    private static PendingSave pending(Replay replay) {
+        if (replay == null || replay.replay_id == null || PENDING_RUNS.isEmpty()) {
+            return null;
+        }
+        PendingSave pending = PENDING_RUNS.get(replay.replay_id);
+        return pending != null && pending.stored == replay ? pending : null;
+    }
+
+    /**
      * Legacy store: synchronous atomic, backed-up, version-enveloped write of the whole store (see JsonStorage) on
      * the calling thread, waiting for a background write in progress. V2 store: persists status changes and removals
      * and waits up to 30 s for the store's writer. Minehop itself only calls this at shutdown.
@@ -630,7 +781,7 @@ public class ReplayManager {
 
     private static long queueLegacySave(ServerLevel world, List<Replay> replays) {
         long sequence = SAVE_SEQUENCE.incrementAndGet();
-        PendingSave save = new PendingSave(storePath(world), sequence,
+        LegacySave save = new LegacySave(storePath(world), sequence,
                 replays == null ? new ArrayList<>() : new ArrayList<>(replays));
         if (PENDING_SAVE.getAndSet(save) == null) {
             WRITER.execute(ReplayManager::drainPendingSave);
@@ -641,7 +792,7 @@ public class ReplayManager {
     private static void drainPendingSave() {
         LEGACY_WRITING.set(true);
         try {
-            PendingSave save = PENDING_SAVE.getAndSet(null);
+            LegacySave save = PENDING_SAVE.getAndSet(null);
             if (save == null) {
                 return;
             }
@@ -743,6 +894,14 @@ public class ReplayManager {
         Services.EVENTS.onServerLevelUnload(((server, world) -> {
             if (world.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
                 return;
+            }
+            if (!PENDING_RUNS.isEmpty()) {
+                // The recorder completes every pending run when the server starts stopping; this is a safety net.
+                Minehop.LOGGER.warn("Replay store: {} finished run(s) were still being recorded at shutdown; their replays are lost",
+                        PENDING_RUNS.size());
+                for (PendingSave pending : new ArrayList<>(PENDING_RUNS.values())) {
+                    pending.complete(null);
+                }
             }
             if (mode == StoreMode.V2) {
                 if (store != null) {
