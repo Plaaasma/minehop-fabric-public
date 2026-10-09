@@ -19,6 +19,7 @@ public class JoinLeaveManager {
             if (networkHandler.player != null) {
                 // A spectating player gets their game mode and position back before they are saved.
                 SpectateSessions.onDisconnect(networkHandler.player);
+                net.nerdorg.minehop.replays.RunStats.forget(networkHandler.player);
                 PacketHandler.clearRunState(networkHandler.player, server);
                 SurfRampPlacementManager.onPlayerDisconnect(networkHandler.player.getUUID());
                 UserPlotManager.onPlayerDisconnect(networkHandler.player);

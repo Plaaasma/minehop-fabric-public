@@ -101,7 +101,6 @@ public class Minehop {
 	public static HashMap<String, Long> runFinishClientTicks = new HashMap<>();
 	public static HashMap<String, Double> efficiencyMap = new HashMap<>();
 	public static HashMap<String, List<Double>> efficiencyListMap = new HashMap<>();
-	public static HashMap<String, ReplayManager.SSJEntry> lastEfficiencyMap = new HashMap<>();
 	public static HashMap<String, Double> efficiencyUpdateMap = new HashMap<>();
 	public static HashMap<String, Double> speedCapMap = new HashMap<>();
 	public static HashMap<String, List<Double>> gaugeListMap = new HashMap<>();
@@ -139,6 +138,7 @@ public class Minehop {
 		ReplayEvents.register();
 		net.nerdorg.minehop.replays.ReplayGhosts.register();
 		net.nerdorg.minehop.spectate.SpectateSessions.register();
+		net.nerdorg.minehop.replays.RunStats.register();
 
 		ModItems.initialize();
 		ModItems.registerModItems();

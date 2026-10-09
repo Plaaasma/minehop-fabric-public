@@ -23,6 +23,7 @@ import net.nerdorg.minehop.entity.custom.EndEntity;
 import net.nerdorg.minehop.networking.payloads.*;
 import net.nerdorg.minehop.replays.ReplayEvents;
 import net.nerdorg.minehop.replays.ReplayManager;
+import net.nerdorg.minehop.replays.RunStats;
 import net.nerdorg.minehop.util.Logger;
 import net.nerdorg.minehop.util.MapCreationManager;
 import net.nerdorg.minehop.util.PacketRateLimiter;
@@ -1121,22 +1122,13 @@ public class PacketHandler {
             }
             ctx.server().execute(() -> ZonePlacementManager.deleteEditedZone(player));
         });
+        // A client's answer to an efficiency request (RunStats). Its jump count/speed are ignored: the server derives
+        // those from the accepted movement. Unrequested stats are dropped, so a client can't feed made-up values into
+        // its replay or its spectators' HUD.
         registerLimited(SSpecEfficiencyPayload.ID, RL_FAST, (payload, ctx) -> {
             ServerPlayer player = ctx.player();
-            MinecraftServer server = ctx.server();
-            double last_jump_speed =  payload.last_jump_speed();
-            int jump_count = (int) payload.jump_count();
             double last_efficiency = payload.last_efficiency();
-            ctx.server().execute(() -> {
-                if (player == null || !Double.isFinite(last_jump_speed) || !Double.isFinite(last_efficiency)) {
-                    return;
-                }
-                Minehop.lastEfficiencyMap.put(player.getScoreboardName(), new ReplayManager.SSJEntry(jump_count, last_jump_speed, last_efficiency));
-
-                for (ServerPlayer spectator : SpectateSessions.spectatorsOf(player)) {
-                    sendSpecEfficiency(spectator, last_jump_speed, jump_count, last_efficiency);
-                }
-            });
+            ctx.server().execute(() -> RunStats.onReply(player, last_efficiency));
         });
     }
 
