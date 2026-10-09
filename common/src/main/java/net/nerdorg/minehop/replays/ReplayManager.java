@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.storage.LevelResource;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.data.DataManager;
+import net.nerdorg.minehop.replays.storage.LegacyMigration;
 import net.nerdorg.minehop.replays.storage.ReplayFrames;
 import net.nerdorg.minehop.replays.storage.ReplayStore;
 import net.nerdorg.minehop.util.JsonStorage;
@@ -20,6 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -32,8 +34,8 @@ import java.util.function.Consumer;
  * <ul>
  *   <li>{@link StoreMode#V2}: {@link ReplayStore}, one compact file per run plus a run log; the list holds metadata
  *       only and frames are loaded on demand ({@link #loadFrames}) into a capped cache.</li>
- *   <li>{@link StoreMode#LEGACY}: the version 1 store, all runs with all frames in minehop_replays.json and in memory,
- *       used by a world that has one.</li>
+ *   <li>{@link StoreMode#LEGACY}: the version 1 store, all runs with all frames in minehop_replays.json and in memory.
+ *       Only used until {@link LegacyMigration} has converted a world (or with -Dminehop.replayMigration=false).</li>
  * </ul>
  * The rest of the mod uses the methods here and works the same on both.
  */
@@ -53,6 +55,8 @@ public class ReplayManager {
     private static volatile StoreMode mode = StoreMode.LEGACY;
     /** The v2 store while {@link #mode} is V2 (null if it failed to open; replays are then not saved this session). */
     private static ReplayStore store;
+    /** Legacy store: the file was read without errors (only then may it be migrated). */
+    private static boolean legacyLoadedCompletely;
 
     // The replay store is one large file (hundreds of MB in production) rewritten as a whole. Writing it on the
     // server thread after every finish froze the server for seconds, and that stall then made the run-timer check
@@ -69,6 +73,7 @@ public class ReplayManager {
     private static final AtomicLong SAVE_SEQUENCE = new AtomicLong();
     private static final java.util.Map<Path, Long> WRITTEN_SEQUENCE = new java.util.HashMap<>(); // guarded by WRITE_LOCK
     private static final AtomicReference<PendingSave> PENDING_SAVE = new AtomicReference<>();
+    private static final AtomicBoolean LEGACY_WRITING = new AtomicBoolean();
 
     private record PendingSave(Path file, long sequence, List<Replay> snapshot) {
     }
@@ -615,23 +620,28 @@ public class ReplayManager {
     }
 
     private static void drainPendingSave() {
-        PendingSave save = PENDING_SAVE.getAndSet(null);
-        if (save == null) {
-            return;
-        }
-        boolean written = false;
+        LEGACY_WRITING.set(true);
         try {
-            written = writeStore(save.file(), save.sequence(), save.snapshot());
-        } catch (Throwable error) {
-            Minehop.LOGGER.error("Background replay save failed", error);
-        }
-        if (written || JsonStorage.isLoadFailed(save.file())) {
-            return; // done, or saving is disabled for this file (logged by JsonStorage); retrying can't help
-        }
-        // Keep it pending unless something newer was queued meanwhile, and try again later.
-        if (PENDING_SAVE.compareAndSet(null, save)) {
-            Minehop.LOGGER.warn("Replay save failed; retrying in {} s", RETRY_DELAY_SECONDS);
-            WRITER.schedule(ReplayManager::drainPendingSave, RETRY_DELAY_SECONDS, TimeUnit.SECONDS);
+            PendingSave save = PENDING_SAVE.getAndSet(null);
+            if (save == null) {
+                return;
+            }
+            boolean written = false;
+            try {
+                written = writeStore(save.file(), save.sequence(), save.snapshot());
+            } catch (Throwable error) {
+                Minehop.LOGGER.error("Background replay save failed", error);
+            }
+            if (written || JsonStorage.isLoadFailed(save.file())) {
+                return; // done, or saving is disabled for this file (logged by JsonStorage); retrying can't help
+            }
+            // Keep it pending unless something newer was queued meanwhile, and try again later.
+            if (PENDING_SAVE.compareAndSet(null, save)) {
+                Minehop.LOGGER.warn("Replay save failed; retrying in {} s", RETRY_DELAY_SECONDS);
+                WRITER.schedule(ReplayManager::drainPendingSave, RETRY_DELAY_SECONDS, TimeUnit.SECONDS);
+            }
+        } finally {
+            LEGACY_WRITING.set(false);
         }
     }
 
@@ -659,6 +669,35 @@ public class ReplayManager {
         return server.getWorldPath(LevelResource.ROOT).resolve(REPLAYS_FILE).toAbsolutePath().normalize();
     }
 
+    // ------------------------------------------------------------------------------------------
+    // Legacy store hand-over (LegacyMigration)
+    // ------------------------------------------------------------------------------------------
+
+    /** True if the legacy store was read without errors this session (the precondition for migrating it). */
+    public static boolean legacyLoadedCompletely() {
+        return mode == StoreMode.LEGACY && legacyLoadedCompletely;
+    }
+
+    /** True if the legacy writer has nothing queued, scheduled for a retry or in progress. */
+    public static boolean legacyWriterIdle() {
+        return PENDING_SAVE.get() == null && !LEGACY_WRITING.get();
+    }
+
+    /**
+     * Switches this session to the v2 store (LegacyMigration, on the server thread, with the legacy writer idle):
+     * from now on saves go to {@code v2} only.
+     */
+    public static void switchToV2(ReplayStore v2) {
+        store = v2;
+        mode = StoreMode.V2;
+    }
+
+    /** Undoes a {@link #switchToV2} made for a check that failed (nothing was written to the v2 store). */
+    public static void switchBackToLegacy() {
+        store = null;
+        mode = StoreMode.LEGACY;
+    }
+
     public static List<Replay> loadRecordReplays(ServerLevel world) {
         Path worldDir = world.getServer().getWorldPath(LevelResource.ROOT);
         // Crash-proof read with .corrupt quarantine + .bak fallback; null = no data yet.
@@ -678,6 +717,10 @@ public class ReplayManager {
             }
         }));
 
+        Services.EVENTS.onServerStarted(LegacyMigration::onServerStarted);
+        Services.EVENTS.onServerTickEnd(LegacyMigration::tick);
+        Services.EVENTS.onServerStopping(LegacyMigration::onServerStopping);
+
         Services.EVENTS.onServerLevelUnload(((server, world) -> {
             if (world.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
                 return;
@@ -695,11 +738,13 @@ public class ReplayManager {
     }
 
     /**
-     * Picks the world's store: the v2 store once it exists or when the world has no legacy store; otherwise the legacy
-     * store.
+     * Picks the world's store: the v2 store once it exists (its marker is written last by the migration) or when
+     * there is no legacy store to migrate; otherwise the legacy store, which LegacyMigration then converts in the
+     * background after the server has started.
      */
     private static void openStore(MinecraftServer server, ServerLevel world) {
         store = null;
+        legacyLoadedCompletely = false;
         Minehop.replayList = new ArrayList<>();
         Path root = ReplayStore.root(server);
         Path legacy = legacyStorePath(server);
@@ -731,6 +776,8 @@ public class ReplayManager {
         mode = StoreMode.LEGACY;
         long loadStart = System.nanoTime();
         List<Replay> newReplayList = loadRecordReplays(world);
+        // Only a store that loaded completely may be migrated (a null list from an existing file is a failed load).
+        legacyLoadedCompletely = newReplayList != null && !JsonStorage.isLoadFailed(legacy);
         if (newReplayList != null) {
             for (Replay replay : newReplayList) {
                 if (replay == null || replay.map_name == null || replay.map_name.isBlank()) {
