@@ -545,11 +545,39 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
         }
 
         Matrix4f positionMatrix = matrixStack.last().pose();
+        // The fill and the lines are two render types, and the entity buffer source keeps only one such type open at a
+        // time: taking the second buffer ends the first, so interleaving line and fill writes crashed the client with
+        // "Not building!" (any wireframe ramp with fill on). Draw the fill first, then the lines, each pass with only
+        // its own buffer.
+        if (fillEnabled) {
+            VertexConsumer fillConsumer = provider.getBuffer(RenderType.entityTranslucent(WIREFRAME_FILL_TEXTURE));
+            this.renderWireframeShape(entity, entityPos, segments, matrixStack, positionMatrix, null, fillConsumer, true,
+                    wireRed, wireGreen, wireBlue, fillRed, fillGreen, fillBlue, fillAlpha, light);
+        }
         VertexConsumer wireConsumer = provider.getBuffer(ModRenderLayer.getLineOfWidth(WIREFRAME_LINE_WIDTH));
-        VertexConsumer fillConsumer = fillEnabled
-                ? provider.getBuffer(RenderType.entityTranslucent(WIREFRAME_FILL_TEXTURE))
-                : null;
+        this.renderWireframeShape(entity, entityPos, segments, matrixStack, positionMatrix, wireConsumer, null, false,
+                wireRed, wireGreen, wireBlue, fillRed, fillGreen, fillBlue, fillAlpha, light);
+    }
 
+    /** One pass of the wireframe: lines if {@code wireConsumer} is set, fill if {@code fillConsumer} is. */
+    private void renderWireframeShape(
+            SurfRampEntity entity,
+            Vec3 entityPos,
+            int segments,
+            PoseStack matrixStack,
+            Matrix4f positionMatrix,
+            @Nullable VertexConsumer wireConsumer,
+            @Nullable VertexConsumer fillConsumer,
+            boolean fillEnabled,
+            int wireRed,
+            int wireGreen,
+            int wireBlue,
+            int fillRed,
+            int fillGreen,
+            int fillBlue,
+            int fillAlpha,
+            int light
+    ) {
         if (entity.isTwoSided()) {
             this.renderTwoSidedWireframe(
                     entity,
@@ -597,7 +625,7 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             int segments,
             PoseStack matrixStack,
             Matrix4f positionMatrix,
-            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer wireConsumer,
             @Nullable VertexConsumer fillConsumer,
             boolean fillEnabled,
             int wireRed,
@@ -697,7 +725,7 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             int segments,
             PoseStack matrixStack,
             Matrix4f positionMatrix,
-            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer wireConsumer,
             @Nullable VertexConsumer fillConsumer,
             boolean fillEnabled,
             int wireRed,
@@ -912,7 +940,7 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
     }
 
     private void drawWireLine(
-            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer wireConsumer,
             Matrix4f positionMatrix,
             Vec3 a,
             Vec3 b,
@@ -920,6 +948,9 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             int green,
             int blue
     ) {
+        if (wireConsumer == null) {
+            return; // fill pass
+        }
         wireConsumer.addVertex(positionMatrix, (float) a.x, (float) a.y, (float) a.z)
                 .setColor(red, green, blue, WIREFRAME_LINE_ALPHA)
                 .setNormal(1.0F, 1.0F, 1.0F);
