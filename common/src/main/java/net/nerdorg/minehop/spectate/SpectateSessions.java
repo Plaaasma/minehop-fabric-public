@@ -488,6 +488,15 @@ public final class SpectateSessions {
      * else already changed it (e.g. an operator's /gamemode).
      */
     private static void end(ServerPlayer viewer, Session session, String message, boolean restoreGameMode) {
+        end(viewer, session, message, restoreGameMode, false);
+    }
+
+    /**
+     * {@code disconnecting}: the viewer is leaving. They are put back only within their current dimension then: a
+     * dimension change during the disconnect isn't needed (a non-operator is sent to spawn on the next join anyway) and
+     * moving a player between levels while they are being removed is not worth the risk.
+     */
+    private static void end(ServerPlayer viewer, Session session, String message, boolean restoreGameMode, boolean disconnecting) {
         SESSIONS.remove(session.viewer);
         if (session.kind == Kind.PERSONAL_BEST) {
             ReplayGhosts.stopViewerGhost(session.viewer);
@@ -500,9 +509,11 @@ public final class SpectateSessions {
         MinecraftServer server = viewer.getServer();
         try {
             ServerLevel level = server == null ? null : server.getLevel(back.dimension());
-            if (level != null) {
+            if (disconnecting && level != viewer.level()) {
+                // Leaving from another dimension: stay put (see above).
+            } else if (level != null) {
                 viewer.teleport(ZoneUtil.makeTeleportTarget(level, back.position(), back.yRot(), back.xRot()));
-            } else {
+            } else if (!disconnecting) {
                 sendToSpawn(viewer);
             }
         } finally {
@@ -588,7 +599,7 @@ public final class SpectateSessions {
         }
         Session session = session(player);
         if (session != null) {
-            end(player, session, null, true);
+            end(player, session, null, true, true);
         }
         LAST_START.remove(player.getUUID());
         SENT_LISTS.remove(player.getUUID());
@@ -615,12 +626,17 @@ public final class SpectateSessions {
             mode = GameType.ADVENTURE;
         }
         player.setGameMode(mode);
-        sendToSpawn(player);
+        // On join: the move (possibly to another dimension) waits until the join has completed.
+        sendToSpawn(player, true);
         Minehop.LOGGER.info("{} was in spectator mode outside a spectate session; reset to {} at spawn", player.getScoreboardName(), mode.getName());
         Logger.logFailure(player, "You were in spectator mode without spectating anyone, so you were sent back to spawn.");
     }
 
     private static void sendToSpawn(ServerPlayer player) {
+        sendToSpawn(player, false);
+    }
+
+    private static void sendToSpawn(ServerPlayer player, boolean afterJoin) {
         MinecraftServer server = player.getServer();
         if (server == null) {
             return;
@@ -638,7 +654,11 @@ public final class SpectateSessions {
         Vec3 position = spawn != null ? new Vec3(spawn.x, spawn.y, spawn.z) : Vec3.atBottomCenterOf(level.getSharedSpawnPos());
         float yRot = spawn != null ? (float) spawn.yrot : 0.0F;
         float xRot = spawn != null ? (float) spawn.xrot : 0.0F;
-        player.teleport(ZoneUtil.makeTeleportTarget(level, position, yRot, xRot));
+        if (afterJoin) {
+            net.nerdorg.minehop.networking.JoinLeaveManager.moveAfterJoin(player, level, position, yRot, xRot);
+        } else {
+            player.teleport(ZoneUtil.makeTeleportTarget(level, position, yRot, xRot));
+        }
     }
 
     // ------------------------------------------------------------------------------------------
