@@ -109,11 +109,16 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
         boolean renderUnderside = this.shouldRenderUnderside(entity, cameraPos);
         if (entity.isWireframeMode()) {
             int segments = this.getLodSegmentCount(entity, entityPos, true);
+            // The lines and the fill are two render types, so they are two passes, each writing only to its own
+            // buffer: the line pass gets no fill consumer and the fill pass no line consumer. The feature renderer
+            // takes one render type's buffer and runs all of that type's callbacks before taking the next, so line
+            // and fill writes never interleave (on 1.21.4, taking the fill buffer while lines were still being
+            // written ended the line buffer: "Not building!").
             queue.submitCustomGeometry(matrixStack, ModRenderLayer.getLineOfWidth(WIREFRAME_LINE_WIDTH), (entry, wireConsumer) ->
                     this.renderWireframe(entity, entityPos, segments, toMatrixStack(entry), wireConsumer, null, light));
             if (entity.isWireframeFillEnabled()) {
                 queue.submitCustomGeometry(matrixStack, RenderTypes.entityTranslucent(WIREFRAME_FILL_TEXTURE), (entry, fillConsumer) ->
-                        this.renderWireframe(entity, entityPos, segments, toMatrixStack(entry), DISCARDING_CONSUMER, fillConsumer, light));
+                        this.renderWireframe(entity, entityPos, segments, toMatrixStack(entry), null, fillConsumer, light));
             }
         } else {
             int segments = this.getLodSegmentCount(entity, entityPos, false);
@@ -149,49 +154,6 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
         stack.last().normal().set(entry.normal());
         return stack;
     }
-
-    /** Swallows vertices: the wireframe fill pass reuses the wireframe walker without emitting its lines. */
-    private static final VertexConsumer DISCARDING_CONSUMER = new VertexConsumer() {
-        @Override
-        public VertexConsumer addVertex(float x, float y, float z) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setColor(int red, int green, int blue, int alpha) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setColor(int argb) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setUv(float u, float v) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setUv1(int u, int v) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setUv2(int u, int v) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setNormal(float x, float y, float z) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setLineWidth(float width) {
-            return this;
-        }
-    };
 
     private int getLodSegmentCount(SurfRampEntity entity, Vec3 entityPos, boolean wireframe) {
         int baseSegments;
@@ -594,7 +556,7 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             Vec3 entityPos,
             int segments,
             PoseStack matrixStack,
-            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer wireConsumer,
             @Nullable VertexConsumer fillConsumer,
             int light
     ) {
@@ -665,7 +627,7 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             int segments,
             PoseStack matrixStack,
             Matrix4f positionMatrix,
-            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer wireConsumer,
             @Nullable VertexConsumer fillConsumer,
             boolean fillEnabled,
             int wireRed,
@@ -765,7 +727,7 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             int segments,
             PoseStack matrixStack,
             Matrix4f positionMatrix,
-            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer wireConsumer,
             @Nullable VertexConsumer fillConsumer,
             boolean fillEnabled,
             int wireRed,
@@ -869,7 +831,7 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             Vec3 entityPos,
             int segments,
             Matrix4f positionMatrix,
-            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer wireConsumer,
             int wireRed,
             int wireGreen,
             int wireBlue
@@ -906,7 +868,7 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             Vec3 entityPos,
             int segments,
             Matrix4f positionMatrix,
-            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer wireConsumer,
             int wireRed,
             int wireGreen,
             int wireBlue
@@ -980,7 +942,7 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
     }
 
     private void drawWireLine(
-            VertexConsumer wireConsumer,
+            @Nullable VertexConsumer wireConsumer,
             Matrix4f positionMatrix,
             Vec3 a,
             Vec3 b,
@@ -988,6 +950,9 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
             int green,
             int blue
     ) {
+        if (wireConsumer == null) {
+            return; // fill pass
+        }
         wireConsumer.addVertex(positionMatrix, (float) a.x, (float) a.y, (float) a.z)
                 .setColor(red, green, blue, WIREFRAME_LINE_ALPHA)
                 .setNormal(1.0F, 1.0F, 1.0F)
