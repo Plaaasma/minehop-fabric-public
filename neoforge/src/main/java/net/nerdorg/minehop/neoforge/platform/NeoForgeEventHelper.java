@@ -184,25 +184,16 @@ public class NeoForgeEventHelper implements IEventHelper {
 
     @Override
     public void onUseEntity(UseEntityListener listener) {
-        // Fabric calls UseEntityCallback from both entity interaction packets (INTERACT_AT with the hit position, then
-        // INTERACT without); NeoForge fires EntityInteractSpecific and EntityInteract at the same two points.
-        NeoForge.EVENT_BUS.addListener(PlayerInteractEvent.EntityInteractSpecific.class, event -> {
-            if (event.isCanceled()) {
-                return;
-            }
-            Entity target = event.getTarget();
-            EntityHitResult hitResult = new EntityHitResult(target, event.getLocalPos().add(target.getX(), target.getY(), target.getZ()));
-            InteractionResult result = listener.interact(event.getEntity(), event.getLevel(), event.getHand(), target, hitResult);
-            if (result != InteractionResult.PASS) {
-                event.setCancellationResult(result);
-                event.setCanceled(true);
-            }
-        });
+        // 26.1+ has a single entity interaction packet (hand + entity-relative location) and Fabric fires
+        // UseEntityCallback once per interaction with that location as the hit result. NeoForge 26.3 merged
+        // EntityInteractSpecific into EntityInteract, which now carries the same location.
         NeoForge.EVENT_BUS.addListener(PlayerInteractEvent.EntityInteract.class, event -> {
             if (event.isCanceled()) {
                 return;
             }
-            InteractionResult result = listener.interact(event.getEntity(), event.getLevel(), event.getHand(), event.getTarget(), null);
+            Entity target = event.getTarget();
+            EntityHitResult hitResult = new EntityHitResult(target, event.getLocation().add(target.getX(), target.getY(), target.getZ()));
+            InteractionResult result = listener.interact(event.getEntity(), event.getLevel(), event.getHand(), target, hitResult);
             if (result != InteractionResult.PASS) {
                 event.setCancellationResult(result);
                 event.setCanceled(true);

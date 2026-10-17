@@ -2,13 +2,16 @@ package net.nerdorg.minehop.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 public class RenderUtil {
-    public static void drawLine(MultiBufferSource pBuffer, PoseStack pPoseStack, Vector3f startPoint, Vector3f endPoint, int width, int alpha, int r, int g, int b) {
-        drawLine(pBuffer.getBuffer(ModRenderLayer.getLineOfWidth(width)), pPoseStack.last(), startPoint, endPoint, width, alpha, r, g, b);
+    // 26.2 removed MultiBufferSource: world overlays submit custom geometry to the frame's SubmitNodeCollector, which
+    // draws it later in the frame. The callback runs then, so the vectors handed in must not be changed afterwards.
+    public static void drawLine(SubmitNodeCollector collector, PoseStack pPoseStack, Vector3f startPoint, Vector3f endPoint, int width, int alpha, int r, int g, int b) {
+        collector.submitCustomGeometry(pPoseStack, ModRenderLayer.getLineOfWidth(width),
+                (entry, vertexBuilder) -> drawLine(vertexBuilder, entry, startPoint, endPoint, width, alpha, r, g, b));
     }
 
     // Command-queue variant (entity renderers submit custom geometry with a MatrixStack.Entry since 1.21.9).
@@ -27,8 +30,9 @@ public class RenderUtil {
                 .setLineWidth(width);
     }
 
-    public static void drawCuboid(MultiBufferSource pBuffer, PoseStack pPoseStack, Vector3f pointA, Vector3f pointB, int width, int alpha, int r, int g, int b) {
-        drawCuboid(pBuffer.getBuffer(ModRenderLayer.getLineOfWidth(width)), pPoseStack.last(), pointA, pointB, width, alpha, r, g, b);
+    public static void drawCuboid(SubmitNodeCollector collector, PoseStack pPoseStack, Vector3f pointA, Vector3f pointB, int width, int alpha, int r, int g, int b) {
+        collector.submitCustomGeometry(pPoseStack, ModRenderLayer.getLineOfWidth(width),
+                (entry, vertexBuilder) -> drawCuboid(vertexBuilder, entry, pointA, pointB, width, alpha, r, g, b));
     }
 
     public static void drawCuboid(VertexConsumer vertexBuilder, PoseStack.Pose entry, Vector3f pointA, Vector3f pointB, int width, int alpha, int r, int g, int b) {
@@ -52,5 +56,15 @@ public class RenderUtil {
         for (int i = 0; i < edges.length; i += 2) {
             drawLine(vertexBuilder, entry, points[edges[i]], points[edges[i + 1]], width, alpha, r, g, b);
         }
+    }
+
+    /**
+     * A pose stack whose top is {@code pose}: for drawing code written against a {@link PoseStack} that now runs in a
+     * submitted custom-geometry callback (which hands over the submitted pose).
+     */
+    public static PoseStack poseStackOf(PoseStack.Pose pose) {
+        PoseStack stack = new PoseStack();
+        stack.last().set(pose);
+        return stack;
     }
 }

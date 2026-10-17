@@ -52,13 +52,13 @@ public class CustomPlayerEntityRenderer extends AvatarRenderer<AbstractClientPla
     }
 
     @Override
-    public boolean shouldRender(AbstractClientPlayer entity, Frustum frustum, double x, double y, double z) {
+    public boolean shouldRender(AbstractClientPlayer entity, Frustum frustum, double x, double y, double z, float partialTicks) {
 
         if (net.nerdorg.minehop.client.ClientVisibility.hideOthers()) {
             return false;
         }
 
-        return super.shouldRender(entity, frustum, x, y, z);
+        return super.shouldRender(entity, frustum, x, y, z, partialTicks);
     }
 
 }

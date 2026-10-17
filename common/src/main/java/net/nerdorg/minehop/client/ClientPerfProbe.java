@@ -97,12 +97,17 @@ public final class ClientPerfProbe {
                     client.player.getX(), client.player.getY(), client.player.getZ(),
                     client.level.getEntityCount()));
             if (SHOT_AT > 0 && windows == SHOT_AT - 1) {
-                client.options.hideGui = true;
+                // 26.2: the hidden-HUD flag (F1) lives in the Hud (Options#hideGui is gone).
+                if (!client.gui.hud.isHidden()) {
+                    client.gui.hud.toggle();
+                }
             }
             if (SHOT_AT > 0 && windows == SHOT_AT) {
-                net.minecraft.client.Screenshot.grab(client.gameDirectory, SHOT_NAME + ".png", client.getMainRenderTarget(), 1,
+                net.minecraft.client.Screenshot.grab(client.gameDirectory, SHOT_NAME + ".png", client.gameRenderer.mainRenderTarget(), 1,
                         message -> Minehop.LOGGER.info("[CPERF] screenshot: {}", message.getString()));
-                client.options.hideGui = false;
+                if (client.gui.hud.isHidden()) {
+                    client.gui.hud.toggle();
+                }
             }
             windowStartNanos = now;
             windowStartAlloc = allocatedBytes();

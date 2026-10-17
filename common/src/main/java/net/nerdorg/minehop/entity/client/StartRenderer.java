@@ -28,7 +28,7 @@ public class StartRenderer extends MobRenderer<StartEntity, StartEntityRenderSta
     }
 
     @Override
-    public boolean shouldRender(StartEntity mobEntity, Frustum frustum, double d, double e, double f) {
+    public boolean shouldRender(StartEntity mobEntity, Frustum frustum, double d, double e, double f, float partialTicks) {
         return true;
     }
 

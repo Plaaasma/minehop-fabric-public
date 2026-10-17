@@ -318,7 +318,7 @@ public class MapCreationScreen extends Screen {
         if (this.minecraft == null) {
             return;
         }
-        this.minecraft.setScreen(new MovementSettingsScreen(this, this.selectedMovementSettings, values -> {
+        this.minecraft.gui.setScreen(new MovementSettingsScreen(this, this.selectedMovementSettings, values -> {
             this.selectedMovementSettings = values;
             this.updateMovementButtonText();
         }));

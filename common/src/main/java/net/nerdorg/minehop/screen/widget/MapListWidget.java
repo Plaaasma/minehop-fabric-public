@@ -14,6 +14,7 @@ import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextColor;
 import net.nerdorg.minehop.data.DataManager;
 
 import java.util.ArrayList;
@@ -314,7 +315,7 @@ public class MapListWidget extends AbstractSelectionList<MapListWidget.MapEntry>
             if (client == null || client.getConnection() == null || this.mapName.isBlank()) {
                 return;
             }
-            client.setScreen(null);
+            client.gui.setScreen(null);
             client.getConnection().sendCommand("spec " + StringArgumentType.escapeIfRequired(this.mapName + "_replay"));
         }
 
@@ -373,7 +374,7 @@ public class MapListWidget extends AbstractSelectionList<MapListWidget.MapEntry>
                 return;
             }
             String mapArgument = StringArgumentType.escapeIfRequired(this.mapName);
-            client.setScreen(null);
+            client.gui.setScreen(null);
             client.getConnection().sendCommand("map " + mapArgument);
         }
 
@@ -482,12 +483,12 @@ public class MapListWidget extends AbstractSelectionList<MapListWidget.MapEntry>
 
         private static DifficultyVisual difficultyVisual(int difficulty) {
             return switch (difficulty) {
-                case 0 -> new DifficultyVisual("Beginner", ChatFormatting.AQUA.getColor());
-                case 1 -> new DifficultyVisual("Easy", ChatFormatting.GREEN.getColor());
-                case 2 -> new DifficultyVisual("Moderate", ChatFormatting.YELLOW.getColor());
-                case 3 -> new DifficultyVisual("Challenging", ChatFormatting.RED.getColor());
-                case 4 -> new DifficultyVisual("Ext Hard", ChatFormatting.DARK_RED.getColor());
-                case 5 -> new DifficultyVisual("Impossible", ChatFormatting.LIGHT_PURPLE.getColor());
+                case 0 -> new DifficultyVisual("Beginner", TextColor.AQUA.getValue());
+                case 1 -> new DifficultyVisual("Easy", TextColor.GREEN.getValue());
+                case 2 -> new DifficultyVisual("Moderate", TextColor.YELLOW.getValue());
+                case 3 -> new DifficultyVisual("Challenging", TextColor.RED.getValue());
+                case 4 -> new DifficultyVisual("Ext Hard", TextColor.DARK_RED.getValue());
+                case 5 -> new DifficultyVisual("Impossible", TextColor.LIGHT_PURPLE.getValue());
                 default -> new DifficultyVisual("Unknown", 0xFFAAAAAA);
             };
         }

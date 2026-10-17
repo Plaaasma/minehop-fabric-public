@@ -28,7 +28,7 @@ public class EndRenderer extends MobRenderer<EndEntity, EndEntityRenderState, En
     }
 
     @Override
-    public boolean shouldRender(EndEntity entity, Frustum frustum, double x, double y, double z) {
+    public boolean shouldRender(EndEntity entity, Frustum frustum, double x, double y, double z, float partialTicks) {
         return true;
     }
 

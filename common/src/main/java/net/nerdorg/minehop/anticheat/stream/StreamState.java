@@ -33,8 +33,6 @@ final class StreamState {
     boolean awaitingTeleport;
     /** Speed carried by the teleport being awaited (preserve-speed resets). */
     double pendingTeleportSpeed;
-    /** The client echoes one Full move packet at the teleport target right after confirming. */
-    boolean teleportEchoPending;
     /** Ticks during which movement is only hard-capped, and the baseline is rebuilt from it. */
     int graceTicks;
     /** Largest speed the server itself gave the player during the current grace (teleport/velocity). */

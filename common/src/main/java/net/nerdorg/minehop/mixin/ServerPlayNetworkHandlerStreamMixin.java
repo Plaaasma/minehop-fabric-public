@@ -87,16 +87,8 @@ public abstract class ServerPlayNetworkHandlerStreamMixin {
         MovementValidator.onClientTickEnd(this.player);
     }
 
-    // Netty-thread pass: the move packet the client echoes after confirming is not a tick.
-    @Inject(method = "handleAcceptTeleportPacket", at = @At("HEAD"))
-    private void minehop$teleportConfirmArrival(ServerboundAcceptTeleportationPacket packet, CallbackInfo ci) {
-        ServerPlayer current = this.player;
-        MinecraftServer server = current == null ? null : current.level().getServer();
-        if (server != null && !server.isSameThread()) {
-            MovementValidator.onTeleportConfirmNetwork(current);
-        }
-    }
-
+    // 26.3: the confirmation carries the client's position (vanilla applies it right after this call, like a move that
+    // is not a tick); there is no separate echo move packet any more.
     @Inject(method = "handleAcceptTeleportPacket", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/server/level/ServerPlayer;hasChangedDimension()V"))
     private void minehop$teleportConfirmed(ServerboundAcceptTeleportationPacket packet, CallbackInfo ci) {

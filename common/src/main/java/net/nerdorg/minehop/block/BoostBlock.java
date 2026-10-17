@@ -1,7 +1,6 @@
 package net.nerdorg.minehop.block;
 
 import com.google.common.collect.ImmutableMap;
-import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.MinecraftServer;
@@ -32,11 +31,6 @@ public class BoostBlock extends BaseEntityBlock implements EntityBlock {
 
     public BoostBlock(Properties settings) {
         super(settings);
-    }
-
-    @Override
-    protected MapCodec<? extends BaseEntityBlock> codec() {
-        return null;
     }
 
     @Override

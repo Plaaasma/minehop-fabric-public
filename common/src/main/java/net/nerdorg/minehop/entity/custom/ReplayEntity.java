@@ -1,5 +1,6 @@
 package net.nerdorg.minehop.entity.custom;
 
+import net.minecraft.core.PositionAndRotation;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -8,15 +9,18 @@ import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.InterpolationHandler;
+import net.minecraft.world.entity.InterpolationTracker;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.PositionPath;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.replays.ReplayGhosts;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
@@ -199,28 +203,71 @@ public class ReplayEntity extends Mob {
      * when the run teleported (reset zone, checkpoint) or the replay looped. Jump instead when the server announced a
      * teleport ({@link #SNAP_EVENT}: recordings that mark their teleports), or when an update is this far from the
      * previous one, which can't be movement (the server sends one every tick; older recordings have no marks).
-     * (26.1: updates go through Entity#moveOrInterpolateTo, which is final, into getInterpolation(); this entity's
-     * handler snaps instead of interpolating.)
+     * (26.1: updates go through Entity#moveOrInterpolateTo, which is final, into the entity's interpolation handler;
+     * 26.2 made the handler a final field created by createInterpolationHandler(), and updates carry a position path.
+     * On the client this entity wraps vanilla's handler and snaps instead of interpolating.)
      */
-    private final InterpolationHandler snappingInterpolation = new InterpolationHandler(this) {
+    @Override
+    protected InterpolationHandler createInterpolationHandler() {
+        // Called from the Entity constructor: only level() is set, so the wrapper reads this entity's fields lazily.
+        InterpolationHandler vanilla = super.createInterpolationHandler();
+        return this.level().isClientSide() ? new SnappingInterpolation(vanilla) : vanilla;
+    }
+
+    private final class SnappingInterpolation implements InterpolationHandler {
+        private final InterpolationHandler delegate;
+
+        private SnappingInterpolation(InterpolationHandler delegate) {
+            this.delegate = delegate;
+        }
+
         @Override
-        public void interpolateTo(Vec3 position, float yRot, float xRot) {
-            if (ReplayEntity.this.level().isClientSide()) {
+        public InterpolationTracker interpolationTracker() {
+            return this.delegate.interpolationTracker();
+        }
+
+        @Override
+        public @Nullable PositionAndRotation target() {
+            return this.delegate.target();
+        }
+
+        @Override
+        public boolean interpolateTo(@Nullable PositionPath position, float yRot, float xRot, boolean hasRotation) {
+            if (position != null) {
                 boolean snap = ReplayEntity.this.snapNextPosition;
                 ReplayEntity.this.snapNextPosition = false;
-                if (snap || this.position().distanceToSqr(position) > CLIENT_SNAP_DISTANCE * CLIENT_SNAP_DISTANCE) {
-                    this.cancel();
-                    ReplayEntity.this.snapToFrame(position, yRot, xRot);
-                    return;
+                Vec3 end = position.endPosition();
+                PositionAndRotation target = this.delegate.target();
+                Vec3 from = target != null ? target.position() : ReplayEntity.this.position();
+                if (snap || from.distanceToSqr(end) > CLIENT_SNAP_DISTANCE * CLIENT_SNAP_DISTANCE) {
+                    this.delegate.cancel();
+                    ReplayEntity.this.snapToFrame(end, hasRotation ? yRot : ReplayEntity.this.getYRot(),
+                            hasRotation ? xRot : ReplayEntity.this.getXRot());
+                    return true;
                 }
             }
-            super.interpolateTo(position, yRot, xRot);
+            return this.delegate.interpolateTo(position, yRot, xRot, hasRotation);
         }
-    };
 
-    @Override
-    public InterpolationHandler getInterpolation() {
-        return this.snappingInterpolation;
+        @Override
+        public void interpolate() {
+            this.delegate.interpolate();
+        }
+
+        @Override
+        public void applyPredictedMovement(Vec3 delta) {
+            this.delegate.applyPredictedMovement(delta);
+        }
+
+        @Override
+        public boolean hasActiveInterpolation() {
+            return this.delegate.hasActiveInterpolation();
+        }
+
+        @Override
+        public void cancel() {
+            this.delegate.cancel();
+        }
     }
 
     private void snapToFrame(Vec3 position, float yRot, float xRot) {

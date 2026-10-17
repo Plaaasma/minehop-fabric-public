@@ -25,7 +25,7 @@ public class GamemodeRenderer extends MobRenderer<GamemodeEntity, GamemodeEntity
     }
 
     @Override
-    public boolean shouldRender(GamemodeEntity mobEntity, Frustum frustum, double d, double e, double f) {
+    public boolean shouldRender(GamemodeEntity mobEntity, Frustum frustum, double d, double e, double f, float partialTicks) {
         return true;
     }
 

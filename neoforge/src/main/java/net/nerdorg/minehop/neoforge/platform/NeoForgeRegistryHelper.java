@@ -112,7 +112,7 @@ public class NeoForgeRegistryHelper implements IRegistryHelper {
     private record Entry<R, T extends R>(DeferredHolder<R, T> holder) implements RegistryEntry<T> {
         @Override
         public ResourceKey<? super T> key() {
-            return this.holder.getKey();
+            return this.holder.key(); // 26.3: getKey() is deprecated for removal
         }
 
         @Override

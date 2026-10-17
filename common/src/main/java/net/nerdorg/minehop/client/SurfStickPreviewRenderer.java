@@ -4,7 +4,7 @@ import net.nerdorg.minehop.platform.ClientServices;
 import net.minecraft.client.Camera;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
@@ -25,7 +25,7 @@ public final class SurfStickPreviewRenderer {
     public static void register() {
         ClientServices.CLIENT.onWorldRenderAfterEntities(context -> {
             PoseStack matrices = context.matrixStack();
-            MultiBufferSource consumers = context.consumers();
+            SubmitNodeCollector consumers = context.submitNodeCollector();
             Camera camera = context.camera();
             if (matrices == null || consumers == null || camera == null) {
                 return;
@@ -91,7 +91,7 @@ public final class SurfStickPreviewRenderer {
             boolean oneSided,
             boolean outsideCurve,
             Vec3 cameraPos,
-            MultiBufferSource consumers,
+            SubmitNodeCollector consumers,
             PoseStack matrices,
             int red,
             int green,
@@ -124,7 +124,7 @@ public final class SurfStickPreviewRenderer {
             double drop,
             int sideSign,
             Vec3 cameraPos,
-            MultiBufferSource consumers,
+            SubmitNodeCollector consumers,
             PoseStack matrices,
             int red,
             int green,
@@ -184,7 +184,7 @@ public final class SurfStickPreviewRenderer {
             double width,
             double drop,
             Vec3 cameraPos,
-            MultiBufferSource consumers,
+            SubmitNodeCollector consumers,
             PoseStack matrices,
             int red,
             int green,
@@ -236,7 +236,7 @@ public final class SurfStickPreviewRenderer {
     }
 
     private static void drawLine(
-            MultiBufferSource consumers,
+            SubmitNodeCollector consumers,
             PoseStack matrices,
             Vec3 a,
             Vec3 b,

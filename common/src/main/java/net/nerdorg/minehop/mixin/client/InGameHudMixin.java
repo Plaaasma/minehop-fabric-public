@@ -3,7 +3,7 @@ package net.nerdorg.minehop.mixin.client;
 import net.minecraft.client.AttackIndicatorStatus;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.Hud;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
@@ -22,7 +22,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(Gui.class)
+// 26.2 moved the in-game HUD (hotbar, health, the HUD's extractRenderState) out of Gui into Hud, unchanged.
+@Mixin(Hud.class)
 public abstract class InGameHudMixin {
     @Shadow @Nullable protected abstract Player getCameraPlayer();
 
@@ -67,7 +68,7 @@ public abstract class InGameHudMixin {
     @Inject(at = @At("RETURN"), method = "extractRenderState")
     private void renderSqueedometerHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, CallbackInfo info) {
         // The HUD editor draws its own WYSIWYG previews; don't double-render the live HUD behind it.
-        if (this.minecraft.screen instanceof net.nerdorg.minehop.client.HudEditorScreen) {
+        if (this.minecraft.gui.screen() instanceof net.nerdorg.minehop.client.HudEditorScreen) {
             return;
         }
         MinehopConfig config;

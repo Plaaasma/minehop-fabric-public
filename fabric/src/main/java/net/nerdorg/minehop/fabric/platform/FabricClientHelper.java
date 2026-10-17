@@ -17,7 +17,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
 import net.minecraft.resources.Identifier;
@@ -26,7 +26,6 @@ import net.minecraft.world.entity.EntityType;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.platform.services.IClientHelper;
 
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 @Environment(EnvType.CLIENT)
@@ -45,13 +44,15 @@ public class FabricClientHelper implements IClientHelper {
 
     @Override
     public void onWorldRenderAfterEntities(WorldRenderListener listener) {
-        // 26.1: Fabric removed AFTER_ENTITIES; the overlays draw after the translucent features (as in the 26.1 port).
-        LevelRenderEvents.AFTER_TRANSLUCENT_FEATURES.register(context -> listener.onRender(new Context(context)));
+        // 26.1: Fabric removed AFTER_ENTITIES. 26.2 removed the buffer source: the overlays are submitted as features
+        // right after the level's own submits were collected, and drawn with them.
+        LevelRenderEvents.COLLECT_SUBMITS.register(context -> listener.onRender(new Context(context, true)));
     }
 
     @Override
     public void onWorldRenderEnd(WorldRenderListener listener) {
-        LevelRenderEvents.END_MAIN.register(context -> listener.onRender(new Context(context)));
+        // Nothing is drawn here (the frame's submits were already drawn): no collector.
+        LevelRenderEvents.END_MAIN.register(context -> listener.onRender(new Context(context, false)));
     }
 
     @Override
@@ -77,24 +78,24 @@ public class FabricClientHelper implements IClientHelper {
 
     @Override
     public <S extends PictureInPictureRenderState> void registerPictureInPictureRenderer(
-            Class<S> stateClass, Function<MultiBufferSource.BufferSource, PictureInPictureRenderer<S>> factory) {
-        PictureInPictureRendererRegistry.register(context -> factory.apply(context.bufferSource()));
+            Class<S> stateClass, Supplier<PictureInPictureRenderer<S>> factory) {
+        PictureInPictureRendererRegistry.register(context -> factory.get());
     }
 
-    private record Context(LevelRenderContext fabric) implements WorldRenderContext {
+    private record Context(LevelRenderContext fabric, boolean canSubmit) implements WorldRenderContext {
         @Override
         public PoseStack matrixStack() {
             return this.fabric.poseStack();
         }
 
         @Override
-        public MultiBufferSource consumers() {
-            return this.fabric.bufferSource();
+        public SubmitNodeCollector submitNodeCollector() {
+            return this.canSubmit ? this.fabric.submitNodeCollector() : null;
         }
 
         @Override
         public Camera camera() {
-            return Minecraft.getInstance().gameRenderer.getMainCamera();
+            return Minecraft.getInstance().gameRenderer.mainCamera();
         }
     }
 }

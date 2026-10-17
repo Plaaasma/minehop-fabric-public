@@ -5,13 +5,13 @@ import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.EntityModelSet;
-import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.client.ClientVisibility;
@@ -25,7 +25,7 @@ import net.nerdorg.minehop.platform.ClientServices;
  * Draws the ghosts of client playback with the replay ghost's own model and texture (ReplayModel, as ReplayRenderer
  * draws the server's ghost entities, same pose: body and head turned to the recorded yaw, head pitched): the watched
  * replay when the camera isn't looking through it (third person), and the race ghost, translucent. Drawn after the
- * entities, at the pose of this rendered frame.
+ * entities, at the pose of this rendered frame. 26.2: submitted as a model feature (drawn with the entities' features).
  */
 public final class ReplayGhostRenderer {
     private static final Identifier TEXTURE = Identifier.fromNamespaceAndPath(Minehop.MOD_ID, "textures/entity/replay_texture.png");
@@ -33,7 +33,6 @@ public final class ReplayGhostRenderer {
 
     private static EntityModelSet bakedFrom;
     private static ReplayModel model;
-    private static final ReplayEntityRenderState STATE = new ReplayEntityRenderState();
 
     private ReplayGhostRenderer() {
     }
@@ -41,7 +40,7 @@ public final class ReplayGhostRenderer {
     public static void register() {
         ClientServices.CLIENT.onWorldRenderAfterEntities(context -> {
             PoseStack poses = context.matrixStack();
-            MultiBufferSource buffers = context.consumers();
+            SubmitNodeCollector buffers = context.submitNodeCollector();
             Camera camera = context.camera();
             Minecraft mc = Minecraft.getInstance();
             if (poses == null || buffers == null || camera == null || mc.level == null) {
@@ -70,7 +69,7 @@ public final class ReplayGhostRenderer {
         return model;
     }
 
-    private static void draw(Minecraft mc, PoseStack poses, MultiBufferSource buffers, Camera camera, ReplayPlayback.ViewPose pose,
+    private static void draw(Minecraft mc, PoseStack poses, SubmitNodeCollector buffers, Camera camera, ReplayPlayback.ViewPose pose,
                              int color, boolean translucent) {
         Vec3 cameraPos = camera.position();
         double dx = pose.x() - cameraPos.x;
@@ -80,19 +79,20 @@ public final class ReplayGhostRenderer {
             return;
         }
         ReplayModel ghost = model(mc);
-        int light = LevelRenderer.getLightCoords(mc.level, BlockPos.containing(pose.x(), pose.y() + EYE_HEIGHT, pose.z()));
+        int light = LightCoordsUtil.getLightCoords(mc.level, BlockPos.containing(pose.x(), pose.y() + EYE_HEIGHT, pose.z()));
         poses.pushPose();
         poses.translate(dx, dy, dz);
         // LivingEntityRenderer#render: body turned to the yaw, flipped, model space.
-        poses.mulPose(Axis.YP.rotationDegrees(180.0F - pose.yaw()));
+        poses.rotate(Axis.YP.rotationDegrees(180.0F - pose.yaw()));
         poses.scale(-1.0F, -1.0F, 1.0F);
         poses.translate(0.0F, -1.501F, 0.0F);
-        STATE.yRot = 0.0F;
-        STATE.xRot = pose.pitch();
-        STATE.renderHead = true;
-        ghost.setupAnim(STATE);
+        // The model is posed from the state when the submit is drawn (later in the frame), so each ghost gets its own.
+        ReplayEntityRenderState state = new ReplayEntityRenderState();
+        state.yRot = 0.0F;
+        state.xRot = pose.pitch();
+        state.renderHead = true;
         RenderType type = translucent ? RenderTypes.entityTranslucent(TEXTURE) : ghost.renderType(TEXTURE);
-        ghost.renderToBuffer(poses, buffers.getBuffer(type), light, OverlayTexture.NO_OVERLAY, color);
+        buffers.submitModel(ghost, state, poses, type, light, OverlayTexture.NO_OVERLAY, color, null, 0);
         poses.popPose();
     }
 }

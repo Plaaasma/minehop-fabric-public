@@ -6,7 +6,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
@@ -19,6 +19,7 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterPictureInPictureRenderersEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.neoforge.MinehopNeoForge;
@@ -27,7 +28,6 @@ import net.nerdorg.minehop.platform.services.IClientHelper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -65,17 +65,17 @@ public class NeoForgeClientHelper implements IClientHelper {
 
     @Override
     public void onWorldRenderAfterEntities(WorldRenderListener listener) {
-        // 26.1: right after the translucent features were drawn (Fabric's AFTER_TRANSLUCENT_FEATURES point), with the
-        // level pose stack; the overlays draw into the main buffer source, which is flushed later in the frame.
-        NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterTranslucentFeatures.class,
-                event -> listener.onRender(new Context(event.getPoseStack(), Minecraft.getInstance().gameRenderer.getMainCamera())));
+        // 26.2 removed the buffer source: the overlays are submitted as features right after the level's own submits
+        // (Fabric's COLLECT_SUBMITS point) and drawn with them.
+        NeoForge.EVENT_BUS.addListener(SubmitCustomGeometryEvent.class,
+                event -> listener.onRender(new Context(event.getPoseStack(), event.getSubmitNodeCollector(), Minecraft.getInstance().gameRenderer.mainCamera())));
     }
 
     @Override
     public void onWorldRenderEnd(WorldRenderListener listener) {
         // Once per frame after the level was rendered (Fabric's END_MAIN).
         NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterLevel.class,
-                event -> listener.onRender(new Context(event.getPoseStack(), Minecraft.getInstance().gameRenderer.getMainCamera())));
+                event -> listener.onRender(new Context(event.getPoseStack(), null, Minecraft.getInstance().gameRenderer.mainCamera())));
     }
 
     @Override
@@ -111,7 +111,7 @@ public class NeoForgeClientHelper implements IClientHelper {
 
     @Override
     public synchronized <S extends PictureInPictureRenderState> void registerPictureInPictureRenderer(
-            Class<S> stateClass, Function<MultiBufferSource.BufferSource, PictureInPictureRenderer<S>> factory) {
+            Class<S> stateClass, Supplier<PictureInPictureRenderer<S>> factory) {
         this.addModBusListeners();
         this.pictureInPictureRenderers.add(event -> event.register(stateClass, factory));
     }
@@ -133,16 +133,13 @@ public class NeoForgeClientHelper implements IClientHelper {
         modBus.addListener(RegisterPictureInPictureRenderersEvent.class, event -> this.pictureInPictureRenderers.forEach(r -> r.accept(event)));
     }
 
-    private record Context(PoseStack matrixStack, Camera camera) implements WorldRenderContext {
-        private Context(PoseStack matrixStack, Camera camera) {
-            // AFTER_LEVEL has no pose stack (NeoForge passes null); Minehop's END listener does not draw.
+    private record Context(PoseStack matrixStack, SubmitNodeCollector submitNodeCollector, Camera camera) implements WorldRenderContext {
+        private Context(PoseStack matrixStack, SubmitNodeCollector submitNodeCollector, Camera camera) {
+            // AFTER_LEVEL has no pose stack (NeoForge passes null) and nothing can be drawn there; Minehop's END
+            // listener does not draw.
             this.matrixStack = matrixStack != null ? matrixStack : new PoseStack();
+            this.submitNodeCollector = submitNodeCollector;
             this.camera = camera;
-        }
-
-        @Override
-        public MultiBufferSource consumers() {
-            return Minecraft.getInstance().renderBuffers().bufferSource();
         }
     }
 }

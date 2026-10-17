@@ -9,12 +9,11 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -46,15 +45,17 @@ public interface IClientHelper {
     // ---------------------------------------------------------------------------------------------
 
     /**
-     * World overlays (bounds/surf stick previews, replay path). 26.1 has no "after entities" hook any more: entities
-     * are submitted as features and drawn later, so the overlays draw after the translucent features (the 26.1 Fabric
-     * port's choice). Fabric {@code LevelRenderEvents.AFTER_TRANSLUCENT_FEATURES}; NeoForge
-     * {@code RenderLevelStageEvent.AfterTranslucentFeatures}; Forge: see the forge module.
+     * World overlays (bounds/surf stick previews, replay path, client replay ghosts). 26.1 has no "after entities" hook
+     * any more: entities are submitted as features and drawn later. 26.2 removed the buffer source, so the overlays are
+     * submitted as features too, right after the level's entities, block entities and particles were submitted (they
+     * are drawn with them, in the feature phase of their render type). Fabric {@code LevelRenderEvents.COLLECT_SUBMITS};
+     * NeoForge {@code SubmitCustomGeometryEvent}; Forge: see the forge module.
      */
     void onWorldRenderAfterEntities(WorldRenderListener listener);
 
     /**
-     * End of the main world rendering pass (once per rendered frame).
+     * End of the main world rendering pass (once per rendered frame). Nothing can be drawn here
+     * ({@link WorldRenderContext#submitNodeCollector()} is null): Minehop only times frames from it.
      * Fabric {@code LevelRenderEvents.END_MAIN}; NeoForge {@code RenderLevelStageEvent.AfterLevel}; Forge: see the forge
      * module.
      */
@@ -91,7 +92,7 @@ public interface IClientHelper {
      * Fabric {@code PictureInPictureRendererRegistry}; NeoForge/Forge {@code RegisterPictureInPictureRenderersEvent}.
      */
     <S extends PictureInPictureRenderState> void registerPictureInPictureRenderer(
-            Class<S> stateClass, Function<MultiBufferSource.BufferSource, PictureInPictureRenderer<S>> factory);
+            Class<S> stateClass, Supplier<PictureInPictureRenderer<S>> factory);
 
     // ---------------------------------------------------------------------------------------------
     // Listener types
@@ -123,13 +124,14 @@ public interface IClientHelper {
         PoseStack matrixStack();
 
         /**
-         * @return the buffer source to draw into (Fabric {@code LevelRenderContext#bufferSource()},
-         * NeoForge/Forge {@code Minecraft.getInstance().renderBuffers().bufferSource()}).
+         * @return the collector to submit geometry to (Fabric {@code LevelRenderContext#submitNodeCollector()},
+         * NeoForge {@code SubmitCustomGeometryEvent#getSubmitNodeCollector()}); null where nothing can be drawn
+         * ({@link #onWorldRenderEnd}).
          */
-        MultiBufferSource consumers();
+        SubmitNodeCollector submitNodeCollector();
 
         /**
-         * @return the active camera ({@code gameRenderer.getMainCamera()}: 26.1's level render contexts no longer
+         * @return the active camera ({@code gameRenderer.mainCamera()}: 26.1's level render contexts no longer
          * carry it).
          */
         Camera camera();

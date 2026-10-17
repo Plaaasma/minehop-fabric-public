@@ -4,7 +4,7 @@ import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 
 /**
  * Renders {@link RampPreviewGuiElementRenderState} (the surf-stick settings ramp preview) into its
@@ -13,21 +13,18 @@ import net.minecraft.client.renderer.MultiBufferSource;
  * origin sits where 1.21.4 translated to: preview centre x, 62% down the preview box.
  */
 public class RampPreviewGuiElementRenderer extends PictureInPictureRenderer<RampPreviewGuiElementRenderState> {
-    public RampPreviewGuiElementRenderer(MultiBufferSource.BufferSource vertexConsumers) {
-        super(vertexConsumers);
-    }
-
     @Override
     public Class<RampPreviewGuiElementRenderState> getRenderStateClass() {
         return RampPreviewGuiElementRenderState.class;
     }
 
     @Override
-    protected void renderToTexture(RampPreviewGuiElementRenderState state, PoseStack matrices) {
+    protected void renderToTexture(RampPreviewGuiElementRenderState state, PoseStack matrices, SubmitNodeCollector collector) {
         // Same diffuse lighting as 1.21.4's in-GUI 3D rendering (DiffuseLighting.enableGuiDepthLighting).
-        Minecraft.getInstance().gameRenderer.getLighting().setupFor(Lighting.Entry.ITEMS_3D);
+        Minecraft.getInstance().gameRenderer.lighting().setupFor(Lighting.Entry.ITEMS_3D);
         matrices.scale(1.0F, 1.0F, -1.0F);
-        state.drawer().draw(matrices, this.bufferSource);
+        // 26.2: the element submits its geometry to the renderer's own node storage (no buffer source any more).
+        state.drawer().draw(matrices, collector);
     }
 
     @Override

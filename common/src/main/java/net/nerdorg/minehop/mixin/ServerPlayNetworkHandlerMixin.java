@@ -16,12 +16,14 @@ public abstract class ServerPlayNetworkHandlerMixin {
     private static final double SAFE_VEHICLE_MOVE_THRESHOLD = 4096.0D;
     private static final double DISABLED_MOVED_WRONGLY_THRESHOLD = Double.MAX_VALUE;
 
-    @ModifyConstant(method = "handleMovePlayer", constant = @Constant(floatValue = 100.0F))
+    // 26.3 moved the movement checks of handleMovePlayer into handlePlayerPositionChange (which the teleport confirmation
+    // runs too, now that it carries the client's position).
+    @ModifyConstant(method = "handlePlayerPositionChange", constant = @Constant(floatValue = 100.0F))
     private float toofast_PlayerMaxSpeed(float speed) {
         return SAFE_PLAYER_MOVE_THRESHOLD;
     }
 
-    @ModifyConstant(method = "handleMovePlayer", constant = @Constant(floatValue = 300.0F))
+    @ModifyConstant(method = "handlePlayerPositionChange", constant = @Constant(floatValue = 300.0F))
     private float toofast_ElytraMaxSpeed(float speed) {
         return SAFE_ELYTRA_MOVE_THRESHOLD;
     }
@@ -31,7 +33,7 @@ public abstract class ServerPlayNetworkHandlerMixin {
         return SAFE_VEHICLE_MOVE_THRESHOLD;
     }
 
-    @ModifyConstant(method = "handleMovePlayer", constant = @Constant(doubleValue = 0.0625D))
+    @ModifyConstant(method = "handlePlayerPositionChange", constant = @Constant(doubleValue = 0.0625D))
     private double minehop$disableMovedWrongly(double threshold) {
         return DISABLED_MOVED_WRONGLY_THRESHOLD;
     }

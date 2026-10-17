@@ -14,10 +14,10 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
-import net.minecraft.world.entity.animal.FlyingAnimal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -57,6 +57,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.Predicate;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin extends Entity {
@@ -356,7 +357,8 @@ public abstract class LivingEntityMixin extends Entity {
     // tiny (|v_h|^2 < 9e-6); 1.21.4 (and non-players still) zero each axis separately when |v| < 0.003.
     // That runs every tick right before travel(), so keep the 1.21.4 per-axis rule for players to keep
     // Minehop's movement identical. 26.1: the EntityType.PLAYER check is now this.is(EntityType.PLAYER)
-    // (TypedInstance#is, invoked on LivingEntity) and it is the only is(Object) call in aiStep.
+    // (TypedInstance#is, invoked on LivingEntity) and it is the only is(Object) call in aiStep (26.2: the vanilla
+    // entity types moved to EntityTypes; still the only one on 26.3).
     @ModifyExpressionValue(method = "aiStep", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;is(Ljava/lang/Object;)Z", ordinal = 0))
     private boolean minehop$legacyPerAxisVelocityCutoff(boolean isPlayer) {
         return false;
@@ -369,8 +371,10 @@ public abstract class LivingEntityMixin extends Entity {
         }
     }
 
-    @Inject(method = "randomTeleport", at = @At("HEAD"))
-    public void onTeleport(double x, double y, double z, boolean particleEffects, CallbackInfoReturnable<Boolean> cir) {
+    // 26.3: randomTeleport takes what to avoid (a block tag, or a predicate the tag variant delegates to): hook the
+    // predicate variant so every random teleport runs this once.
+    @Inject(method = "randomTeleport(DDDZLjava/util/function/Predicate;)Z", at = @At("HEAD"))
+    public void onTeleport(double x, double y, double z, boolean particleEffects, Predicate<BlockState> isInvalidPosition, CallbackInfoReturnable<Boolean> cir) {
         HNSManager.taggedMap.remove(this.getScoreboardName());
         this.minehop$hasLastTravelYaw = false;
         this.minehop$descendedSinceJump = true; // don't carry a stale rising-state across a teleport
@@ -388,8 +392,10 @@ public abstract class LivingEntityMixin extends Entity {
     // M6: any externally-applied knockback (melee, projectiles, wind charge, some explosions route
     // through here) arms a short anticheat grace so the legit velocity isn't lagbacked as a speed
     // violation. Server-authoritative — a client cannot call this on itself.
-    @Inject(method = "knockback", at = @At("TAIL"))
-    private void minehop$onTakeKnockback(double strength, double x, double z, CallbackInfo ci) {
+    // 26.3: knockback also takes the damage source, the damage and whether it comes from an effect; the shorter
+    // overload delegates to this one.
+    @Inject(method = "knockback(DDDLnet/minecraft/world/damagesource/DamageSource;FZ)V", at = @At("TAIL"))
+    private void minehop$onTakeKnockback(double strength, double x, double z, DamageSource source, float damage, boolean comesFromEffect, CallbackInfo ci) {
         if (((Object) this) instanceof Player && strength > 0.0D) {
             this.minehop$externalVelocityGraceTicks = EXTERNAL_VELOCITY_GRACE_TICKS;
         }
@@ -397,7 +403,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Inject(method = "hurtServer", at = @At("HEAD"), cancellable = true)
     public void onDamage(ServerLevel world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
-        MinehopConfig config = this.getType() == EntityType.PLAYER
+        MinehopConfig config = this.getType() == EntityTypes.PLAYER
                 ? ConfigWrapper.getEffectiveConfig(this)
                 : ConfigWrapper.config;
         if (source.is(DamageTypes.FALL)) {
@@ -438,7 +444,7 @@ public abstract class LivingEntityMixin extends Entity {
         // Only players move the Minehop way. Every other living entity (replay ghosts, zone entities, mobs)
         // leaves here before the config and speed cap below are resolved for it, which cost a map lookup
         // and a config copy per entity per tick. For players nothing changes: the code below runs as before.
-        if (this.getType() != EntityType.PLAYER) { return; }
+        if (this.getType() != EntityTypes.PLAYER) { return; }
         MinehopConfig config;
         double speedCap = 0.0D;
         if (Minehop.override_config && Minehop.receivedConfig) {
@@ -502,7 +508,7 @@ public abstract class LivingEntityMixin extends Entity {
         boolean catastrophicRestoreApplied = false;
         boolean forceRestorePreApplied = false;
         boolean forceRestorePostApplied = false;
-        if (this.getType() == EntityType.PLAYER && isFlying((Player) self)) { return; }
+        if (this.getType() == EntityTypes.PLAYER && isFlying((Player) self)) { return; }
 
         this.xxa /= 0.98F;
         this.zza /= 0.98F;
@@ -1069,7 +1075,7 @@ public abstract class LivingEntityMixin extends Entity {
                         this.minehop$hullSurfaceY, this.getX(), this.getBoundingBox().minY, this.getZ(),
                         afterGravH.x, afterGravH.y, afterGravH.z));
             }
-            this.calculateEntityAnimation(self instanceof FlyingAnimal);
+            this.calculateEntityAnimation(this.omnidirectionalAirMover()); // 26.2: FlyingAnimal became Entity#omnidirectionalAirMover
             ci.cancel();
             return;
         }
@@ -2028,7 +2034,7 @@ public abstract class LivingEntityMixin extends Entity {
             );
         }
 
-        this.calculateEntityAnimation(self instanceof FlyingAnimal);
+        this.calculateEntityAnimation(this.omnidirectionalAirMover()); // 26.2: FlyingAnimal became Entity#omnidirectionalAirMover
 
         ci.cancel();
     }
@@ -4058,7 +4064,7 @@ public abstract class LivingEntityMixin extends Entity {
 
         boolean cssCrouchEnabled = config.enabled
                 && config.movement.css_crouch_jump
-                && this.getType() == EntityType.PLAYER;
+                && this.getType() == EntityTypes.PLAYER;
         boolean airborneForSprintCarry = !this.onGround()
                 && !this.onClimbable()
                 && !this.isInWater()
@@ -4302,7 +4308,7 @@ public abstract class LivingEntityMixin extends Entity {
 
     @Inject(method = "maxUpStep", at = @At("HEAD"), cancellable = true)
     private void minehop$applyAutoStepUp(CallbackInfoReturnable<Float> cir) {
-        if (this.getType() != EntityType.PLAYER) {
+        if (this.getType() != EntityTypes.PLAYER) {
             return;
         }
 

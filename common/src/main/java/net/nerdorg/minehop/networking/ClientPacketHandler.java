@@ -122,10 +122,10 @@ public class ClientPacketHandler {
                 if (client == null || client.player == null) {
                     return;
                 }
-                if (client.screen instanceof AntiCheatScreen existing) {
+                if (client.gui.screen() instanceof AntiCheatScreen existing) {
                     existing.applySnapshotJson(payload.json());
                 } else {
-                    client.setScreen(new AntiCheatScreen(payload.json()));
+                    client.gui.setScreen(new AntiCheatScreen(payload.json()));
                 }
             });
         });
@@ -134,7 +134,7 @@ public class ClientPacketHandler {
             ctx.client().execute(() -> {
                 Minecraft client = ctx.client();
                 if (client.player != null) {
-                    client.setScreen(
+                    client.gui.setScreen(
                             new SurfStickSettingsScreen(
                                     payload.width(),
                                     payload.drop(),
@@ -157,7 +157,7 @@ public class ClientPacketHandler {
             ctx.client().execute(() -> {
                 Minecraft client = ctx.client();
                 if (client.player != null) {
-                    client.setScreen(
+                    client.gui.setScreen(
                             new ZoneStickSettingsScreen(
                                     payload.zoneType(),
                                     payload.mapName(),
@@ -292,7 +292,7 @@ public class ClientPacketHandler {
             String title = payload.title();
             Minecraft client = ctx.client();
             client.execute(() -> {
-                client.setScreen(new SelectMapScreen(Component.literal(title)));
+                client.gui.setScreen(new SelectMapScreen(Component.literal(title)));
             });
         });
 
@@ -300,7 +300,7 @@ public class ClientPacketHandler {
             Minecraft client = ctx.client();
             client.execute(() -> {
                 if (client.player != null) {
-                    client.setScreen(
+                    client.gui.setScreen(
                             new MapCreationScreen(
                                     payload.mapName(),
                                     payload.difficulty(),

@@ -51,4 +51,5 @@ includeBuild('build-logic')
 include('common')
 include('fabric')
 include('neoforge')
-include('forge')
+// No cloth-config Forge build exists for 26.3 (the unofficial cloth-config-forge port stops at 26.2): forge is not built.
+// include('forge')

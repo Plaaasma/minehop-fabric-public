@@ -2,12 +2,14 @@ package net.nerdorg.minehop.client;
 
 import net.nerdorg.minehop.platform.ClientServices;
 import net.minecraft.client.Camera;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.nerdorg.minehop.render.ModRenderLayer;
 import net.minecraft.world.phys.Vec3;
 import net.nerdorg.minehop.render.RenderUtil;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import com.mojang.blaze3d.vertex.PoseStack;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -29,7 +31,7 @@ public final class ReplayPathRenderer {
     public static void register() {
         ClientServices.CLIENT.onWorldRenderAfterEntities(context -> {
             PoseStack matrices = context.matrixStack();
-            MultiBufferSource consumers = context.consumers();
+            SubmitNodeCollector consumers = context.submitNodeCollector();
             Camera camera = context.camera();
             if (matrices == null || consumers == null || camera == null) {
                 return;
@@ -46,7 +48,10 @@ public final class ReplayPathRenderer {
             double cx = cameraPos.x;
             double cy = cameraPos.y;
             double cz = cameraPos.z;
-            matrices.pushPose();
+            // 26.2: the segments are collected and submitted as one custom geometry (drawn later in the frame), in the
+            // order they were drawn before: per segment the glow line, then the line.
+            float[] segments = new float[64 * SEGMENT_FLOATS];
+            int count = 0;
             int done = 0;
             for (double[] line : lines) {
                 int n = line.length / 3;
@@ -71,18 +76,53 @@ public final class ReplayPathRenderer {
                         double progress = (double) (done + i) / (double) (total - 1);
                         int red = (int) Math.round(255.0D * (1.0D - progress));
                         int green = (int) Math.round(255.0D * progress);
-                        Vector3f start = new Vector3f((float) fx, (float) fy, (float) fz);
-                        Vector3f end = new Vector3f((float) tx, (float) ty, (float) tz);
                         if (nearDist <= GLOW_DISTANCE) {
-                            RenderUtil.drawLine(consumers, matrices, start, end, 7, 80, red, green, 35);
+                            segments = add(segments, count++, fx, fy, fz, tx, ty, tz, 7, 80, red, green);
                         }
-                        RenderUtil.drawLine(consumers, matrices, start, end, 3, 230, red, green, 35);
+                        segments = add(segments, count++, fx, fy, fz, tx, ty, tz, 3, 230, red, green);
                     }
                     from = i;
                 }
                 done += n;
             }
-            matrices.popPose();
+            if (count == 0) {
+                return;
+            }
+            float[] drawn = segments;
+            int drawnCount = count;
+            consumers.submitCustomGeometry(matrices, ModRenderLayer.getLineOfWidth(3), (pose, consumer) -> {
+                Vector3f start = new Vector3f();
+                Vector3f end = new Vector3f();
+                for (int s = 0; s < drawnCount; s++) {
+                    int o = s * SEGMENT_FLOATS;
+                    start.set(drawn[o], drawn[o + 1], drawn[o + 2]);
+                    end.set(drawn[o + 3], drawn[o + 4], drawn[o + 5]);
+                    RenderUtil.drawLine(consumer, pose, start, end, (int) drawn[o + 6], (int) drawn[o + 7],
+                            (int) drawn[o + 8], (int) drawn[o + 9], 35);
+                }
+            });
         });
+    }
+
+    /** x0 y0 z0 x1 y1 z1 width alpha red green */
+    private static final int SEGMENT_FLOATS = 10;
+
+    private static float[] add(float[] segments, int index, double fx, double fy, double fz, double tx, double ty, double tz,
+                               int width, int alpha, int red, int green) {
+        int o = index * SEGMENT_FLOATS;
+        if (o + SEGMENT_FLOATS > segments.length) {
+            segments = Arrays.copyOf(segments, segments.length * 2);
+        }
+        segments[o] = (float) fx;
+        segments[o + 1] = (float) fy;
+        segments[o + 2] = (float) fz;
+        segments[o + 3] = (float) tx;
+        segments[o + 4] = (float) ty;
+        segments[o + 5] = (float) tz;
+        segments[o + 6] = width;
+        segments[o + 7] = alpha;
+        segments[o + 8] = red;
+        segments[o + 9] = green;
+        return segments;
     }
 }

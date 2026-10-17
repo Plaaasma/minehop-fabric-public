@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.nerdorg.minehop.networking.ClientPacketHandler;
 import net.nerdorg.minehop.client.RampPreviewGuiElementRenderState;
 import net.nerdorg.minehop.render.ModRenderLayer;
+import net.nerdorg.minehop.render.RenderUtil;
 import net.nerdorg.minehop.util.SurfRampVisualStyle;
 import org.joml.Matrix4f;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -507,21 +508,23 @@ public class SurfStickSettingsScreen extends Screen {
         context.enableScissor(x + 1, y + 1, x + width - 1, y + height - 1);
         // 1.21.6+: 3D geometry in a screen goes through a special GUI element (own depth-tested texture).
         // The drawer receives a stack already at the 1.21.4 origin (x + width/2, y + 0.62 * height).
-        context.guiRenderState.addPicturesInPictureState(new RampPreviewGuiElementRenderState((matrices, vertexConsumers) -> {
+        // 26.2: the element's geometry is submitted as custom geometry (no buffer source any more); each callback
+        // draws the same vertices with the submitted pose.
+        context.guiRenderState.addPicturesInPictureState(new RampPreviewGuiElementRenderState((matrices, collector) -> {
             matrices.pushPose();
-            matrices.mulPose(Axis.XP.rotationDegrees(-26.0F));
-            matrices.mulPose(Axis.YP.rotationDegrees(-46.0F));
+            matrices.rotate(Axis.XP.rotationDegrees(-26.0F));
+            matrices.rotate(Axis.YP.rotationDegrees(-46.0F));
             matrices.scale(scale, -scale, scale);
             if (wireMode) {
                 if (fillEnabled) {
-                    VertexConsumer fillConsumer = vertexConsumers.getBuffer(ModRenderLayer.getTranslucentColorQuads());
-                    this.renderStraightRampPreviewFill(matrices, fillConsumer, visualLength, visualWidth, visualDrop, oneSided, sideSign, fillColor, fillAlpha);
+                    collector.submitCustomGeometry(matrices, ModRenderLayer.getTranslucentColorQuads(), (pose, fillConsumer) ->
+                            this.renderStraightRampPreviewFill(RenderUtil.poseStackOf(pose), fillConsumer, visualLength, visualWidth, visualDrop, oneSided, sideSign, fillColor, fillAlpha));
                 }
-                VertexConsumer lineConsumer = vertexConsumers.getBuffer(RenderTypes.lines());
-                this.renderStraightRampPreviewWire(matrices, lineConsumer, visualLength, visualWidth, visualDrop, oneSided, sideSign, wireColor, 255);
+                collector.submitCustomGeometry(matrices, RenderTypes.lines(), (pose, lineConsumer) ->
+                        this.renderStraightRampPreviewWire(RenderUtil.poseStackOf(pose), lineConsumer, visualLength, visualWidth, visualDrop, oneSided, sideSign, wireColor, 255));
             } else {
-                VertexConsumer texturedConsumer = vertexConsumers.getBuffer(RenderTypes.entityCutout(TextureAtlas.LOCATION_BLOCKS));
-                this.renderStraightRampPreviewMesh(matrices, texturedConsumer, sprite, visualLength, visualWidth, visualDrop, oneSided, sideSign);
+                collector.submitCustomGeometry(matrices, RenderTypes.entityCutout(TextureAtlas.LOCATION_BLOCKS), (pose, texturedConsumer) ->
+                        this.renderStraightRampPreviewMesh(RenderUtil.poseStackOf(pose), texturedConsumer, sprite, visualLength, visualWidth, visualDrop, oneSided, sideSign));
             }
             matrices.popPose();
         }, x + 1, y + 1, x + width - 1, y + height - 1, context.scissorStack.peek()));

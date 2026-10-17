@@ -375,7 +375,7 @@ public final class UserPlotManager {
         if (!isPlotsWorld(world)) {
             return false;
         }
-        DataManager.MapData plot = getOwnedPlotAt(player, pos.getCenter());
+        DataManager.MapData plot = getOwnedPlotAt(player, Vec3.atCenterOf(pos));
         return plot != null && isInsidePlotBuildBounds(plot, pos);
     }
 

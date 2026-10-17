@@ -33,7 +33,7 @@ public final class ReplayHud {
     public static void render(GuiGraphicsExtractor graphics) {
         ReplayPlayback.Watch watch = ReplayPlayback.current();
         Minecraft mc = Minecraft.getInstance();
-        if (watch == null || mc.options.hideGui || (ConfigWrapper.config != null && ConfigWrapper.config.replay != null
+        if (watch == null || mc.gui.hud.isHidden() || (ConfigWrapper.config != null && ConfigWrapper.config.replay != null
                 && !ConfigWrapper.config.replay.show_replay_hud)) {
             return;
         }

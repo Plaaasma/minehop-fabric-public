@@ -240,28 +240,24 @@ public final class MovementValidator {
             return;
         }
         StreamState st = state(player);
+        // 26.3: the client no longer echoes a move packet after confirming a teleport (the confirmation carries its
+        // position and is not a tick), so every accepted positional move packet is a client tick's position.
         if (packet.hasPosition()) {
             Vec3 pos = player.position();
-            boolean echo = false;
-            if (st.teleportEchoPending) {
-                st.teleportEchoPending = false;
-                echo = st.lastPos != null && pos.distanceToSqr(st.lastPos) < 1.0E-12D;
-            }
-            if (!echo) {
-                if (st.tickPos != null) {
-                    // Two positional packets in one client tick: a vanilla client never does this.
-                    // Validate the earlier one as its own tick (with its own yaw/ground flag first).
-                    if (st.everSentTickEnd) {
-                        AntiCheatManager.reportMovementViolation(player, CHECK_PACKETS, 1.0D,
-                                "multipleMovesPerTick", false, null);
-                    }
-                    finalizeTick(player, st, st.tickMoveArrivalNanos, st.tickMoveArrivalKnown);
+            if (st.tickPos != null) {
+                // Two positional packets in one client tick: a vanilla client never does this (26.3 vanilla
+                // disconnects such a client itself before the packet gets here).
+                // Validate the earlier one as its own tick (with its own yaw/ground flag first).
+                if (st.everSentTickEnd) {
+                    AntiCheatManager.reportMovementViolation(player, CHECK_PACKETS, 1.0D,
+                            "multipleMovesPerTick", false, null);
                 }
-                st.tickPos = pos;
-                st.tickHorizontalCollision = packet.horizontalCollision();
-                st.tickMoveArrivalNanos = st.moveArrivalNanos;
-                st.tickMoveArrivalKnown = st.moveArrivalKnown;
+                finalizeTick(player, st, st.tickMoveArrivalNanos, st.tickMoveArrivalKnown);
             }
+            st.tickPos = pos;
+            st.tickHorizontalCollision = packet.horizontalCollision();
+            st.tickMoveArrivalNanos = st.moveArrivalNanos;
+            st.tickMoveArrivalKnown = st.moveArrivalKnown;
         }
         st.clientOnGround = packet.isOnGround();
         if (packet.hasRotation()) {
@@ -319,13 +315,6 @@ public final class MovementValidator {
         }
     }
 
-    /** Netty thread: the client confirmed a teleport; its next move packet is an echo, not a tick. */
-    public static void onTeleportConfirmNetwork(ServerPlayer player) {
-        if (player != null) {
-            state(player).timer.onTeleportConfirm();
-        }
-    }
-
     private static void handleTimer(ServerPlayer player, MinecraftServer server, TimerBalance.Violation violation) {
         if (violation != null) {
             UUID uuid = player.getUUID();
@@ -370,7 +359,6 @@ public final class MovementValidator {
         StreamState st = state(player);
         st.awaitingTeleport = false;
         st.lastTeleportNanos = System.nanoTime();
-        st.teleportEchoPending = true;
         st.ticksSinceTeleport = 0;
         st.graceTicks = Math.max(st.graceTicks, TELEPORT_GRACE_TICKS);
         st.graceSpeed = Math.max(st.graceSpeed, st.pendingTeleportSpeed);

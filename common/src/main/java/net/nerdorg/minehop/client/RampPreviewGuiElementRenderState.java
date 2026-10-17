@@ -3,7 +3,7 @@ package net.nerdorg.minehop.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -27,6 +27,6 @@ public record RampPreviewGuiElementRenderState(
 
     @FunctionalInterface
     public interface Drawer {
-        void draw(PoseStack matrices, MultiBufferSource vertexConsumers);
+        void draw(PoseStack matrices, SubmitNodeCollector collector);
     }
 }

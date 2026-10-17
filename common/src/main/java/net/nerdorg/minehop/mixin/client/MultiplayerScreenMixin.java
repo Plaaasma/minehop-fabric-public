@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(JoinMultiplayerScreen.class)
 public class MultiplayerScreenMixin {
-    @Shadow private Button selectButton;
+    @Shadow private Button joinButton; // 26.2: selectButton -> joinButton
 
     @Shadow private Button editButton;
 
@@ -22,12 +22,12 @@ public class MultiplayerScreenMixin {
 
     @Inject(method = "onSelectedChange", at = @At("HEAD"), cancellable = true)
     private void onUpdateButtonActivationStates(CallbackInfo ci) {
-        this.selectButton.active = false;
+        this.joinButton.active = false;
         this.editButton.active = false;
         this.deleteButton.active = false;
         ServerSelectionList.Entry entry = (ServerSelectionList.Entry)this.serverSelectionList.getSelected();
         if (entry != null && !(entry instanceof ServerSelectionList.LANHeader)) {
-            this.selectButton.active = true;
+            this.joinButton.active = true;
             if (entry instanceof ServerSelectionList.OnlineServerEntry serverEntry) {
                 if (!serverEntry.getServerData().ip.equals("mh.nerd-org.com")) {
                     this.editButton.active = true;

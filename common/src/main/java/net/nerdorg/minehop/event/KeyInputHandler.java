@@ -6,7 +6,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.client.HudEditorScreen;
-import org.lwjgl.glfw.GLFW;
 
 public class KeyInputHandler {
     public static final String KEY_CATEGORY_MINEHOP = "key.category.minehop";
@@ -24,8 +23,8 @@ public class KeyInputHandler {
                 client.getConnection().sendCommand("map restart");
             }
             while (hudEditorKey.consumeClick()) {
-                if (client.screen == null) {
-                    client.setScreen(new HudEditorScreen());
+                if (client.gui.screen() == null) {
+                    client.gui.setScreen(new HudEditorScreen());
                 }
             }
         });
@@ -34,15 +33,15 @@ public class KeyInputHandler {
     public static void register() {
         restartKey = ClientServices.CLIENT.registerKeyMapping(new KeyMapping(
            KEY_RESTART,
-           InputConstants.Type.KEYSYM,
-           GLFW.GLFW_KEY_R,
+           InputConstants.Type.KEYBOARD,
+           InputConstants.KEY_R,
            MINEHOP_CATEGORY
         ));
 
         hudEditorKey = ClientServices.CLIENT.registerKeyMapping(new KeyMapping(
            KEY_HUD_EDITOR,
-           InputConstants.Type.KEYSYM,
-           GLFW.GLFW_KEY_RIGHT_BRACKET,
+           InputConstants.Type.KEYBOARD,
+           InputConstants.KEY_RBRACKET,
            MINEHOP_CATEGORY
         ));
 

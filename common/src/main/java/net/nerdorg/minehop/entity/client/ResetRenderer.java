@@ -29,7 +29,7 @@ public class ResetRenderer extends MobRenderer<ResetEntity, ResetEntityRenderSta
     }
 
     @Override
-    public boolean shouldRender(ResetEntity mobEntity, Frustum frustum, double d, double e, double f) {
+    public boolean shouldRender(ResetEntity mobEntity, Frustum frustum, double d, double e, double f, float partialTicks) {
         return true;
     }
 

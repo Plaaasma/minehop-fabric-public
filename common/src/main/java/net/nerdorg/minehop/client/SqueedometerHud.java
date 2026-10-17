@@ -3,12 +3,12 @@
 package net.nerdorg.minehop.client;
 
 import net.nerdorg.minehop.render.GuiColors;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.network.chat.TextColor;
 import net.nerdorg.minehop.Minehop;
 import net.nerdorg.minehop.MinehopClient;
 import net.nerdorg.minehop.config.MinehopConfig;
@@ -241,7 +241,7 @@ public class SqueedometerHud {
             int ey = this.yPct(config.jHud.efficiencyHud.efficiency_y_offset);
             int effColor = gradient(eff / 100.0D);
             fillBar(context, ex, ey, len, thick, eff / 100.0D, effColor, true, vert);
-            int syncColor = sync >= 90 ? C_GREEN : (sync >= 70 ? ChatFormatting.YELLOW.getColor() : C_RED);
+            int syncColor = sync >= 90 ? C_GREEN : (sync >= 70 ? TextColor.YELLOW.getValue() : C_RED);
             String effLabel = String.format(Locale.ROOT, "EFF %.2f%%", eff);
             String syncLabel = String.format(Locale.ROOT, "SYNC %.2f%%   STRAFES %d", sync, strafes);
             if (!vert) {
@@ -315,10 +315,10 @@ public class SqueedometerHud {
 
         int top = (this.client.getWindow().getGuiScaledHeight() / 2) + (this.textRenderer.lineHeight * 2);
         int left = 6;
-        context.text(this.textRenderer, "Spectators \\/", left, top, GuiColors.text(ChatFormatting.DARK_GRAY.getColor()));
+        context.text(this.textRenderer, "Spectators \\/", left, top, GuiColors.text(TextColor.DARK_GRAY.getValue()));
         for (int index = 0; index < MinehopClient.spectatorList.size(); index++) {
             top += this.textRenderer.lineHeight * 2;
-            context.text(this.textRenderer, MinehopClient.spectatorList.get(index), left, top, GuiColors.text(ChatFormatting.RED.getColor()));
+            context.text(this.textRenderer, MinehopClient.spectatorList.get(index), left, top, GuiColors.text(TextColor.RED.getValue()));
         }
     }
 }

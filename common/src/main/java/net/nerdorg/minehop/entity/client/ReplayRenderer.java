@@ -22,13 +22,13 @@ public class ReplayRenderer extends MobRenderer<ReplayEntity, ReplayEntityRender
     }
 
     @Override
-    public boolean shouldRender(ReplayEntity mobEntity, Frustum frustum, double d, double e, double f) {
+    public boolean shouldRender(ReplayEntity mobEntity, Frustum frustum, double d, double e, double f, float partialTicks) {
         // Hidden on request, otherwise culled like any entity (this used to skip the frustum check entirely). Also
         // hidden while this client plays a replay itself or shows a world-record race ghost: no second ghost of it.
         return !net.nerdorg.minehop.client.ClientVisibility.hideReplay()
                 && !net.nerdorg.minehop.client.replay.ReplayPlayback.isActive()
                 && !net.nerdorg.minehop.client.replay.RaceGhost.showingWorldRecord()
-                && super.shouldRender(mobEntity, frustum, d, e, f);
+                && super.shouldRender(mobEntity, frustum, d, e, f, partialTicks);
     }
 
     @Override

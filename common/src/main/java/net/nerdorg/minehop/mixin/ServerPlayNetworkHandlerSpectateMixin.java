@@ -1,5 +1,6 @@
 package net.nerdorg.minehop.mixin;
 
+import net.minecraft.network.protocol.game.ServerboundAcceptTeleportationPacket;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundTeleportToEntityPacket;
 import net.minecraft.server.level.ServerPlayer;
@@ -39,6 +40,17 @@ public abstract class ServerPlayNetworkHandlerSpectateMixin {
     private void minehop$ignoreMovesInSession(ServerboundMovePlayerPacket packet, CallbackInfo ci) {
         if (SpectateSessions.isSpectating(this.player)) {
             // Nothing from this packet is applied, so it can't leave a stale "floating" state for the flight kick either.
+            this.clientIsFloating = false;
+            ci.cancel();
+        }
+    }
+
+    // 26.3: the teleport confirmation carries the client's position, which vanilla applies like a move once the
+    // teleport target was set (up to 26.1 the client sent it as a separate move packet, ignored above). Ignore it too.
+    @Inject(method = "handleAcceptTeleportPacket", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/server/network/ServerGamePacketListenerImpl;handlePlayerPositionChange(DDDFFZZ)V"), cancellable = true)
+    private void minehop$ignoreConfirmedPositionInSession(ServerboundAcceptTeleportationPacket packet, CallbackInfo ci) {
+        if (SpectateSessions.isSpectating(this.player)) {
             this.clientIsFloating = false;
             ci.cancel();
         }

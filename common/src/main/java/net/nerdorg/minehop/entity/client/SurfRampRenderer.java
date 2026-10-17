@@ -66,8 +66,8 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
     }
 
     @Override
-    public boolean shouldRender(SurfRampEntity entity, Frustum frustum, double x, double y, double z) {
-        return super.shouldRender(entity, frustum, x, y, z);
+    public boolean shouldRender(SurfRampEntity entity, Frustum frustum, double x, double y, double z, float partialTicks) {
+        return super.shouldRender(entity, frustum, x, y, z, partialTicks);
     }
 
     @Override
@@ -177,8 +177,8 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
         }
 
         Minecraft client = Minecraft.getInstance();
-        if (client != null && client.gameRenderer != null && client.gameRenderer.getMainCamera() != null) {
-            Vec3 cameraPos = client.gameRenderer.getMainCamera().position();
+        if (client != null && client.gameRenderer != null && client.gameRenderer.mainCamera() != null) {
+            Vec3 cameraPos = client.gameRenderer.mainCamera().position();
             if (cameraPos != null) {
                 double distanceSq = cameraPos.distanceToSqr(entityPos);
                 if (distanceSq > 4096.0D) {
@@ -475,10 +475,10 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
     @Nullable
     private Vec3 getCameraPos() {
         Minecraft client = Minecraft.getInstance();
-        if (client == null || client.gameRenderer == null || client.gameRenderer.getMainCamera() == null) {
+        if (client == null || client.gameRenderer == null || client.gameRenderer.mainCamera() == null) {
             return null;
         }
-        return client.gameRenderer.getMainCamera().position();
+        return client.gameRenderer.mainCamera().position();
     }
 
     private boolean shouldRenderUnderside(SurfRampEntity entity, @Nullable Vec3 cameraPos) {
@@ -1632,6 +1632,12 @@ public class SurfRampRenderer extends MobRenderer<SurfRampEntity, SurfRampEntity
         @Override
         public VertexConsumer setUv2(int u, int v) {
             // light: applied by RampMesh#emit
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setUv3(float u, float v) {
+            // 26.3: sheeted decal (glint) uv; the ramp drawing never writes it
             return this;
         }
 

@@ -91,7 +91,6 @@ public final class TimerBalance {
     private long gapCreditNanos;
     private long ticksSeen;
     private boolean tickEndSinceMove = true;
-    private boolean expectTeleportEcho;
 
     private final LinkedHashMap<Integer, Long> outstandingHeartbeats = new LinkedHashMap<>();
     private final ArrayDeque<RttSample> rttSamples = new ArrayDeque<>();
@@ -113,20 +112,13 @@ public final class TimerBalance {
 
     /** A move packet arrived: if no tick-end came since the previous move, it is an extra tick. */
     public synchronized Violation onMovePacket(long nowNanos, long nanosPerTick) {
-        if (this.expectTeleportEcho) {
-            // The client echoes one move packet right after confirming a teleport (not a tick).
-            this.expectTeleportEcho = false;
-            return null;
-        }
+        // (Up to 26.1 the client echoed one move packet right after confirming a teleport, which was not a tick;
+        // 26.3 clients put that position into the confirmation itself.)
         if (!this.tickEndSinceMove) {
             return tick(nowNanos, nanosPerTick);
         }
         this.tickEndSinceMove = false;
         return null;
-    }
-
-    public synchronized void onTeleportConfirm() {
-        this.expectTeleportEcho = true;
     }
 
     /** Server thread: a heartbeat ping with this id was just sent. */

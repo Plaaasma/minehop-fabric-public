@@ -21,7 +21,7 @@ public abstract class PlayerEntityRendererMixin {
     // LivingEntityRenderer nor PlayerEntityRenderer override it), so this is the method that runs
     // for players. Param erases to Entity so the mixin AP resolves the remapped (production) refmap.
     @Inject(method = "shouldRender", at = @At("HEAD"), cancellable = true)
-    private void minehop$hideOtherPlayers(Entity entity, Frustum frustum, double x, double y, double z, CallbackInfoReturnable<Boolean> cir) {
+    private void minehop$hideOtherPlayers(Entity entity, Frustum frustum, double x, double y, double z, float partialTicks, CallbackInfoReturnable<Boolean> cir) {
         // Watching a replay on this client: the (spectating, parked) local player is not part of the picture.
         if (net.nerdorg.minehop.client.replay.ReplayPlayback.isActive() && entity == Minecraft.getInstance().player) {
             cir.setReturnValue(false);

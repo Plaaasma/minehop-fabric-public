@@ -3,7 +3,7 @@ package net.nerdorg.minehop.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.nerdorg.minehop.platform.ClientServices;
 import net.minecraft.client.Camera;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -56,7 +56,7 @@ public final class BoundsStickPreviewRenderer {
             }
 
             PoseStack matrices = context.matrixStack();
-            MultiBufferSource consumers = context.consumers();
+            SubmitNodeCollector consumers = context.submitNodeCollector();
             Camera camera = context.camera();
             if (matrices == null || consumers == null || camera == null) {
                 return;

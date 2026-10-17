@@ -12,7 +12,6 @@ import net.nerdorg.minehop.networking.payloads.ReplayControlPayload;
 import net.nerdorg.minehop.networking.payloads.ReplayErrorPayload;
 import net.nerdorg.minehop.networking.payloads.ReplayWatchPayload;
 import net.nerdorg.minehop.platform.ClientServices;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Client-side replays (1.1.7+): the payload receivers, the keys and the per-tick work of {@link ReplayPlayback}
@@ -53,11 +52,11 @@ public final class ClientReplays {
 
     /** Once, from the client init: keys, ticks, rendering. */
     public static void init() {
-        pauseKey = key(KEY_PAUSE, GLFW.GLFW_KEY_K);
-        backKey = key(KEY_BACK, GLFW.GLFW_KEY_LEFT);
-        forwardKey = key(KEY_FORWARD, GLFW.GLFW_KEY_RIGHT);
-        slowerKey = key(KEY_SLOWER, GLFW.GLFW_KEY_DOWN);
-        fasterKey = key(KEY_FASTER, GLFW.GLFW_KEY_UP);
+        pauseKey = key(KEY_PAUSE, InputConstants.KEY_K);
+        backKey = key(KEY_BACK, InputConstants.KEY_LEFT);
+        forwardKey = key(KEY_FORWARD, InputConstants.KEY_RIGHT);
+        slowerKey = key(KEY_SLOWER, InputConstants.KEY_DOWN);
+        fasterKey = key(KEY_FASTER, InputConstants.KEY_UP);
         stopKey = key(KEY_STOP, InputConstants.UNKNOWN.getValue());
         raceKey = key(KEY_RACE, InputConstants.UNKNOWN.getValue());
         ClientServices.CLIENT.onClientTickEnd(ClientReplays::tick);
@@ -65,7 +64,7 @@ public final class ClientReplays {
     }
 
     private static KeyMapping key(String name, int defaultKey) {
-        return ClientServices.CLIENT.registerKeyMapping(new KeyMapping(name, InputConstants.Type.KEYSYM, defaultKey,
+        return ClientServices.CLIENT.registerKeyMapping(new KeyMapping(name, InputConstants.Type.KEYBOARD, defaultKey,
                 KeyInputHandler.MINEHOP_CATEGORY));
     }
 
