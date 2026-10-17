@@ -3,10 +3,58 @@
 Minehop follows jaredlll08's [MultiLoader-Template](https://github.com/jaredlll08/MultiLoader-Template/tree/26.1.2)
 (Mojang mappings, `build-logic` included build with the conventions `multiloader-common` / `multiloader-loader`).
 
-**This branch (`26.1.x`) is Minecraft 26.1.2.** The layout, platform API and wire format are the 1.21.4 pilot's (branch
-`surf`); what 26.1 changes is listed in "26.1.2 port" right below. The version-specific statements further down
-(1.21.4 version numbers, ForgeGradle 6, SRG access transformers, `Stage.AFTER_ENTITIES`, `fabric:registry/sync/direct`,
-the Forge `Client`/`Server` task names, ...) describe the pilot unless that section says otherwise.
+**This branch (`26.3`) is Minecraft 26.3** (ported from branch `26.1.x`, Minecraft 26.1.2). The layout, platform API and
+wire format are the 1.21.4 pilot's (branch `surf`); what 26.3 changes is listed in "26.3 port" right below, what 26.1
+changed in "26.1.2 port" after it. The version-specific statements further down (1.21.4 version numbers, ForgeGradle 6,
+SRG access transformers, `Stage.AFTER_ENTITIES`, `fabric:registry/sync/direct`, the Forge `Client`/`Server` task names,
+...) describe the pilot unless that section says otherwise.
+
+## 26.3 port
+
+| Module | 26.3 build |
+|---|---|
+| `common/` | ModDevGradle 2.0.148 in vanilla mode, NeoForm `26.3-1`. |
+| `fabric/` | `net.fabricmc.fabric-loom` 1.18.4 (no mappings, no remapping). Fabric Loader 0.19.5, Fabric API 0.163.0+26.3, cloth-config-fabric 26.3.159, ModMenu 21.0.0. |
+| `neoforge/` | ModDevGradle 2.0.148, NeoForge 26.3.0.88, cloth-config-neoforge 26.3.159. |
+| `forge/` | **Not built** (`settings.gradle` leaves it out): there is no cloth-config Forge build for 26.3 (the unofficial cloth-config-forge port stops at 26.2). The sources stay as they were on 26.1.2. |
+
+`gradlew build` -> `{fabric,neoforge}/build/libs/minehop-<loader>-26.3-<version>.jar`; `minecraft_version_range` is
+`[26.3, 26.4)`, fabric.mod.json `"minecraft": "~26.3"`.
+
+Minecraft 26.2/26.3 changes handled in common:
+- Rendering: `MultiBufferSource` is gone. World overlays (bounds/surf stick previews, the /spec path, client replay
+  ghosts) are submitted to the frame's `SubmitNodeCollector` (custom geometry / `submitModel`) right after the level's
+  own submits: `IClientHelper.WorldRenderContext#submitNodeCollector()`, Fabric `LevelRenderEvents.COLLECT_SUBMITS`,
+  NeoForge `SubmitCustomGeometryEvent`. Picture-in-picture renderers submit to their own node storage (no buffer
+  source; the factory is a `Supplier`). The render API moved to `com.mojang.renderpearl`; depth is reversed (pipelines
+  test `GREATER_THAN_OR_EQUAL`); "improved transparency" draws translucent features through OIT, so Minehop's
+  translucent quad layer carries vanilla's position-colour OIT pipelines; vanilla's `lines()` is opaque now, so the
+  line layers are `linesTranslucent()` (`linesTranslucentNoDepthWrite()` with improved transparency, like the block
+  outline). `PoseStack#mulPose(Quaternion)` is `rotate`; `VertexConsumer` has `setUv3`.
+- `Gui` was split into `Gui` and `Hud`: the HUD mixin targets `Hud` (same methods and sprites), screens are
+  `minecraft.gui.screen()`/`gui.setScreen(...)`, `Options#hideGui` is `gui.hud.isHidden()`, the camera is
+  `gameRenderer.mainCamera()`. `ExperienceBarRenderer` is `ExperienceBar`.
+- GLFW was replaced by SDL: default key mappings use `InputConstants.KEY_*` (scancodes) and `InputConstants.Type.KEYBOARD`.
+- Vanilla API: entity types live in `EntityTypes` (the `aiStep` velocity cutoff hook still matches the only
+  `is(Object)` call, now `this.is(EntityTypes.PLAYER)`), `ChatFormatting` colours come from `TextColor`, blocks have no
+  codec, `FlyingAnimal` is `Entity#omnidirectionalAirMover`, `EntityRenderer#shouldRender` takes the partial tick, the
+  interpolation handler is created by `createInterpolationHandler()` (the replay ghost wraps vanilla's to snap),
+  `knockback`/`randomTeleport` take extra arguments (the hooks target the full overloads), `BlockPos#getCenter` is
+  `Vec3.atCenterOf`.
+- Networking: `handleMovePlayer`'s checks moved to `handlePlayerPositionChange` (the move threshold constants follow).
+  The teleport confirmation (`ServerboundAcceptTeleportationPacket`) carries the client's position, which vanilla
+  applies like a move, and the client no longer echoes a move packet after it: the anticheat no longer expects the
+  echo, and spectate sessions ignore the confirmed position like moves. Vanilla now disconnects a client that sends
+  two positional move packets in one client tick.
+- Physics: 26.3 moved the post-collision velocity handling of `Entity#move` into `restituteMovementAfterCollisions`
+  (bounciness attributes) and added the friction/air drag modifier attributes; with their default values the movement
+  harness output is byte-identical to the 1.21.4 build on Fabric and NeoForge.
+
+Loader-specific 26.3 changes: NeoForge merged `EntityInteractSpecific` into `EntityInteract` (it carries the hit
+location; one listener, like Fabric's single `UseEntityCallback`); the NeoForge client's connection "initialized" flag
+moved from the configuration listener to a connection attribute (`ClientNetworkRegistry#isConnectionInitialized`),
+which `ClientConfigurationPacketListenerImplMixin` now reads; `IHolderExtension#getKey` is `key()`. Fabric registry sync
+(fabric-registry-sync-v0 8.0.3) uses the same `fabric:registry/sync` payload as 26.1.
 
 ## 26.1.2 port
 
